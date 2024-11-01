@@ -1,55 +1,122 @@
-import {
-  ObservationClickhouseRecord,
-  TraceClickhouseRecord,
-} from "../clickhouse/schema";
+import { ObservationClickhouseRecord } from "../clickhouse/schema";
 import { queryClickhouse } from "./clickhouse";
 import {
-  createFilterFromFilterState,
-  getProjectIdDefaultFilter,
-} from "../queries/clickhouse-filter/factory";
-import { ObservationLevel } from "@prisma/client";
-import { FilterState } from "../../types";
+  Model,
+  Observation,
+  ObservationLevel,
+  ObservationType,
+  ObservationView,
+  Price,
+} from "@prisma/client";
 import { logger } from "../logger";
-import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
+import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+import Decimal from "decimal.js";
+import { prisma } from "../../db";
+import { jsonSchema } from "../../utils/zod";
 
-export const convertObservation = (record: ObservationClickhouseRecord) => {
+export const convertObservation = async (
+  record: ObservationClickhouseRecord,
+): Promise<Observation> => {
+  const model = await prisma.model.findFirst({
+    where: {
+      id: record.internal_model_id,
+    },
+    include: {
+      Price: true,
+    },
+  });
+  return await convertObservationAndModel(record, model);
+};
+
+export const convertObservationToView = async (
+  record: ObservationClickhouseRecord,
+): Promise<ObservationView> => {
+  const model = await prisma.model.findFirst({
+    where: {
+      id: record.internal_model_id,
+    },
+    include: {
+      Price: true,
+    },
+  });
   return {
-    id: record.id,
-    observationId: record.id,
-    traceId: record.trace_id,
-    projectId: record.project_id,
-    type: record.type,
-    parentObservationId: record.parent_observation_id,
-    startTime: new Date(record.start_time),
-    endTime: record.end_time ? new Date(record.end_time) : undefined,
-    name: record.name,
-    metadata: record.metadata,
-    level: record.level as ObservationLevel,
-    statusMessage: record.status_message,
-    version: record.version,
-    input: record.input,
-    output: record.output,
-    providedModelName: record.provided_model_name,
-    internalModelId: record.internal_model_id,
-    modelParameters: record.model_parameters,
-    providedUsageDetails: record.provided_usage_details,
-    usageDetails: record.usage_details,
-    providedCostDetails: record.provided_cost_details,
-    costDetails: record.cost_details,
-    totalCost: record.total_cost,
-    completionStartTime: record.completion_start_time
-      ? new Date(record.completion_start_time)
-      : undefined,
-    promptId: record.prompt_id,
-    promptName: record.prompt_name,
-    promptVersion: record.prompt_version,
-    createdAt: new Date(record.created_at),
-    updatedAt: new Date(record.updated_at),
-    eventTs: new Date(record.event_ts),
+    ...(await convertObservationAndModel(record, model)),
+    latency: record.end_time
+      ? new Date(record.end_time).getTime() -
+        new Date(record.start_time).getTime()
+      : null,
+    timeToFirstToken: record.completion_start_time
+      ? new Date(record.start_time).getTime() -
+        new Date(record.completion_start_time).getTime()
+      : null,
+    inputPrice:
+      model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+    outputPrice:
+      model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+    totalPrice:
+      model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+    promptName: record.prompt_name ?? null,
+    promptVersion: record.prompt_version ?? null,
+    modelId: record.internal_model_id ?? null,
   };
 };
 
-export const getObservationsForTrace = async (
+const convertObservationAndModel = async (
+  record: ObservationClickhouseRecord,
+  model: (Model & { Price: Price[] }) | null,
+): Promise<Observation> => {
+  return {
+    id: record.id,
+    traceId: record.trace_id,
+    projectId: record.project_id,
+    type: record.type as ObservationType,
+    parentObservationId: record.parent_observation_id ?? null,
+    startTime: new Date(record.start_time),
+    endTime: record.end_time ? new Date(record.end_time) : null,
+    name: record.name,
+    metadata: record.metadata,
+    level: record.level as ObservationLevel,
+    statusMessage: record.status_message ?? null,
+    version: record.version ?? null,
+    input: jsonSchema.parse(record.input),
+    output: jsonSchema.parse(record.output),
+    modelParameters: jsonSchema.parse(record.model_parameters),
+    completionStartTime: record.completion_start_time
+      ? new Date(record.completion_start_time)
+      : null,
+    promptId: record.prompt_id ?? null,
+    createdAt: new Date(record.created_at),
+    updatedAt: new Date(record.updated_at),
+    promptTokens: record.usage_details?.input ?? 0,
+    completionTokens: record.usage_details?.output ?? 0,
+    totalTokens: record.usage_details?.total ?? 0,
+    calculatedInputCost: record.cost_details?.input
+      ? new Decimal(record.cost_details.input)
+      : null,
+    calculatedOutputCost: record.cost_details?.output
+      ? new Decimal(record.cost_details.output)
+      : null,
+    calculatedTotalCost: record.cost_details?.total
+      ? new Decimal(record.cost_details.total)
+      : null,
+    inputCost: record.cost_details?.input
+      ? new Decimal(record.cost_details?.input)
+      : null,
+    outputCost: record.cost_details?.output
+      ? new Decimal(record.cost_details?.output)
+      : null,
+    totalCost: record.cost_details?.total
+      ? new Decimal(record.cost_details?.total)
+      : null,
+
+    model: record.provided_model_name ?? null,
+    internalModelId: record.internal_model_id ?? null,
+    internalModel: model?.modelName ?? null, // to be removed
+    unit: model?.Price?.shift()?.usageType ?? null,
+  };
+};
+
+export const getObservationsViewForTrace = async (
   traceId: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
@@ -90,12 +157,65 @@ export const getObservationsForTrace = async (
     params: { traceId, projectId },
   });
 
-  return records.map((record) => {
-    return {
-      ...record,
-      projectId: record.project_id,
-      observationId: record.id,
-      traceId: record.trace_id,
-    };
+  return await Promise.all(
+    records.map(async (o) => await convertObservationToView(o)),
+  );
+};
+
+export const getObservationById = async (
+  id: string,
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
+  const query = `
+  SELECT
+    id,
+    trace_id,
+    project_id,
+    type,
+    parent_observation_id,
+    start_time,
+    end_time,
+    name,
+    metadata,
+    level,
+    status_message,
+    version,
+    ${fetchWithInputOutput ? "input, output," : ""}
+    provided_model_name,
+    internal_model_id,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    created_at,
+    updated_at,
+    event_ts
+  FROM observations FINAL WHERE id = {id: String} AND project_id = {projectId: String}`;
+  const records = await queryClickhouse<ObservationClickhouseRecord>({
+    query,
+    params: { id, projectId },
   });
+
+  const mapped = records.map((r) => convertObservation(r));
+
+  if (mapped.length === 0) {
+    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
+  }
+
+  if (mapped.length > 1) {
+    logger.error(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+    throw new InternalServerError(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+  }
+  return mapped.shift();
 };

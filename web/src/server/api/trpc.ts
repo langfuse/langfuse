@@ -318,7 +318,7 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
 const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
-  queryClickhouse: z.boolean().nullable(),
+  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -334,19 +334,27 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
 
   // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
-  const trace =
+  let trace;
+
+  if (
     result.data.queryClickhouse === true &&
     isClickhouseEligible(ctx.session?.user)
-      ? await getTraceById(traceId, projectId)
-      : await prisma.trace.findFirst({
-          where: {
-            id: traceId,
-            projectId: projectId,
-          },
-          select: {
-            public: true,
-          },
-        });
+  ) {
+    logger.info(
+      `Querying Clickhouse for traceid: ${traceId} and project: ${projectId} `,
+    );
+    trace = await getTraceById(traceId, projectId);
+  } else {
+    trace = await prisma.trace.findFirst({
+      where: {
+        id: traceId,
+        projectId: projectId,
+      },
+      select: {
+        public: true,
+      },
+    });
+  }
 
   if (!trace)
     throw new TRPCError({

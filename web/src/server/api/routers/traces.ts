@@ -36,8 +36,7 @@ import {
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
-  getObservationsForTrace,
-  convertObservation,
+  getObservationsViewForTrace,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -554,35 +553,7 @@ export const traceRouter = createTRPCRouter({
 
       const [trace, observations, scores] = await Promise.all([
         getTraceById(input.traceId, input.projectId),
-        (await getObservationsForTrace(input.traceId, input.projectId))
-          .map(convertObservation)
-          .map((o) => ({
-            ...o,
-            promptTokens: o.usageDetails?.input ?? undefined,
-            completionTokens: o.usageDetails?.output ?? undefined,
-            totalTokens: o.usageDetails?.total ?? undefined,
-            calculatedInputCost: o.costDetails?.input
-              ? new Decimal(o.costDetails.input)
-              : undefined,
-            calculatedOutputCost: o.costDetails?.output
-              ? new Decimal(o.costDetails.output)
-              : undefined,
-            calculatedTotalCost: o.costDetails?.total
-              ? new Decimal(o.costDetails.total)
-              : undefined,
-            modelId: o.internalModelId,
-            unit: "some",
-            inputPrice: new Decimal(0),
-            outputPrice: new Decimal(0),
-            totalPrice: new Decimal(0),
-            latency: o.endTime
-              ? o.endTime.getTime() - o.startTime.getTime()
-              : undefined,
-            timeToFirstToken: o.completionStartTime
-              ? o.startTime.getTime() - o.completionStartTime.getTime()
-              : undefined,
-            model: o.providedModelName,
-          })),
+        getObservationsViewForTrace(input.traceId, input.projectId),
         getScoresForTraces(
           input.projectId,
           [input.traceId],

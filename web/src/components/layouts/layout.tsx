@@ -56,6 +56,8 @@ const getUserNavigation = (isAdmin: boolean) => {
     },
   ];
 
+  console.log("isAdmin", isAdmin);
+
   return isAdmin
     ? [
         {

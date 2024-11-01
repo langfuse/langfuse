@@ -33,6 +33,7 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const ObservationPreview = ({
   observations,
@@ -68,6 +69,7 @@ export const ObservationPreview = ({
     observationId: currentObservationId,
     traceId: traceId,
     projectId: projectId,
+    queryClickhouse: useClickhouse(),
   });
 
   const preloadedObservation = observations.find(
