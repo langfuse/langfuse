@@ -281,6 +281,10 @@ export function TracePage({ traceId }: { traceId: string }) {
         !!trace.data?.projectId &&
         trace.isSuccess &&
         isAuthenticatedAndProjectMember,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
 
