@@ -68,12 +68,16 @@ const DatasetRunTableMultiSelectAction = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <Link
-            href={{
-              pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-              query: { runs: selectedRunIds },
-            }}
+            href={
+              selectedRunIds.length < 2
+                ? "#"
+                : {
+                    pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                    query: { runs: selectedRunIds },
+                  }
+            }
           >
-            <DropdownMenuItem>
+            <DropdownMenuItem disabled={selectedRunIds.length < 2}>
               <Columns3 className="mr-2 h-4 w-4" />
               <span>Compare</span>
             </DropdownMenuItem>
@@ -331,7 +335,7 @@ export function DatasetRunsTable(props: {
           props.menuItems,
           Object.keys(selectedRows).filter((runId) =>
             runs.data?.runs.map((run) => run.id).includes(runId),
-          ).length > 1 ? (
+          ).length > 0 ? (
             <DatasetRunTableMultiSelectAction
               // Exclude items that are not in the current page
               selectedRunIds={Object.keys(selectedRows).filter((runId) =>

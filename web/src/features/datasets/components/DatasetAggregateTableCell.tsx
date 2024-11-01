@@ -2,7 +2,10 @@ import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import TableLink from "@/src/components/table/table-link";
 import { Badge } from "@/src/components/ui/badge";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { type RunMetrics } from "@/src/features/datasets/components/DatasetCompareRunsTable";
+import {
+  type DatasetRunMetric,
+  type RunMetrics,
+} from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { ClockIcon, ListTree } from "lucide-react";
@@ -14,9 +17,11 @@ const DatasetAggregateCell = ({
   projectId,
   observationId,
   scoreKeyToDisplayName,
+  selectedMetrics,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
+  selectedMetrics: DatasetRunMetric[];
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -61,32 +66,36 @@ const DatasetAggregateCell = ({
         />
       </div>
 
-      <div className="flex w-full flex-row flex-wrap gap-1">
-        {Object.entries(scores).map(([key, score]) => (
-          <div key={key}>
-            <Badge variant="outline" className="p-0.5 px-1 font-normal">
-              <span className="mr-0.5 capitalize">
-                {scoreKeyToDisplayName.get(key)}:
-              </span>
-              <ScoresTableCell aggregate={score} />
-            </Badge>
-          </div>
-        ))}
-      </div>
+      {selectedMetrics.includes("scores") && (
+        <div className="flex w-full flex-row flex-wrap gap-1">
+          {Object.entries(scores).map(([key, score]) => (
+            <div key={key}>
+              <Badge variant="outline" className="p-0.5 px-1 font-normal">
+                <span className="mr-0.5 capitalize">
+                  {scoreKeyToDisplayName.get(key)}:
+                </span>
+                <ScoresTableCell aggregate={score} />
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <div className="flex w-full flex-row flex-wrap gap-1">
-        <Badge variant="outline" className="p-0.5 px-1 font-normal">
-          <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
-          <span className="capitalize">
-            {!!resourceMetrics.latency
-              ? formatIntervalSeconds(resourceMetrics.latency)
-              : null}
-          </span>
-        </Badge>
-        <Badge variant="outline" className="p-0.5 px-1 font-normal">
-          <span className="mr-0.5">{resourceMetrics.totalCost}</span>
-        </Badge>
-      </div>
+      {selectedMetrics.includes("resourceMetrics") && (
+        <div className="flex w-full flex-row flex-wrap gap-1">
+          <Badge variant="outline" className="p-0.5 px-1 font-normal">
+            <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+            <span className="capitalize">
+              {!!resourceMetrics.latency
+                ? formatIntervalSeconds(resourceMetrics.latency)
+                : null}
+            </span>
+          </Badge>
+          <Badge variant="outline" className="p-0.5 px-1 font-normal">
+            <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+          </Badge>
+        </div>
+      )}
 
       <div className="flex-grow" />
 
@@ -113,16 +122,19 @@ export const DatasetAggregateTableCell = ({
   value,
   projectId,
   scoreKeyToDisplayName,
+  selectedMetrics,
 }: {
   value: RunMetrics;
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
+  selectedMetrics: DatasetRunMetric[];
 }) => {
   return value ? (
     <DatasetAggregateCell
       projectId={projectId}
       {...value}
       scoreKeyToDisplayName={scoreKeyToDisplayName}
+      selectedMetrics={selectedMetrics}
     />
   ) : null;
 };

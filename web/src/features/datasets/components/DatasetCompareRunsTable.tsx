@@ -10,10 +10,18 @@ import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api } from "@/src/utils/api";
+import { Button } from "@/src/components/ui/button";
+import { ChevronDown, Rows3 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 
 export type RunMetrics = {
   id: string;
@@ -37,6 +45,9 @@ export type DatasetCompareRunRowData = {
   runs?: RunAggregate;
 };
 
+const DATASET_RUN_METRICS = ["scores", "resourceMetrics"] as const;
+export type DatasetRunMetric = (typeof DATASET_RUN_METRICS)[number];
+
 export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
@@ -46,6 +57,11 @@ export function DatasetCompareRunsTable(props: {
     name: string;
   }[];
 }) {
+  const [selectedMetrics, setSelectedMetrics] = useState<DatasetRunMetric[]>([
+    "scores",
+    "resourceMetrics",
+  ]);
+  const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
   const rowHeight = "l";
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -144,6 +160,7 @@ export function DatasetCompareRunsTable(props: {
       runNames: props.runIdsAndNames ?? [],
       scoreKeyToDisplayName,
       cellsLoading: !scoreKeysAndProps.data,
+      selectedMetrics,
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
@@ -227,6 +244,48 @@ export function DatasetCompareRunsTable(props: {
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         rowHeight={rowHeight}
+        actionButtons={
+          <DropdownMenu open={isMetricsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
+              >
+                <Rows3 className="mr-2 h-4 w-4" />
+                <span className="text-xs text-muted-foreground">Metrics</span>
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              onPointerDownOutside={() => setIsMetricsDropdownOpen(false)}
+            >
+              <DropdownMenuCheckboxItem
+                checked={selectedMetrics.includes("scores")}
+                onCheckedChange={() => {
+                  setSelectedMetrics((prev) =>
+                    prev.includes("scores")
+                      ? prev.filter((m) => m !== "scores")
+                      : [...prev, "scores"],
+                  );
+                }}
+              >
+                Scores
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={selectedMetrics.includes("resourceMetrics")}
+                onCheckedChange={() =>
+                  setSelectedMetrics((prev) =>
+                    prev.includes("resourceMetrics")
+                      ? prev.filter((m) => m !== "resourceMetrics")
+                      : [...prev, "resourceMetrics"],
+                  )
+                }
+              >
+                Latency and cost
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
       <DataTable
         columns={columns}

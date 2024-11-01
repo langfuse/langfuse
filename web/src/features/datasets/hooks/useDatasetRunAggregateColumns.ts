@@ -1,17 +1,20 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
+import { type DatasetRunMetric } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
   runNames,
   scoreKeyToDisplayName,
+  selectedMetrics,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
   runNames: { name: string; id: string }[];
   scoreKeyToDisplayName: Map<string, string>;
+  selectedMetrics: DatasetRunMetric[];
   cellsLoading?: boolean;
 }) {
   const runAggregateColumnProps = runIds.map((runId) => ({
@@ -25,8 +28,15 @@ export function useDatasetRunAggregateColumns({
       cellsLoading,
       projectId,
       scoreKeyToDisplayName,
+      selectedMetrics,
     });
-  }, [runAggregateColumnProps, cellsLoading, projectId, scoreKeyToDisplayName]);
+  }, [
+    runAggregateColumnProps,
+    cellsLoading,
+    projectId,
+    scoreKeyToDisplayName,
+    selectedMetrics,
+  ]);
 
   return {
     runAggregateColumns,
