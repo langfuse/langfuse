@@ -275,7 +275,7 @@ export default function Layout(props: PropsWithChildren) {
   if (hideNavigation)
     return (
       <SidebarProvider>
-        <main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4">
+        <main className="h-dvh w-full bg-primary-foreground p-3 px-4 py-4 sm:px-6 lg:px-8">
           {props.children}
         </main>
       </SidebarProvider>
