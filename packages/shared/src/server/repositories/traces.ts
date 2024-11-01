@@ -26,7 +26,7 @@ export type TracesTableReturnType = Pick<
 > & {
   level: ObservationLevel;
   observation_count: number | null;
-  latency: number;
+  latency: string | null;
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
@@ -56,8 +56,8 @@ export const getTracesTable = async (
   filter: FilterState,
   limit?: number,
   offset?: number,
-) =>
-  getTracesTableGeneric<TracesTableReturnType>(
+) => {
+  const rows = await getTracesTableGeneric<TracesTableReturnType>(
     `
     t.id, 
     t.project_id, 
@@ -83,6 +83,9 @@ export const getTracesTable = async (
     limit,
     offset,
   );
+
+  return rows;
+};
 
 const getTracesTableGeneric = async <T>(
   select: string,
@@ -151,7 +154,7 @@ const getTracesTableGeneric = async <T>(
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<T>({
+  return await queryClickhouse<T>({
     query: query,
     params: {
       limit: limit,
@@ -161,8 +164,6 @@ const getTracesTableGeneric = async <T>(
       ...scoresAvgFilterRes.params,
     },
   });
-
-  return rows;
 };
 
 export const getTraceByIdOrThrow = async (
