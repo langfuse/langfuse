@@ -13,6 +13,7 @@ export default function DatasetCompare() {
   const datasetId = router.query.datasetId as string;
   const runIds = router.query.runs as undefined | string[];
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [runState, setRunState] = useQueryParams({
     runs: withDefault(ArrayParam, []),
   });
