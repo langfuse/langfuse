@@ -1,9 +1,10 @@
 import { SupportChannels } from "@/src/components/Support";
 import Header from "@/src/components/layouts/header";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 export default function SupportPage() {
   return (
-    <div className="md:container">
+    <ScrollScreenPage>
       <Header title="Support" />
 
       <div className="flex flex-col gap-10">
@@ -13,6 +14,6 @@ export default function SupportPage() {
         </p>
       </div>
       <SupportChannels />
-    </div>
+    </ScrollScreenPage>
   );
 }
