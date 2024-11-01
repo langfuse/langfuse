@@ -78,9 +78,9 @@ const convertObservationAndModel = async (
     level: record.level as ObservationLevel,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
-    input: jsonSchema.parse(record.input),
-    output: jsonSchema.parse(record.output),
-    modelParameters: jsonSchema.parse(record.model_parameters),
+    input: jsonSchema.nullish().parse(record.input) ?? null,
+    output: jsonSchema.nullish().parse(record.output) ?? null,
+    modelParameters: jsonSchema.nullable().parse(record.model_parameters),
     completionStartTime: record.completion_start_time
       ? new Date(record.completion_start_time)
       : null,
