@@ -29,6 +29,7 @@ import { Lock, Plus } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -91,81 +92,79 @@ export const PromptDetail = () => {
   }
 
   return (
-    <div className="flex flex-col xl:container md:h-[calc(100vh-2rem)]">
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-3">
-          <Header
-            title={prompt.name}
-            help={{
-              description:
-                "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
-              href: "https://langfuse.com/docs/prompts",
-            }}
-            breadcrumb={[
-              {
-                name: "Prompts",
-                href: `/project/${projectId}/prompts/`,
-              },
-              {
-                name: prompt.name,
-                href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
-              },
-              { name: `Version ${prompt.version}` },
-            ]}
-            actionButtons={
-              <>
-                {hasAccess ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      capture("prompts:update_form_open");
-                    }}
+    <ScrollScreenPage>
+      <Header
+        title={prompt.name}
+        help={{
+          description:
+            "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
+          href: "https://langfuse.com/docs/prompts",
+        }}
+        breadcrumb={[
+          {
+            name: "Prompts",
+            href: `/project/${projectId}/prompts/`,
+          },
+          {
+            name: prompt.name,
+            href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
+          },
+          { name: `Version ${prompt.version}` },
+        ]}
+        actionButtons={
+          <>
+            {hasAccess ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  capture("prompts:update_form_open");
+                }}
+              >
+                <Link
+                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                >
+                  <div className="flex flex-row items-center">
+                    <Plus className="h-4 w-4" />
+                    <span className="ml-2">New version</span>
+                  </div>
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="secondary" disabled>
+                <div className="flex flex-row items-center">
+                  <Lock className="h-3 w-3" />
+                  <span className="ml-2">New version</span>
+                </div>
+              </Button>
+            )}
+            <JumpToPlaygroundButton
+              source="prompt"
+              prompt={prompt}
+              analyticsEventName="prompt_detail:test_in_playground_button_click"
+              variant="outline"
+            />
+            <DetailPageNav
+              key="nav"
+              currentId={promptName}
+              path={(name) => `/project/${projectId}/prompts/${name}`}
+              listKey="prompts"
+            />
+            <Tabs value="editor">
+              <TabsList>
+                <TabsTrigger value="editor">Editor</TabsTrigger>
+                <TabsTrigger value="metrics" asChild>
+                  <Link
+                    href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
                   >
-                    <Link
-                      href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
-                    >
-                      <div className="flex flex-row items-center">
-                        <Plus className="h-4 w-4" />
-                        <span className="ml-2">New version</span>
-                      </div>
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button variant="secondary" disabled>
-                    <div className="flex flex-row items-center">
-                      <Lock className="h-3 w-3" />
-                      <span className="ml-2">New version</span>
-                    </div>
-                  </Button>
-                )}
-                <JumpToPlaygroundButton
-                  source="prompt"
-                  prompt={prompt}
-                  analyticsEventName="prompt_detail:test_in_playground_button_click"
-                  variant="outline"
-                />
-                <DetailPageNav
-                  key="nav"
-                  currentId={promptName}
-                  path={(name) => `/project/${projectId}/prompts/${name}`}
-                  listKey="prompts"
-                />
-                <Tabs value="editor">
-                  <TabsList>
-                    <TabsTrigger value="editor">Editor</TabsTrigger>
-                    <TabsTrigger value="metrics" asChild>
-                      <Link
-                        href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
-                      >
-                        Metrics
-                      </Link>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </>
-            }
-          />
-        </div>
+                    Metrics
+                  </Link>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </>
+        }
+      />
+      <div className="grid grid-cols-3 gap-4">
         <div className="col-span-3">
           <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground">
             <div className="flex flex-row items-center gap-3 px-3 py-1">
@@ -246,7 +245,7 @@ export const PromptDetail = () => {
             cardView
           />
         </div>
-        <div className="flex h-screen flex-col">
+        <div className="flex flex-col">
           <div className="text-m px-3 font-medium">
             <ScrollArea className="flex border-l pl-2">
               <PromptHistoryNode
@@ -259,6 +258,6 @@ export const PromptDetail = () => {
           </div>
         </div>
       </div>
-    </div>
+    </ScrollScreenPage>
   );
 };

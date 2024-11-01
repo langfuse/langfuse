@@ -21,6 +21,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -387,7 +388,7 @@ export default function PromptVersionTable() {
       : [];
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden xl:container lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title={promptName}
         help={{
@@ -466,6 +467,6 @@ export default function PromptVersionTable() {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
-    </div>
+    </FullScreenPage>
   );
 }
