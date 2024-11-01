@@ -50,8 +50,8 @@ const convertToScore = (row: FetchScoresReturnType) => {
 export const getScoresForTraces = async (
   projectId: string,
   traceIds: string[],
-  limit: number,
-  offset: number,
+  limit?: number,
+  offset?: number,
 ) => {
   const query = `
       select 
@@ -59,7 +59,7 @@ export const getScoresForTraces = async (
       from scores s final
       WHERE s.project_id = {projectId: String}
       AND s.trace_id IN ({traceIds: Array(String)})
-      limit {limit: Int32} offset {offset: Int32};
+      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<FetchScoresReturnType>({

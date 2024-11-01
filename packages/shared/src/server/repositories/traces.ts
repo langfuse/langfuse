@@ -4,7 +4,7 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-filter/factory";
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel, Trace } from "@prisma/client";
 import { FilterState } from "../../types";
 import { logger } from "../logger";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
@@ -165,33 +165,44 @@ const getTracesTableGeneric = async <T>(
   return rows;
 };
 
-export const getTraceById = async (traceId: string, projectId: string) => {
+export const getTraceByIdOrThrow = async (
+  traceId: string,
+  projectId: string,
+) => {
   const query = `SELECT * FROM traces where id = {traceId: String} and project_id = {projectId: String} order by event_ts desc LIMIT 1 by id, project_id`;
   const records = await queryClickhouse<TraceClickhouseRecord>({
     query,
     params: { traceId, projectId },
   });
 
-  const res = records.map((record) => {
+  const res = records.map<Trace>((record) => {
     return {
       id: record.id,
       projectId: record.project_id,
-      name: record.name,
+      name: record.name ?? null,
       timestamp: new Date(record.timestamp),
       tags: record.tags,
       bookmarked: record.bookmarked,
-      release: record.release,
-      version: record.version,
-      userId: record.user_id,
-      sessionId: record.session_id,
+      release: record.release ?? null,
+      version: record.version ?? null,
+      userId: record.user_id ?? null,
+      sessionId: record.session_id ?? null,
       public: record.public,
-      input: record.input,
-      output: record.output,
+      input: record.input ?? null,
+      output: record.output ?? null,
       metadata: record.metadata,
+      createdAt: new Date(record.created_at),
+      updatedAt: new Date(record.updated_at),
+      externalId: null,
     };
   });
 
-  return res.length ? res[0] : undefined;
+  if (res.length !== 1) {
+    const errorMessage = `Trace not found or multiple traces found for traceId: ${traceId}, projectId: ${projectId}`;
+    logger.error(errorMessage);
+    throw new Error(errorMessage);
+  }
+  return res[0] as Trace;
 };
 
 export const getTracesGroupedByName = async (

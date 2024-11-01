@@ -37,6 +37,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const ObservationPreview = ({
   observations,
@@ -72,6 +73,7 @@ export const ObservationPreview = ({
     observationId: currentObservationId,
     traceId: traceId,
     projectId: projectId,
+    queryClickhouse: useClickhouse(),
   });
 
   const preloadedObservation = observations.find(
