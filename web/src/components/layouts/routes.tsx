@@ -15,9 +15,7 @@ import {
   Sparkle,
   FileJson,
 } from "lucide-react";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { type ReactNode } from "react";
-import { VersionLabel } from "@/src/components/VersionLabel";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type User } from "next-auth";
@@ -25,14 +23,14 @@ import { type OrganizationScope } from "@/src/features/rbac/constants/organizati
 import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 export type Route = {
-  name: string;
+  title: string;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
-  icon?: LucideIcon | typeof LangfuseIcon; // ignored for nested routes
-  pathname?: string; // link, ignored if children
-  children?: Array<Route>; // folder
+  icon?: LucideIcon; // ignored for nested routes
+  pathname: string; // link
+  items?: Array<Route>; // folder
   bottom?: boolean; // bottom of the sidebar, only for first level routes
   newTab?: boolean; // open in new tab
   entitlements?: Entitlement[]; // entitlements required, array treated as OR
@@ -44,63 +42,58 @@ export type Route = {
 
 export const ROUTES: Route[] = [
   {
-    name: "Langfuse",
-    pathname: "/",
-    icon: LangfuseIcon,
-    label: <VersionLabel className="-ml-3" />,
-    // node is overridden in layout.tsx if uiCustomization.logoLightModeHref and uiCustomization.logoDarkModeHref are set
-  },
-  {
-    name: "Projects",
+    title: "Projects",
     pathname: "/organization/[organizationId]",
     icon: Grid2X2,
   },
   {
-    name: "Dashboard",
+    title: "Dashboard",
     pathname: `/project/[projectId]`,
     icon: LayoutDashboard,
   },
   {
-    name: "Tracing",
+    title: "Tracing",
+    pathname: `/project/[projectId]/traces`,
     icon: ListTree,
-    children: [
+    items: [
       {
-        name: "Traces",
+        title: "Traces",
         pathname: `/project/[projectId]/traces`,
       },
       {
-        name: "Sessions",
+        title: "Sessions",
         pathname: `/project/[projectId]/sessions`,
       },
       {
-        name: "Generations",
+        title: "Generations",
         pathname: `/project/[projectId]/generations`,
       },
       {
-        name: "Scores",
+        title: "Scores",
         pathname: `/project/[projectId]/scores`,
       },
       {
-        name: "Models",
+        title: "Models",
         pathname: `/project/[projectId]/models`,
       },
     ],
   },
   {
-    name: "Evaluation",
+    title: "Evaluation",
     icon: Lightbulb,
+    pathname: `/project/[projectId]/annotation-queues`,
     label: "Beta",
     entitlements: ["annotation-queues", "model-based-evaluations"],
     projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
-    children: [
+    items: [
       {
-        name: "Human Annotation",
+        title: "Human Annotation",
         pathname: `/project/[projectId]/annotation-queues`,
         projectRbacScopes: ["annotationQueues:read"],
         entitlements: ["annotation-queues"],
       },
       {
-        name: "LLM-as-a-Judge",
+        title: "LLM-as-a-Judge",
         pathname: `/project/[projectId]/evals`,
         entitlements: ["model-based-evaluations"],
         projectRbacScopes: ["evalJob:read"],
@@ -108,29 +101,29 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "Users",
+    title: "Users",
     pathname: `/project/[projectId]/users`,
     icon: UsersIcon,
   },
   {
-    name: "Prompts",
+    title: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
   },
   {
-    name: "Playground",
+    title: "Playground",
     pathname: "/project/[projectId]/playground",
     icon: TerminalIcon,
     entitlements: ["playground"],
   },
   {
-    name: "Datasets",
+    title: "Datasets",
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
   },
   {
-    name: "Upgrade",
+    title: "Upgrade",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
     bottom: true,
@@ -140,7 +133,7 @@ export const ROUTES: Route[] = [
     label: <UsageTracker />,
   },
   {
-    name: "Upgrade",
+    title: "Upgrade",
     icon: Sparkle,
     pathname: "/organization/[organizationId]/settings/billing",
     bottom: true,
@@ -150,19 +143,19 @@ export const ROUTES: Route[] = [
     label: <UsageTracker />,
   },
   {
-    name: "Settings",
+    title: "Settings",
     pathname: "/project/[projectId]/settings",
     icon: Settings,
     bottom: true,
   },
   {
-    name: "Settings",
+    title: "Settings",
     pathname: "/organization/[organizationId]/settings",
     icon: Settings,
     bottom: true,
   },
   {
-    name: "Docs",
+    title: "Docs",
     pathname: "https://langfuse.com/docs",
     icon: LibraryBig,
     bottom: true,
@@ -170,7 +163,7 @@ export const ROUTES: Route[] = [
     customizableHref: "documentationHref",
   },
   {
-    name: "Support",
+    title: "Support",
     pathname: "/support",
     icon: LifeBuoy,
     bottom: true,
