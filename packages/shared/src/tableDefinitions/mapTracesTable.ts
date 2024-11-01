@@ -7,96 +7,98 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "bookmarked",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "bookmarked",
+    clickhouseSelect: "bookmarked",
+    queryPrefix: "t",
   },
   {
     uiTableName: "Level",
     clickhouseTableName: "observations",
-    clickhouseColumnName: "level",
+    clickhouseSelect: "level",
   },
   {
     uiTableName: "ID",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "id",
+    clickhouseSelect: "id",
   },
   {
     uiTableName: "Name",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "name",
+    clickhouseSelect: "name",
   },
   {
     uiTableName: "Timestamp",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "timestamp",
+    clickhouseSelect: "timestamp",
   },
   {
     uiTableName: "User ID",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "userId",
+    clickhouseSelect: "user_id",
   },
   {
     uiTableName: "Session ID",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "sessionId",
+    clickhouseSelect: "session_id",
   },
   {
     uiTableName: "Metadata",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "metadata",
+    clickhouseSelect: "metadata",
   },
   {
     uiTableName: "Version",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "version",
+    clickhouseSelect: "version",
   },
   {
     uiTableName: "Release",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "release",
+    clickhouseSelect: "release",
   },
   {
     uiTableName: "Tags",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "tags",
+    clickhouseSelect: "tags",
   },
   {
     uiTableName: "Input Tokens",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "promptTokens",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'input'), usage_details), usage_details['input'], NULL)",
   },
   {
     uiTableName: "Output Tokens",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "completionTokens",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'output'), usage_details), usage_details['output'], NULL)",
   },
   {
     uiTableName: "Total Tokens",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "totalTokens",
-  },
-  {
-    uiTableName: "Usage",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "totalTokens",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
   },
   {
     uiTableName: "Latency (s)",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "latency",
+    clickhouseSelect: "latency",
   },
   {
     uiTableName: "Input Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "calculatedInputCost",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'input'), cost_details), usage_details['input'], NULL)",
   },
   {
     uiTableName: "Output Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "calculatedOutputCost",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'output'), cost_details), usage_details['output'], NULL)",
   },
   {
     uiTableName: "Total Cost ($)",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "calculatedTotalCost",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), cost_details), usage_details['total'], NULL)",
   },
 ];

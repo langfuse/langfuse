@@ -220,7 +220,15 @@ export class ObservationProcessor implements EventProcessor {
       logger.warn("Prompt not found for observation", this.event.body);
     }
 
-    const observationId = this.event.body.id ?? v4();
+    const observationId =
+      this.event.body.id ??
+      (() => {
+        const newId = v4();
+        logger.info(
+          `observation.id is null. Generating for projectId: ${apiScope.projectId}, id: ${newId}`,
+        );
+        return newId;
+      })();
 
     return {
       id: observationId,
@@ -551,7 +559,15 @@ export class TraceProcessor implements EventProcessor {
 
     this.auth(apiScope);
 
-    const internalId = body.id ?? v4();
+    const internalId =
+      body.id ??
+      (() => {
+        const newId = v4();
+        logger.info(
+          `trace.id is null. Generating for projectId: ${apiScope.projectId}, id: ${newId}`,
+        );
+        return newId;
+      })();
 
     logger.debug(
       `Trying to create trace, project ${apiScope.projectId}, id: ${internalId}`,
@@ -663,7 +679,15 @@ export class ScoreProcessor implements EventProcessor {
 
     this.auth(apiScope);
 
-    const id = body.id ?? v4();
+    const id =
+      body.id ??
+      (() => {
+        const newId = v4();
+        logger.info(
+          `score.id is null. Generating for projectId: ${apiScope.projectId}, id: ${newId}`,
+        );
+        return newId;
+      })();
 
     const existingScore = await prisma.score.findFirst({
       where: {

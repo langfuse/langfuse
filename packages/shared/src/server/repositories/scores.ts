@@ -111,9 +111,7 @@ export const getScoresGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, {
-        scoresPrefix: "s",
-      })
+    ? createFilterFromFilterState(timestampFilter)
     : undefined;
 
   const timestampFilterRes = chFilter

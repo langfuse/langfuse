@@ -1069,6 +1069,9 @@ describe("Ingestion end-to-end tests", () => {
         model: "gpt-3.5",
         projectId,
         startTime: new Date(oldEvent),
+        // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
+        calculatedTotalCost: "0.273330000000000000000000000000",
+        modelParameters: { hello: "world" },
       },
     });
 
@@ -1080,8 +1083,8 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: observationId,
           traceId: traceId,
-          modelParameters: { someKey: ["user-1", "user-2"] },
           output: "overwritten",
+          usage: null,
         },
       },
     ];
@@ -1102,6 +1105,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation.name).toBe("generation-name");
     expect(observation.input).toBe(JSON.stringify({ key: "value" }));
     expect(observation.output).toBe("overwritten");
+    expect(observation.model_parameters).toBe('{"hello":"world"}');
     expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 

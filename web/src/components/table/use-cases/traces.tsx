@@ -148,6 +148,7 @@ export default function TracesTable({
     page: 0,
     limit: 0,
     orderBy: null,
+    queryClickhouse: useClickhouse(),
   };
 
   const tracesAllQueryFilter = {

@@ -2,14 +2,7 @@ import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { tracesTableUiColumnDefinitions } from "../../../tableDefinitions/mapTracesTable";
 import { FilterCondition } from "../../../types";
-import {
-  ObservationClickhouseColumns,
-  TraceClickhouseColumns,
-} from "../../clickhouse/schema";
-import {
-  isKeyOfClickhouseRecord,
-  isValidTableName,
-} from "../../clickhouse/schema-utils";
+import { isValidTableName } from "../../clickhouse/schema-utils";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
 import {
@@ -32,71 +25,61 @@ export class QueryBuilderError extends Error {
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
-export const createFilterFromFilterState = (
-  filter: FilterCondition[],
-  opts?: {
-    tracesPrefix?: string;
-    observationsPrefix?: string;
-    scoresPrefix?: string;
-  },
-) => {
+export const createFilterFromFilterState = (filter: FilterCondition[]) => {
   return filter.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
-    const { col, table } = matchAndVerifyTracesUiColumn(
+    const column = matchAndVerifyTracesUiColumn(
       frontEndFilter,
       tracesTableUiColumnDefinitions,
     );
 
-    const prefix =
-      table === "observations" ? opts?.observationsPrefix : opts?.tracesPrefix;
-
     switch (frontEndFilter.type) {
       case "string":
         return new StringFilter({
-          clickhouseTable: table,
-          field: col.clickhouse_mapping,
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: prefix,
+          tablePrefix: column.queryPrefix,
         });
       case "datetime":
         return new DateTimeFilter({
-          clickhouseTable: table,
-          field: col.clickhouse_mapping,
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: prefix,
+          tablePrefix: column.queryPrefix,
         });
       case "stringOptions":
         return new StringOptionsFilter({
-          clickhouseTable: table,
-          field: col.clickhouse_mapping,
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
-          tablePrefix: prefix,
+          tablePrefix: column.queryPrefix,
         });
       case "number":
         return new NumberFilter({
-          clickhouseTable: table,
-          field: col.clickhouse_mapping,
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
-          tablePrefix: prefix,
+          tablePrefix: column.queryPrefix,
         });
       case "arrayOptions":
         return new ArrayOptionsFilter({
-          clickhouseTable: table,
-          field: col.clickhouse_mapping,
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
           operator: frontEndFilter.operator,
           values: frontEndFilter.value,
-          tablePrefix: prefix,
+          tablePrefix: column.queryPrefix,
         });
       case "boolean":
         return new BooleanFilter({
-          clickhouseTable: table,
-          field: col.clickhouse_mapping,
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
           value: frontEndFilter.value,
-          tablePrefix: prefix,
+          tablePrefix: column.queryPrefix,
         });
       default:
         throw new QueryBuilderError(
@@ -129,47 +112,7 @@ const matchAndVerifyTracesUiColumn = (
     );
   }
 
-  if (
-    !isKeyOfClickhouseRecord(
-      uiTable.clickhouseTableName,
-      uiTable.clickhouseColumnName,
-    )
-  ) {
-    throw new QueryBuilderError(
-      `Column ${uiTable.clickhouseColumnName} does not exist in table ${JSON.stringify(uiTable)}.`,
-    );
-  }
-
-  if (uiTable.clickhouseTableName === "traces") {
-    const column = TraceClickhouseColumns.find(
-      (col) => col.name === uiTable.clickhouseColumnName,
-    );
-    if (!column) {
-      throw new QueryBuilderError(
-        `Column ${uiTable.clickhouseColumnName} does not exist in traces table.`,
-      );
-    }
-    return {
-      col: column,
-      table: uiTable.clickhouseTableName,
-    };
-  } else if (uiTable.clickhouseTableName === "observations") {
-    const column = ObservationClickhouseColumns.find(
-      (col) => col.name === uiTable.clickhouseColumnName,
-    );
-    if (!column) {
-      throw new QueryBuilderError(
-        `Column ${uiTable.clickhouseColumnName} does not exist in observations table.`,
-      );
-    }
-    return {
-      col: column,
-      table: uiTable.clickhouseTableName,
-    };
-  }
-  throw new QueryBuilderError(
-    `Unhandled table case: ${uiTable.clickhouseTableName}`,
-  );
+  return uiTable;
 };
 
 export function getProjectIdDefaultFilter(

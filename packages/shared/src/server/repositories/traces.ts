@@ -32,9 +32,63 @@ export type TracesTableReturnType = Pick<
   scores_avg: Array<{ name: string; avg_value: number }>;
 };
 
+export type TableCount = {
+  count: number;
+};
+
+export const getTracesTableCount = async (
+  projectId: string,
+  filter: FilterState,
+  limit?: number,
+  offset?: number,
+) =>
+  getTracesTableGeneric<TableCount>(
+    "count(*) as count",
+    projectId,
+    filter,
+    undefined,
+    limit,
+    offset,
+  );
+
 export const getTracesTable = async (
   projectId: string,
   filter: FilterState,
+  limit?: number,
+  offset?: number,
+) =>
+  getTracesTableGeneric<TracesTableReturnType>(
+    `
+    t.id, 
+    t.project_id, 
+    t.timestamp, 
+    t.tags, 
+    t.bookmarked, 
+    t.name, 
+    t.release, 
+    t.version, 
+    t.user_id, 
+    t.session_id,
+    os.latencyMs as latency,
+    os.cost_details as cost_details,
+    os.usage_details as usage_details,
+    os.level as level,
+    os.observation_count as observation_count,
+    s.scores_avg as scores_avg,
+    t.metadata,
+    t.public`,
+    projectId,
+    filter,
+    "ORDER BY t.timestamp desc",
+    limit,
+    offset,
+  );
+
+const getTracesTableGeneric = async <T>(
+  select: string,
+  projectId: string,
+  filter: FilterState,
+  orderBy?: string,
   limit?: number,
   offset?: number,
 ) => {
@@ -42,9 +96,7 @@ export const getTracesTable = async (
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  tracesFilter.push(
-    ...createFilterFromFilterState(filter, { tracesPrefix: "t" }),
-  );
+  tracesFilter.push(...createFilterFromFilterState(filter));
 
   const tracesFilterRes = tracesFilter.apply();
   const scoresAvgFilterRes = scoresFilter.apply();
@@ -89,34 +141,17 @@ export const getTracesTable = async (
                           GROUP BY project_id,
                                   trace_id)
       select 
-        t.id, 
-        t.project_id, 
-        t.timestamp, 
-        t.tags, 
-        t.bookmarked, 
-        t.name, 
-        t.release, 
-        t.version, 
-        t.user_id, 
-        t.session_id,
-        os.latencyMs as latency,
-        os.cost_details as cost_details,
-        os.usage_details as usage_details,
-        os.level as level,
-        os.observation_count as observation_count,
-        s.scores_avg as scores_avg,
-        t.metadata,
-        t.public
+       ${select}
       from traces t final
               left join observations_stats os on os.project_id = t.project_id and os.trace_id = t.id
               left join scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
 
       WHERE ${tracesFilterRes.query}
-      order by t.timestamp desc
+      ${orderBy ? orderBy : ""}
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<TracesTableReturnType>({
+  const rows = await queryClickhouse<T>({
     query: query,
     params: {
       limit: limit,
@@ -164,9 +199,7 @@ export const getTracesGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, {
-        tracesPrefix: "t",
-      })
+    ? createFilterFromFilterState(timestampFilter)
     : undefined;
 
   const timestampFilterRes = chFilter
@@ -202,9 +235,7 @@ export const getTracesGroupedByTags = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, {
-        tracesPrefix: "t",
-      })
+    ? createFilterFromFilterState(timestampFilter)
     : undefined;
 
   const timestampFilterRes = chFilter
