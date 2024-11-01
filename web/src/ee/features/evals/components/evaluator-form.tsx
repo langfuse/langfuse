@@ -315,9 +315,22 @@ export const InnerEvalConfigForm = (props: {
     },
   });
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery({
-    projectId: props.projectId,
-  });
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
 
   useEffect(() => {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {

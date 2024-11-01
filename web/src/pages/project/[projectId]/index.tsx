@@ -50,6 +50,10 @@ export default function Dashboard() {
           skipBatch: true,
         },
       },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
   const nameOptions = traceFilterOptions.data?.name || [];

@@ -110,7 +110,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
     },
-    { enabled: Boolean(projectId) },
+    {
+      enabled: Boolean(projectId),
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
   ).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
