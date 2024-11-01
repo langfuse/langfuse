@@ -80,7 +80,7 @@ import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
 import {
   addUserToSpan,
-  getTraceById,
+  getTraceByIdOrThrow,
   logger,
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
@@ -345,7 +345,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     logger.info(
       `Querying Clickhouse for traceid: ${traceId} and project: ${projectId} `,
     );
-    trace = await getTraceById(traceId, projectId);
+    trace = await getTraceByIdOrThrow(traceId, projectId);
   } else {
     trace = await prisma.trace.findFirst({
       where: {

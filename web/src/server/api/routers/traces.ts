@@ -31,7 +31,7 @@ import {
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
-  getTraceById,
+  getTraceByIdOrThrow,
   type TracesTableReturnType,
   getScoresGroupedByName,
   getTracesGroupedByName,
@@ -470,7 +470,7 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        return await getTraceById(input.traceId, input.projectId);
+        return await getTraceByIdOrThrow(input.traceId, input.projectId);
       }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
@@ -575,7 +575,7 @@ export const traceRouter = createTRPCRouter({
       }
 
       const [trace, observations, scores] = await Promise.all([
-        getTraceById(input.traceId, input.projectId),
+        getTraceByIdOrThrow(input.traceId, input.projectId),
         getObservationsViewForTrace(input.traceId, input.projectId),
         getScoresForTraces(
           input.projectId,
