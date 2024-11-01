@@ -1,3 +1,10 @@
+export type UiColumnMapping = {
+  uiTableName: string;
+  clickhouseTableName: string;
+  clickhouseSelect: string;
+  queryPrefix?: string;
+};
+
 export type OptionsDefinition = {
   value: string;
   count?: number;

@@ -60,7 +60,7 @@ export const observationRecordInsertSchema = observationRecordBaseSchema.extend(
     end_time: z.number().nullish(),
     completion_start_time: z.number().nullish(),
     event_ts: z.number(),
-  }
+  },
 );
 export type ObservationRecordInsertType = z.infer<
   typeof observationRecordInsertSchema
@@ -113,6 +113,7 @@ export const scoreRecordBaseSchema = z.object({
   config_id: z.string().nullish(),
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
   string_value: z.string().nullish(),
+  queue_id: z.string().nullish(),
   is_deleted: z.number(),
 });
 export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
@@ -134,7 +135,7 @@ export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
 export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
 
 export const convertTraceReadToInsert = (
-  record: TraceRecordReadType
+  record: TraceRecordReadType,
 ): TraceRecordInsertType => {
   return {
     ...record,
@@ -146,7 +147,7 @@ export const convertTraceReadToInsert = (
 };
 
 export const convertObservationReadToInsert = (
-  record: ObservationRecordReadType
+  record: ObservationRecordReadType,
 ): ObservationRecordInsertType => {
   return {
     ...record,
@@ -162,7 +163,7 @@ export const convertObservationReadToInsert = (
 };
 
 export const convertScoreReadToInsert = (
-  record: ScoreRecordReadType
+  record: ScoreRecordReadType,
 ): ScoreRecordInsertType => {
   return {
     ...record,
@@ -170,5 +171,135 @@ export const convertScoreReadToInsert = (
     updated_at: new Date(record.updated_at).getTime(),
     timestamp: new Date(record.timestamp).getTime(),
     event_ts: new Date(record.event_ts).getTime(),
+  };
+};
+
+/**
+ * Expects a single record from a `select * from traces` query. Must be a raw query to keep original
+ * column names, not the Prisma mapped names.
+ */
+export const convertPostgresTraceToInsert = (
+  trace: Record<string, any>,
+): TraceRecordInsertType => {
+  return {
+    id: trace.id,
+    timestamp: trace.timestamp?.getTime(),
+    name: trace.name,
+    user_id: trace.user_id,
+    metadata:
+      typeof trace.metadata === "string"
+        ? { metadata: trace.metadata }
+        : Array.isArray(trace.metadata)
+          ? { metadata: trace.metadata }
+          : trace.metadata,
+    release: trace.release,
+    version: trace.version,
+    project_id: trace.project_id,
+    public: trace.public,
+    bookmarked: trace.bookmarked,
+    tags: trace.tags,
+    input: trace.input ? JSON.stringify(trace.input) : null,
+    output: trace.output ? JSON.stringify(trace.output) : null,
+    session_id: trace.session_id,
+    created_at: trace.created_at?.getTime(),
+    updated_at: trace.updated_at?.getTime(),
+    event_ts: trace.timestamp?.getTime(),
+    is_deleted: 0,
+  };
+};
+
+/**
+ * Expects a single record from a
+ * `select o.*,
+ *         o."modelParameters" as model_parameters,
+ *         p.name as prompt_name,
+ *         p.version as prompt_version
+ *  from observations o
+ *  LEFT JOIN prompts p ON p.id = o.prompt_id`
+ * query. Must be a raw query to keep original
+ * column names, not the Prisma mapped names.
+ */
+export const convertPostgresObservationToInsert = (
+  observation: Record<string, any>,
+): ObservationRecordInsertType => {
+  return {
+    id: observation.id,
+    trace_id: observation.trace_id,
+    project_id: observation.project_id,
+    type: observation.type,
+    parent_observation_id: observation.parent_observation_id,
+    start_time: observation.start_time?.getTime(),
+    end_time: observation.end_time?.getTime(),
+    name: observation.name,
+    metadata:
+      typeof observation.metadata === "string"
+        ? { metadata: observation.metadata }
+        : Array.isArray(observation.metadata)
+          ? { metadata: observation.metadata }
+          : observation.metadata,
+    level: observation.level,
+    status_message: observation.status_message,
+    version: observation.version,
+    input: observation.input ? JSON.stringify(observation.input) : null,
+    output: observation.output ? JSON.stringify(observation.output) : null,
+    provided_model_name: observation.model,
+    internal_model_id: observation.internal_model_id,
+    model_parameters: observation.model_parameters
+      ? JSON.stringify(observation.model_parameters)
+      : null,
+    provided_usage_details: {},
+    usage_details: {
+      input: observation.prompt_tokens,
+      output: observation.completion_tokens,
+      total: observation.total_tokens,
+    },
+    provided_cost_details: {
+      input: observation.input_cost?.toNumber() ?? null,
+      output: observation.output_cost?.toNumber() ?? null,
+      total: observation.total_cost?.toNumber() ?? null,
+    },
+    cost_details: {
+      input: observation.calculated_input_cost?.toNumber() ?? null,
+      output: observation.calculated_output_cost?.toNumber() ?? null,
+      total: observation.calculated_total_cost?.toNumber() ?? null,
+    },
+    total_cost: observation.calculated_total_cost?.toNumber() ?? null,
+    completion_start_time: observation.completion_start_time?.getTime(),
+    prompt_id: observation.prompt_id,
+    prompt_name: observation.prompt_name,
+    prompt_version: observation.prompt_version,
+    created_at: observation.created_at?.getTime(),
+    updated_at: observation.updated_at?.getTime(),
+    event_ts: observation.start_time?.getTime(),
+    is_deleted: 0,
+  };
+};
+
+/**
+ * Expects a single record from a `select * from scores` query. Must be a raw query to keep original
+ * column names, not the Prisma mapped names.
+ */
+export const convertPostgresScoreToInsert = (
+  score: Record<string, any>,
+): ScoreRecordInsertType => {
+  return {
+    id: score.id,
+    timestamp: score.timestamp?.getTime(),
+    project_id: score.project_id,
+    trace_id: score.trace_id,
+    observation_id: score.observation_id,
+    name: score.name,
+    value: score.value,
+    source: score.source,
+    comment: score.comment,
+    author_user_id: score.author_user_id,
+    config_id: score.config_id,
+    data_type: score.data_type,
+    string_value: score.string_value,
+    queue_id: score.queue_id,
+    created_at: score.created_at?.getTime(),
+    updated_at: score.updated_at?.getTime(),
+    event_ts: score.timestamp?.getTime(),
+    is_deleted: 0,
   };
 };

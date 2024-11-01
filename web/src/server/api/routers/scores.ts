@@ -28,9 +28,12 @@ import { Prisma, type Score } from "@langfuse/shared/src/db";
 import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
+  getScoresGroupedByNameSourceType,
   orderByToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { TRPCError } from "@trpc/server";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -336,32 +339,51 @@ export const scoresRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         selectedTimeOption: SelectedTimeOptionSchema,
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       const date = getDateFromOption(input.selectedTimeOption);
 
-      const scores = await ctx.prisma.score.groupBy({
-        where: {
-          projectId: input.projectId,
-          ...(date ? { timestamp: { gte: date } } : {}),
-        },
-        take: 1000,
-        orderBy: {
-          _count: {
-            id: "desc",
+      if (!input.queryClickhouse) {
+        const scores = await ctx.prisma.score.groupBy({
+          where: {
+            projectId: input.projectId,
+            ...(date ? { timestamp: { gte: date } } : {}),
           },
-        },
-        by: ["name", "source", "dataType"],
-      });
+          take: 1000,
+          orderBy: {
+            _count: {
+              id: "desc",
+            },
+          },
+          by: ["name", "source", "dataType"],
+        });
 
-      if (scores.length === 0) return [];
-      return scores.map(({ name, source, dataType }) => ({
-        key: composeAggregateScoreKey({ name, source, dataType }),
-        name: name,
-        source: source,
-        dataType: dataType,
-      }));
+        if (scores.length === 0) return [];
+        return scores.map(({ name, source, dataType }) => ({
+          key: composeAggregateScoreKey({ name, source, dataType }),
+          name: name,
+          source: source,
+          dataType: dataType,
+        }));
+      } else {
+        if (!isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const res = await getScoresGroupedByNameSourceType(input.projectId);
+
+        return res.map(({ name, source, dataType }) => ({
+          key: composeAggregateScoreKey({ name, source, dataType }),
+          name: name,
+          source: source,
+          dataType: dataType,
+        }));
+      }
     }),
 });
 
