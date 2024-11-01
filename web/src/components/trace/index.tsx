@@ -35,6 +35,7 @@ import { type APIScore } from "@langfuse/shared";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import {
   TabsBar,
   TabsBarContent,
@@ -253,7 +254,11 @@ export function TracePage({ traceId }: { traceId: string }) {
     router.query.projectId as string,
   );
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-    { traceId, projectId: router.query.projectId as string },
+    {
+      traceId,
+      projectId: router.query.projectId as string,
+      queryClickhouse: useClickhouse(),
+    },
     {
       retry(failureCount, error) {
         if (error.data?.code === "UNAUTHORIZED") return false;
