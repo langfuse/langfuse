@@ -79,62 +79,64 @@ export function SetupPage() {
             "Create a new organization. This will be used to manage your projects and teams.",
         }}
       />
-      <Breadcrumb className="mb-3">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 1
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              1. Create Organization
-              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 2
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              2. Invite Members
-              {stepInt > 2 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 3
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              3. Create Project
-              {stepInt > 3 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 4
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              4. Setup Tracing
-              {stepInt === 4 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
       <div className="md:container md:mx-auto">
+        <Breadcrumb className="mb-3">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 1
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                1. Create Organization
+                {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 2
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                2. Invite Members
+                {stepInt > 2 && <Check className="ml-1 inline-block h-3 w-3" />}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 3
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                3. Create Project
+                {stepInt > 3 && <Check className="ml-1 inline-block h-3 w-3" />}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 4
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                4. Setup Tracing
+                {stepInt === 4 && (
+                  <Check className="ml-1 inline-block h-3 w-3" />
+                )}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
         <Card className="p-3">
           {
             // 1. Create Org
