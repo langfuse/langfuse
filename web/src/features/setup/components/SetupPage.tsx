@@ -134,78 +134,80 @@ export function SetupPage() {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <Card className="p-3">
-        {
-          // 1. Create Org
-          stepInt === 1 && (
-            <NewOrganizationForm
-              onSuccess={(orgId) => {
-                router.push(inviteMembersRoute(orgId));
-              }}
-            />
-          )
-        }
-        {
-          // 2. Invite Members
-          stepInt === 2 && organization && (
-            <div className="flex flex-col gap-10">
-              <div>
-                <Header title="Organization Members" level="h3" />
-                <MembersTable orgId={organization.id} />
+      <div className="md:container md:mx-auto">
+        <Card className="p-3">
+          {
+            // 1. Create Org
+            stepInt === 1 && (
+              <NewOrganizationForm
+                onSuccess={(orgId) => {
+                  router.push(inviteMembersRoute(orgId));
+                }}
+              />
+            )
+          }
+          {
+            // 2. Invite Members
+            stepInt === 2 && organization && (
+              <div className="flex flex-col gap-10">
+                <div>
+                  <Header title="Organization Members" level="h3" />
+                  <MembersTable orgId={organization.id} />
+                </div>
+                <div>
+                  <MembershipInvitesPage orgId={organization.id} />
+                </div>
               </div>
-              <div>
-                <MembershipInvitesPage orgId={organization.id} />
+            )
+          }
+          {
+            // 3. Create Project
+            stepInt === 3 && organization && (
+              <NewProjectForm
+                orgId={organization.id}
+                onSuccess={(projectId) =>
+                  router.push(setupTracingRoute(projectId))
+                }
+              />
+            )
+          }
+          {
+            // 4. Setup Tracing
+            stepInt === 4 && project && organization && (
+              <div className="space-y-8">
+                <div>
+                  <Header title="API Keys" level="h3" />
+                  <TracingSetup
+                    projectId={project.id}
+                    hasAnyTrace={hasAnyTrace ?? false}
+                  />
+                </div>
               </div>
-            </div>
-          )
-        }
-        {
-          // 3. Create Project
-          stepInt === 3 && organization && (
-            <NewProjectForm
-              orgId={organization.id}
-              onSuccess={(projectId) =>
-                router.push(setupTracingRoute(projectId))
-              }
-            />
-          )
-        }
-        {
-          // 4. Setup Tracing
-          stepInt === 4 && project && organization && (
-            <div className="space-y-8">
-              <div>
-                <Header title="API Keys" level="h3" />
-                <TracingSetup
-                  projectId={project.id}
-                  hasAnyTrace={hasAnyTrace ?? false}
-                />
-              </div>
-            </div>
-          )
-        }
-      </Card>
-      {stepInt === 2 && organization && (
-        <Button
-          className="mt-4"
-          data-testid="btn-skip-add-members"
-          onClick={() => router.push(createProjectRoute(organization.id))}
-        >
-          Next
-        </Button>
-      )}
-      {
-        // 4. Setup Tracing
-        stepInt === 4 && project && (
+            )
+          }
+        </Card>
+        {stepInt === 2 && organization && (
           <Button
             className="mt-4"
-            onClick={() => router.push(`/project/${project.id}`)}
-            variant={hasAnyTrace ? "default" : "secondary"}
+            data-testid="btn-skip-add-members"
+            onClick={() => router.push(createProjectRoute(organization.id))}
           >
-            {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
+            Next
           </Button>
-        )
-      }
+        )}
+        {
+          // 4. Setup Tracing
+          stepInt === 4 && project && (
+            <Button
+              className="mt-4"
+              onClick={() => router.push(`/project/${project.id}`)}
+              variant={hasAnyTrace ? "default" : "secondary"}
+            >
+              {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
+            </Button>
+          )
+        }
+      </div>
     </ScrollScreenPage>
   );
 }
