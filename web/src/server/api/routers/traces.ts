@@ -16,7 +16,6 @@ import {
   timeFilter,
   type TraceOptions,
 } from "@langfuse/shared";
-
 import {
   type ObservationLevel,
   type ObservationView,
@@ -30,6 +29,7 @@ import {
   createTracesQuery,
   parseTraceAllFilters,
   getTracesTable,
+  getTracesTableCount,
   getScoresForTraces,
   getTraceById,
   type TracesTableReturnType,
@@ -211,28 +211,51 @@ export const traceRouter = createTRPCRouter({
       }
     }),
   countAll: protectedProjectProcedure
-    .input(TraceFilterOptions)
+    .input(
+      TraceFilterOptions.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { filterCondition, observationTimeseriesFilter, searchCondition } =
         parseTraceAllFilters(input);
+      if (!input.queryClickhouse) {
+        const countQuery = createTracesQuery({
+          select: Prisma.sql`count(*)`,
+          projectId: input.projectId,
+          observationTimeseriesFilter,
+          page: 0,
+          limit: 1,
+          searchCondition,
+          filterCondition,
+        });
 
-      const countQuery = createTracesQuery({
-        select: Prisma.sql`count(*)`,
-        projectId: input.projectId,
-        observationTimeseriesFilter,
-        page: 0,
-        limit: 1,
-        searchCondition,
-        filterCondition,
-      });
+        const totalTraces =
+          await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery);
 
-      const totalTraces =
-        await ctx.prisma.$queryRaw<Array<{ count: bigint }>>(countQuery);
+        const totalTraceCount = totalTraces[0]?.count;
+        return {
+          totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
+        };
+      } else {
+        if (!isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
 
-      const totalTraceCount = totalTraces[0]?.count;
-      return {
-        totalCount: totalTraceCount ? Number(totalTraceCount) : undefined,
-      };
+        const countQuery = await getTracesTableCount(
+          ctx.session.projectId,
+          input.filter ?? [],
+          input.limit,
+          input.page,
+        );
+
+        return {
+          totalCount: countQuery.shift()?.count,
+        };
+      }
     }),
   metrics: protectedProjectProcedure
     .input(
