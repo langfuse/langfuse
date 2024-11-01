@@ -68,7 +68,7 @@ export const NewPrompt = () => {
           version.
         </p>
       ) : null}
-      <div className="my-8 max-w-screen-md">
+      <div className="my-8">
         <NewPromptForm {...{ initialPrompt }} />
       </div>
     </ScrollScreenPage>
