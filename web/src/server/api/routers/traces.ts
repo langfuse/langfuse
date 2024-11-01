@@ -113,7 +113,7 @@ export const convertMetricsReturnType = (
     promptTokens: BigInt(row.usage_details?.input ?? 0),
     completionTokens: BigInt(row.usage_details?.output ?? 0),
     totalTokens: BigInt(row.usage_details?.total ?? 0),
-    latency: row.latency,
+    latency: row.latency ? Number(row.latency) : null,
     level: row.level,
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
