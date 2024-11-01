@@ -4,6 +4,7 @@ import Header from "@/src/components/layouts/header";
 import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 export const NewPrompt = () => {
   const projectId = useProjectIdFromURL();
@@ -47,7 +48,7 @@ export const NewPrompt = () => {
   }
 
   return (
-    <div className="xl:container">
+    <ScrollScreenPage>
       <Header
         title={
           initialPrompt
@@ -67,9 +68,9 @@ export const NewPrompt = () => {
           version.
         </p>
       ) : null}
-      <div className="my-8 max-w-screen-md">
+      <div className="my-8">
         <NewPromptForm {...{ initialPrompt }} />
       </div>
-    </div>
+    </ScrollScreenPage>
   );
 };
