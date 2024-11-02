@@ -27,13 +27,13 @@ export const pruneDatabase = async () => {
   }
 
   await clickhouseClient.command({
-    query: "TRUNCATE TABLE default.observations",
+    query: "TRUNCATE TABLE observations",
   });
   await clickhouseClient.command({
-    query: "TRUNCATE TABLE default.scores",
+    query: "TRUNCATE TABLE scores",
   });
   await clickhouseClient.command({
-    query: "TRUNCATE TABLE default.traces",
+    query: "TRUNCATE TABLE traces",
   });
 };
 
