@@ -62,14 +62,14 @@ export type ObservationReturnType = Omit<
 export type TracesAllReturnType = {
   id: string;
   timestamp: Date;
-  name: string | undefined;
+  name: string | null;
   projectId: string;
-  userId: string | undefined;
-  release: string | undefined;
-  version: string | undefined;
+  userId: string | null;
+  release: string | null;
+  version: string | null;
   public: boolean;
   bookmarked: boolean;
-  sessionId: string | undefined;
+  sessionId: string | null;
   tags: string[];
 };
 
@@ -78,15 +78,15 @@ export const convertToReturnType = (
 ): TracesAllReturnType => {
   return {
     id: row.id,
-    name: row.name,
+    name: row.name ?? null,
     timestamp: new Date(row.timestamp),
     tags: row.tags,
     bookmarked: row.bookmarked,
-    release: row.release,
-    version: row.version,
+    release: row.release ?? null,
+    version: row.version ?? null,
     projectId: row.project_id,
-    userId: row.user_id,
-    sessionId: row.session_id,
+    userId: row.user_id ?? null,
+    sessionId: row.session_id ?? null,
     public: row.public,
   };
 };
@@ -180,12 +180,12 @@ export const traceRouter = createTRPCRouter({
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             ({ input, output, metadata, ...trace }) => ({
               ...trace,
-              name: trace.name ?? undefined,
-              release: trace.release ?? undefined,
-              version: trace.version ?? undefined,
-              externalId: trace.externalId ?? undefined,
-              userId: trace.userId ?? undefined,
-              sessionId: trace.sessionId ?? undefined,
+              name: trace.name,
+              release: trace.release,
+              version: trace.version,
+              externalId: trace.externalId,
+              userId: trace.userId,
+              sessionId: trace.sessionId,
             }),
           ),
         };
