@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
+  logger,
   ObservationEvent,
   observationRecordReadSchema,
   ObservationRecordReadType,
@@ -20,6 +21,7 @@ import { pruneDatabase } from "../../../__tests__/utils";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
+import { log } from "node:console";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -1053,6 +1055,8 @@ describe("Ingestion end-to-end tests", () => {
     const traceId = randomUUID();
     const observationId = randomUUID();
 
+    logger.info(`Creating observation in postgres ${observationId}`);
+
     const latestEvent = new Date();
     const oldEvent = new Date(latestEvent).setSeconds(
       latestEvent.getSeconds() - 1,
@@ -1072,6 +1076,7 @@ describe("Ingestion end-to-end tests", () => {
         // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
         calculatedTotalCost: "0.273330000000000000000000000000",
         modelParameters: { hello: "world" },
+        promptTokens: 10,
       },
     });
 
@@ -1084,7 +1089,7 @@ describe("Ingestion end-to-end tests", () => {
           id: observationId,
           traceId: traceId,
           output: "overwritten",
-          usage: null,
+          usage: undefined,
         },
       },
     ];
@@ -1102,11 +1107,14 @@ describe("Ingestion end-to-end tests", () => {
       observationId,
     );
 
+    logger.info(`Observation in clickhouse ${JSON.stringify(observation)}`);
+
     expect(observation.name).toBe("generation-name");
     expect(observation.input).toBe(JSON.stringify({ key: "value" }));
     expect(observation.output).toBe("overwritten");
     expect(observation.model_parameters).toBe('{"hello":"world"}');
     expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(observation.usage_details).toBe({ input: 10 });
   });
 
   it("should put observation updates after creates if timestamp is same", async () => {

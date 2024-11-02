@@ -238,6 +238,9 @@ export class IngestionService {
         this.getPrompt(projectId, observationEventList),
       ]);
 
+    logger.info(
+      `Processing observation event list ${JSON.stringify(observationEventList)},  postgresObservationRecord ${JSON.stringify(postgresObservationRecord)}, clickhouseObservationRecord ${JSON.stringify(clickhouseObservationRecord)}}`,
+    );
     const observationRecords = this.mapObservationEventsToRecords({
       observationEventList: timeSortedEvents,
       projectId,
@@ -251,6 +254,8 @@ export class IngestionService {
       postgresObservationRecord,
       clickhouseObservationRecord,
     });
+
+    logger.info(`finaaal ${JSON.stringify(finalObservationRecord)} `);
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const traceId = randomUUID();
