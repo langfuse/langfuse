@@ -9,8 +9,6 @@ import { TableFilters } from "./types";
 
 type AdditionalObservationFields = {
   traceName: string | null;
-  promptName: string | null;
-  promptVersion: string | null;
   traceTags: Array<string>;
 };
 

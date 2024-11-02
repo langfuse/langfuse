@@ -452,7 +452,7 @@ export const getObservationsTable = async (
         : null,
       promptId: o.prompt_id ?? null,
       promptName: o.prompt_name ?? null,
-      promptVersion: o.prompt_version ? String(o.prompt_version) : null,
+      promptVersion: o.prompt_version ?? null,
       modelId: o.internal_model_id ?? null,
       inputPrice:
         model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
