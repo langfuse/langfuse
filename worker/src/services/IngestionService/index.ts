@@ -238,9 +238,6 @@ export class IngestionService {
         this.getPrompt(projectId, observationEventList),
       ]);
 
-    logger.info(
-      `Processing observation event list ${JSON.stringify(observationEventList)},  postgresObservationRecord ${JSON.stringify(postgresObservationRecord)}, clickhouseObservationRecord ${JSON.stringify(clickhouseObservationRecord)}}`,
-    );
     const observationRecords = this.mapObservationEventsToRecords({
       observationEventList: timeSortedEvents,
       projectId,
