@@ -14,7 +14,7 @@ import {
   observationRecordReadSchema,
   scoreRecordReadSchema,
   traceRecordReadSchema,
-} from "../definitions";
+} from "./definitions";
 import { clickhouseClient } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getCurrentSpan } from "../instrumentation";
@@ -222,3 +222,7 @@ export const convertTraces = (traces: unknown[]): Trace[] => {
     return convertedTrace;
   });
 };
+
+export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
+  return new Date(`${dateStr.replace(" ", "T")}Z`);
+}

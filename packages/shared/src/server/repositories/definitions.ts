@@ -1,4 +1,5 @@
 import z from "zod";
+import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -139,26 +140,37 @@ export const convertTraceReadToInsert = (
 ): TraceRecordInsertType => {
   return {
     ...record,
-    created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.created_at).getTime(),
-    timestamp: new Date(record.timestamp).getTime(),
-    event_ts: new Date(record.event_ts).getTime(),
+    created_at: parseClickhouseUTCDateTimeFormat(record.created_at).getTime(),
+    updated_at: parseClickhouseUTCDateTimeFormat(record.updated_at).getTime(),
+    timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp).getTime(),
+    event_ts: parseClickhouseUTCDateTimeFormat(record.event_ts).getTime(),
   };
 };
 
 export const convertObservationReadToInsert = (
   record: ObservationRecordReadType,
 ): ObservationRecordInsertType => {
+  const created_at = parseClickhouseUTCDateTimeFormat(
+    record.created_at,
+  ).getTime();
+  const updated_at = parseClickhouseUTCDateTimeFormat(
+    record.updated_at,
+  ).getTime();
+  const start_time = parseClickhouseUTCDateTimeFormat(
+    record.start_time,
+  ).getTime();
   return {
     ...record,
-    created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.created_at).getTime(),
-    start_time: new Date(record.start_time).getTime(),
-    end_time: record.end_time ? new Date(record.end_time).getTime() : undefined,
-    completion_start_time: record.completion_start_time
-      ? new Date(record.completion_start_time).getTime()
+    created_at,
+    updated_at,
+    start_time,
+    end_time: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime()
       : undefined,
-    event_ts: new Date(record.event_ts).getTime(),
+    completion_start_time: record.completion_start_time
+      ? parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
+      : undefined,
+    event_ts: parseClickhouseUTCDateTimeFormat(record.event_ts).getTime(),
   };
 };
 
@@ -167,10 +179,10 @@ export const convertScoreReadToInsert = (
 ): ScoreRecordInsertType => {
   return {
     ...record,
-    created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.updated_at).getTime(),
-    timestamp: new Date(record.timestamp).getTime(),
-    event_ts: new Date(record.event_ts).getTime(),
+    created_at: parseClickhouseUTCDateTimeFormat(record.created_at).getTime(),
+    updated_at: parseClickhouseUTCDateTimeFormat(record.updated_at).getTime(),
+    timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp).getTime(),
+    event_ts: parseClickhouseUTCDateTimeFormat(record.event_ts).getTime(),
   };
 };
 
