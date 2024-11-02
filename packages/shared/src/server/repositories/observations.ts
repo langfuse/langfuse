@@ -1,5 +1,7 @@
-import { ObservationClickhouseRecord } from "../clickhouse/schema";
-import { queryClickhouse } from "./clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import {
   Model,
   Observation,
@@ -13,9 +15,10 @@ import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import Decimal from "decimal.js";
 import { prisma } from "../../db";
 import { jsonSchema } from "../../utils/zod";
+import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservation = async (
-  record: ObservationClickhouseRecord,
+  record: ObservationRecordReadType,
 ): Promise<Observation> => {
   const model = record.internal_model_id
     ? await prisma.model.findFirst({
@@ -26,12 +29,12 @@ export const convertObservation = async (
           Price: true,
         },
       })
-    : null;
+    : undefined;
   return await convertObservationAndModel(record, model);
 };
 
 export const convertObservationToView = async (
-  record: ObservationClickhouseRecord,
+  record: ObservationRecordReadType,
 ): Promise<ObservationView> => {
   const model = record.internal_model_id
     ? await prisma.model.findFirst({
@@ -42,16 +45,16 @@ export const convertObservationToView = async (
           Price: true,
         },
       })
-    : null;
+    : undefined;
   return {
     ...(await convertObservationAndModel(record, model)),
     latency: record.end_time
-      ? new Date(record.end_time).getTime() -
-        new Date(record.start_time).getTime()
+      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
     timeToFirstToken: record.completion_start_time
-      ? new Date(record.start_time).getTime() -
-        new Date(record.completion_start_time).getTime()
+      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
       : null,
     inputPrice:
       model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
@@ -66,18 +69,20 @@ export const convertObservationToView = async (
 };
 
 const convertObservationAndModel = async (
-  record: ObservationClickhouseRecord,
-  model: (Model & { Price: Price[] }) | null,
+  record: ObservationRecordReadType,
+  model?: (Model & { Price: Price[] }) | null,
 ): Promise<Observation> => {
   return {
     id: record.id,
-    traceId: record.trace_id,
+    traceId: record.trace_id ?? null,
     projectId: record.project_id,
     type: record.type as ObservationType,
     parentObservationId: record.parent_observation_id ?? null,
-    startTime: new Date(record.start_time),
-    endTime: record.end_time ? new Date(record.end_time) : null,
-    name: record.name,
+    startTime: parseClickhouseUTCDateTimeFormat(record.start_time),
+    endTime: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time)
+      : null,
+    name: record.name ?? null,
     metadata: record.metadata,
     level: record.level as ObservationLevel,
     statusMessage: record.status_message ?? null,
@@ -86,11 +91,11 @@ const convertObservationAndModel = async (
     output: jsonSchema.nullish().parse(record.output) ?? null,
     modelParameters: jsonSchema.nullable().parse(record.model_parameters),
     completionStartTime: record.completion_start_time
-      ? new Date(record.completion_start_time)
+      ? parseClickhouseUTCDateTimeFormat(record.completion_start_time)
       : null,
     promptId: record.prompt_id ?? null,
-    createdAt: new Date(record.created_at),
-    updatedAt: new Date(record.updated_at),
+    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
+    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
     promptTokens: record.usage_details?.input ?? 0,
     completionTokens: record.usage_details?.output ?? 0,
     totalTokens: record.usage_details?.total ?? 0,
@@ -156,7 +161,7 @@ export const getObservationsViewForTrace = async (
     updated_at,
     event_ts
   FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
-  const records = await queryClickhouse<ObservationClickhouseRecord>({
+  const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { traceId, projectId },
   });
@@ -202,12 +207,14 @@ export const getObservationById = async (
     updated_at,
     event_ts
   FROM observations FINAL WHERE id = {id: String} AND project_id = {projectId: String}`;
-  const records = await queryClickhouse<ObservationClickhouseRecord>({
+  const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { id, projectId },
   });
 
-  const mapped = records.map((r) => convertObservation(r));
+  const mapped = await Promise.all(
+    records.map(async (r) => await convertObservation(r)),
+  );
 
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
@@ -221,5 +228,5 @@ export const getObservationById = async (
       `Multiple observations found for id ${id} and project ${projectId}`,
     );
   }
-  return mapped.shift();
+  return mapped.shift() as Observation;
 };

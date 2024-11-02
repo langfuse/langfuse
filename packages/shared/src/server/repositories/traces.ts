@@ -1,5 +1,7 @@
-import { TraceClickhouseRecord } from "../clickhouse/schema";
-import { queryClickhouse } from "./clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
@@ -8,9 +10,32 @@ import { ObservationLevel, Trace } from "@prisma/client";
 import { FilterState } from "../../types";
 import { logger } from "../logger";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
+import { TraceRecordReadType } from "./definitions";
+
+const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
+  return {
+    id: record.id,
+    projectId: record.project_id,
+    name: record.name ?? null,
+    timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
+    tags: record.tags,
+    bookmarked: record.bookmarked,
+    release: record.release ?? null,
+    version: record.version ?? null,
+    userId: record.user_id ?? null,
+    sessionId: record.session_id ?? null,
+    public: record.public,
+    input: record.input ?? null,
+    output: record.output ?? null,
+    metadata: record.metadata,
+    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
+    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
+    externalId: null,
+  };
+};
 
 export type TracesTableReturnType = Pick<
-  TraceClickhouseRecord,
+  TraceRecordReadType,
   | "project_id"
   | "id"
   | "name"
@@ -171,32 +196,12 @@ export const getTraceByIdOrThrow = async (
   projectId: string,
 ) => {
   const query = `SELECT * FROM traces where id = {traceId: String} and project_id = {projectId: String} order by event_ts desc LIMIT 1 by id, project_id`;
-  const records = await queryClickhouse<TraceClickhouseRecord>({
+  const records = await queryClickhouse<TraceRecordReadType>({
     query,
     params: { traceId, projectId },
   });
 
-  const res = records.map<Trace>((record) => {
-    return {
-      id: record.id,
-      projectId: record.project_id,
-      name: record.name ?? null,
-      timestamp: new Date(record.timestamp),
-      tags: record.tags,
-      bookmarked: record.bookmarked,
-      release: record.release ?? null,
-      version: record.version ?? null,
-      userId: record.user_id ?? null,
-      sessionId: record.session_id ?? null,
-      public: record.public,
-      input: record.input ?? null,
-      output: record.output ?? null,
-      metadata: record.metadata,
-      createdAt: new Date(record.created_at),
-      updatedAt: new Date(record.updated_at),
-      externalId: null,
-    };
-  });
+  const res = records.map(convertClickhouseToDomain);
 
   if (res.length !== 1) {
     const errorMessage = `Trace not found or multiple traces found for traceId: ${traceId}, projectId: ${projectId}`;
