@@ -27,13 +27,13 @@ export const pruneDatabase = async () => {
   }
 
   await clickhouseClient.command({
-    query: "TRUNCATE TABLE observations",
+    query: "TRUNCATE TABLE IF EXISTS observations",
   });
   await clickhouseClient.command({
-    query: "TRUNCATE TABLE scores",
+    query: "TRUNCATE TABLE IF EXISTS scores",
   });
   await clickhouseClient.command({
-    query: "TRUNCATE TABLE traces",
+    query: "TRUNCATE TABLE IF EXISTS traces",
   });
 };
 
