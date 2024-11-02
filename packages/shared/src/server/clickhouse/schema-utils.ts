@@ -1,57 +1,11 @@
 import { LangfuseNotFoundError } from "../../errors";
 import { eventTypes } from "../ingestion/types";
-import {
-  ClickhouseTableName,
-  ClickhouseTableNames,
-  TraceClickhouseRecord,
-  ObservationClickhouseRecord,
-  ScoreClickhouseRecord,
-  TraceClickhouseColumns,
-  ObservationClickhouseColumns,
-  ScoreClickhouseColumns,
-} from "./schema";
+import { ClickhouseTableName, ClickhouseTableNames } from "./schema";
 
 export const isValidTableName = (
   tableName: string,
 ): tableName is ClickhouseTableName =>
   Object.keys(ClickhouseTableNames).includes(tableName);
-
-export function isKeyOfTraceClickhouseRecord(
-  key: string,
-): key is keyof TraceClickhouseRecord {
-  return TraceClickhouseColumns.some((column) => key === column.name);
-}
-
-export function isKeyOfObservationClickhouseRecord(
-  key: string,
-): key is keyof ObservationClickhouseRecord {
-  return ObservationClickhouseColumns.some((column) => key === column.name);
-}
-
-export function isKeyOfScoreClickhouseRecord(
-  key: string,
-): key is keyof ScoreClickhouseRecord {
-  return ScoreClickhouseColumns.some((column) => key === column.name);
-}
-
-export function isKeyOfClickhouseRecord(
-  tableName: ClickhouseTableName,
-  key: string,
-): key is
-  | keyof TraceClickhouseRecord
-  | keyof ObservationClickhouseRecord
-  | keyof ScoreClickhouseRecord {
-  switch (tableName) {
-    case "traces":
-      return isKeyOfTraceClickhouseRecord(key);
-    case "observations":
-      return isKeyOfObservationClickhouseRecord(key);
-    case "scores":
-      return isKeyOfScoreClickhouseRecord(key);
-    default:
-      throw new Error(`Unhandled table case: ${tableName}`);
-  }
-}
 
 export type IngestionEntityTypes =
   | "trace"
