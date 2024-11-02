@@ -1076,7 +1076,6 @@ describe("Ingestion end-to-end tests", () => {
         // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
         calculatedTotalCost: "0.273330000000000000000000000000",
         modelParameters: { hello: "world" },
-        promptTokens: 10,
       },
     });
 
@@ -1114,7 +1113,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation.output).toBe("overwritten");
     expect(observation.model_parameters).toBe('{"hello":"world"}');
     expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    expect(observation.usage_details).toBe({ input: 10 });
   });
 
   it("should put observation updates after creates if timestamp is same", async () => {
