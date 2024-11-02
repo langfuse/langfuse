@@ -1,6 +1,7 @@
 import { createObservation } from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { getObservationById } from "@langfuse/shared/src/server";
+import Decimal from "decimal.js";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -24,10 +25,10 @@ describe("Clickhouse Observations Repository Test", () => {
       project_id: projectId,
       type: "sample_type",
       metadata: {},
-      provided_usage_details: {},
-      provided_cost_details: {},
-      usage_details: {},
-      cost_details: {},
+      provided_usage_details: { input: 1234, output: 5678, total: 6912 },
+      provided_cost_details: { input: 100, output: 200, total: 300 },
+      usage_details: { input: 1234, output: 5678, total: 6912 },
+      cost_details: { input: 100, output: 200, total: 300 },
       is_deleted: 0,
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -42,7 +43,7 @@ describe("Clickhouse Observations Repository Test", () => {
       provided_model_name: "sample_model",
       internal_model_id: "sample_internal_model_id",
       model_parameters: "sample_parameters",
-      total_cost: 0,
+      total_cost: 300,
       prompt_id: "sample_prompt_id",
       prompt_name: "sample_prompt_name",
       prompt_version: 1,
@@ -74,5 +75,9 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(result.completionStartTime).toEqual(
       new Date(observation.completion_start_time),
     );
+    expect(result.totalCost).toEqual(new Decimal(observation.total_cost));
+    expect(result.promptTokens).toEqual(1234);
+    expect(result.completionTokens).toEqual(5678);
+    expect(result.totalTokens).toEqual(6912);
   });
 });

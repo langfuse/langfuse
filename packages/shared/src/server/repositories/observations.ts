@@ -30,7 +30,7 @@ export const convertObservation = async (
         },
       })
     : undefined;
-  return await convertObservationAndModel(record, model);
+  return await convertObservationAndModel(record, model ?? undefined);
 };
 
 export const convertObservationToView = async (
@@ -47,7 +47,7 @@ export const convertObservationToView = async (
       })
     : undefined;
   return {
-    ...(await convertObservationAndModel(record, model)),
+    ...(await convertObservationAndModel(record, model ?? undefined)),
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
@@ -70,7 +70,7 @@ export const convertObservationToView = async (
 
 const convertObservationAndModel = async (
   record: ObservationRecordReadType,
-  model?: (Model & { Price: Price[] }) | null,
+  model?: Model & { Price: Price[] },
 ): Promise<Observation> => {
   return {
     id: record.id,
@@ -96,9 +96,15 @@ const convertObservationAndModel = async (
     promptId: record.prompt_id ?? null,
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: record.usage_details?.input ?? 0,
-    completionTokens: record.usage_details?.output ?? 0,
-    totalTokens: record.usage_details?.total ?? 0,
+    promptTokens: record.usage_details?.input
+      ? Number(record.usage_details?.input)
+      : 0,
+    completionTokens: record.usage_details?.output
+      ? Number(record.usage_details?.output)
+      : 0,
+    totalTokens: record.usage_details?.total
+      ? Number(record.usage_details?.total)
+      : 0,
     calculatedInputCost: record.cost_details?.input
       ? new Decimal(record.cost_details.input)
       : null,
@@ -114,14 +120,11 @@ const convertObservationAndModel = async (
     outputCost: record.cost_details?.output
       ? new Decimal(record.cost_details?.output)
       : null,
-    totalCost: record.cost_details?.total
-      ? new Decimal(record.cost_details?.total)
-      : null,
-
+    totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     internalModel: model?.modelName ?? null, // to be removed
-    unit: model?.Price?.shift()?.usageType ?? null,
+    unit: "TOKENS", // to be removed.
   };
 };
 
