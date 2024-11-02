@@ -344,9 +344,9 @@ export const getObservationsTable = async (
           observation_id
       )
       SELECT
-        o.id,
-        o.name,
-        o."model_parameters",
+        o.id as id,
+        o.name as name,
+        o."model_parameters" as model_parameters,
         o.start_time as "start_time",
         o.end_time as "end_time",
         ${selectIOAndMetadata ? `o.input, o.output, o.metadata,` : ""} 
@@ -386,11 +386,11 @@ export const getObservationsTable = async (
     },
   });
 
-  const uniqueModels = Array.from(
+  const uniqueModels: string[] = Array.from(
     new Set(
       records
         .map((r) => r.internal_model_id)
-        .filter((r) => r !== null && r !== undefined),
+        .filter((r): r is string => Boolean(r)),
     ),
   );
 
@@ -399,7 +399,7 @@ export const getObservationsTable = async (
       ? await prisma.model.findMany({
           where: {
             id: {
-              in: Array.from(uniqueModels),
+              in: uniqueModels,
             },
             OR: [{ projectId: projectId }, { projectId: null }],
           },
