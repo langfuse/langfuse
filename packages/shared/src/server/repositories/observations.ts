@@ -17,28 +17,32 @@ import { jsonSchema } from "../../utils/zod";
 export const convertObservation = async (
   record: ObservationClickhouseRecord,
 ): Promise<Observation> => {
-  const model = await prisma.model.findFirst({
-    where: {
-      id: record.internal_model_id,
-    },
-    include: {
-      Price: true,
-    },
-  });
+  const model = record.internal_model_id
+    ? await prisma.model.findFirst({
+        where: {
+          id: record.internal_model_id,
+        },
+        include: {
+          Price: true,
+        },
+      })
+    : null;
   return await convertObservationAndModel(record, model);
 };
 
 export const convertObservationToView = async (
   record: ObservationClickhouseRecord,
 ): Promise<ObservationView> => {
-  const model = await prisma.model.findFirst({
-    where: {
-      id: record.internal_model_id,
-    },
-    include: {
-      Price: true,
-    },
-  });
+  const model = record.internal_model_id
+    ? await prisma.model.findFirst({
+        where: {
+          id: record.internal_model_id,
+        },
+        include: {
+          Price: true,
+        },
+      })
+    : null;
   return {
     ...(await convertObservationAndModel(record, model)),
     latency: record.end_time
