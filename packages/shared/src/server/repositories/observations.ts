@@ -19,7 +19,19 @@ import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservation = async (
   record: ObservationRecordReadType,
-): Promise<Observation> => convertObservationAndModel(record);
+): Promise<Observation> => {
+  const model = record.internal_model_id
+    ? await prisma.model.findFirst({
+        where: {
+          id: record.internal_model_id,
+        },
+        include: {
+          Price: true,
+        },
+      })
+    : undefined;
+  return await convertObservationAndModel(record, model);
+};
 
 export const convertObservationToView = async (
   record: ObservationRecordReadType,
@@ -35,7 +47,7 @@ export const convertObservationToView = async (
       })
     : undefined;
   return {
-    ...convertObservationAndModel(record),
+    ...(await convertObservationAndModel(record, model)),
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
@@ -56,9 +68,10 @@ export const convertObservationToView = async (
   };
 };
 
-const convertObservationAndModel = (
+const convertObservationAndModel = async (
   record: ObservationRecordReadType,
-): Observation => {
+  model?: (Model & { Price: Price[] }) | null,
+): Promise<Observation> => {
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
