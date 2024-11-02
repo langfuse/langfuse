@@ -111,7 +111,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run ch:up
+          pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
       - name: Start Langfuse
