@@ -19,19 +19,7 @@ import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservation = async (
   record: ObservationRecordReadType,
-): Promise<Observation> => {
-  const model = record.internal_model_id
-    ? await prisma.model.findFirst({
-        where: {
-          id: record.internal_model_id,
-        },
-        include: {
-          Price: true,
-        },
-      })
-    : undefined;
-  return await convertObservationAndModel(record, model);
-};
+): Promise<Observation> => convertObservationAndModel(record);
 
 export const convertObservationToView = async (
   record: ObservationRecordReadType,
@@ -47,7 +35,7 @@ export const convertObservationToView = async (
       })
     : undefined;
   return {
-    ...(await convertObservationAndModel(record, model)),
+    ...convertObservationAndModel(record),
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
@@ -68,10 +56,9 @@ export const convertObservationToView = async (
   };
 };
 
-const convertObservationAndModel = async (
+const convertObservationAndModel = (
   record: ObservationRecordReadType,
-  model?: (Model & { Price: Price[] }) | null,
-): Promise<Observation> => {
+): Observation => {
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -121,7 +108,7 @@ const convertObservationAndModel = async (
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     internalModel: model?.modelName ?? null, // to be removed
-    unit: model?.Price?.shift()?.usageType ?? null,
+    unit: "TOKENS", // to be removed.
   };
 };
 
