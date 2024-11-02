@@ -1,5 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
+import { clickhouseClient } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 
 export const pruneDatabase = async () => {
@@ -20,6 +21,20 @@ export const pruneDatabase = async () => {
   await prisma.model.deleteMany();
   await prisma.llmApiKeys.deleteMany();
   await prisma.comment.deleteMany();
+
+  if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
+    throw new Error("You cannot prune clickhouse unless running on localhost.");
+  }
+
+  await clickhouseClient.command({
+    query: "TRUNCATE TABLE IF EXISTS observations",
+  });
+  await clickhouseClient.command({
+    query: "TRUNCATE TABLE IF EXISTS scores",
+  });
+  await clickhouseClient.command({
+    query: "TRUNCATE TABLE IF EXISTS traces",
+  });
 };
 
 function createBasicAuthHeader(username: string, password: string): string {

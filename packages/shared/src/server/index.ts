@@ -12,7 +12,7 @@ export * from "./utils/transforms";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schema-utils";
 export * from "./clickhouse/schema";
-export * from "../server/definitions";
+export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
 export * from "./ingestion/modelMatch";
 export * from "../server/ingestion/types";

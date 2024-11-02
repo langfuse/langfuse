@@ -140,7 +140,7 @@ export const convertTraceReadToInsert = (
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.created_at).getTime(),
+    updated_at: new Date(record.updated_at).getTime(),
     timestamp: new Date(record.timestamp).getTime(),
     event_ts: new Date(record.event_ts).getTime(),
   };
@@ -152,7 +152,7 @@ export const convertObservationReadToInsert = (
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.created_at).getTime(),
+    updated_at: new Date(record.updated_at).getTime(),
     start_time: new Date(record.start_time).getTime(),
     end_time: record.end_time ? new Date(record.end_time).getTime() : undefined,
     completion_start_time: record.completion_start_time

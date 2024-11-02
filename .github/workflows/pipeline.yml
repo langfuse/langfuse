@@ -80,6 +80,11 @@ jobs:
         with:
           swap-size-gb: 10
       - uses: actions/checkout@v4
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
@@ -111,6 +116,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
+          pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
       - name: Start Langfuse
