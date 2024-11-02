@@ -176,7 +176,7 @@ const getTracesTableGeneric = async <T>(
 
       WHERE ${tracesFilterRes.query}
       ${orderBy ? orderBy : ""}
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   return await queryClickhouse<T>({
