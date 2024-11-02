@@ -22,8 +22,12 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-filter/clickhouse-filter";
-import { log } from "console";
-import { FullObservation } from "../queries/createGenerationsQuery";
+import { log, time, trace } from "console";
+import {
+  FullObservation,
+  FullObservations,
+} from "../queries/createGenerationsQuery";
+import { legacyObservationCreateEvent } from "../ingestion/types";
 
 export const convertObservation = async (
   record: ObservationRecordReadType,
@@ -265,9 +269,16 @@ export type ObservationTableRecord = {
   scoresValues: Record<string, number>;
 };
 
+export type ObservationsTableQueryResult = ObservationRecordReadType & {
+  latency?: string;
+  time_to_first_token?: string;
+  trace_tags?: string[];
+  trace_name?: string;
+};
+
 export const getObservationsTable = async (
   opts: ObservationTableQuery,
-): FullObservations => {
+): Promise<FullObservations> => {
   const { projectId, filter, selectIOAndMetadata, limit, offset } = opts;
   logger.info(
     `Fetching observations for project ${projectId}, filter: ${filter}, selectIOAndMetadata: ${selectIOAndMetadata}, limit: ${limit}, offset: ${offset}`,
@@ -282,14 +293,14 @@ export const getObservationsTable = async (
   //     tablePrefix: "t",
   //   }),
   // ]);
-  // const scoresFilter = new FilterList([
-  //   new StringFilter({
-  //     clickhouseTable: "scores",
-  //     field: "project_id",
-  //     operator: "=",
-  //     value: projectId,
-  //   }),
-  // ]);
+  const scoresFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+    }),
+  ]);
   const observationsFilter = new FilterList([
     new StringFilter({
       clickhouseTable: "observations",
@@ -301,10 +312,37 @@ export const getObservationsTable = async (
   ]);
 
   // const appliedTracesFilter = tracesFilter.apply();
-  // const appliedScoresFilter = scoresFilter.apply();
+  const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
   const query = `
+      WITH scores_avg AS (
+        SELECT
+          trace_id,
+          observation_id,
+           groupArray(tuple(name, avg_value)) AS "scores_avg"
+        FROM (
+          SELECT
+            trace_id,
+            observation_id,
+            name,
+            avg(value) avg_value,
+            comment
+          FROM
+            scores final
+          WHERE ${appliedScoresFilter.query}
+          GROUP BY
+            trace_id,
+            observation_id,
+            name,
+            comment
+          ORDER BY
+            trace_id
+          ) tmp
+        GROUP BY
+          trace_id, 
+          observation_id
+      )
       SELECT
         o.id,
         o.name,
@@ -328,102 +366,102 @@ export const getObservationsTable = async (
         o.updated_at as "updated_at",
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
-      FROM observations o FINAL LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id
-        where 
-          ${appliedObservationsFilter.query}
+        internal_model_id as "internal_model_id",
+        provided_model_name as "provided_model_name",
+        if(isNull(end_time), NULL, date_diff('seconds', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('seconds', start_time, completion_start_time)) as time_to_first_token
+      FROM observations o FINAL 
+        LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id
+        LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
+      WHERE ${appliedObservationsFilter.query}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-  const records = await queryClickhouse<ObservationRecordReadType>({
+  logger.info(`Observations query: ${query}`);
+  const records = await queryClickhouse<ObservationsTableQueryResult>({
     query,
     params: {
       // ...appliedTracesFilter.params,
-      // ...appliedScoresFilter.params,
+      ...appliedScoresFilter.params,
       ...appliedObservationsFilter.params,
     },
   });
 
-  return records.map((o) => ({
-    id: o.id,
-    type: "GENERATION",
-    name: o.name,
-    level: o.level,
-    version: o.version,
-    input: o.input,
-    output: o.output,
-    metadata: o.metadata,
-    traceId: o.trace_id,
-    projectId: projectId,
-    startTime: parseClickhouseUTCDateTimeFormat(o.start_time),
-    endTime: o.end_time ? parseClickhouseUTCDateTimeFormat(o.end_time) : null,
-    parentObservationId: o.parent_observation_id,
-    statusMessage: o.status_message,
-    createdAt: parseClickhouseUTCDateTimeFormat(o.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(o.updated_at),
-    model: o.provided_model_name,
-    promptTokens: o.usage_details?.input ? Number(o.usage_details?.input) : 0,
-    completionTokens: o.usage_details?.output
-      ? Number(o.usage_details?.output)
-      : 0,
-    totalTokens: o.usage_details?.total ? Number(o.usage_details?.total) : 0,
-    unit: "TOKENS",
-    calculatedInputCost: o.cost_details?.input
-      ? new Decimal(o.cost_details.input)
-      : null,
-    calculatedOutputCost: o.cost_details?.output
-      ? new Decimal(o.cost_details.output)
-      : null,
-    calculatedTotalCost: o.total_cost ? new Decimal(o.total_cost) : null,
-    completionStartTime: o.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(o.completion_start_time)
-      : null,
+  const uniqueModels = Array.from(
+    new Set(
+      records
+        .map((r) => r.internal_model_id)
+        .filter((r) => r !== null && r !== undefined),
+    ),
+  );
 
-    //   completionStartTime: Date | null;
-    //   promptId: string | null;
-    //   promptName: string | null;
-    //   promptVersion: number | null;
-    //   modelId: string | null;
-    //   inputPrice: Decimal | null;
-    //   outputPrice: Decimal | null;
-    //   totalPrice: Decimal | null;
-    //   latency: number | null;
-    //   timeToFirstToken: number | null;
-  }));
+  const models =
+    uniqueModels.length > 0
+      ? await prisma.model.findMany({
+          where: {
+            id: {
+              in: Array.from(uniqueModels),
+            },
+            OR: [{ projectId: projectId }, { projectId: null }],
+          },
+          include: {
+            Price: true,
+          },
+        })
+      : [];
+
+  return records.map((o) => {
+    const model = models.find((p) => p.id === o.internal_model_id);
+    return {
+      id: o.id,
+      type: "GENERATION",
+      name: o.name ?? null,
+      level: o.level as ObservationLevel,
+      version: o.version ?? null,
+      input: o.input ?? null,
+      output: o.output ?? null,
+      metadata: o.metadata,
+      traceId: o.trace_id ?? null,
+      projectId: projectId,
+      startTime: parseClickhouseUTCDateTimeFormat(o.start_time),
+      endTime: o.end_time ? parseClickhouseUTCDateTimeFormat(o.end_time) : null,
+      parentObservationId: o.parent_observation_id ?? null,
+      statusMessage: o.status_message ?? null,
+      createdAt: parseClickhouseUTCDateTimeFormat(o.created_at),
+      updatedAt: parseClickhouseUTCDateTimeFormat(o.updated_at),
+      model: o.provided_model_name ?? null,
+      modelParameters: o.model_parameters ?? null,
+      promptTokens: o.usage_details?.input ? Number(o.usage_details?.input) : 0,
+      completionTokens: o.usage_details?.output
+        ? Number(o.usage_details?.output)
+        : 0,
+      totalTokens: o.usage_details?.total ? Number(o.usage_details?.total) : 0,
+      unit: "TOKENS",
+      calculatedInputCost: o.cost_details?.input
+        ? new Decimal(o.cost_details.input)
+        : null,
+      calculatedOutputCost: o.cost_details?.output
+        ? new Decimal(o.cost_details.output)
+        : null,
+      calculatedTotalCost: o.total_cost ? new Decimal(o.total_cost) : null,
+      completionStartTime: o.completion_start_time
+        ? parseClickhouseUTCDateTimeFormat(o.completion_start_time)
+        : null,
+      latency: o.latency ? Number(o.latency) : null,
+      timeToFirstToken: o.time_to_first_token
+        ? Number(o.time_to_first_token)
+        : null,
+      promptId: o.prompt_id ?? null,
+      promptName: o.prompt_name ?? null,
+      promptVersion: o.prompt_version ?? null,
+      modelId: o.internal_model_id ?? null,
+      inputPrice:
+        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+      outputPrice:
+        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+      totalPrice:
+        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+      traceName: o.trace_name ?? null,
+      traceTags: o.trace_tags ?? [],
+    };
+  });
 };
-
-// type FullObservation = AdditionalObservationFields & {
-//   id: string;
-//   type: $Enums.ObservationType;
-//   name: string | null;
-//   metadata: JsonValue | null;
-//   level: $Enums.ObservationLevel;
-//   version: string | null;
-//   input: JsonValue | null;
-//   output: JsonValue | null;
-//   traceId: string | null;
-//   projectId: string;
-//   startTime: Date;
-//   endTime: Date | null;
-//   parentObservationId: string | null;
-//   statusMessage: string | null;
-//   createdAt: Date;
-//   updatedAt: Date;
-//   model: string | null;
-//   modelParameters: JsonValue | null;
-//   promptTokens: number;
-//   completionTokens: number;
-//   totalTokens: number;
-//   unit: string | null;
-//   calculatedInputCost: Decimal | null;
-//   calculatedOutputCost: Decimal | null;
-//   calculatedTotalCost: Decimal | null;
-//   completionStartTime: Date | null;
-//   promptId: string | null;
-//   promptName: string | null;
-//   promptVersion: number | null;
-//   modelId: string | null;
-//   inputPrice: Decimal | null;
-//   outputPrice: Decimal | null;
-//   totalPrice: Decimal | null;
-//   latency: number | null;
-//   timeToFirstToken: number | null;
-// }

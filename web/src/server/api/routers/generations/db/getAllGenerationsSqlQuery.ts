@@ -5,6 +5,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   createGenerationsQuery,
+  getObservationsTable,
   parseGetAllGenerationsInput,
   traceException,
   type FullObservations,
@@ -14,28 +15,40 @@ import {
 export async function getAllGenerations({
   input,
   selectIOAndMetadata,
+  queryClickhouse,
 }: {
   input: GetAllGenerationsInput;
   selectIOAndMetadata: boolean;
+  queryClickhouse?: boolean;
 }) {
   const { searchCondition, filterCondition, orderByCondition, datetimeFilter } =
     parseGetAllGenerationsInput(input);
 
-  const query = createGenerationsQuery({
-    projectId: input.projectId,
-    page: input.page,
-    limit: input.limit,
-    searchCondition,
-    filterCondition,
-    orderByCondition,
-    datetimeFilter,
-    selectIOAndMetadata,
-  });
+  let generations: FullObservations | IOAndMetadataOmittedObservations;
+  if (queryClickhouse) {
+    generations = await getObservationsTable({
+      projectId: input.projectId,
+      filter: input.filter,
+      selectIOAndMetadata: selectIOAndMetadata,
+      offset: input.page * input.limit,
+      limit: input.limit,
+    });
+  } else {
+    const query = createGenerationsQuery({
+      projectId: input.projectId,
+      page: input.page,
+      limit: input.limit,
+      searchCondition,
+      filterCondition,
+      orderByCondition,
+      datetimeFilter,
+      selectIOAndMetadata,
+    });
 
-  const generations: FullObservations | IOAndMetadataOmittedObservations =
-    selectIOAndMetadata
+    generations = selectIOAndMetadata
       ? ((await prisma.$queryRaw(query)) as FullObservations)
       : ((await prisma.$queryRaw(query)) as IOAndMetadataOmittedObservations);
+  }
 
   const scores = await prisma.score.findMany({
     where: {

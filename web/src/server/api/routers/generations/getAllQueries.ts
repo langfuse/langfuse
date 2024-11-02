@@ -1,17 +1,19 @@
 import { z } from "zod";
 
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { paginationZod } from "@langfuse/shared";
+import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-
+import { prisma } from "@langfuse/shared/src/db";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
 import {
   getObservationsTable,
   parseGetAllGenerationsInput,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -44,15 +46,15 @@ export const getAllQueries = {
           });
         }
 
-        const rows = await getObservationsTable({
-          projectId: input.projectId,
-          filter: input.filter,
+        const { generations } = await getAllGenerations({
+          input,
           selectIOAndMetadata: false,
-          offset: input.page * input.limit,
-          limit: input.limit,
+          queryClickhouse: true,
         });
 
-        console.log(rows[0]);
+        return {
+          generations: generations,
+        };
       }
     }),
   countAll: protectedProjectProcedure
