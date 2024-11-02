@@ -14,7 +14,7 @@ type AdditionalObservationFields = {
   traceTags: Array<string>;
 };
 
-type FullObservation = AdditionalObservationFields & ObservationView;
+export type FullObservation = AdditionalObservationFields & ObservationView;
 
 export type FullObservations = Array<FullObservation>;
 
@@ -40,17 +40,17 @@ export function parseGetAllGenerationsInput(filters: TableFilters) {
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     filters.filter ?? [],
     observationsTableCols,
-    "observations"
+    "observations",
   );
 
   const orderByCondition = orderByToPrismaSql(
     filters.orderBy,
-    observationsTableCols
+    observationsTableCols,
   );
 
   // to improve query performance, add timeseries filter to observation queries as well
   const startTimeFilter = filters.filter?.find(
-    (f) => f.column === "Start Time" && f.type === "datetime"
+    (f) => f.column === "Start Time" && f.type === "datetime",
   );
 
   const datetimeFilter =
@@ -58,7 +58,7 @@ export function parseGetAllGenerationsInput(filters: TableFilters) {
       ? datetimeFilterToPrismaSql(
           "start_time",
           startTimeFilter.operator,
-          startTimeFilter.value
+          startTimeFilter.value,
         )
       : Prisma.empty;
 

@@ -10,7 +10,11 @@ import {
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(
-    z.object({ projectId: z.string(), startTimeFilter: timeFilter.optional() }),
+    z.object({
+      projectId: z.string(),
+      startTimeFilter: timeFilter.optional(),
+      queryClickhouse: z.boolean().default(false),
+    }),
   )
   .query(async ({ input, ctx }) => {
     const { startTimeFilter } = input;

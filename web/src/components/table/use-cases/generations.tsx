@@ -181,6 +181,7 @@ export default function GenerationsTable({
     page: 0,
     limit: 0,
     orderBy: null,
+    queryClickhouse: useClickhouse(),
   };
 
   const getAllPayload = {
@@ -202,6 +203,7 @@ export default function GenerationsTable({
       projectId,
       startTimeFilter:
         startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {

@@ -6,7 +6,10 @@ import { Prisma } from "@langfuse/shared/src/db";
 
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { parseGetAllGenerationsInput } from "@langfuse/shared/src/server";
+import {
+  getObservationsTable,
+  parseGetAllGenerationsInput,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
@@ -41,10 +44,15 @@ export const getAllQueries = {
           });
         }
 
-        throw new TRPCError({
-          code: "NOT_IMPLEMENTED",
-          message: "Clickhouse query not implemented yet",
+        const rows = await getObservationsTable({
+          projectId: input.projectId,
+          filter: input.filter,
+          selectIOAndMetadata: false,
+          offset: input.page * input.limit,
+          limit: input.limit,
         });
+
+        console.log(rows[0]);
       }
     }),
   countAll: protectedProjectProcedure
