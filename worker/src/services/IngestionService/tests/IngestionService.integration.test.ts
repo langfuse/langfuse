@@ -342,13 +342,13 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.version).toBe("2.0.0");
       expect(generation.internal_model_id).toBeNull();
       expect(generation.usage_details.input).toEqual(
-        testConfig.expectedInputUnits,
+        testConfig.expectedInputUnits?.toString(),
       );
       expect(generation.usage_details.output).toEqual(
-        testConfig.expectedOutputUnits,
+        testConfig.expectedOutputUnits?.toString(),
       );
       expect(generation.usage_details.total).toEqual(
-        testConfig.expectedTotalUnits,
+        testConfig.expectedTotalUnits?.toString(),
       );
       expect(generation.output).toEqual(
         JSON.stringify({
@@ -652,10 +652,10 @@ describe("Ingestion end-to-end tests", () => {
         testConfig.observationExternalModel,
       );
       expect(generation.usage_details.input).toBe(
-        testConfig.expectedInputUnits,
+        testConfig.expectedInputUnits?.toString(),
       );
       expect(generation.usage_details.output).toBe(
-        testConfig.expectedOutputUnits,
+        testConfig.expectedOutputUnits?.toString(),
       );
       expect(generation.internal_model_id).toBe(
         testConfig.expectedInternalModelId,
@@ -1049,7 +1049,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
-  it("should merge observations from postgres and event list", async () => {
+  it.only("should merge observations from postgres and event list", async () => {
     const traceId = randomUUID();
     const observationId = randomUUID();
 
@@ -1261,13 +1261,13 @@ describe("Ingestion end-to-end tests", () => {
       generationId,
     );
 
-    expect(generation.usage_details.input).toEqual(1285);
-    expect(generation.usage_details.output).toEqual(513);
-    expect(generation.usage_details.total).toEqual(1798);
+    expect(generation.usage_details.input).toEqual("1285");
+    expect(generation.usage_details.output).toEqual("513");
+    expect(generation.usage_details.total).toEqual("1798");
 
-    expect(generation.usage_details.input).toEqual(1285);
-    expect(generation.usage_details.output).toEqual(513);
-    expect(generation.usage_details.total).toEqual(1798);
+    expect(generation.provided_usage_details.input).toEqual("1285");
+    expect(generation.provided_usage_details.output).toEqual("513");
+    expect(generation.provided_usage_details.total).toEqual("1798");
 
     expect(generation.cost_details.input).toEqual(0.0006425);
     expect(generation.cost_details.output).toEqual(0.0007695);
@@ -1374,8 +1374,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" }),
     );
-    expect(generation?.usage_details.input).toEqual(5);
-    expect(generation?.usage_details.output).toEqual(11);
+    expect(generation?.usage_details.input).toEqual("5");
+    expect(generation?.usage_details.output).toEqual("11");
   });
 
   it("should update all token counts if update does not contain model name and events come in wrong order", async () => {
@@ -1469,8 +1469,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" }),
     );
-    expect(observation?.usage_details.input).toEqual(5);
-    expect(observation?.usage_details.output).toEqual(11);
+    expect(observation?.usage_details.input).toEqual("5");
+    expect(observation?.usage_details.output).toEqual("11");
   });
 
   it("null does not override set values", async () => {

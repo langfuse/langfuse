@@ -32,7 +32,7 @@ import {
   TraceRecordInsertType,
   traceRecordReadSchema,
   validateAndInflateScore,
-  UsageCostWriteType,
+  UsageCostNumberType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -346,6 +346,10 @@ export class IngestionService {
       recordsToMerge,
       immutableEntityKeys[TableName.Observations],
     );
+
+    logger.info(
+      `Merging observation records ${JSON.stringify(observationRecords)}, postgresObservationRecord ${JSON.stringify(postgresObservationRecord)}, clickhouseObservationRecord ${clickhouseObservationRecord}, mergedRecord ${JSON.stringify(mergedRecord)}`,
+    );
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
@@ -529,7 +533,7 @@ export class IngestionService {
   static calculateUsageCosts(
     modelPrices: Price[] | null | undefined,
     observationRecord: ObservationRecordInsertType,
-    usageUnits: UsageCostWriteType,
+    usageUnits: UsageCostNumberType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
 
