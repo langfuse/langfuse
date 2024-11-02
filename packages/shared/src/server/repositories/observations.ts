@@ -72,7 +72,6 @@ const convertObservationAndModel = async (
   record: ObservationRecordReadType,
   model?: Model & { Price: Price[] },
 ): Promise<Observation> => {
-  logger.debug(`Converting observation ${JSON.stringify(record)}`);
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
