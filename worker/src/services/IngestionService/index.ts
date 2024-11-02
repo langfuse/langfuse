@@ -31,8 +31,8 @@ import {
   traceRecordInsertSchema,
   TraceRecordInsertType,
   traceRecordReadSchema,
-  UsageCostType,
   validateAndInflateScore,
+  UsageCostWriteType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -529,7 +529,7 @@ export class IngestionService {
   static calculateUsageCosts(
     modelPrices: Price[] | null | undefined,
     observationRecord: ObservationRecordInsertType,
-    usageUnits: UsageCostType,
+    usageUnits: UsageCostWriteType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
 
