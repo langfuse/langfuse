@@ -1,4 +1,3 @@
-import { TraceClickhouseRecord } from "../clickhouse/schema";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -36,7 +35,7 @@ const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
 };
 
 export type TracesTableReturnType = Pick<
-  TraceClickhouseRecord,
+  TraceRecordReadType,
   | "project_id"
   | "id"
   | "name"

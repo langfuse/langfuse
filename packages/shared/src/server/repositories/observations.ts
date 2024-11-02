@@ -1,4 +1,3 @@
-import { ObservationClickhouseRecord } from "../clickhouse/schema";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
