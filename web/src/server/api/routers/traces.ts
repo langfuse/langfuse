@@ -319,11 +319,14 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        const res = await getTracesTable(
-          ctx.session.projectId,
-          [],
-          // input.filter
-        );
+        const res = await getTracesTable(ctx.session.projectId, [
+          {
+            type: "stringOptions",
+            operator: "any of",
+            column: "ID",
+            value: input.traceIds,
+          },
+        ]);
 
         const scores = await getScoresForTraces(
           ctx.session.projectId,
