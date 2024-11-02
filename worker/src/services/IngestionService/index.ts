@@ -252,7 +252,6 @@ export class IngestionService {
       clickhouseObservationRecord,
     });
 
-    logger.info(`finaaal ${JSON.stringify(finalObservationRecord)} `);
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const traceId = randomUUID();
@@ -349,9 +348,6 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
-    logger.info(
-      `Merging observation records ${JSON.stringify(observationRecords)}, postgresObservationRecord ${JSON.stringify(postgresObservationRecord)}, clickhouseObservationRecord ${clickhouseObservationRecord}, mergedRecord ${JSON.stringify(mergedRecord)}`,
-    );
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 

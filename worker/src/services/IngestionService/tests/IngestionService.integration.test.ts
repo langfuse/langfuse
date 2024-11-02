@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
-  logger,
   ObservationEvent,
   observationRecordReadSchema,
   ObservationRecordReadType,
@@ -21,7 +20,6 @@ import { pruneDatabase } from "../../../__tests__/utils";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
-import { log } from "node:console";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -1051,11 +1049,9 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
-  it.only("should merge observations from postgres and event list", async () => {
+  it("should merge observations from postgres and event list", async () => {
     const traceId = randomUUID();
     const observationId = randomUUID();
-
-    logger.info(`Creating observation in postgres ${observationId}`);
 
     const latestEvent = new Date();
     const oldEvent = new Date(latestEvent).setSeconds(
@@ -1105,8 +1101,6 @@ describe("Ingestion end-to-end tests", () => {
       TableName.Observations,
       observationId,
     );
-
-    logger.info(`Observation in clickhouse ${JSON.stringify(observation)}`);
 
     expect(observation.name).toBe("generation-name");
     expect(observation.input).toBe(JSON.stringify({ key: "value" }));
