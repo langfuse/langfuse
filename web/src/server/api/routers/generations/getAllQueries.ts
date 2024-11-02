@@ -1,19 +1,12 @@
 import { z } from "zod";
-
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
+import { paginationZod } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import {
-  getObservationsTable,
-  parseGetAllGenerationsInput,
-  traceException,
-} from "@langfuse/shared/src/server";
+import { parseGetAllGenerationsInput } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
