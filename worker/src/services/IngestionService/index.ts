@@ -346,7 +346,6 @@ export class IngestionService {
       recordsToMerge,
       immutableEntityKeys[TableName.Observations],
     );
-
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
