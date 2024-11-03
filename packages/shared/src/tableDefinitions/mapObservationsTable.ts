@@ -11,6 +11,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseSelect: 'o."id"',
   },
   {
+    uiTableName: "Type",
+    uiTableId: "type",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."type"',
+  },
+  {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "observations",

@@ -235,18 +235,20 @@ export const getTracesGroupedByName = async (
 
   const query = `
       select 
-        name as value
+        name as name,
+        count(*) as count
       from traces t final
       WHERE t.project_id = {projectId: String}
       AND t.name IS NOT NULL
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
-      ORDER BY name desc
+      ORDER BY count(*) desc
       LIMIT 1000;
     `;
 
   const rows = await queryClickhouse<{
-    value: string;
+    name: string;
+    count: number;
   }>({
     query: query,
     params: {

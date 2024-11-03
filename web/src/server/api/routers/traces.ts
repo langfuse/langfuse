@@ -444,7 +444,7 @@ export const traceRouter = createTRPCRouter({
         ]);
 
         const res: TraceOptions = {
-          name: traceNames,
+          name: traceNames.map((n) => ({ value: n.name })),
           scores_avg: scoreNames.map((s) => s.name),
           tags: tags,
         };
