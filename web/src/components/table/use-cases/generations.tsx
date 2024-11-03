@@ -747,7 +747,7 @@ export default function GenerationsTable({
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
-            promptVersion: generation.promptVersion ?? undefined,
+            promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
           };
         })
@@ -756,7 +756,6 @@ export default function GenerationsTable({
 
   return (
     <>
-      <>{JSON.stringify(filterState)}</>
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
