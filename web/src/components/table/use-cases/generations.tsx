@@ -868,6 +868,7 @@ const GenerationsDynamicCell = ({
       observationId,
       traceId,
       projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

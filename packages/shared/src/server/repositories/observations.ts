@@ -448,7 +448,6 @@ const getObservationsTableInternal = async <T>(
     ),
   );
 
-  // const appliedTracesFilter = tracesFilter.apply();
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
@@ -491,7 +490,6 @@ const getObservationsTableInternal = async <T>(
   const res = await queryClickhouse<T>({
     query,
     params: {
-      // ...appliedTracesFilter.params,
       ...appliedScoresFilter.params,
       ...appliedObservationsFilter.params,
     },
@@ -527,6 +525,7 @@ export const getObservationsGroupedByModel = async (
     SELECT
       o.provided_model_name as name
     FROM observations o FINAL
+    WHERE ${appliedObservationsFilter.query}
     GROUP BY o.provided_model_name
     ORDER BY count() DESC
     LIMIT 1000;
