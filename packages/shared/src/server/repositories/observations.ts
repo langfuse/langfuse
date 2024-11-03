@@ -26,6 +26,8 @@ import { FullObservations } from "../queries/createGenerationsQuery";
 import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
 import { observationsTableUiColumnDefinitions } from "../../tableDefinitions";
 import { TableCount } from "./types";
+import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { OrderByState } from "../../interfaces/orderBy";
 
 export const convertObservation = async (
   record: ObservationRecordReadType,
@@ -247,6 +249,7 @@ export const getObservationById = async (
 export type ObservationTableQuery = {
   projectId: string;
   filter: FilterState;
+  orderBy?: OrderByState;
   limit?: number;
   offset?: number;
   selectIOAndMetadata?: boolean;
@@ -398,7 +401,8 @@ export const getObservationsTable = async (
 const getObservationsTableInternal = async <T>(
   opts: ObservationTableQuery & { select: string },
 ): Promise<Array<T>> => {
-  const { projectId, filter, selectIOAndMetadata, limit, offset } = opts;
+  const { projectId, filter, selectIOAndMetadata, limit, offset, orderBy } =
+    opts;
 
   const selectString = selectIOAndMetadata
     ? `
@@ -485,6 +489,7 @@ const getObservationsTableInternal = async <T>(
         LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = t.id and s_avg.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
+      ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
   const res = await queryClickhouse<T>({

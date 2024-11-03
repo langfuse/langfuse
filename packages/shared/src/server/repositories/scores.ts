@@ -142,6 +142,7 @@ export const getScoresGroupedByName = async (
     ? createFilterFromFilterState(timestampFilter, [
         {
           uiTableName: "Timestamp",
+          uiTableId: "timestamp",
           clickhouseTableName: "scores",
           clickhouseSelect: "timestamp",
         },
@@ -158,7 +159,7 @@ export const getScoresGroupedByName = async (
       from scores s final
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
-      ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
+      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
       ORDER BY count() desc
       LIMIT 1000;
