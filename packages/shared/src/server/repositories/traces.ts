@@ -231,6 +231,7 @@ export const getTracesGroupedByName = async (
         name as value
       from traces t final
       WHERE t.project_id = {projectId: String}
+      AND t.name IS NOT NULL
       ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
       ORDER BY name desc

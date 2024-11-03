@@ -501,3 +501,161 @@ const getObservationsTableInternal = async <T>(
   });
   return res;
 };
+
+export const getObservationsGroupedByModel = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  logger.info(`Fetching observations by model ${projectId}, filter: ${filter}`);
+
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const query = `
+
+    SELECT
+      o.provided_model_name as name
+    FROM observations o FINAL
+    GROUP BY o.provided_model_name
+    ORDER BY count() DESC
+    LIMIT 1000;
+    `;
+
+  const res = await queryClickhouse<{ name: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+  });
+  return res.map((r) => ({ model: r.name }));
+};
+
+export const getObservationsGroupedByName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  logger.info(`Fetching observations by name ${projectId}, filter: ${filter}`);
+
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const query = `
+
+    SELECT
+      o.name as name
+    FROM observations o FINAL
+    WHERE ${appliedObservationsFilter.query}
+    GROUP BY o.name
+    ORDER BY count() DESC
+    LIMIT 1000;
+    `;
+
+  const res = await queryClickhouse<{ name: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+  });
+  return res;
+};
+
+export const getObservationsGroupedByPromptName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  logger.info(
+    `Fetching observations by prompt name ${projectId}, filter: ${filter}`,
+  );
+
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const query = `
+    SELECT
+      o.prompt_id as id
+    FROM observations o FINAL
+    WHERE ${appliedObservationsFilter.query}
+    AND o.type = 'GENERATION'
+    AND o.prompt_id IS NOT NULL
+    GROUP BY o.prompt_id
+    ORDER BY count() DESC
+    LIMIT 1000;
+    `;
+
+  const res = await queryClickhouse<{ id: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+  });
+
+  const prompts = res.map((r) => r.id).filter((r): r is string => Boolean(r));
+
+  const pgPrompts =
+    prompts.length > 0
+      ? await prisma.prompt.findMany({
+          select: {
+            id: true,
+            name: true,
+          },
+          where: {
+            id: {
+              in: prompts,
+            },
+            projectId,
+          },
+        })
+      : [];
+
+  return pgPrompts.map((p) => ({
+    promptName: p.name,
+  }));
+};

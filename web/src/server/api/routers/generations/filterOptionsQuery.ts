@@ -6,7 +6,16 @@ import { Prisma } from "@langfuse/shared/src/db";
 import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
+  getObservationsGroupedByModel,
+  getObservationsGroupedByName,
+  getObservationsGroupedByPromptName,
+  getScoresGroupedByName,
+  getTracesGroupedByName,
+  getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { TRPCError } from "@trpc/server";
+import { logger } from "@langfuse/shared/src/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(
@@ -17,6 +26,15 @@ export const filterOptionsQuery = protectedProjectProcedure
     }),
   )
   .query(async ({ input, ctx }) => {
+    if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Not eligible to query clickhouse",
+      });
+    }
+
+    logger.info(`generations filterOptionsQuery ${JSON.stringify(input)}`);
+
     const { startTimeFilter } = input;
     const prismaStartTimeFilter = startTimeFilter
       ? datetimeFilterToPrisma(startTimeFilter)
@@ -36,42 +54,81 @@ export const filterOptionsQuery = protectedProjectProcedure
           )
         : Prisma.empty;
 
+    const getClickhouseTraceName = async (): Promise<
+      Array<{ traceName: string }>
+    > => {
+      const traces = await getTracesGroupedByName(
+        input.projectId,
+        startTimeFilter
+          ? [
+              {
+                column: "Timestamp",
+                operator: startTimeFilter.operator,
+                value: startTimeFilter.value,
+                type: "datetime",
+              },
+            ]
+          : [],
+      );
+      return traces.map((i) => ({ traceName: i.value }));
+    };
+
+    const getClickhouseTraceTags = async (): Promise<
+      Array<{ tag: string }>
+    > => {
+      const traces = await getTracesGroupedByTags(
+        input.projectId,
+        startTimeFilter
+          ? [
+              {
+                column: "Timestamp",
+                operator: startTimeFilter.operator,
+                value: startTimeFilter.value,
+                type: "datetime",
+              },
+            ]
+          : [],
+      );
+      return traces.map((i) => ({ tag: i.value }));
+    };
+
     // Score names
     const [scores, model, name, promptNames, traceNames, tags] =
-      await Promise.all([
-        // scores
-        ctx.prisma.score.groupBy({
-          where: {
-            projectId: input.projectId,
-            timestamp: prismaStartTimeFilter,
-            dataType: { in: ["NUMERIC", "BOOLEAN"] },
-          },
-          take: 1000,
-          orderBy: {
-            name: "asc",
-          },
-          by: ["name"],
-        }),
-        // model
-        ctx.prisma.observation.groupBy({
-          by: ["model"],
-          where: { ...queryFilter, startTime: prismaStartTimeFilter },
-          take: 1000,
-          orderBy: { model: "asc" },
-        }),
-        // name
-        ctx.prisma.observation.groupBy({
-          by: ["name"],
-          where: { ...queryFilter, startTime: prismaStartTimeFilter },
-          take: 1000,
-          orderBy: { name: "asc" },
-        }),
-        // promptNames
-        ctx.prisma.$queryRaw<
-          Array<{
-            promptName: string | null;
-          }>
-        >(Prisma.sql`
+      !input.queryClickhouse
+        ? await Promise.all([
+            // scores
+            ctx.prisma.score.groupBy({
+              where: {
+                projectId: input.projectId,
+                timestamp: prismaStartTimeFilter,
+                dataType: { in: ["NUMERIC", "BOOLEAN"] },
+              },
+              take: 1000,
+              orderBy: {
+                name: "asc",
+              },
+              by: ["name"],
+            }),
+            // model
+            ctx.prisma.observation.groupBy({
+              by: ["model"],
+              where: { ...queryFilter, startTime: prismaStartTimeFilter },
+              take: 1000,
+              orderBy: { model: "asc" },
+            }),
+            // name
+            ctx.prisma.observation.groupBy({
+              by: ["name"],
+              where: { ...queryFilter, startTime: prismaStartTimeFilter },
+              take: 1000,
+              orderBy: { name: "asc" },
+            }),
+            // promptNames
+            ctx.prisma.$queryRaw<
+              Array<{
+                promptName: string | null;
+              }>
+            >(Prisma.sql`
         SELECT
           p.name "promptName"
         FROM prompts p
@@ -85,12 +142,12 @@ export const filterOptionsQuery = protectedProjectProcedure
         ORDER BY p.name ASC
         LIMIT 1000;
       `),
-        // traceNames
-        ctx.prisma.$queryRaw<
-          Array<{
-            traceName: string | null;
-          }>
-        >(Prisma.sql`
+            // traceNames
+            ctx.prisma.$queryRaw<
+              Array<{
+                traceName: string | null;
+              }>
+            >(Prisma.sql`
         SELECT
           t.name "traceName"
         FROM traces t
@@ -103,12 +160,12 @@ export const filterOptionsQuery = protectedProjectProcedure
         ORDER BY t.name ASC
         LIMIT 1000;
       `),
-        // traceTags
-        ctx.prisma.$queryRaw<
-          Array<{
-            tag: string | null;
-          }>
-        >(Prisma.sql`
+            // traceTags
+            ctx.prisma.$queryRaw<
+              Array<{
+                tag: string | null;
+              }>
+            >(Prisma.sql`
           SELECT
             DISTINCT tag
           FROM traces t
@@ -120,7 +177,42 @@ export const filterOptionsQuery = protectedProjectProcedure
             ${rawStartTimeFilter}
           LIMIT 1000;
       `),
-      ]);
+          ])
+        : await Promise.all([
+            //scores
+            getScoresGroupedByName(
+              input.projectId,
+              startTimeFilter
+                ? [
+                    {
+                      column: "Timestamp",
+                      operator: startTimeFilter.operator,
+                      value: startTimeFilter.value,
+                      type: "datetime",
+                    },
+                  ]
+                : [],
+            ),
+            //model
+            getObservationsGroupedByModel(
+              input.projectId,
+              startTimeFilter ? [startTimeFilter] : [],
+            ),
+            //name
+            getObservationsGroupedByName(
+              input.projectId,
+              startTimeFilter ? [startTimeFilter] : [],
+            ),
+            //prompt name
+            getObservationsGroupedByPromptName(
+              input.projectId,
+              startTimeFilter ? [startTimeFilter] : [],
+            ),
+            //trace name
+            getClickhouseTraceName(),
+            // trace tags
+            getClickhouseTraceTags(),
+          ]);
 
     // typecheck filter options, needs to include all columns with options
     const res: ObservationOptions = {
