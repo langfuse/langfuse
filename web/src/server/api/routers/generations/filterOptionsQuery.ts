@@ -15,7 +15,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
-import { logger } from "@langfuse/shared/src/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(
