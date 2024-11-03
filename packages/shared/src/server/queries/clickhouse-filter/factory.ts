@@ -1,6 +1,5 @@
 import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
-import { tracesTableUiColumnDefinitions } from "../../../tableDefinitions/mapTracesTable";
 import { FilterCondition } from "../../../types";
 import { isValidTableName } from "../../clickhouse/schema-utils";
 import { logger } from "../../logger";
@@ -13,6 +12,7 @@ import {
   NumberFilter,
   ArrayOptionsFilter,
   BooleanFilter,
+  NumberObjectFilter,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -81,6 +81,16 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
+      case "numberObject":
+        return new NumberObjectFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          key: frontEndFilter.key,
+          operator: frontEndFilter.operator,
+          value: frontEndFilter.value,
+          tablePrefix: column.queryPrefix,
+        });
+
       default:
         throw new QueryBuilderError(
           `Invalid filter type: ${frontEndFilter.type}`,

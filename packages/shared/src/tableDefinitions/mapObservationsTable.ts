@@ -122,7 +122,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Scores",
     clickhouseTableName: "observations",
-    clickhouseSelect: "scores_avg",
+    clickhouseSelect: "s_avg.scores_avg",
   },
   {
     uiTableName: "Version",

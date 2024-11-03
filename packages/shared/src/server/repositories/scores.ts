@@ -154,7 +154,7 @@ export const getScoresGroupedByName = async (
 
   const query = `
       select 
-        name as value
+        name as name
       from scores s final
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)

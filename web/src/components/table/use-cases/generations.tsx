@@ -756,6 +756,7 @@ export default function GenerationsTable({
 
   return (
     <>
+      <>{JSON.stringify(filterState)}</>
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
