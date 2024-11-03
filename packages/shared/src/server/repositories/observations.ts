@@ -221,7 +221,7 @@ export const getObservationById = async (
     created_at,
     updated_at,
     event_ts
-  FROM observations FINAL WHERE id = {id: String} AND project_id = {projectId: String}`;
+  FROM observations WHERE id = {id: String} AND project_id = {projectId: String} ORDER BY event_ts desc LIMIT 1 by id, project_id`;
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { id, projectId },
