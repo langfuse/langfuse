@@ -34,15 +34,16 @@ export async function queryClickhouse<T>(opts: {
     span.setAttribute("ch.query.text", opts.query);
 
     // same logic as for prisma. we want to see queries in development
-    if (env.NODE_ENV === "development") {
-      logger.info(`clickhouse:query ${opts.query}`);
-    }
 
     const res = await clickhouseClient.query({
       query: opts.query,
       format: "JSONEachRow",
       query_params: opts.params,
     });
+
+    if (env.NODE_ENV === "development") {
+      logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
+    }
 
     span.setAttribute("ch.queryId", res.query_id);
 
