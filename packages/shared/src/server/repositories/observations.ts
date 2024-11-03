@@ -399,9 +399,6 @@ const getObservationsTableInternal = async <T>(
   opts: ObservationTableQuery & { select: string },
 ): Promise<Array<T>> => {
   const { projectId, filter, selectIOAndMetadata, limit, offset } = opts;
-  logger.info(
-    `Fetching observations for project ${projectId}, filter: ${filter}, selectIOAndMetadata: ${selectIOAndMetadata}, limit: ${limit}, offset: ${offset}`,
-  );
 
   const selectString = selectIOAndMetadata
     ? `
@@ -506,8 +503,6 @@ export const getObservationsGroupedByModel = async (
   projectId: string,
   filter: FilterState,
 ) => {
-  logger.info(`Fetching observations by model ${projectId}, filter: ${filter}`);
-
   const observationsFilter = new FilterList([
     new StringFilter({
       clickhouseTable: "observations",
@@ -550,8 +545,6 @@ export const getObservationsGroupedByName = async (
   projectId: string,
   filter: FilterState,
 ) => {
-  logger.info(`Fetching observations by name ${projectId}, filter: ${filter}`);
-
   const observationsFilter = new FilterList([
     new StringFilter({
       clickhouseTable: "observations",
@@ -595,10 +588,6 @@ export const getObservationsGroupedByPromptName = async (
   projectId: string,
   filter: FilterState,
 ) => {
-  logger.info(
-    `Fetching observations by prompt name ${projectId}, filter: ${filter}`,
-  );
-
   const observationsFilter = new FilterList([
     new StringFilter({
       clickhouseTable: "observations",
