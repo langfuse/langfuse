@@ -11,6 +11,8 @@ import { FilterState } from "../../types";
 import { logger } from "../logger";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
+import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
+import { TableCount } from "./types";
 
 const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
   return {
@@ -55,10 +57,6 @@ export type TracesTableReturnType = Pick<
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
-};
-
-export type TableCount = {
-  count: number;
 };
 
 export const getTracesTableCount = async (
@@ -124,7 +122,9 @@ const getTracesTableGeneric = async <T>(
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
-  tracesFilter.push(...createFilterFromFilterState(filter));
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+  );
 
   const tracesFilterRes = tracesFilter.apply();
   const scoresAvgFilterRes = scoresFilter.apply();
@@ -216,7 +216,10 @@ export const getTracesGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter)
+    ? createFilterFromFilterState(
+        timestampFilter,
+        tracesTableUiColumnDefinitions,
+      )
     : undefined;
 
   const timestampFilterRes = chFilter
@@ -228,6 +231,7 @@ export const getTracesGroupedByName = async (
         name as value
       from traces t final
       WHERE t.project_id = {projectId: String}
+      AND t.name IS NOT NULL
       ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
       ORDER BY name desc
@@ -252,7 +256,10 @@ export const getTracesGroupedByTags = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter)
+    ? createFilterFromFilterState(
+        timestampFilter,
+        tracesTableUiColumnDefinitions,
+      )
     : undefined;
 
   const timestampFilterRes = chFilter
