@@ -200,6 +200,7 @@ export const traceRouter = createTRPCRouter({
         const res = await getTracesTable(
           ctx.session.projectId,
           input.filter ?? [],
+          input.orderBy,
           input.limit,
           input.page,
         );
@@ -247,6 +248,7 @@ export const traceRouter = createTRPCRouter({
         const countQuery = await getTracesTableCount(
           ctx.session.projectId,
           input.filter ?? [],
+          null,
           input.limit,
           input.page,
         );

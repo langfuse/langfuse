@@ -30,6 +30,7 @@ export async function getAllGenerations({
     generations = await getObservationsTable({
       projectId: input.projectId,
       filter: input.filter,
+      orderBy: input.orderBy,
       selectIOAndMetadata: selectIOAndMetadata,
       offset: input.page * input.limit,
       limit: input.limit,

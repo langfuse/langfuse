@@ -1,5 +1,6 @@
 export type UiColumnMapping = {
   uiTableName: string;
+  uiTableId: string;
   clickhouseTableName: string;
   clickhouseSelect: string;
   queryPrefix?: string;
