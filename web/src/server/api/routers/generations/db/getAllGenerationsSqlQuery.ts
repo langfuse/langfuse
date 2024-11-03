@@ -1,10 +1,11 @@
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { filterAndValidateDbScoreList } from "@langfuse/shared";
+import { filterAndValidateDbScoreList, type Score } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-
 import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   createGenerationsQuery,
+  getObservationsTable,
+  getScoresForObservations,
   parseGetAllGenerationsInput,
   traceException,
   type FullObservations,
@@ -14,37 +15,54 @@ import {
 export async function getAllGenerations({
   input,
   selectIOAndMetadata,
+  queryClickhouse,
 }: {
   input: GetAllGenerationsInput;
   selectIOAndMetadata: boolean;
+  queryClickhouse?: boolean;
 }) {
   const { searchCondition, filterCondition, orderByCondition, datetimeFilter } =
     parseGetAllGenerationsInput(input);
 
-  const query = createGenerationsQuery({
-    projectId: input.projectId,
-    page: input.page,
-    limit: input.limit,
-    searchCondition,
-    filterCondition,
-    orderByCondition,
-    datetimeFilter,
-    selectIOAndMetadata,
-  });
+  let generations: FullObservations | IOAndMetadataOmittedObservations;
+  let scores: Score[] = [];
+  if (queryClickhouse) {
+    generations = await getObservationsTable({
+      projectId: input.projectId,
+      filter: input.filter,
+      selectIOAndMetadata: selectIOAndMetadata,
+      offset: input.page * input.limit,
+      limit: input.limit,
+    });
+    scores = await getScoresForObservations(
+      input.projectId,
+      generations.map((gen) => gen.id),
+    );
+  } else {
+    const query = createGenerationsQuery({
+      projectId: input.projectId,
+      page: input.page,
+      limit: input.limit,
+      searchCondition,
+      filterCondition,
+      orderByCondition,
+      datetimeFilter,
+      selectIOAndMetadata,
+    });
 
-  const generations: FullObservations | IOAndMetadataOmittedObservations =
-    selectIOAndMetadata
+    generations = selectIOAndMetadata
       ? ((await prisma.$queryRaw(query)) as FullObservations)
       : ((await prisma.$queryRaw(query)) as IOAndMetadataOmittedObservations);
-
-  const scores = await prisma.score.findMany({
-    where: {
-      projectId: input.projectId,
-      observationId: {
-        in: generations.map((gen) => gen.id),
+    scores = await prisma.score.findMany({
+      where: {
+        projectId: input.projectId,
+        observationId: {
+          in: generations.map((gen) => gen.id),
+        },
       },
-    },
-  });
+    });
+  }
+
   const validatedScores = filterAndValidateDbScoreList(scores, traceException);
 
   const fullGenerations = generations.map((generation) => {
