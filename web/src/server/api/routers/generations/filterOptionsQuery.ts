@@ -33,8 +33,6 @@ export const filterOptionsQuery = protectedProjectProcedure
       });
     }
 
-    logger.info(`generations filterOptionsQuery ${JSON.stringify(input)}`);
-
     const { startTimeFilter } = input;
     const prismaStartTimeFilter = startTimeFilter
       ? datetimeFilterToPrisma(startTimeFilter)
