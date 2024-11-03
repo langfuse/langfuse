@@ -1,11 +1,11 @@
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { filterAndValidateDbScoreList } from "@langfuse/shared";
+import { filterAndValidateDbScoreList, type Score } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-
 import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   createGenerationsQuery,
   getObservationsTable,
+  getScoresForObservations,
   parseGetAllGenerationsInput,
   traceException,
   type FullObservations,
@@ -25,6 +25,7 @@ export async function getAllGenerations({
     parseGetAllGenerationsInput(input);
 
   let generations: FullObservations | IOAndMetadataOmittedObservations;
+  let scores: Score[] = [];
   if (queryClickhouse) {
     generations = await getObservationsTable({
       projectId: input.projectId,
@@ -33,6 +34,10 @@ export async function getAllGenerations({
       offset: input.page * input.limit,
       limit: input.limit,
     });
+    scores = await getScoresForObservations(
+      input.projectId,
+      generations.map((gen) => gen.id),
+    );
   } else {
     const query = createGenerationsQuery({
       projectId: input.projectId,
@@ -48,16 +53,16 @@ export async function getAllGenerations({
     generations = selectIOAndMetadata
       ? ((await prisma.$queryRaw(query)) as FullObservations)
       : ((await prisma.$queryRaw(query)) as IOAndMetadataOmittedObservations);
+    scores = await prisma.score.findMany({
+      where: {
+        projectId: input.projectId,
+        observationId: {
+          in: generations.map((gen) => gen.id),
+        },
+      },
+    });
   }
 
-  const scores = await prisma.score.findMany({
-    where: {
-      projectId: input.projectId,
-      observationId: {
-        in: generations.map((gen) => gen.id),
-      },
-    },
-  });
   const validatedScores = filterAndValidateDbScoreList(scores, traceException);
 
   const fullGenerations = generations.map((generation) => {

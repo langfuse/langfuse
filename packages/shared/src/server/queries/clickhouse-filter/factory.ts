@@ -25,13 +25,13 @@ export class QueryBuilderError extends Error {
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
-export const createFilterFromFilterState = (filter: FilterCondition[]) => {
+export const createFilterFromFilterState = (
+  filter: FilterCondition[],
+  columnMapping: UiColumnMapping[],
+) => {
   return filter.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
-    const column = matchAndVerifyTracesUiColumn(
-      frontEndFilter,
-      tracesTableUiColumnDefinitions,
-    );
+    const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
 
     switch (frontEndFilter.type) {
       case "string":

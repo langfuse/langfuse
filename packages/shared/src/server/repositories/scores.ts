@@ -75,6 +75,34 @@ export const getScoresForTraces = async (
   return rows.map(convertToScore);
 };
 
+export const getScoresForObservations = async (
+  projectId: string,
+  observationIds: string[],
+  limit?: number,
+  offset?: number,
+) => {
+  const query = `
+      select 
+        *
+      from scores s final
+      WHERE s.project_id = {projectId: String}
+      AND s.observation_id IN ({observationIds: Array(String)})
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+    `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query: query,
+    params: {
+      projectId: projectId,
+      observationIds: observationIds,
+      limit: limit,
+      offset: offset,
+    },
+  });
+
+  return rows.map(convertToScore);
+};
+
 export const getScoresGroupedByNameSourceType = async (projectId: string) => {
   const query = `
       select 
@@ -111,7 +139,13 @@ export const getScoresGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter)
+    ? createFilterFromFilterState(timestampFilter, [
+        {
+          uiTableName: "Timestamp",
+          clickhouseTableName: "scores",
+          clickhouseSelect: "timestamp",
+        },
+      ])
     : undefined;
 
   const timestampFilterRes = chFilter
