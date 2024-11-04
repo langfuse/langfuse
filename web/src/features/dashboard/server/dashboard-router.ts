@@ -7,6 +7,7 @@ import {
 import { executeQuery } from "@/src/server/api/services/queryBuilder";
 import {
   filterInterface,
+  type groupByInterface,
   sqlInterface,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
@@ -16,6 +17,8 @@ import {
   getTracesGroupedByName,
   getObservationsCostGroupedByName,
   getScoreAggregate,
+  getObservationUsageByTime,
+  groupTracesByTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -33,6 +36,8 @@ export const dashboardRouter = createTRPCRouter({
             "traces-grouped-by-name",
             "observations-model-cost",
             "score-aggregate",
+            "traces-timeseries",
+            "observations-usage-timeseries",
           ])
           .nullish(),
       }),
@@ -95,6 +100,36 @@ export const dashboardRouter = createTRPCRouter({
             countScoreId: Number(row.count),
           })) as DatabaseRow[];
 
+        case "traces-timeseries":
+          const dateTrunc = extractTimeSeries(input.groupBy);
+          if (!dateTrunc) {
+            return [];
+          }
+          const rows = await groupTracesByTime(
+            input.projectId,
+            input.filter ?? [],
+            dateTrunc,
+          );
+
+          return rows as DatabaseRow[];
+        case "observations-usage-timeseries":
+          const dateTruncObs = extractTimeSeries(input.groupBy);
+          if (!dateTruncObs) {
+            return [];
+          }
+          const rowsObs = await getObservationUsageByTime(
+            input.projectId,
+            input.filter ?? [],
+            dateTruncObs,
+          );
+
+          return rowsObs.map((row) => ({
+            startTime: row.start_time,
+            sumTotalTokens: row.sum_usage_details,
+            sumCalculatedTotalCost: row.sum_cost_details,
+            model: row.provided_model_name,
+          })) as DatabaseRow[];
+
         default:
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -114,3 +149,12 @@ export const dashboardRouter = createTRPCRouter({
       return createHistogramData(data);
     }),
 });
+
+const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
+  const temporal = groupBy?.find((group) => {
+    if (group.type === "datetime") {
+      return group;
+    }
+  });
+  return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
+};
