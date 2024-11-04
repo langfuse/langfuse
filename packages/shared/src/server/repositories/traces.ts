@@ -247,7 +247,7 @@ export const getTracesGroupedByName = async (
 
   const rows = await queryClickhouse<{
     name: string;
-    count: number;
+    count: string;
   }>({
     query: query,
     params: {
