@@ -31,8 +31,8 @@ import {
   traceRecordInsertSchema,
   TraceRecordInsertType,
   traceRecordReadSchema,
-  UsageCostType,
   validateAndInflateScore,
+  UsageCostNumberType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -251,6 +251,7 @@ export class IngestionService {
       postgresObservationRecord,
       clickhouseObservationRecord,
     });
+
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const traceId = randomUUID();
@@ -530,7 +531,7 @@ export class IngestionService {
   static calculateUsageCosts(
     modelPrices: Price[] | null | undefined,
     observationRecord: ObservationRecordInsertType,
-    usageUnits: UsageCostType,
+    usageUnits: UsageCostNumberType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
 
@@ -629,7 +630,6 @@ export class IngestionService {
           query: `
             SELECT *
             FROM ${table}
-            FINAL
             WHERE project_id = {projectId: String}
             AND id = {entityId: String}
             ORDER BY event_ts DESC

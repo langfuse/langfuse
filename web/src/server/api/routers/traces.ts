@@ -31,11 +31,12 @@ import {
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
-  getTraceById,
+  getTraceByIdOrThrow,
   type TracesTableReturnType,
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
+  getObservationsViewForTrace,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -61,14 +62,14 @@ export type ObservationReturnType = Omit<
 export type TracesAllReturnType = {
   id: string;
   timestamp: Date;
-  name: string | undefined;
+  name: string | null;
   projectId: string;
-  userId: string | undefined;
-  release: string | undefined;
-  version: string | undefined;
+  userId: string | null;
+  release: string | null;
+  version: string | null;
   public: boolean;
   bookmarked: boolean;
-  sessionId: string | undefined;
+  sessionId: string | null;
   tags: string[];
 };
 
@@ -77,15 +78,15 @@ export const convertToReturnType = (
 ): TracesAllReturnType => {
   return {
     id: row.id,
-    name: row.name,
+    name: row.name ?? null,
     timestamp: new Date(row.timestamp),
     tags: row.tags,
     bookmarked: row.bookmarked,
-    release: row.release,
-    version: row.version,
+    release: row.release ?? null,
+    version: row.version ?? null,
     projectId: row.project_id,
-    userId: row.user_id,
-    sessionId: row.session_id,
+    userId: row.user_id ?? null,
+    sessionId: row.session_id ?? null,
     public: row.public,
   };
 };
@@ -112,7 +113,7 @@ export const convertMetricsReturnType = (
     promptTokens: BigInt(row.usage_details?.input ?? 0),
     completionTokens: BigInt(row.usage_details?.output ?? 0),
     totalTokens: BigInt(row.usage_details?.total ?? 0),
-    latency: row.latency,
+    latency: row.latency ? Number(row.latency) : null,
     level: row.level,
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
@@ -179,12 +180,12 @@ export const traceRouter = createTRPCRouter({
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             ({ input, output, metadata, ...trace }) => ({
               ...trace,
-              name: trace.name ?? undefined,
-              release: trace.release ?? undefined,
-              version: trace.version ?? undefined,
-              externalId: trace.externalId ?? undefined,
-              userId: trace.userId ?? undefined,
-              sessionId: trace.sessionId ?? undefined,
+              name: trace.name,
+              release: trace.release,
+              version: trace.version,
+              externalId: trace.externalId,
+              userId: trace.userId,
+              sessionId: trace.sessionId,
             }),
           ),
         };
@@ -199,6 +200,7 @@ export const traceRouter = createTRPCRouter({
         const res = await getTracesTable(
           ctx.session.projectId,
           input.filter ?? [],
+          input.orderBy,
           input.limit,
           input.page,
         );
@@ -246,6 +248,7 @@ export const traceRouter = createTRPCRouter({
         const countQuery = await getTracesTableCount(
           ctx.session.projectId,
           input.filter ?? [],
+          null,
           input.limit,
           input.page,
         );
@@ -318,11 +321,14 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        const res = await getTracesTable(
-          ctx.session.projectId,
-          [],
-          // input.filter
-        );
+        const res = await getTracesTable(ctx.session.projectId, [
+          {
+            type: "stringOptions",
+            operator: "any of",
+            column: "ID",
+            value: input.traceIds,
+          },
+        ]);
 
         const scores = await getScoresForTraces(
           ctx.session.projectId,
@@ -469,7 +475,7 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        return await getTraceById(input.traceId, input.projectId);
+        return await getTraceByIdOrThrow(input.traceId, input.projectId);
       }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
@@ -477,62 +483,113 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const [trace, observations, scores] = await Promise.all([
-        ctx.prisma.trace.findFirstOrThrow({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.observationView.findMany({
-          select: {
-            id: true,
-            traceId: true,
-            projectId: true,
-            type: true,
-            startTime: true,
-            endTime: true,
-            name: true,
-            parentObservationId: true,
-            level: true,
-            statusMessage: true,
-            version: true,
-            createdAt: true,
-            model: true,
-            modelParameters: true,
-            promptTokens: true,
-            completionTokens: true,
-            totalTokens: true,
-            unit: true,
-            completionStartTime: true,
-            timeToFirstToken: true,
-            promptId: true,
-            modelId: true,
-            inputPrice: true,
-            outputPrice: true,
-            totalPrice: true,
-            calculatedInputCost: true,
-            calculatedOutputCost: true,
-            calculatedTotalCost: true,
-          },
-          where: {
-            traceId: {
-              equals: input.traceId,
-              not: null,
+      if (!input.queryClickhouse) {
+        const [trace, observations, scores] = await Promise.all([
+          ctx.prisma.trace.findFirstOrThrow({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.score.findMany({
-          where: {
-            traceId: input.traceId,
-            projectId: input.projectId,
-          },
-        }),
+          }),
+          ctx.prisma.observationView.findMany({
+            select: {
+              id: true,
+              traceId: true,
+              projectId: true,
+              type: true,
+              startTime: true,
+              endTime: true,
+              name: true,
+              parentObservationId: true,
+              level: true,
+              statusMessage: true,
+              version: true,
+              createdAt: true,
+              model: true,
+              modelParameters: true,
+              promptTokens: true,
+              completionTokens: true,
+              totalTokens: true,
+              unit: true,
+              completionStartTime: true,
+              timeToFirstToken: true,
+              promptId: true,
+              modelId: true,
+              inputPrice: true,
+              outputPrice: true,
+              totalPrice: true,
+              calculatedInputCost: true,
+              calculatedOutputCost: true,
+              calculatedTotalCost: true,
+            },
+            where: {
+              traceId: {
+                equals: input.traceId,
+                not: null,
+              },
+              projectId: input.projectId,
+            },
+          }),
+          ctx.prisma.score.findMany({
+            where: {
+              traceId: input.traceId,
+              projectId: input.projectId,
+            },
+          }),
+        ]);
+        const validatedScores = filterAndValidateDbScoreList(
+          scores,
+          traceException,
+        );
+
+        const obsStartTimes = observations
+          .map((o) => o.startTime)
+          .sort((a, b) => a.getTime() - b.getTime());
+        const obsEndTimes = observations
+          .map((o) => o.endTime)
+          .filter((t) => t)
+          .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
+        const latencyMs =
+          obsStartTimes.length > 0
+            ? obsEndTimes.length > 0
+              ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+                obsStartTimes[0]!.getTime()
+              : obsStartTimes.length > 1
+                ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                  obsStartTimes[0]!.getTime()
+                : undefined
+            : undefined;
+
+        return {
+          ...trace,
+          scores: validatedScores,
+          latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
+          observations: observations as ObservationReturnType[],
+        };
+      }
+
+      if (!isClickhouseEligible(ctx.session.user)) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Not eligible to query clickhouse",
+        });
+      }
+
+      const [trace, observations, scores] = await Promise.all([
+        getTraceByIdOrThrow(input.traceId, input.projectId),
+        getObservationsViewForTrace(input.traceId, input.projectId),
+        getScoresForTraces(
+          input.projectId,
+          [input.traceId],
+          undefined,
+          undefined,
+        ),
       ]);
+
       const validatedScores = filterAndValidateDbScoreList(
         scores,
         traceException,
@@ -563,6 +620,7 @@ export const traceRouter = createTRPCRouter({
         observations: observations as ObservationReturnType[],
       };
     }),
+
   deleteMany: protectedProjectProcedure
     .input(
       z.object({

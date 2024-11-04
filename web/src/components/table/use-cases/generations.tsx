@@ -181,6 +181,7 @@ export default function GenerationsTable({
     page: 0,
     limit: 0,
     orderBy: null,
+    queryClickhouse: useClickhouse(),
   };
 
   const getAllPayload = {
@@ -202,6 +203,7 @@ export default function GenerationsTable({
       projectId,
       startTimeFilter:
         startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -209,6 +211,10 @@ export default function GenerationsTable({
           skipBatch: true,
         },
       },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
 
@@ -741,7 +747,7 @@ export default function GenerationsTable({
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
-            promptVersion: generation.promptVersion ?? undefined,
+            promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
           };
         })
@@ -862,6 +868,7 @@ const GenerationsDynamicCell = ({
       observationId,
       traceId,
       projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

@@ -7,8 +7,12 @@ export const clickhouseStringDateSchema = z
   .transform((str) => str.replace(" ", "T") + "Z")
   .pipe(z.string().datetime());
 
-export const UsageCostSchema = z.record(z.string(), z.coerce.number());
-export type UsageCostType = z.infer<typeof UsageCostSchema>;
+//https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256
+// clickhouse returns int64 as string
+export const UsageCostStringSchema = z.record(z.string(), z.string());
+export const UsageCostNumberSchema = z.record(z.string(), z.coerce.number());
+export type UsageCostStringType = z.infer<typeof UsageCostStringSchema>;
+export type UsageCostNumberType = z.infer<typeof UsageCostNumberSchema>;
 
 export const observationRecordBaseSchema = z.object({
   id: z.string(),
@@ -26,10 +30,6 @@ export const observationRecordBaseSchema = z.object({
   provided_model_name: z.string().nullish(),
   internal_model_id: z.string().nullish(),
   model_parameters: z.string().nullish(),
-  provided_usage_details: UsageCostSchema,
-  provided_cost_details: UsageCostSchema,
-  usage_details: UsageCostSchema,
-  cost_details: UsageCostSchema,
   total_cost: z.number().nullish(),
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
@@ -47,6 +47,10 @@ export const observationRecordReadSchema = observationRecordBaseSchema.extend({
   end_time: clickhouseStringDateSchema.nullish(),
   completion_start_time: clickhouseStringDateSchema.nullish(),
   event_ts: clickhouseStringDateSchema,
+  provided_usage_details: UsageCostStringSchema,
+  provided_cost_details: UsageCostNumberSchema,
+  usage_details: UsageCostStringSchema,
+  cost_details: UsageCostNumberSchema,
 });
 export type ObservationRecordReadType = z.infer<
   typeof observationRecordReadSchema
@@ -60,6 +64,10 @@ export const observationRecordInsertSchema = observationRecordBaseSchema.extend(
     end_time: z.number().nullish(),
     completion_start_time: z.number().nullish(),
     event_ts: z.number(),
+    provided_usage_details: UsageCostNumberSchema,
+    provided_cost_details: UsageCostNumberSchema,
+    usage_details: UsageCostNumberSchema,
+    cost_details: UsageCostNumberSchema,
   },
 );
 export type ObservationRecordInsertType = z.infer<
@@ -140,7 +148,7 @@ export const convertTraceReadToInsert = (
   return {
     ...record,
     created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.created_at).getTime(),
+    updated_at: new Date(record.updated_at).getTime(),
     timestamp: new Date(record.timestamp).getTime(),
     event_ts: new Date(record.event_ts).getTime(),
   };
@@ -149,16 +157,27 @@ export const convertTraceReadToInsert = (
 export const convertObservationReadToInsert = (
   record: ObservationRecordReadType,
 ): ObservationRecordInsertType => {
+  const convertDate = (date: string) => new Date(date).getTime();
+
+  const convertDetails = (details: Record<string, string>) =>
+    Object.fromEntries(
+      Object.entries(details).map(([key, value]) => [key, Number(value)]),
+    );
+
   return {
     ...record,
-    created_at: new Date(record.created_at).getTime(),
-    updated_at: new Date(record.created_at).getTime(),
-    start_time: new Date(record.start_time).getTime(),
-    end_time: record.end_time ? new Date(record.end_time).getTime() : undefined,
+    created_at: convertDate(record.created_at),
+    updated_at: convertDate(record.updated_at),
+    start_time: convertDate(record.start_time),
+    end_time: record.end_time ? convertDate(record.end_time) : undefined,
     completion_start_time: record.completion_start_time
-      ? new Date(record.completion_start_time).getTime()
+      ? convertDate(record.completion_start_time)
       : undefined,
-    event_ts: new Date(record.event_ts).getTime(),
+    event_ts: convertDate(record.event_ts),
+    provided_usage_details: convertDetails(record.provided_usage_details),
+    provided_cost_details: record.provided_cost_details,
+    usage_details: convertDetails(record.usage_details),
+    cost_details: record.cost_details,
   };
 };
 

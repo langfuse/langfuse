@@ -117,6 +117,10 @@ export function PromptTable() {
           skipBatch: true,
         },
       },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];

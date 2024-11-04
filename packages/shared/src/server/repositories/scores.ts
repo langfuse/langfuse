@@ -50,8 +50,8 @@ const convertToScore = (row: FetchScoresReturnType) => {
 export const getScoresForTraces = async (
   projectId: string,
   traceIds: string[],
-  limit: number,
-  offset: number,
+  limit?: number,
+  offset?: number,
 ) => {
   const query = `
       select 
@@ -59,7 +59,7 @@ export const getScoresForTraces = async (
       from scores s final
       WHERE s.project_id = {projectId: String}
       AND s.trace_id IN ({traceIds: Array(String)})
-      limit {limit: Int32} offset {offset: Int32};
+      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<FetchScoresReturnType>({
@@ -67,6 +67,34 @@ export const getScoresForTraces = async (
     params: {
       projectId: projectId,
       traceIds: traceIds,
+      limit: limit,
+      offset: offset,
+    },
+  });
+
+  return rows.map(convertToScore);
+};
+
+export const getScoresForObservations = async (
+  projectId: string,
+  observationIds: string[],
+  limit?: number,
+  offset?: number,
+) => {
+  const query = `
+      select 
+        *
+      from scores s final
+      WHERE s.project_id = {projectId: String}
+      AND s.observation_id IN ({observationIds: Array(String)})
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+    `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query: query,
+    params: {
+      projectId: projectId,
+      observationIds: observationIds,
       limit: limit,
       offset: offset,
     },
@@ -111,7 +139,14 @@ export const getScoresGroupedByName = async (
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter)
+    ? createFilterFromFilterState(timestampFilter, [
+        {
+          uiTableName: "Timestamp",
+          uiTableId: "timestamp",
+          clickhouseTableName: "scores",
+          clickhouseSelect: "timestamp",
+        },
+      ])
     : undefined;
 
   const timestampFilterRes = chFilter
@@ -120,11 +155,11 @@ export const getScoresGroupedByName = async (
 
   const query = `
       select 
-        name as value
+        name as name
       from scores s final
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
-      ${timestampFilterRes ? `AND ${timestampFilterRes.query}` : ""}
+      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
       ORDER BY count() desc
       LIMIT 1000;
