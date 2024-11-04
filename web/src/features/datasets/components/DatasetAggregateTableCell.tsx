@@ -34,6 +34,7 @@ const DatasetAggregateCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: Infinity,
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -50,6 +51,7 @@ const DatasetAggregateCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      staleTime: Infinity,
     },
   );
 
@@ -67,16 +69,20 @@ const DatasetAggregateCell = ({
       </div>
 
       {selectedMetrics.includes("scores") && (
-        <div className="flex w-full flex-row flex-wrap gap-1">
+        <div className="flex w-full flex-wrap gap-1">
           {Object.entries(scores).map(([key, score]) => (
-            <div key={key}>
-              <Badge variant="outline" className="p-0.5 px-1 font-normal">
-                <span className="mr-0.5 capitalize">
-                  {scoreKeyToDisplayName.get(key)}:
-                </span>
+            <Badge
+              variant="outline"
+              className="flex-wrap p-0.5 px-1 font-normal"
+              key={key}
+            >
+              <span className="whitespace-nowrap capitalize">
+                {scoreKeyToDisplayName.get(key)}:
+              </span>
+              <span className="ml-[2px]">
                 <ScoresTableCell aggregate={score} />
-              </Badge>
-            </div>
+              </span>
+            </Badge>
           ))}
         </div>
       )}
