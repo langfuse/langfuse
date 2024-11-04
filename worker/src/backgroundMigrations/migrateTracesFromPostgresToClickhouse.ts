@@ -8,10 +8,14 @@ import { parseArgs } from "node:util";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
+// This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
+const backgroundMigrationId = "5960f22a-748f-480c-b2f3-bc4f9d5d84bc";
+
 export default class MigrateTracesFromPostgresToClickhouse
   implements IBackgroundMigration
 {
   private isAborted = false;
+  private isFinished = false;
 
   async validate(
     args: Record<string, unknown>,
@@ -33,18 +37,34 @@ export default class MigrateTracesFromPostgresToClickhouse
 
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 5000);
-    let maxDate = new Date((args.maxDate as string) ?? new Date());
+    const maxDate = new Date((args.maxDate as string) ?? new Date());
+
+    await prisma.backgroundMigration.update({
+      where: { id: backgroundMigrationId },
+      data: { state: { maxDate } },
+    });
 
     let processedRows = 0;
-    while (!this.isAborted && processedRows < maxRowsToProcess) {
+    while (
+      !this.isAborted &&
+      !this.isFinished &&
+      processedRows < maxRowsToProcess
+    ) {
       const fetchStart = Date.now();
+
+      // @ts-ignore
+      const migrationState: { state: { maxDate: string } } =
+        await prisma.backgroundMigration.findUniqueOrThrow({
+          where: { id: backgroundMigrationId },
+          select: { state: true },
+        });
 
       const traces = await prisma.$queryRaw<
         Array<Record<string, any>>
       >(Prisma.sql`
         SELECT id, timestamp, name, user_id, metadata, release, version, project_id, public, bookmarked, tags, input, output, session_id, created_at, updated_at
         FROM traces
-        WHERE created_at <= ${maxDate}
+        WHERE created_at <= ${new Date(migrationState.state.maxDate)}
         ORDER BY created_at DESC
         LIMIT ${batchSize};
       `);
@@ -68,7 +88,19 @@ export default class MigrateTracesFromPostgresToClickhouse
         `Inserted ${traces.length} traces into Clickhouse in ${Date.now() - insertStart}ms`,
       );
 
-      maxDate = new Date(traces[traces.length - 1].created_at);
+      await prisma.backgroundMigration.update({
+        where: { id: backgroundMigrationId },
+        data: {
+          state: {
+            maxDate: new Date(traces[traces.length - 1].created_at),
+          },
+        },
+      });
+
+      if (traces.length < batchSize) {
+        logger.info("No more traces to migrate. Exiting...");
+        this.isFinished = true;
+      }
 
       processedRows += traces.length;
       logger.info(
