@@ -35,18 +35,9 @@ export default class MigrateScoresFromPostgresToClickhouse
       `Migrating scores from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
 
-    // @ts-ignore
-    const initialMigrationState: { state: { maxDate: string | undefined } } =
-      await prisma.backgroundMigration.findUniqueOrThrow({
-        where: { id: backgroundMigrationId },
-        select: { state: true },
-      });
-
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 5000);
-    const maxDate = initialMigrationState.state?.maxDate
-      ? new Date(initialMigrationState.state.maxDate)
-      : new Date((args.maxDate as string) ?? new Date());
+    const maxDate = new Date((args.maxDate as string) ?? new Date());
 
     await prisma.backgroundMigration.update({
       where: { id: backgroundMigrationId },
@@ -73,8 +64,9 @@ export default class MigrateScoresFromPostgresToClickhouse
       >(Prisma.sql`
         SELECT id, timestamp, project_id, trace_id, observation_id, name, value, source, comment, author_user_id, config_id, data_type, string_value, queue_id, created_at, updated_at
         FROM scores
-        WHERE created_at <= ${new Date(migrationState.state.maxDate)}
-        ORDER BY created_at DESC
+        WHERE timestamp <= ${new Date(migrationState.state.maxDate)}
+        and created_at = '2024-05-28T22:09:22.453Z'
+        ORDER BY timestamp DESC
         LIMIT ${batchSize};
       `);
       if (scores.length === 0) {
@@ -101,7 +93,7 @@ export default class MigrateScoresFromPostgresToClickhouse
         where: { id: backgroundMigrationId },
         data: {
           state: {
-            maxDate: new Date(scores[scores.length - 1].created_at),
+            maxDate: new Date(scores[scores.length - 1].timestamp),
           },
         },
       });
@@ -113,7 +105,7 @@ export default class MigrateScoresFromPostgresToClickhouse
 
       processedRows += scores.length;
       logger.info(
-        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${new Date(scores[scores.length - 1].created_at).toISOString()}`,
+        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${new Date(scores[scores.length - 1].timestamp).toISOString()}`,
       );
     }
 
