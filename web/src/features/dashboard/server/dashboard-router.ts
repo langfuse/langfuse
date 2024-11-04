@@ -18,6 +18,7 @@ import {
   getScoreAggregate,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import { dashboardColumnDefinitions } from "@langfuse/shared";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -57,7 +58,11 @@ export const dashboardRouter = createTRPCRouter({
           return count as DatabaseRow[];
         case "traces-grouped-by-name":
           return (
-            await getTracesGroupedByName(input.projectId, input.filter)
+            await getTracesGroupedByName(
+              input.projectId,
+              dashboardColumnDefinitions,
+              input.filter,
+            )
           ).map(
             (row) =>
               ({

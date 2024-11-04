@@ -15,6 +15,7 @@ import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTraces
 import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { UiColumnMapping } from "../../tableDefinitions";
 
 const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
   return {
@@ -220,13 +221,11 @@ export const getTraceByIdOrThrow = async (
 
 export const getTracesGroupedByName = async (
   projectId: string,
+  tableDefinitions: UiColumnMapping[] = tracesTableUiColumnDefinitions,
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(
-        timestampFilter,
-        tracesTableUiColumnDefinitions,
-      )
+    ? createFilterFromFilterState(timestampFilter, tableDefinitions)
     : undefined;
 
   const timestampFilterRes = chFilter
