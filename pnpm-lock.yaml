@@ -646,8 +646,8 @@ importers:
         specifier: ^1.4.41
         version: 1.4.41(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       stripe:
-        specifier: ^16.8.0
-        version: 16.8.0
+        specifier: ^17.3.1
+        version: 17.3.1
       superjson:
         specifier: 2.2.1
         version: 2.2.1
@@ -879,8 +879,8 @@ importers:
         specifier: ^8.13.0
         version: 8.13.0
       stripe:
-        specifier: ^16.8.0
-        version: 16.8.0
+        specifier: ^17.3.1
+        version: 17.3.1
       tiktoken:
         specifier: ^1.0.15
         version: 1.0.15
@@ -9662,14 +9662,10 @@ packages:
 
   puppeteer@19.11.1:
     resolution: {integrity: sha512-39olGaX2djYUdhaQQHDZ0T0GwEp+5f9UB9HmEP0qHfdQHIq0xGQZuAZ5TLnJIc/88SrPLpEflPC+xUqOTv3c5g==}
-    deprecated: < 22.6.4 is no longer supported
+    deprecated: < 22.8.2 is no longer supported
 
   pure-rand@6.0.4:
     resolution: {integrity: sha512-LA0Y9kxMYv47GIPJy6MI84fqTd2HmYZI83W/kM/SkKfDlajnZYfmXFTxkbY+xSBPkLJxltMa9hIkmdc29eguMA==}
-
-  qs@6.11.0:
-    resolution: {integrity: sha512-MvjoMCJwEarSbUYk5O+nmoSzSutSsTwF85zcHPQ9OrlFoZOYIjaqBAJIqIXjptyD5vThxGq52Xu/MaJzRkIk4Q==}
-    engines: {node: '>=0.6'}
 
   qs@6.13.0:
     resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
@@ -10429,8 +10425,8 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
 
-  stripe@16.8.0:
-    resolution: {integrity: sha512-6rOIcGOkxcc29jvhEyOYmpPFilekOBV+7vpemAoIAfbtCRW1yxzdDGM0/0vyekHglLL+wqGpP5ldrhO3dJ2JEQ==}
+  stripe@17.3.1:
+    resolution: {integrity: sha512-E9/u+GFBPkYnTmfFCoKX3+gP4R3SkZoGunHe4cw9J+sqkj5uxpLFf1LscuI9BuEyIQ0PFAgPTHavgQwRtOvnag==}
     engines: {node: '>=12.*'}
 
   strnum@1.0.5:
@@ -22684,10 +22680,6 @@ snapshots:
 
   pure-rand@6.0.4: {}
 
-  qs@6.11.0:
-    dependencies:
-      side-channel: 1.0.6
-
   qs@6.13.0:
     dependencies:
       side-channel: 1.0.6
@@ -23573,10 +23565,10 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
-  stripe@16.8.0:
+  stripe@17.3.1:
     dependencies:
       '@types/node': 20.14.8
-      qs: 6.11.0
+      qs: 6.13.0
 
   strnum@1.0.5: {}
 
