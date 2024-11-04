@@ -302,7 +302,7 @@ export function DataTable<TData extends object, TValue>({
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  title="View run metadata"
+                                  title="Expand and view metadata"
                                   className="ml-2"
                                   onClick={() => setShowMetadata(!showMetadata)}
                                 >
