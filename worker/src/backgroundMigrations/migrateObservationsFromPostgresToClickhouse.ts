@@ -35,9 +35,18 @@ export default class MigrateObservationsFromPostgresToClickhouse
       `Migrating observations from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
 
+    // @ts-ignore
+    const initialMigrationState: { state: { maxDate: string | undefined } } =
+      await prisma.backgroundMigration.findUniqueOrThrow({
+        where: { id: backgroundMigrationId },
+        select: { state: true },
+      });
+
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 5000);
-    const maxDate = new Date((args.maxDate as string) ?? new Date());
+    const maxDate = initialMigrationState.state?.maxDate
+      ? new Date(initialMigrationState.state.maxDate)
+      : new Date((args.maxDate as string) ?? new Date());
 
     await prisma.backgroundMigration.update({
       where: { id: backgroundMigrationId },
