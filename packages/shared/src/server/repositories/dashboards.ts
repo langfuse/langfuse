@@ -214,7 +214,6 @@ export const getDistinctModels = async (
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
-    GROUP BY provided_model_name
     `;
 
   const result = await queryClickhouse<{ model: string }>({
