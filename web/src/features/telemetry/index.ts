@@ -14,59 +14,36 @@ const JOB_TIMEOUT_MINUTES = Prisma.raw("10");
 export async function telemetry() {
   try {
     // Only run in prod
-    if (process.env.NODE_ENV !== "production") {
-      logger.info("Telemetry: Skipping - not in production environment");
-      return;
-    }
+    if (process.env.NODE_ENV !== "production") return;
     // Do not run in Langfuse cloud, separate telemetry is used
-    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
-      logger.info("Telemetry: Skipping - running in Langfuse cloud");
-      return;
-    }
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
     // Check if telemetry is not disabled, except for EE
     if (
       env.TELEMETRY_ENABLED === "false" &&
       env.LANGFUSE_EE_LICENSE_KEY === undefined
-    ) {
-      logger.info("Telemetry: Skipping - telemetry disabled and not EE");
+    )
       return;
-    }
     // Do not run in CI
-    if (process.env.CI) {
-      logger.info("Telemetry: Skipping - running in CI");
-      return;
-    }
+    if (process.env.CI) return;
 
     // Check via db cron_jobs table if it is time to run job
-    logger.info("Telemetry: Checking if job should run");
     const job = await jobScheduler();
 
     if (job.shouldRunJob) {
       const { jobStartedAt, lastRun, clientId } = job;
-      logger.info("Telemetry: Job should run", {
-        jobStartedAt,
-        lastRun,
-        clientId,
-      });
 
       // Run telemetry job
-      logger.info("Telemetry: Running posthog telemetry");
       await posthogTelemetry({
         startTimeframe: lastRun,
         endTimeframe: jobStartedAt,
         clientId,
       });
-      logger.info("Telemetry: Finished posthog telemetry");
 
       // Update cron_jobs table
-      logger.info("Telemetry: Updating cron_jobs table");
       await prisma.cronJobs.update({
         where: { name: "telemetry" },
         data: { lastRun: jobStartedAt, state: clientId, jobStartedAt: null },
       });
-      logger.info("Telemetry: Successfully updated cron_jobs table");
-    } else {
-      logger.info("Telemetry: Job should not run yet");
     }
   } catch (error) {
     // Catch all errors to be sure telemetry does not break the application
@@ -278,7 +255,7 @@ async function posthogTelemetry({
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         $set: {
-          environment: env.NODE_ENV,
+          environment: process.env.NODE_ENV,
           userDomains: domains,
           docker: true,
           langfuseVersion: VERSION,
