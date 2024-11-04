@@ -133,12 +133,12 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
-  runNamesByDatasetId: protectedProjectProcedure
+  baseRunDataByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
       return ctx.prisma.datasetRuns.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
-        select: { name: true, id: true },
+        select: { name: true, id: true, metadata: true, description: true },
       });
     }),
   runsByDatasetId: protectedProjectProcedure

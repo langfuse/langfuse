@@ -13,7 +13,7 @@ import { useQueryParams, withDefault } from "use-query-params";
 import { useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDown, Rows3 } from "lucide-react";
 import {
@@ -52,10 +52,7 @@ export function DatasetCompareRunsTable(props: {
   projectId: string;
   datasetId: string;
   runIds: string[];
-  runIdsAndNames?: {
-    id: string;
-    name: string;
-  }[];
+  runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
 }) {
   const [selectedMetrics, setSelectedMetrics] = useState<DatasetRunMetric[]>([
     "scores",
@@ -157,7 +154,7 @@ export function DatasetCompareRunsTable(props: {
     useDatasetRunAggregateColumns({
       projectId: props.projectId,
       runIds: props.runIds,
-      runNames: props.runIdsAndNames ?? [],
+      runsData: props.runsData ?? [],
       scoreKeyToDisplayName,
       cellsLoading: !scoreKeysAndProps.data,
       selectedMetrics,

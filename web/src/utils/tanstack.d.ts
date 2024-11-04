@@ -6,6 +6,12 @@ export declare module "@tanstack/table-core" {
   }
 }
 
+export declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData extends RowData, TValue> {
+    metadata?: unknown;
+  }
+}
+
 type KeyValueFilter = {
   type: "key-value";
   values: KeyValue[] | null;

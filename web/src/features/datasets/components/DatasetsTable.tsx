@@ -86,7 +86,7 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 200,
       cell: ({ row }) => {
         const description: RowData["description"] = row.getValue("description");
-        return <span className="h-full overflow-y-auto">{description}</span>;
+        return <div className="h-full overflow-y-auto">{description}</div>;
       },
     },
     {

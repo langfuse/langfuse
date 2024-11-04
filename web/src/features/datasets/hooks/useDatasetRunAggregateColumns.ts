@@ -1,26 +1,32 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { type DatasetRunMetric } from "@/src/features/datasets/components/DatasetCompareRunsTable";
+import { type RouterOutputs } from "@/src/utils/api";
 
 export function useDatasetRunAggregateColumns({
   projectId,
   runIds,
-  runNames,
+  runsData,
   scoreKeyToDisplayName,
   selectedMetrics,
   cellsLoading = false,
 }: {
   projectId: string;
   runIds: string[];
-  runNames: { name: string; id: string }[];
+  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
   cellsLoading?: boolean;
 }) {
-  const runAggregateColumnProps = runIds.map((runId) => ({
-    name: runNames.find((name) => name.id === runId)?.name ?? `run${runId}`,
-    id: runId,
-  }));
+  const runAggregateColumnProps = runIds.map((runId) => {
+    const runNameAndMetadata = runsData.find((name) => name.id === runId);
+    return {
+      name: runNameAndMetadata?.name ?? `run${runId}`,
+      id: runId,
+      metadata: runNameAndMetadata?.metadata ?? null,
+      description: runNameAndMetadata?.description ?? null,
+    };
+  });
 
   const runAggregateColumns = useMemo(() => {
     return constructDatasetRunAggregateColumns({

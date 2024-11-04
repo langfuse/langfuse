@@ -29,21 +29,28 @@ export default function DatasetCompare() {
     projectId,
   });
 
-  const runIdsAndNames = api.datasets.runNamesByDatasetId.useQuery({
-    projectId,
-    datasetId,
-  });
+  const runsData = api.datasets.baseRunDataByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    {
+      enabled: !!dataset.data,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  );
 
   const runs = useMemo(() => {
     return (
-      runIdsAndNames.data?.map((run) => ({
+      runsData.data?.map((run) => ({
         key: run.id,
         value: run.name,
       })) ?? []
     );
-  }, [runIdsAndNames.data]);
+  }, [runsData.data]);
 
-  if (!runIdsAndNames.data || !router.isReady) {
+  if (!runsData.data || !router.isReady) {
     return <span>Loading...</span>;
   }
 
@@ -69,7 +76,7 @@ export default function DatasetCompare() {
             <PopoverTrigger asChild>
               <Button variant="outline">
                 <FolderKanban className="mr-2 h-4 w-4" />
-                View metadata
+                Dataset details
               </Button>
             </PopoverTrigger>
             <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
@@ -123,7 +130,7 @@ export default function DatasetCompare() {
       <DatasetCompareRunsTable
         projectId={projectId}
         datasetId={datasetId}
-        runIdsAndNames={runIdsAndNames.data}
+        runsData={runsData.data}
         runIds={runIds ?? []}
       />
     </FullScreenPage>
