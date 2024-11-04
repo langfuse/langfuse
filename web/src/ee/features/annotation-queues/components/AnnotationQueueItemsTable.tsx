@@ -167,7 +167,7 @@ export function AnnotationQueueItemsTable({
       isPinned: true,
       header: ({ table }) => {
         return (
-          <div className="mt-1 h-5">
+          <div className="flex h-full items-center">
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected()
