@@ -33,7 +33,9 @@ const DatasetAggregateCell = ({
           skipBatch: true,
         },
       },
-      refetchOnMount: false, // prevents refetching loops
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
       staleTime: Infinity,
     },
   );
@@ -50,7 +52,9 @@ const DatasetAggregateCell = ({
           skipBatch: true,
         },
       },
-      refetchOnMount: false, // prevents refetching loops
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
       staleTime: Infinity,
     },
   );
