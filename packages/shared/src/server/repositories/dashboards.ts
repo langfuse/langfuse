@@ -217,7 +217,7 @@ const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
       interval = "toIntervalHour(1)";
       break;
     case "minute":
-      interval = "toMinute";
+      interval = "toIntervalMinute(1)";
       break;
     default:
       return undefined;
