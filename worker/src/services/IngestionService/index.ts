@@ -364,6 +364,14 @@ export class IngestionService {
       observationRecord: parsedObservationRecord,
     });
 
+    if (
+      "usage_details" in generationUsage &&
+      Object.keys(generationUsage.usage_details).length === 0
+    ) {
+      generationUsage.usage_details =
+        postgresObservationRecord?.usage_details ?? {};
+    }
+
     return {
       ...parsedObservationRecord,
       ...generationUsage,
