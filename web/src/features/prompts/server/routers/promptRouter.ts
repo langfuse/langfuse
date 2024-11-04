@@ -674,7 +674,7 @@ export const promptRouter = createTRPCRouter({
         ctx.prisma.$queryRaw<
           Array<{
             id: string;
-            observationCount: number;
+            observationCount: bigint;
             firstUsed: Date | null;
             lastUsed: Date | null;
             medianOutputTokens: number | null;
