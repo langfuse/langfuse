@@ -15,6 +15,7 @@ import {
   singleFilter,
   timeFilter,
   type TraceOptions,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
 import {
   type ObservationLevel,
@@ -313,7 +314,6 @@ export const traceRouter = createTRPCRouter({
           ),
         }));
       } else {
-        ctx.session.user;
         if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
@@ -435,6 +435,7 @@ export const traceRouter = createTRPCRouter({
           ),
           getTracesGroupedByName(
             input.projectId,
+            tracesTableUiColumnDefinitions,
             timestampFilter ? [timestampFilter] : [],
           ),
           getTracesGroupedByTags(
@@ -444,7 +445,7 @@ export const traceRouter = createTRPCRouter({
         ]);
 
         const res: TraceOptions = {
-          name: traceNames,
+          name: traceNames.map((n) => ({ value: n.name })),
           scores_avg: scoreNames.map((s) => s.name),
           tags: tags,
         };
