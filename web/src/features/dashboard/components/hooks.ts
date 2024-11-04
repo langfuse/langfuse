@@ -6,7 +6,7 @@ import { api } from "@/src/utils/api";
 export const getAllModels = (
   projectId: string,
   globalFilterState: FilterState,
-  useClickhouse: bool,
+  useClickhouse: boolean,
 ) => {
   const allModels = api.dashboard.chart.useQuery(
     {
