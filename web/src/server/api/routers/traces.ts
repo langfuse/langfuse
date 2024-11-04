@@ -313,7 +313,6 @@ export const traceRouter = createTRPCRouter({
           ),
         }));
       } else {
-        ctx.session.user;
         if (!isClickhouseEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
