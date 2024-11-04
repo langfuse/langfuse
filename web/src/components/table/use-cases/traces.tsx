@@ -240,7 +240,7 @@ export default function TracesTable({
       size: 30,
       isPinned: true,
       header: ({ table }) => (
-        <div className="mt-1 h-5">
+        <div className="flex h-full items-center">
           <Checkbox
             checked={
               table.getIsAllPageRowsSelected()
