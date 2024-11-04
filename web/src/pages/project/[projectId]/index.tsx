@@ -27,6 +27,7 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {

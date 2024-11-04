@@ -42,7 +42,7 @@ export class StringFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `stringFilter${this.field}`;
+    const varName = `stringFilter${randomCharacters()}`;
 
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
     let query: string;
