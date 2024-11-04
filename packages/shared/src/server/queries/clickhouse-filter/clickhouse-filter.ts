@@ -291,6 +291,10 @@ export class FilterList {
     this.filters.push(...filter);
   }
 
+  find(predicate: (filter: Filter) => boolean) {
+    return this.filters.find(predicate);
+  }
+
   public apply(): ClickhouseFilter {
     if (this.filters.length === 0) {
       return {
