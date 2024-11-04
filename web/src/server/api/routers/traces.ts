@@ -15,6 +15,7 @@ import {
   singleFilter,
   timeFilter,
   type TraceOptions,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
 import {
   type ObservationLevel,
@@ -434,6 +435,7 @@ export const traceRouter = createTRPCRouter({
           ),
           getTracesGroupedByName(
             input.projectId,
+            tracesTableUiColumnDefinitions,
             timestampFilter ? [timestampFilter] : [],
           ),
           getTracesGroupedByTags(
