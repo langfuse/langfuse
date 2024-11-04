@@ -42,7 +42,7 @@ export const getObservationsCostGroupedByName = async (
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
   );
 
-  const appliedFiler = chFilter.apply();
+  const appliedFilter = chFilter.apply();
 
   const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
@@ -53,7 +53,7 @@ export const getObservationsCostGroupedByName = async (
       sumMap(usage_details)['total'] as sum_usage_details
     FROM observations o FINAL ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
-    AND ${appliedFiler.query}
+    AND ${appliedFilter.query}
     GROUP BY provided_model_name
     ORDER BY sumMap(cost_details)['total'] DESC
     `;
@@ -66,7 +66,7 @@ export const getObservationsCostGroupedByName = async (
     query,
     params: {
       projectId,
-      ...appliedFiler.params,
+      ...appliedFilter.params,
     },
   });
 
