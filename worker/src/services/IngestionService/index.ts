@@ -820,7 +820,7 @@ export class IngestionService {
         if (totalCost != null) provided_cost_details.total = totalCost;
       }
 
-      if (!obs.body?.startTime) {
+      if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
         logger.warn(
           `Observation ${entityId} in project ${projectId} does not have a startTime, using event time`,
         );
