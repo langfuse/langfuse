@@ -217,6 +217,41 @@ export class ArrayOptionsFilter implements Filter {
   }
 }
 
+export class NumberObjectFilter implements Filter {
+  public clickhouseTable: string;
+  protected field: string;
+  protected key: string;
+  protected value: number;
+  protected operator: (typeof filterOperators)["numberObject"][number];
+  protected tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["numberObject"][number];
+    key: string;
+    value: number;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const varKeyName = `numberObjectKeyFilter${randomCharacters()}`;
+    const varValueName = `numberObjectValueFilter${randomCharacters()}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    return {
+      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal})), ${column})) = 0`,
+      params: { [varKeyName]: this.key, [varValueName]: this.value },
+    };
+  }
+}
+
 export class BooleanFilter implements Filter {
   public clickhouseTable: string;
   protected field: string;

@@ -1,12 +1,13 @@
 import { z } from "zod";
-
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { parseGetAllGenerationsInput } from "@langfuse/shared/src/server";
+import {
+  getObservationsTableCount,
+  parseGetAllGenerationsInput,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
@@ -41,22 +42,32 @@ export const getAllQueries = {
           });
         }
 
-        throw new TRPCError({
-          code: "NOT_IMPLEMENTED",
-          message: "Clickhouse query not implemented yet",
+        const { generations } = await getAllGenerations({
+          input,
+          selectIOAndMetadata: false,
+          queryClickhouse: true,
         });
+
+        return {
+          generations: generations,
+        };
       }
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllGenerationsInput)
+    .input(
+      GetAllGenerationsInput.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const { searchCondition, filterCondition, datetimeFilter } =
-        parseGetAllGenerationsInput(input);
+      if (!input.queryClickhouse) {
+        const { searchCondition, filterCondition, datetimeFilter } =
+          parseGetAllGenerationsInput(input);
 
-      const totalGenerations = await ctx.prisma.$queryRaw<
-        Array<{ count: bigint }>
-      >(
-        Prisma.sql`
+        const totalGenerations = await ctx.prisma.$queryRaw<
+          Array<{ count: bigint }>
+        >(
+          Prisma.sql`
           SELECT
             count(*)
           FROM observations_view o
@@ -87,11 +98,30 @@ export const getAllQueries = {
             ${searchCondition}
             ${filterCondition}
     `,
-      );
+        );
 
-      const count = totalGenerations[0]?.count;
-      return {
-        totalCount: count ? Number(count) : undefined,
-      };
+        const count = totalGenerations[0]?.count;
+        return {
+          totalCount: count ? Number(count) : undefined,
+        };
+      } else {
+        if (!isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        const countQuery = await getObservationsTableCount({
+          projectId: ctx.session.projectId,
+          filter: input.filter ?? [],
+          limit: 1,
+          offset: 0,
+        });
+
+        return {
+          totalCount: countQuery.shift()?.count,
+        };
+      }
     }),
 };

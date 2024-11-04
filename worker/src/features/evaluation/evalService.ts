@@ -49,7 +49,7 @@ export const createEvalJobs = async ({
     return;
   }
   logger.info(
-    `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`
+    `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
   for (const config of configs) {
@@ -64,7 +64,7 @@ export const createEvalJobs = async ({
     const condition = tableColumnsToSqlFilterAndPrefix(
       validatedFilter,
       evalTableCols,
-      "traces"
+      "traces",
     );
 
     const joinedQuery = Prisma.sql`
@@ -88,7 +88,7 @@ export const createEvalJobs = async ({
     // if we matched a trace, we might want to create a job
     if (traces.length > 0) {
       logger.info(
-        `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`
+        `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`,
       );
 
       const jobExecutionId = randomUUID();
@@ -96,7 +96,7 @@ export const createEvalJobs = async ({
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
         logger.info(
-          `Eval job for config ${config.id} and trace ${event.traceId} already exists`
+          `Eval job for config ${config.id} and trace ${event.traceId} already exists`,
         );
         continue;
       }
@@ -108,14 +108,14 @@ export const createEvalJobs = async ({
         const random = Math.random();
         if (random > parseFloat(config.sampling)) {
           logger.info(
-            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`
+            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
           );
           continue;
         }
       }
 
       logger.info(
-        `Creating eval job for config ${config.id} and trace ${event.traceId}`
+        `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
       await prisma.jobExecution.create({
@@ -151,7 +151,7 @@ export const createEvalJobs = async ({
           delay: config.delay, // milliseconds
           removeOnComplete: true,
           removeOnFail: 1_000,
-        }
+        },
       );
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
@@ -159,7 +159,7 @@ export const createEvalJobs = async ({
       logger.info(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
         logger.info(
-          `Cancelling eval job for config ${config.id} and trace ${event.traceId}`
+          `Cancelling eval job for config ${config.id} and trace ${event.traceId}`,
         );
         await kyselyPrisma.$kysely
           .updateTable("job_executions")
@@ -179,7 +179,7 @@ export const evaluate = async ({
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
   logger.info(
-    `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`
+    `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
   // first, fetch all the context required for the evaluation
   const job = await kyselyPrisma.$kysely
@@ -214,10 +214,10 @@ export const evaluate = async ({
 
   if (!config || !config.eval_template_id) {
     logger.error(
-      `Eval template not found for config ${config.eval_template_id}`
+      `Eval template not found for config ${config.eval_template_id}`,
     );
     throw new InvalidRequestError(
-      `Eval template not found for config ${config.eval_template_id}`
+      `Eval template not found for config ${config.eval_template_id}`,
     );
   }
 
@@ -229,12 +229,12 @@ export const evaluate = async ({
   });
 
   logger.info(
-    `Evaluating job ${job.id} for project ${event.projectId} with template ${template.id}. Searching for context...`
+    `Evaluating job ${job.id} for project ${event.projectId} with template ${template.id}. Searching for context...`,
   );
 
   // selectedcolumnid is not safe to use, needs validation in extractVariablesFromTrace()
   const parsedVariableMapping = variableMappingList.parse(
-    config.variable_mapping
+    config.variable_mapping,
   );
 
   // extract the variables which need to be inserted into the prompt
@@ -242,22 +242,22 @@ export const evaluate = async ({
     event.projectId,
     template.vars,
     job.job_input_trace_id,
-    parsedVariableMapping
+    parsedVariableMapping,
   );
 
   logger.debug(
-    `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `
+    `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
   );
 
   // compile the prompt and send out the LLM request
   const prompt = compileHandlebarString(template.prompt, {
     ...Object.fromEntries(
-      mappingResult.map(({ var: key, value }) => [key, value])
+      mappingResult.map(({ var: key, value }) => [key, value]),
     ),
   });
 
   logger.debug(
-    `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`
+    `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
   );
 
   const parsedOutputSchema = z
@@ -290,10 +290,10 @@ export const evaluate = async ({
   if (!parsedKey.success) {
     // this will fail the eval execution if a user deletes the API key.
     logger.error(
-      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`
+      `Evaluating job ${event.jobExecutionId} did not find API key for provider ${template.provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`,
     );
     throw new LangfuseNotFoundError(
-      `API key for provider ${template.provider} and project ${event.projectId} not found.`
+      `API key for provider ${template.provider} and project ${event.projectId} not found.`,
     );
   }
 
@@ -305,15 +305,15 @@ export const evaluate = async ({
         prompt,
         modelParams,
         template,
-        evalScoreSchema
+        evalScoreSchema,
       ),
     {
-      numOfAttempts: 2,
-    }
+      numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+    },
   );
 
   logger.info(
-    `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`
+    `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
   );
 
   // persist the score and update the job status
@@ -332,7 +332,7 @@ export const evaluate = async ({
   });
 
   logger.info(
-    `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`
+    `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`,
   );
 
   await kyselyPrisma.$kysely
@@ -344,7 +344,7 @@ export const evaluate = async ({
     .execute();
 
   logger.info(
-    `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`
+    `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
   );
 };
 
@@ -354,7 +354,7 @@ async function callLLM(
   prompt: string,
   modelParams: z.infer<typeof ZodModelConfig>,
   template: EvalTemplate,
-  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>
+  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
 ): Promise<z.infer<typeof evalScoreSchema>> {
   try {
     const completion = await fetchLLMCompletion({
@@ -380,7 +380,7 @@ async function callLLM(
     return evalScoreSchema.parse(completion);
   } catch (e) {
     logger.error(
-      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`
+      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`,
     );
     throw new ApiError(`Failed to call LLM: ${e}`);
   }
@@ -388,7 +388,7 @@ async function callLLM(
 
 export function compileHandlebarString(
   handlebarString: string,
-  context: Record<string, any>
+  context: Record<string, any>,
 ): string {
   const template = Handlebars.compile(handlebarString, { noEscape: true });
   return template(context);
@@ -399,14 +399,14 @@ export async function extractVariablesFromTrace(
   variables: string[],
   traceId: string,
   // this here are variables which were inserted by users. Need to validate before DB query.
-  variableMapping: z.infer<typeof variableMappingList>
+  variableMapping: z.infer<typeof variableMappingList>,
 ) {
   const mappingResult: { var: string; value: string }[] = [];
 
   // find the context for each variable of the template
   for (const variable of variables) {
     const mapping = variableMapping.find(
-      (m) => m.templateVariable === variable
+      (m) => m.templateVariable === variable,
     );
 
     if (!mapping) {
@@ -424,7 +424,7 @@ export async function extractVariablesFromTrace(
       // if no column was found, we still process with an empty variable
       if (!safeInternalColumn?.id) {
         logger.error(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
         );
         mappingResult.push({ var: variable, value: "" });
         continue;
@@ -433,7 +433,9 @@ export async function extractVariablesFromTrace(
       const trace = await kyselyPrisma.$kysely
         .selectFrom("traces as t")
         .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(safeInternalColumn.id)
+          sql`${sql.raw(safeInternalColumn.internal)}`.as(
+            safeInternalColumn.id,
+          ),
         ) // query the internal column name raw
         .where("id", "=", traceId)
         .where("project_id", "=", projectId)
@@ -442,10 +444,10 @@ export async function extractVariablesFromTrace(
       // user facing errors
       if (!trace) {
         logger.error(
-          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
         );
         throw new LangfuseNotFoundError(
-          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`
+          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
         );
       }
 
@@ -461,7 +463,7 @@ export async function extractVariablesFromTrace(
 
       if (!mapping.objectName) {
         logger.info(
-          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`
+          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
         );
         mappingResult.push({ var: variable, value: "" });
         continue;
@@ -469,7 +471,7 @@ export async function extractVariablesFromTrace(
 
       if (!safeInternalColumn?.id) {
         logger.warn(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
         );
         mappingResult.push({ var: variable, value: "" });
         continue;
@@ -478,7 +480,9 @@ export async function extractVariablesFromTrace(
       const observation = await kyselyPrisma.$kysely
         .selectFrom("observations as o")
         .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(safeInternalColumn.id)
+          sql`${sql.raw(safeInternalColumn.internal)}`.as(
+            safeInternalColumn.id,
+          ),
         ) // query the internal column name raw
         .where("trace_id", "=", traceId)
         .where("project_id", "=", projectId)
@@ -489,10 +493,10 @@ export async function extractVariablesFromTrace(
       // user facing errors
       if (!observation) {
         logger.error(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
         );
         throw new LangfuseNotFoundError(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`
+          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
         );
       }
 
