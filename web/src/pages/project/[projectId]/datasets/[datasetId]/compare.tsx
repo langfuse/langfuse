@@ -1,22 +1,28 @@
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
+import { FolderKanban } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/src/components/ui/popover";
+import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
 
 export default function DatasetCompare() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
-  const runIds = router.query.runs as undefined | string[];
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [runState, setRunState] = useQueryParams({
     runs: withDefault(ArrayParam, []),
   });
+  const runIds = runState.runs as undefined | string[];
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -44,7 +50,7 @@ export default function DatasetCompare() {
   return (
     <FullScreenPage key={runIds?.join(",") ?? "empty"}>
       <Header
-        title="Compare Runs"
+        title={`Compare runs: ${dataset.data?.name ?? datasetId}`}
         breadcrumb={[
           {
             name: "Datasets",
@@ -58,10 +64,36 @@ export default function DatasetCompare() {
         help={{
           description: "Compare your dataset runs side by side",
         }}
-        actionButtons={
+        actionButtons={[
+          <Popover key="show-dataset-details">
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <FolderKanban className="mr-2 h-4 w-4" />
+                View metadata
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="mb-1 font-medium">Description</h4>
+                  <span className="text-sm text-muted-foreground">
+                    {dataset.data?.description ?? "No description"}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="mb-1 font-medium">Metadata</h4>
+                  <MarkdownOrJsonView
+                    content={dataset.data?.metadata ?? null}
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>,
           <MultiSelectKeyValues
-            title="Select Runs"
+            key="select-runs"
+            title="Select runs"
             placeholder="Select runs to compare"
+            className="w-fit"
             options={runs.map((run) => ({
               key: run.key,
               value: run.value,
@@ -85,8 +117,8 @@ export default function DatasetCompare() {
                 }
               }
             }}
-          />
-        }
+          />,
+        ]}
       />
       <DatasetCompareRunsTable
         projectId={projectId}

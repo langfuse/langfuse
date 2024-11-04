@@ -218,6 +218,7 @@ export function DatasetCompareRunsTable(props: {
       id: "metadata",
       size: 200,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const metadata = row.getValue(
           "metadata",
