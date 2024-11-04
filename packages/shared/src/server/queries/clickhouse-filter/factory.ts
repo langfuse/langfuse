@@ -107,7 +107,8 @@ const matchAndVerifyTracesUiColumn = (
   logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
 
   const uiTable = uiTableDefinitions.find(
-    (col) => col.uiTableName === filter.column, // matches on the NAME of the column in the UI.
+    (col) =>
+      col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.
   );
 
   if (!uiTable) {

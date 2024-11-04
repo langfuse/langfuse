@@ -7,6 +7,7 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const TracesBarListChart = ({
   className,
@@ -28,6 +29,8 @@ export const TracesBarListChart = ({
       from: "traces",
       select: [{ column: "traceId", agg: "COUNT" }],
       filter: timeFilter,
+      queryClickhouse: useClickhouse(),
+      queryName: "traces-total",
     },
     {
       trpc: {
@@ -46,6 +49,8 @@ export const TracesBarListChart = ({
       filter: timeFilter,
       groupBy: [{ column: "traceName", type: "string" }],
       orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
+      queryClickhouse: useClickhouse(),
+      queryName: "traces-grouped-by-name",
     },
     {
       trpc: {

@@ -15,6 +15,7 @@ import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTraces
 import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { UiColumnMapping } from "../../tableDefinitions";
 
 const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
   return {
@@ -220,13 +221,11 @@ export const getTraceByIdOrThrow = async (
 
 export const getTracesGroupedByName = async (
   projectId: string,
+  tableDefinitions: UiColumnMapping[] = tracesTableUiColumnDefinitions,
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
-    ? createFilterFromFilterState(
-        timestampFilter,
-        tracesTableUiColumnDefinitions,
-      )
+    ? createFilterFromFilterState(timestampFilter, tableDefinitions)
     : undefined;
 
   const timestampFilterRes = chFilter
@@ -235,18 +234,20 @@ export const getTracesGroupedByName = async (
 
   const query = `
       select 
-        name as value
+        name as name,
+        count(*) as count
       from traces t final
       WHERE t.project_id = {projectId: String}
       AND t.name IS NOT NULL
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
-      ORDER BY name desc
+      ORDER BY count(*) desc
       LIMIT 1000;
     `;
 
   const rows = await queryClickhouse<{
-    value: string;
+    name: string;
+    count: string;
   }>({
     query: query,
     params: {
