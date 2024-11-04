@@ -33,14 +33,12 @@ export async function queryClickhouse<T>(opts: {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
 
-    // same logic as for prisma. we want to see queries in development
-
     const res = await clickhouseClient.query({
       query: opts.query,
       format: "JSONEachRow",
       query_params: opts.params,
     });
-
+    // same logic as for prisma. we want to see queries in development
     if (env.NODE_ENV === "development") {
       logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
     }
