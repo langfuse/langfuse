@@ -289,6 +289,7 @@ export const ObservationPreview = ({
           {selectedTab === "scores" && (
             <ScoresTable
               projectId={projectId}
+              traceId={traceId}
               omittedFilter={["Observation ID"]}
               observationId={preloadedObservation.id}
               hiddenColumns={[
