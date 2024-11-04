@@ -105,7 +105,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
 
       processedRows += observations.length;
       logger.info(
-        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${maxDate}`,
+        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${new Date(observations[observations.length - 1].created_at).toISOString()}`,
       );
     }
 

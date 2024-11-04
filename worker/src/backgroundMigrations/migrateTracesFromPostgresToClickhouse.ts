@@ -104,7 +104,7 @@ export default class MigrateTracesFromPostgresToClickhouse
 
       processedRows += traces.length;
       logger.info(
-        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${maxDate}`,
+        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${new Date(traces[traces.length - 1].created_at).toISOString()}`,
       );
     }
 

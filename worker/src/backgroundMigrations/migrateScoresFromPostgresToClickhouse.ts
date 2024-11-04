@@ -104,7 +104,7 @@ export default class MigrateScoresFromPostgresToClickhouse
 
       processedRows += scores.length;
       logger.info(
-        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${maxDate}`,
+        `Processed batch in ${Date.now() - fetchStart}ms. Oldest record in batch: ${new Date(scores[scores.length - 1].created_at).toISOString()}`,
       );
     }
 
