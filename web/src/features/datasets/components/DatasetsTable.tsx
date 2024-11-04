@@ -84,6 +84,10 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "description",
       enableHiding: true,
       size: 200,
+      cell: ({ row }) => {
+        const description: RowData["description"] = row.getValue("description");
+        return <span className="h-full overflow-y-auto">{description}</span>;
+      },
     },
     {
       accessorKey: "countItems",
