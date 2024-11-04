@@ -61,7 +61,7 @@ export default function DatasetCompare() {
         actionButtons={
           <MultiSelectKeyValues
             title="Select Runs"
-            emptyPlaceholder="Select runs to compare"
+            placeholder="Select runs to compare"
             options={runs.map((run) => ({
               key: run.key,
               value: run.value,

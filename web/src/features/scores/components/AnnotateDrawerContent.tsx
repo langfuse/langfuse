@@ -592,7 +592,7 @@ export function AnnotateDrawerContent({
         {!isSelectHidden && (
           <div className="grid grid-flow-col items-center">
             <MultiSelectKeyValues
-              emptyPlaceholder="Value"
+              placeholder="Value"
               align="end"
               items="empty scores"
               className="grid grid-cols-[auto,1fr,auto,auto] gap-2"

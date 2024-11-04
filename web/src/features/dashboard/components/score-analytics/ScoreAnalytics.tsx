@@ -75,7 +75,7 @@ export function ScoreAnalytics(props: {
         !scoreKeysAndProps.isLoading &&
         Boolean(scoreKeysAndProps.data?.length) && (
           <MultiSelectKeyValues
-            emptyPlaceholder="Search score..."
+            placeholder="Search score..."
             onValueChange={(values, changedValueId, selectedValueKeys) => {
               if (values.length === 0) setSelectedDashboardScoreKeys([]);
 

@@ -32,7 +32,7 @@ export function MultiSelectKeyValues<
   T extends { key: string; value: string } | string,
 >({
   title = "Select",
-  emptyPlaceholder,
+  placeholder,
   values,
   onValueChange,
   options,
@@ -43,7 +43,7 @@ export function MultiSelectKeyValues<
   controlButtons,
 }: {
   title?: string;
-  emptyPlaceholder?: string;
+  placeholder?: string;
   values: T[];
   onValueChange: (
     values: T[],
@@ -127,7 +127,7 @@ export function MultiSelectKeyValues<
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align={align}>
         <Command>
-          <CommandInput placeholder={emptyPlaceholder} />
+          <CommandInput placeholder={placeholder} />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
