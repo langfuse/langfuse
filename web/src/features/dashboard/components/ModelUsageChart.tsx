@@ -74,7 +74,7 @@ export const ModelUsageChart = ({
     },
   );
 
-  const allModels = getAllModels(projectId, globalFilterState);
+  const allModels = getAllModels(projectId, globalFilterState, useClickhouse());
 
   const transformedTotalTokens =
     tokens.data && allModels.length > 0
