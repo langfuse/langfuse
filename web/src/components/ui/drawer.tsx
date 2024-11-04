@@ -5,15 +5,33 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
 import { useMediaQuery } from "react-responsive";
+import { cva } from "class-variance-authority";
 
 type DrawerContentProps = React.ComponentPropsWithoutRef<
   typeof DrawerPrimitive.Content
 > & {
   overlayClassName?: string;
+  size?: "default" | "md";
 };
 
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
+
+const drawerVariants = cva(
+  "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:inset-y-0 md:right-0 md:mt-0 md:h-full  md:rounded-l-lg md:rounded-r-none",
+  {
+    variants: {
+      size: {
+        default: "h-1/3 md:w-1/2 lg:w-2/5 xl:w-1/3 2xl:w-1/4",
+        md: "h-1/2 md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5",
+        lg: "h-2/3",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  },
+);
 
 const Drawer = ({
   shouldScaleBackground = true,
@@ -55,15 +73,12 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, children, overlayClassName, ...props }, ref) => (
+>(({ className, children, overlayClassName, size, ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay className={overlayClassName} />
     <DrawerPrimitive.Content
       ref={ref}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:inset-y-0 md:right-0 md:mt-0 md:h-full md:w-1/2 md:rounded-l-lg md:rounded-r-none lg:w-2/5 xl:w-1/3 2xl:w-1/4",
-        className,
-      )}
+      className={cn(drawerVariants({ size, className }))}
       {...props}
     >
       <DrawerDescription className="sr-only">
