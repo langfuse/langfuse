@@ -19,6 +19,7 @@ import {
   getScoreAggregate,
   getObservationUsageByTime,
   groupTracesByTime,
+  getDistinctModels,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -38,6 +39,7 @@ export const dashboardRouter = createTRPCRouter({
             "score-aggregate",
             "traces-timeseries",
             "observations-usage-timeseries",
+            "distinct-models",
           ])
           .nullish(),
       }),
@@ -129,6 +131,13 @@ export const dashboardRouter = createTRPCRouter({
             sumCalculatedTotalCost: row.sum_cost_details,
             model: row.provided_model_name,
           })) as DatabaseRow[];
+
+        case "distinct-models":
+          const models = await getDistinctModels(
+            input.projectId,
+            input.filter ?? [],
+          );
+          return models as DatabaseRow[];
 
         default:
           throw new TRPCError({

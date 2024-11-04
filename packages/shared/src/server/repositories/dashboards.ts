@@ -3,7 +3,6 @@ import { createFilterFromFilterState } from "../queries/clickhouse-filter/factor
 import { FilterState } from "../../types";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
-import { group } from "console";
 
 export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
 
@@ -198,6 +197,36 @@ export const getObservationUsageByTime = async (
   }));
 };
 
+export const getDistinctModels = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const query = `
+    SELECT 
+      distinct(provided_model_name) as model
+    FROM observations o FINAL
+    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    WHERE project_id = {projectId: String}
+    AND ${appliedFilter.query}
+    `;
+
+  const result = await queryClickhouse<{ model: string }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result;
+};
+
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
   let interval;
   switch (dateTrunc) {
@@ -217,7 +246,7 @@ const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
       interval = "toIntervalHour(1)";
       break;
     case "minute":
-      interval = "toMinute";
+      interval = "toIntervalMinute(1)";
       break;
     default:
       return undefined;
