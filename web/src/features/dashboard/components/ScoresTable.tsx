@@ -46,6 +46,8 @@ export const ScoresTable = ({
     globalFilterState,
     "scoreTimestamp",
   );
+
+  const useCh = useClickhouse();
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
@@ -70,7 +72,7 @@ export const ScoresTable = ({
         },
       ],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-      queryClickhouse: useClickhouse(),
+      queryClickhouse: useCh,
       queryName: "score-aggregate",
     },
     {
@@ -114,7 +116,7 @@ export const ScoresTable = ({
           },
         ],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-        queryClickhouse: useClickhouse(),
+        queryClickhouse: useCh,
         queryName: "score-aggregate",
       },
       {

@@ -68,8 +68,6 @@ export const getObservationsCostGroupedByName = async (
     },
   });
 
-  console.log(result);
-
   return result;
 };
 
