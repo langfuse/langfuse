@@ -10,18 +10,20 @@ import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Rows3 } from "lucide-react";
+import { ChevronDown, Expand, Rows3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 
 export type RunMetrics = {
   id: string;
@@ -54,11 +56,16 @@ export function DatasetCompareRunsTable(props: {
   runIds: string[];
   runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
 }) {
+  const { setDetailPageList } = useDetailPageLists();
   const [selectedMetrics, setSelectedMetrics] = useState<DatasetRunMetric[]>([
     "scores",
     "resourceMetrics",
   ]);
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
+  const [clickedRow, setClickedRow] = useState<DatasetCompareRunRowData | null>(
+    null,
+  );
+
   const rowHeight = "l";
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -72,6 +79,16 @@ export function DatasetCompareRunsTable(props: {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
+
+  useEffect(() => {
+    if (baseDatasetItems.isSuccess) {
+      setDetailPageList(
+        "compare-runs",
+        baseDatasetItems.data.map((item) => item.id),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
 
   // Individual queries for each run
   const runs = (props.runIds ?? []).map((runId) => ({
@@ -188,7 +205,19 @@ export function DatasetCompareRunsTable(props: {
         const input = row.getValue(
           "input",
         ) as DatasetCompareRunRowData["input"];
-        return input !== null ? <IOTableCell data={input} /> : null;
+        return input !== null ? (
+          <div className="group relative h-full w-full">
+            <Button
+              variant="outline"
+              size="icon"
+              className="z-5 absolute right-1 top-1 hidden items-center justify-center group-hover:flex"
+              onClick={() => setClickedRow(row.original)}
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
+            <IOTableCell data={input} />
+          </div>
+        ) : null;
       },
     },
     {
@@ -202,10 +231,20 @@ export function DatasetCompareRunsTable(props: {
           "expectedOutput",
         ) as DatasetCompareRunRowData["expectedOutput"];
         return expectedOutput !== null ? (
-          <IOTableCell
-            data={expectedOutput}
-            className="bg-accent-light-green"
-          />
+          <div className="group relative h-full w-full">
+            <Button
+              variant="outline"
+              size="icon"
+              className="z-5 absolute right-1 top-1 hidden items-center justify-center group-hover:flex"
+              onClick={() => setClickedRow(row.original)}
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
+            <IOTableCell
+              data={expectedOutput}
+              className="bg-accent-light-green"
+            />
+          </div>
         ) : null;
       },
     },
@@ -311,6 +350,15 @@ export function DatasetCompareRunsTable(props: {
         }}
         rowHeight={rowHeight}
       />
+      {scoreKeysAndProps.isSuccess && (
+        <DatasetCompareRunPeekView
+          projectId={props.projectId}
+          scoreKeyToDisplayName={scoreKeyToDisplayName}
+          clickedRow={clickedRow}
+          setClickedRow={setClickedRow}
+          runsData={props.runsData ?? []}
+        />
+      )}
     </>
   );
 }

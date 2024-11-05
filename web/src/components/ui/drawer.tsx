@@ -11,24 +11,35 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
   typeof DrawerPrimitive.Content
 > & {
   overlayClassName?: string;
-  size?: "default" | "md";
+  size?: "default" | "md" | "lg";
+  position?: "top";
+  height?: "default" | "md";
 };
 
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
 const drawerVariants = cva(
-  "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:inset-y-0 md:right-0 md:mt-0 md:h-full  md:rounded-l-lg md:rounded-r-none",
+  "fixed inset-x-0 z-50 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:right-0 md:mt-0 md:rounded-l-lg md:rounded-r-none",
   {
     variants: {
       size: {
-        default: "h-1/3 md:w-1/2 lg:w-2/5 xl:w-1/3 2xl:w-1/4",
-        md: "h-1/2 md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5",
-        lg: "h-2/3",
+        default: "md:w-1/2 lg:w-2/5 xl:w-1/3 2xl:w-1/4",
+        md: "w-3/5",
+        lg: "w-2/3",
+      },
+      position: {
+        top: "md:inset-y-0",
+      },
+      height: {
+        default: "h-1/3 md:h-full",
+        md: "md:h-1/2",
       },
     },
     defaultVariants: {
       size: "default",
+      position: "top",
+      height: "default",
     },
   },
 );
@@ -73,21 +84,26 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, children, overlayClassName, size, ...props }, ref) => (
-  <DrawerPortal>
-    <DrawerOverlay className={overlayClassName} />
-    <DrawerPrimitive.Content
-      ref={ref}
-      className={cn(drawerVariants({ size, className }))}
-      {...props}
-    >
-      <DrawerDescription className="sr-only">
-        {props.title ?? ""}
-      </DrawerDescription>
-      {children}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-));
+>(
+  (
+    { className, children, overlayClassName, size, height, position, ...props },
+    ref,
+  ) => (
+    <DrawerPortal>
+      <DrawerOverlay className={overlayClassName} />
+      <DrawerPrimitive.Content
+        ref={ref}
+        className={cn(drawerVariants({ size, className, height, position }))}
+        {...props}
+      >
+        <DrawerDescription className="sr-only">
+          {props.title ?? ""}
+        </DrawerDescription>
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  ),
+);
 DrawerContent.displayName = "DrawerContent";
 
 const DrawerHeader = ({
