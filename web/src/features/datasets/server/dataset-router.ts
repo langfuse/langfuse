@@ -834,7 +834,9 @@ export const datasetRouter = createTRPCRouter({
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
           scores: aggregateScores([
-            ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+            ...validatedTraceScores.filter(
+              (s) => s.traceId === ri.traceId && ri.observationId === null,
+            ),
             ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&
