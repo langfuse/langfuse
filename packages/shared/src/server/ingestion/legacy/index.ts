@@ -77,7 +77,7 @@ export const handleBatch = async (
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
       errors.push({
-        error: error,
+        error,
         id: singleEvent.id,
         type: singleEvent.type,
       });
