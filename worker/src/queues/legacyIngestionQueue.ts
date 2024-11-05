@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { tokenCount } from "../features/tokenisation/usage";
 import { env } from "../env";
+import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -93,9 +94,22 @@ export const legacyIngestionQueueProcessor: Processor = async (
       tokenCount,
     );
 
-    if (result.errors.length > 0) {
+    // Do not retry events via bullmq for auth errors
+    const processingErrors = result.errors.flatMap((error) => {
+      if (
+        error.error instanceof UnauthorizedError ||
+        error.error instanceof ForbiddenError
+      ) {
+        return [];
+      }
+      return [error.error];
+    });
+    if (processingErrors.length > 0) {
       // Raise errors if any are returned to retry the batch via bullmq
-      throw new Error(`Failed to process ${result.errors.length} events`);
+      logger.error(`Failed to process ${processingErrors.length} events`, {
+        errors: processingErrors,
+      });
+      throw new Error(`Failed to process ${processingErrors.length} events`);
     }
 
     // send out REDIS requests to worker for all trace types
