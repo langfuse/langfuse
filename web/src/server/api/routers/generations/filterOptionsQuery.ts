@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { timeFilter, type ObservationOptions } from "@langfuse/shared";
+import {
+  timeFilter,
+  tracesTableUiColumnDefinitions,
+  type ObservationOptions,
+} from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { Prisma } from "@langfuse/shared/src/db";
 import {
@@ -56,6 +60,7 @@ export const filterOptionsQuery = protectedProjectProcedure
     > => {
       const traces = await getTracesGroupedByName(
         input.projectId,
+        tracesTableUiColumnDefinitions,
         startTimeFilter
           ? [
               {
@@ -67,7 +72,7 @@ export const filterOptionsQuery = protectedProjectProcedure
             ]
           : [],
       );
-      return traces.map((i) => ({ traceName: i.value }));
+      return traces.map((i) => ({ traceName: i.count }));
     };
 
     const getClickhouseTraceTags = async (): Promise<
