@@ -93,6 +93,11 @@ export const legacyIngestionQueueProcessor: Processor = async (
       tokenCount,
     );
 
+    if (result.errors.length > 0) {
+      // Raise errors if any are returned to retry the batch via bullmq
+      throw new Error(`Failed to process ${result.errors.length} events`);
+    }
+
     // send out REDIS requests to worker for all trace types
     await addTracesToTraceUpsertQueue(
       result.results,
