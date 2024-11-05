@@ -32,9 +32,6 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { Button } from "@/src/components/ui/button";
-import { ArrowDownFromLine, ArrowUpFromLine } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
