@@ -16,10 +16,11 @@ import {
   S3StorageService,
   instrumentAsync,
   getProcessorForEvent,
+  getClickhouseEntityType,
   type AuthHeaderValidVerificationResult,
   type LegacyIngestionEventType,
   type IngestionEventType,
-  getClickhouseEntityType,
+  type IngestionBatchEventType,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -550,36 +551,6 @@ export const handleBatchResult = (
 };
 
 /**
- * Handle single event which is usually send via /ingestion endpoint. Returns errors and results via `res` directly.
- *
- * Use `parseSingleTypedIngestionApiResponse` for a typed version of this function that throws `BaseError`.
- */
-export const handleSingleIngestionObject = (
-  errors: Array<{ id: string; error: unknown }>,
-  results: Array<{ id: string; result: unknown }>,
-  res: NextApiResponse,
-) => {
-  try {
-    // use method untyped for backwards compatibility
-    const parsedResult = parseSingleTypedIngestionApiResponse(errors, results);
-
-    return res.status(200).json(parsedResult);
-  } catch (error) {
-    if (error instanceof BaseError) {
-      return res.status(error.httpCode).json({
-        message: error.message,
-        error: error.name,
-      });
-    }
-    return res.status(500).json({
-      message: "Internal Server Error",
-      error:
-        error instanceof Error ? error.message : "An unknown error occurred",
-    });
-  }
-};
-
-/**
  * Parses the response from the ingestion batch API event processor and throws an error of `BaserError` if the response is not as expected.
  *
  * @param errors - Array of errors from `handleBatch()`
@@ -588,7 +559,6 @@ export const handleSingleIngestionObject = (
  * @returns - Parsed result
  * @throws - Throws an error of type `BaseError` if there are errors in the arguments
  */
-
 export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
@@ -622,4 +592,40 @@ export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
   }
   // should not fail in prod but just log an exception, see above
   return results[0].result as z.infer<T>;
+};
+
+export const forwardLegacyEventToIngestionApi = async (
+  req: NextApiRequest,
+  batch: IngestionBatchEventType,
+): Promise<{ id: string; status: number }> => {
+  if (batch.length !== 1) {
+    throw new Error("Batch must have exactly one event");
+  }
+
+  const event = batch.shift();
+  if (!event.body.id) {
+    event.body.id = randomUUID();
+  }
+
+  const protocol = req.headers.host?.includes("localhost") ? "http" : "https";
+  const result = await fetch(
+    `${protocol}://${req.headers.host}${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/ingestion`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: req.headers.authorization as string,
+      },
+      body: JSON.stringify({ batch: [event] }),
+    },
+  );
+  const response = await result.json();
+  if (response.errors.length > 0) {
+    logger.error("Error forwarding event to ingestion API", {
+      errors: response.errors,
+    });
+    traceException(response.errors);
+    throw new Error("Error forwarding event to ingestion API");
+  }
+  return response.successes.shift();
 };

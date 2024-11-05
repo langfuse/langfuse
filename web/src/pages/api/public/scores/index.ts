@@ -2,7 +2,6 @@ import { v4 } from "uuid";
 
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
 import {
   GetScoresQuery,
   GetScoresResponse,
@@ -13,34 +12,28 @@ import {
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
   eventTypes,
-  handleBatch,
-  ingestionBatchEvent,
+  logger,
+  traceException,
 } from "@langfuse/shared/src/server";
-import { tokenCount } from "@/src/features/ingest/usage";
+import {
+  forwardLegacyEventToIngestionApi,
+  parseSingleTypedIngestionApiResponse,
+} from "@/src/pages/api/public/ingestion";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, req }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
         body,
       };
-      const result = await handleBatch(
-        ingestionBatchEvent.parse([event]),
-        auth,
-        tokenCount,
-      );
-      const response = parseSingleTypedIngestionApiResponse(
-        result.errors,
-        result.results,
-        PostScoresResponse,
-      );
-      return response;
+      return forwardLegacyEventToIngestionApi(req, [event]);
     },
   }),
   GET: createAuthedAPIRoute({
