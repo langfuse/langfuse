@@ -17,20 +17,25 @@ export const constructDatasetRunAggregateColumns = ({
   selectedMetrics,
   cellsLoading = false,
 }: {
-  runAggregateColumnProps: { id: string; name: string }[];
+  runAggregateColumnProps: { id: string; name: string; description?: string }[];
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
   cellsLoading?: boolean;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   return runAggregateColumnProps.map((col) => {
-    const { id, name } = col;
+    const { id, name, description } = col;
 
     return {
       id,
       accessorKey: id,
       header: name,
       size: 150,
+      ...(description && {
+        headerTooltip: {
+          description,
+        },
+      }),
       enableHiding: true,
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
         const runData: RunAggregate = row.getValue("runs") ?? {};

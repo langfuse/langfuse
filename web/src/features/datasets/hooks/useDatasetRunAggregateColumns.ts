@@ -23,6 +23,7 @@ export function useDatasetRunAggregateColumns({
     return {
       name: runNameAndMetadata?.name ?? `run${runId}`,
       id: runId,
+      description: runNameAndMetadata?.description ?? undefined,
     };
   });
 
