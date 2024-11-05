@@ -169,6 +169,66 @@ export class StringOptionsFilter implements Filter {
   }
 }
 
+// stringObject filter is used when we want to filter on a key value pair in a clickhouse map.
+// As we use the MAP form clickhouse, we can only filter efficiently on the first level of a json obj.
+export class StringObjectFilter implements Filter {
+  public clickhouseTable: string;
+  protected field: string;
+  protected key: string;
+  protected value: string;
+  protected operator: (typeof filterOperators)["stringObject"][number];
+  protected tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["stringObject"][number];
+    key: string;
+    value: string;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const varKeyName = `stringObjectKeyFilter${randomCharacters()}`;
+    const varValueName = `stringObjectValueFilter${randomCharacters()}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+
+    //  const query: `${column}['{varKeyName: String}'] ${this.operator} {${varValueName}: String}`,
+    let query: string;
+    switch (this.operator) {
+      case "=":
+        query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+        break;
+      case "contains":
+        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+        break;
+      case "does not contain":
+        query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+        break;
+      case "starts with":
+        query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+        break;
+      case "ends with":
+        query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+        break;
+      default:
+        throw new Error(`Unsupported operator: ${this.operator}`);
+    }
+
+    return {
+      query,
+      params: { [varKeyName]: this.key, [varValueName]: this.value },
+    };
+  }
+}
+
 // this is used when we want to filter multiple values on a clickhouse column which is also an array
 export class ArrayOptionsFilter implements Filter {
   public clickhouseTable: string;
