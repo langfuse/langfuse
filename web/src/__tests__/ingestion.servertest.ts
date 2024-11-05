@@ -37,7 +37,7 @@ describe("/api/public/ingestion API Endpoint", () => {
 
       const response = await makeAPICall("POST", "/api/public/ingestion", {
         metadata: {
-          sdk_verion: "1.0.0",
+          sdk_version: "1.0.0",
           sdk_name: "python",
         },
         batch: [
