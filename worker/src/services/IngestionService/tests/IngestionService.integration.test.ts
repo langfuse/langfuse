@@ -342,13 +342,13 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.version).toBe("2.0.0");
       expect(generation.internal_model_id).toBeNull();
       expect(generation.usage_details.input).toEqual(
-        testConfig.expectedInputUnits?.toString(),
+        testConfig.expectedInputUnits,
       );
       expect(generation.usage_details.output).toEqual(
-        testConfig.expectedOutputUnits?.toString(),
+        testConfig.expectedOutputUnits,
       );
       expect(generation.usage_details.total).toEqual(
-        testConfig.expectedTotalUnits?.toString(),
+        testConfig.expectedTotalUnits,
       );
       expect(generation.output).toEqual(
         JSON.stringify({
@@ -652,10 +652,10 @@ describe("Ingestion end-to-end tests", () => {
         testConfig.observationExternalModel,
       );
       expect(generation.usage_details.input).toBe(
-        testConfig.expectedInputUnits?.toString(),
+        testConfig.expectedInputUnits,
       );
       expect(generation.usage_details.output).toBe(
-        testConfig.expectedOutputUnits?.toString(),
+        testConfig.expectedOutputUnits,
       );
       expect(generation.internal_model_id).toBe(
         testConfig.expectedInternalModelId,
@@ -1107,8 +1107,170 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation.input).toBe(JSON.stringify({ key: "value" }));
     expect(observation.output).toBe("overwritten");
     expect(observation.model_parameters).toBe('{"hello":"world"}');
-    expect(observation.usage_details.output).toBe("5");
+    expect(observation.usage_details.output).toBe(5);
     expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+  });
+
+  it("should merge observations and calculate cost", async () => {
+    await prisma.model.create({
+      data: {
+        id: "clyrjpbe20000t0mzcbwc42rg",
+        modelName: "gpt-4o-mini-2024-07-18",
+        matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
+        startDate: new Date("2021-01-01T00:00:00.000Z"),
+        unit: ModelUsageUnit.Tokens,
+        tokenizerId: "openai",
+        inputPrice: 0.00000015,
+        outputPrice: 0.0000006,
+        tokenizerConfig: {
+          tokensPerName: 1,
+          tokenizerModel: "gpt-4o",
+          tokensPerMessage: 3,
+        },
+      },
+    });
+
+    await prisma.price.create({
+      data: {
+        id: "cm2uio8ef006mh6qlzc2mqa0e",
+        modelId: "clyrjpbe20000t0mzcbwc42rg",
+        price: 0.00000015,
+        usageType: "input",
+      },
+    });
+
+    await prisma.price.create({
+      data: {
+        id: "cm2uio8ef006oh6qlldn36376",
+        modelId: "clyrjpbe20000t0mzcbwc42rg",
+        price: 0.0000006,
+        usageType: "output",
+      },
+    });
+
+    await prisma.observation.create({
+      data: {
+        id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
+        name: "extract_location",
+        startTime: "2024-11-04T16:13:51.495868Z",
+        endTime: "2024-11-04T16:13:52.156248Z",
+        type: "GENERATION",
+        traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
+        internalModel: "gpt-4o-mini-2024-07-18",
+        internalModelId: "clyrjpbe20000t0mzcbwc42rg",
+        modelParameters: {
+          temperature: "0.4",
+          max_tokens: 1000,
+        },
+        input: [
+          {
+            role: "system",
+            content:
+              'Your task is to extract and determine the location information from job descriptions. The job descriptions can be written in any language, can vary in length and detail, and may or may not explicitly mention the location. Your input is a html job description, and your output should be a JSON object that contains two keys: "location" and "type".\n\nThe "location" key should contain the location(s) mentioned or implied in the job description formatted as "city, country", or multiple locations separated by a "#" symbol if more than one location is mentioned. If the job is remote or hybrid, you should append ", Remote" or ", Hybrid" after the location respectively. If no location information is available from the job description or company details, the "location" key should be left empty ("").\n\nThe "type" key should reflect how the location information was derived: "mentioned" if the location was directly mentioned in the job description; "company" if the location was not in the job description but was inferred from the company details; "notfound" if no location information could be determined.\n\nYour output should follow this structure accurately:\n{"location": "city, country (and/or #city2, country2 etc. when multiple) (with , Remote or , Hybrid when applicable)", "type": "mentioned/company/notfound"}\n\nFor example, if the job description is "We are seeking a visionary CEO for our headquarters in Tokyo, Japan", your output would be {"location": "Tokyo, Japan", "type": "mentioned"}. If the location is not directly mentioned but the company name is, for instance "Big Tech Giants is hiring a Financial Analyst", and you know that Big Tech Giants is based in San Francisco, USA, your output would be {"location": "San Francisco, USA", "type": "company"}. If no location information can be determined, your output would be {"location": "", "type": "notfound"}.',
+          },
+          {
+            role: "user",
+            content:
+              "**Mine Maintenance Planner**6 days ago Requisition ID: 1450 Tacora Resources\nInc. (Tacora) is an innovative iron ore mining and development company focused\non the acquisition and revitalization of iron ore assets. Our mining and\nprocessing facility, Scully Mine, is located in Wabush, Labrador, Canada.\nTacora is servicing high demand customers throughout Europe, the Middle East,\nand Asia to provide high-grade and high-quality iron ore products.As a Tacora\nResources employee, you will become part of a supportive, performance‐driven,\nhighly engaged, dynamic environment. We focus on creating a work environment\nwhere employees can utilize their skills and knowledge while maintaining a\nteam-based, inclusive approach to meeting greater challenges. We maintain\nstraight lines of communication between our operations and management, so we\ncan move collectively toward achieving our goals.With our core values as the\nfoundation of our Canadian operation, we are passionate about innovation, and\nwe are excited about our future. We are collaborative in our approach to\nprojects and with our entrepreneurial spirit, we aim to dig deeper and reach\nhigher. We are innovative, turning obstacles into opportunities – and we do it\nall in ways that are safe and sustainable. We place the highest priority on\nemployee safety, protecting the environment, and enhancing the development of\nthe communities in which we operate. At TACORA, we are family.At TACORA, we\nare committed to ensuring an inclusive and diverse work environment. You will\nbe provided with the opportunity to expand your knowledge and skill set by\nworking alongside dedicated employees from a variety of backgrounds and\ncultures. We are seeking qualified individuals for the role of Mine\nMaintenance Planner. Please note that this is not a fly-in, fly-out operation\nand will be based in Labrador West, NL. This position will require candidates\nto work a 8 hour Monday – Friday day shift schedule.**Job Responsibilities:***\nResponsible for proper planning of all maintenance activities related to the\nmine mobile equipment. * Track equipment hours and schedule PM’s accordingly *\nMonitor and analyze maintenance reports, work orders and history to optimize\neffective and efficient procedures, planning and scheduling* Schedule employee\ntraining* Ensure behavior is compliant with the site’s Safety Management Plan*\nWork with Maintenance planning leadership, coordinators and planners to\ndevelop short, mid and long-term plans for the maintenance planning of\nequipment* Ensure the site’s related records are filed in accordance with\ncompany policy, statutory and contractual requirements* Contributes to\nMaintenance Shutdown planning strategies identifying and prioritizing future\nmaintenance requirements and working with operations, engineering, maintenance\nand outside contractors to ensure successful and safe execution* Efficient\nordering of parts through appropriate channels and approvals to execute sound\nplanning activities* Creating job packages and standard jobs* Monitoring oil\nsamples and schedule oil maintenance * Ensure the maintenance system is\nutilized fully to ensure transparency across the business and maintained\naccordingly* Liaise with Maintenance Supervisors and purchasing and\ncommunicate with subcontractors and suppliers to ensure resources are\navailable when required * Provide feedback to relevant leadership personnel\nregarding site issues which may affect the operating and financial performance\nof the operation and equipment* Provide Mine Maintenance Superintendent with\nmonthly reports and assist with changes where necessary* Use the established\nsystems to track maintenance activities against target , report weekly\nKPI’sand notify leadership of gaps* Contribute to the annual equipment budget\nwhere required* Manage equipment transfer or disposal process; complete forms\nand send to areas where these are required, ensuring required approvals*\nMonitor and validate equipment component warranty claims* Constantly seek\ncontinuous improvement opportunities**Skills and Qualifications:***\nProficiency with Microsoft software and Maintenance Management Databases and\nsoftware;* Project management and ability to meet deadlines;* Experience in\ndocument control systems;* Advanced Microsoft Excel and MS project skills;*\nExcellent interpersonal skills;* Strong verbal and written communication\nskills;* Strong troubleshooting and problem solving abilities* At least 3\nyears’ experience in maintenance planning in a mine setting or complex\nindustrial environment; 5 yrs of mine maintenance experience**Education:***\nCertified Trade Certificate or Graduation with a Technical Engineering\ndegree**License:*** Driver’s License (Required)We are an equal opportunity\nemployer!*Only those candidates who most align with the ideal candidate\nprofile will be contacted by Tacora Resources for an interview.*\n\n",
+          },
+        ],
+        output: {
+          role: "assistant",
+          content:
+            '{"location": "Wabush, Labrador, Canada", "type": "mentioned"}',
+        },
+        projectId,
+        completionTokens: 18,
+        promptTokens: 1295,
+        totalTokens: 1313,
+        calculatedInputCost: 0.00019425,
+        calculatedOutputCost: 0.0000108,
+        calculatedTotalCost: 0.00020505,
+      },
+    });
+
+    const observationId = "c8d30f61-4097-407f-a337-5fb1e0c100f2";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "084274e5-f15e-4f66-8419-a171808d8180",
+        timestamp: "2024-11-04T16:13:51.496457Z",
+        type: "generation-create",
+        body: {
+          traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
+          name: "extract_location",
+          startTime: "2024-11-04T16:13:51.495868Z",
+          metadata: {
+            ls_provider: "openai",
+            ls_model_name: "gpt-4o-mini-2024-07-18",
+            ls_model_type: "chat",
+            ls_temperature: 0.4,
+            ls_max_tokens: 1000,
+          },
+          input: "Sample input",
+          id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
+          model: "gpt-4o-mini-2024-07-18",
+          modelParameters: {
+            temperature: "0.4",
+            max_tokens: 1000,
+          },
+          usage: null,
+        },
+      },
+      {
+        id: "ef654262-b1d0-4b0b-9e4a-2a410e0577a6",
+        timestamp: "2024-11-04T16:13:52.156691Z",
+        type: "generation-update",
+        body: {
+          traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
+          output: "Sample output",
+          id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
+          endTime: "2024-11-04T16:13:52.156248Z",
+          model: "gpt-4o-mini-2024-07-18",
+          usage: {
+            input: 1295,
+            output: 18,
+            total: 1313,
+            unit: "TOKENS",
+          },
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const observation = await getClickhouseRecord(
+      TableName.Observations,
+      observationId,
+    );
+
+    expect(observation.name).toBe("extract_location");
+    expect(observation.provided_usage_details).toStrictEqual({
+      input: 1295,
+      output: 18,
+      total: 1313,
+    });
+    expect(observation.usage_details).toStrictEqual({
+      input: 1295,
+      output: 18,
+      total: 1313,
+    });
+    expect(observation.provided_cost_details).toStrictEqual({
+      input: 0,
+      output: 0,
+      total: 0,
+    });
+    expect(observation.cost_details).toStrictEqual({
+      input: 0.00019425,
+      output: 0.0000108,
+      total: 0.00020505,
+    });
+    expect(observation.total_cost).toBe(0.00020505);
   });
 
   it("should put observation updates after creates if timestamp is same", async () => {
@@ -1263,13 +1425,13 @@ describe("Ingestion end-to-end tests", () => {
       generationId,
     );
 
-    expect(generation.usage_details.input).toEqual("1285");
-    expect(generation.usage_details.output).toEqual("513");
-    expect(generation.usage_details.total).toEqual("1798");
+    expect(generation.usage_details.input).toEqual(1285);
+    expect(generation.usage_details.output).toEqual(513);
+    expect(generation.usage_details.total).toEqual(1798);
 
-    expect(generation.provided_usage_details.input).toEqual("1285");
-    expect(generation.provided_usage_details.output).toEqual("513");
-    expect(generation.provided_usage_details.total).toEqual("1798");
+    expect(generation.provided_usage_details.input).toEqual(1285);
+    expect(generation.provided_usage_details.output).toEqual(513);
+    expect(generation.provided_usage_details.total).toEqual(1798);
 
     expect(generation.cost_details.input).toEqual(0.0006425);
     expect(generation.cost_details.output).toEqual(0.0007695);
@@ -1376,8 +1538,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(generation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" }),
     );
-    expect(generation?.usage_details.input).toEqual("5");
-    expect(generation?.usage_details.output).toEqual("11");
+    expect(generation?.usage_details.input).toEqual(5);
+    expect(generation?.usage_details.output).toEqual(11);
   });
 
   it("should update all token counts if update does not contain model name and events come in wrong order", async () => {
@@ -1471,8 +1633,8 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.output).toEqual(
       JSON.stringify({ key: "this is a great gpt output" }),
     );
-    expect(observation?.usage_details.input).toEqual("5");
-    expect(observation?.usage_details.output).toEqual("11");
+    expect(observation?.usage_details.input).toEqual(5);
+    expect(observation?.usage_details.output).toEqual(11);
   });
 
   it("null does not override set values", async () => {

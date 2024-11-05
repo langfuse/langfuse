@@ -9,8 +9,14 @@ export const clickhouseStringDateSchema = z
 
 //https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256
 // clickhouse returns int64 as string
-export const UsageCostStringSchema = z.record(z.string(), z.string());
-export const UsageCostNumberSchema = z.record(z.string(), z.coerce.number());
+export const UsageCostStringSchema = z.record(
+  z.string(),
+  z.coerce.number().nullish(),
+);
+export const UsageCostNumberSchema = z.record(
+  z.string(),
+  z.coerce.number().nullish(),
+);
 export type UsageCostStringType = z.infer<typeof UsageCostStringSchema>;
 export type UsageCostNumberType = z.infer<typeof UsageCostNumberSchema>;
 
@@ -159,11 +165,6 @@ export const convertObservationReadToInsert = (
 ): ObservationRecordInsertType => {
   const convertDate = (date: string) => new Date(date).getTime();
 
-  const convertDetails = (details: Record<string, string>) =>
-    Object.fromEntries(
-      Object.entries(details).map(([key, value]) => [key, Number(value)]),
-    );
-
   return {
     ...record,
     created_at: convertDate(record.created_at),
@@ -174,9 +175,9 @@ export const convertObservationReadToInsert = (
       ? convertDate(record.completion_start_time)
       : undefined,
     event_ts: convertDate(record.event_ts),
-    provided_usage_details: convertDetails(record.provided_usage_details),
+    provided_usage_details: record.provided_usage_details,
     provided_cost_details: record.provided_cost_details,
-    usage_details: convertDetails(record.usage_details),
+    usage_details: record.usage_details,
     cost_details: record.cost_details,
   };
 };
