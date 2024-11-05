@@ -21,7 +21,8 @@ import { DatasetAggregateTableCell } from "@/src/features/datasets/components/Da
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { PanelLeftOpen, PanelLeftClose, X } from "lucide-react";
+import { PanelLeftOpen, PanelLeftClose, X, ListTree } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 export function DatasetCompareRunPeekView({
@@ -162,22 +163,38 @@ export function DatasetCompareRunPeekView({
                               "relative max-h-[45dvh]",
                               traceAndObservationId?.runId === id && "border-4",
                             )}
-                            actionButton={
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                title="View trace tree"
-                                className="z-5 absolute right-1 top-1 hidden items-center justify-center group-hover:flex"
-                                onClick={() =>
-                                  setTraceAndObservationId({
-                                    traceId: run.traceId,
-                                    observationId: run.observationId,
-                                    runId: id,
-                                  })
-                                }
-                              >
-                                <PanelLeftOpen className="h-4 w-4" />
-                              </Button>
+                            actionButtons={
+                              <div className="z-5 absolute right-1 top-1 hidden items-center justify-center gap-1 group-hover:flex">
+                                <Link
+                                  href={
+                                    run.observationId
+                                      ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
+                                      : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`
+                                  }
+                                >
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    title="View full trace"
+                                  >
+                                    <ListTree className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="View trace tree"
+                                  onClick={() =>
+                                    setTraceAndObservationId({
+                                      traceId: run.traceId,
+                                      observationId: run.observationId,
+                                      runId: id,
+                                    })
+                                  }
+                                >
+                                  <PanelLeftOpen className="h-4 w-4" />
+                                </Button>
+                              </div>
                             }
                           />
                         </div>

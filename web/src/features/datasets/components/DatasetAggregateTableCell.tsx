@@ -23,7 +23,7 @@ const DatasetAggregateCell = ({
   singleLine = true,
   className,
   variant = "table",
-  actionButton,
+  actionButtons,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
@@ -31,7 +31,7 @@ const DatasetAggregateCell = ({
   singleLine?: boolean;
   className?: string;
   variant?: "table" | "peek";
-  actionButton?: ReactNode;
+  actionButtons?: ReactNode;
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -78,7 +78,7 @@ const DatasetAggregateCell = ({
         className,
       )}
     >
-      {variant === "peek" && actionButton}
+      {variant === "peek" && actionButtons}
       <div className="flex flex-row items-center justify-center gap-1">
         <IOTableCell
           isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
@@ -153,7 +153,7 @@ export const DatasetAggregateTableCell = ({
   singleLine = true,
   className,
   variant = "table",
-  actionButton,
+  actionButtons,
 }: {
   value: RunMetrics;
   projectId: string;
@@ -162,7 +162,7 @@ export const DatasetAggregateTableCell = ({
   singleLine?: boolean;
   className?: string;
   variant?: "table" | "peek";
-  actionButton?: ReactNode;
+  actionButtons?: ReactNode;
 }) => {
   return value ? (
     <DatasetAggregateCell
@@ -173,7 +173,7 @@ export const DatasetAggregateTableCell = ({
       singleLine={singleLine}
       className={className}
       variant={variant}
-      actionButton={actionButton}
+      actionButtons={actionButtons}
     />
   ) : null;
 };
