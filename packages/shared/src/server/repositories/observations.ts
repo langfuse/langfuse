@@ -499,6 +499,7 @@ const getObservationsTableInternal = async <T>(
       ...appliedObservationsFilter.params,
     },
   });
+
   return res;
 };
 
