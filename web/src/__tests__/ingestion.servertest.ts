@@ -12,6 +12,70 @@ describe("/api/public/ingestion API Endpoint", () => {
 
   [
     {
+      input: "Hello",
+      output: "World",
+    },
+    {
+      input: { key: "value" },
+      output: { key: "value" },
+    },
+    {
+      input: [1, 2, "hello"],
+      output: [3, 4, "world"],
+    },
+    // TODO: Enable test after prisma fixed https://github.com/prisma/prisma/issues/24989.
+    // {
+    //   input: "Test \ud83d",
+    //   output: "Result \ud83d",
+    // },
+  ].forEach((testConfig) => {
+    it(`should create generations with correct input and output ${JSON.stringify(
+      testConfig,
+    )}`, async () => {
+      const traceId = v4();
+      const generationId = v4();
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        metadata: {
+          sdk_verion: "1.0.0",
+          sdk_name: "python",
+        },
+        batch: [
+          {
+            id: v4(),
+            type: "observation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              type: "GENERATION",
+              name: "generation-name",
+              startTime: "2021-01-01T00:00:00.000Z",
+              endTime: "2021-01-01T00:00:00.000Z",
+              modelParameters: { key: "value" },
+              input: testConfig.input,
+              output: testConfig.output,
+            },
+          },
+        ],
+      });
+
+      expect(response.status).toBe(207);
+
+      const dbGeneration = await prisma.observation.findUnique({
+        where: {
+          id: generationId,
+        },
+      });
+
+      expect(dbGeneration?.id).toBe(generationId);
+      expect(dbGeneration?.input).toStrictEqual(testConfig.input);
+      expect(dbGeneration?.output).toStrictEqual(testConfig.output);
+    });
+  });
+
+  [
+    {
       usage: {
         input: 100,
         output: 200,
