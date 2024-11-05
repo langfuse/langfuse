@@ -84,6 +84,9 @@ export function DatasetCompareRunsTable(props: {
         limit: paginationState.pageSize,
       },
       {
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
         staleTime: 5 * 60 * 1000, // 5 minutes
         enabled: baseDatasetItems.isSuccess,
       },
@@ -135,10 +138,18 @@ export function DatasetCompareRunsTable(props: {
     );
   }, [baseDatasetItems.data, runs]);
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
-    projectId: props.projectId,
-    selectedTimeOption: { filterSource: "TABLE", option: "All time" },
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: props.projectId,
+      selectedTimeOption: { filterSource: "TABLE", option: "All time" },
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
 
   const scoreKeyToDisplayName = useMemo(() => {
     if (!scoreKeysAndProps.data) return new Map<string, string>();
