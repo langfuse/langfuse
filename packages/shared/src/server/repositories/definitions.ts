@@ -9,10 +9,26 @@ export const clickhouseStringDateSchema = z
 
 //https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256
 // clickhouse returns int64 as string
-export const UsageCostStringSchema = z.record(z.string(), z.string());
-export const UsageCostNumberSchema = z.record(z.string(), z.coerce.number());
-export type UsageCostStringType = z.infer<typeof UsageCostStringSchema>;
-export type UsageCostNumberType = z.infer<typeof UsageCostNumberSchema>;
+export const UsageCostSchema = z
+  .record(z.string(), z.coerce.string().nullable())
+  .transform((val, ctx) => {
+    const result: Record<string, number> = {};
+    for (const key in val) {
+      if (val[key] !== null && val[key] !== undefined) {
+        const parsed = Number(val[key]);
+        if (isNaN(parsed)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Key ${key} is not a number`,
+          });
+        } else {
+          result[key] = parsed;
+        }
+      }
+    }
+    return result;
+  });
+export type UsageCostType = z.infer<typeof UsageCostSchema>;
 
 export const observationRecordBaseSchema = z.object({
   id: z.string(),
@@ -47,10 +63,10 @@ export const observationRecordReadSchema = observationRecordBaseSchema.extend({
   end_time: clickhouseStringDateSchema.nullish(),
   completion_start_time: clickhouseStringDateSchema.nullish(),
   event_ts: clickhouseStringDateSchema,
-  provided_usage_details: UsageCostStringSchema,
-  provided_cost_details: UsageCostNumberSchema,
-  usage_details: UsageCostStringSchema,
-  cost_details: UsageCostNumberSchema,
+  provided_usage_details: UsageCostSchema,
+  provided_cost_details: UsageCostSchema,
+  usage_details: UsageCostSchema,
+  cost_details: UsageCostSchema,
 });
 export type ObservationRecordReadType = z.infer<
   typeof observationRecordReadSchema
@@ -64,10 +80,10 @@ export const observationRecordInsertSchema = observationRecordBaseSchema.extend(
     end_time: z.number().nullish(),
     completion_start_time: z.number().nullish(),
     event_ts: z.number(),
-    provided_usage_details: UsageCostNumberSchema,
-    provided_cost_details: UsageCostNumberSchema,
-    usage_details: UsageCostNumberSchema,
-    cost_details: UsageCostNumberSchema,
+    provided_usage_details: UsageCostSchema,
+    provided_cost_details: UsageCostSchema,
+    usage_details: UsageCostSchema,
+    cost_details: UsageCostSchema,
   },
 );
 export type ObservationRecordInsertType = z.infer<
@@ -159,11 +175,6 @@ export const convertObservationReadToInsert = (
 ): ObservationRecordInsertType => {
   const convertDate = (date: string) => new Date(date).getTime();
 
-  const convertDetails = (details: Record<string, string>) =>
-    Object.fromEntries(
-      Object.entries(details).map(([key, value]) => [key, Number(value)]),
-    );
-
   return {
     ...record,
     created_at: convertDate(record.created_at),
@@ -174,9 +185,9 @@ export const convertObservationReadToInsert = (
       ? convertDate(record.completion_start_time)
       : undefined,
     event_ts: convertDate(record.event_ts),
-    provided_usage_details: convertDetails(record.provided_usage_details),
+    provided_usage_details: record.provided_usage_details,
     provided_cost_details: record.provided_cost_details,
-    usage_details: convertDetails(record.usage_details),
+    usage_details: record.usage_details,
     cost_details: record.cost_details,
   };
 };
