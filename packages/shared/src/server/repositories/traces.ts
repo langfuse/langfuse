@@ -295,3 +295,218 @@ export const getTracesGroupedByTags = async (
 
   return rows;
 };
+
+export type SessionDataReturnType = {
+  session_id: string;
+  max_timestamp: string;
+  min_timestamp: string;
+  trace_ids: string[];
+  user_ids: string[];
+  trace_count: number;
+  trace_tags: string[][];
+  total_observations: number;
+  duration: number;
+  session_usage_details: Record<string, number>;
+  session_cost_details: Record<string, number>;
+  session_input_cost: string;
+  session_output_cost: string;
+  session_total_cost: string;
+  session_input_usage: string;
+  session_output_usage: string;
+  session_total_usage: string;
+};
+
+export const getSessionsTableCount = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  offset?: number;
+}) => {
+  const rows = await getSessionsTableGeneric<{ count: string }>({
+    select: `
+      count(*) as count
+    `,
+    projectId: props.projectId,
+    filter: props.filter,
+    orderBy: props.orderBy,
+    limit: props.limit,
+    offset: props.offset,
+  });
+
+  return rows;
+};
+
+export const getSessionsTable = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  offset?: number;
+}) => {
+  const rows = await getSessionsTableGeneric<SessionDataReturnType>({
+    select: `
+    session_id, 
+    max_timestamp, 
+    min_timestamp, 
+    trace_ids, 
+    user_ids, 
+    trace_count, 
+    trace_tags,
+    total_observations,
+    duration,
+    session_usage_details,
+    session_cost_details,
+    session_input_cost,
+    session_output_cost,
+    session_total_cost,
+    session_input_usage,
+    session_output_usage,
+    session_total_usage
+    `,
+    projectId: props.projectId,
+    filter: props.filter,
+    orderBy: props.orderBy,
+    limit: props.limit,
+    offset: props.offset,
+  });
+
+  return rows;
+};
+
+const sessionCols: UiColumnMapping[] = [
+  // we do not access the traces scores in clichouse. We default back to the trace timestamps.
+  {
+    uiTableName: "Created At",
+    uiTableId: "createdAt",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "min_timestamp",
+  },
+  {
+    uiTableName: "Session Duration",
+    uiTableId: "sessionDuration",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "duration",
+  },
+  {
+    uiTableName: "Count Traces",
+    uiTableId: "countTraces",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "trace_count",
+  },
+  {
+    uiTableName: "Session Input Cost",
+    uiTableId: "inputCost",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_input_cost",
+  },
+  {
+    uiTableName: "Session Output Cost",
+    uiTableId: "outputCost",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_output_cost",
+  },
+  {
+    uiTableName: "Session Total Cost",
+    uiTableId: "totalCost",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_total_cost",
+  },
+  {
+    uiTableName: "Session Input Usage",
+    uiTableId: "inputTokens",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_input_usage",
+  },
+  {
+    uiTableName: "Session Output Usage",
+    uiTableId: "outputTokens",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_output_usage",
+  },
+  {
+    uiTableName: "Session Total Usage",
+    uiTableId: "totalTokens",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_total_usage",
+  },
+  {
+    uiTableName: "Session Total Usage",
+    uiTableId: "usage",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_total_usage",
+  },
+];
+
+const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
+  const { select, projectId, filter, orderBy, limit, offset } = props;
+
+  const { tracesFilter, scoresFilter, observationsFilter } =
+    getProjectIdDefaultFilter(projectId, { tracesPrefix: "s" });
+
+  tracesFilter.push(...createFilterFromFilterState(filter, sessionCols));
+
+  const tracesFilterRes = tracesFilter.apply();
+  const scoresAvgFilterRes = scoresFilter.apply();
+  const observationsStatsRes = observationsFilter.apply();
+
+  const query = `
+      WITH observations_agg AS (
+        SELECT o.trace_id,
+              count(*) as obs_count,
+              min(o.start_time) as min_start_time,
+              max(o.end_time) as max_end_time,
+              sumMap(usage_details) as sum_usage_details,
+              sumMap(cost_details) as sum_cost_details,
+              anyLast(project_id) as project_id
+        FROM observations o FINAL
+        WHERE o.project_id = '239ad00f-562f-411d-af14-831c75ddd875'
+        AND o.start_time > now() - INTERVAL 2 DAY
+        GROUP BY o.trace_id
+    ),
+    session_data AS (
+        SELECT
+            t.session_id,
+            max(t.timestamp) as max_timestamp,
+            min(t.timestamp) as min_timestamp,
+            groupArray(t.id) AS trace_ids,
+            groupUniqArray(t.user_id) AS user_ids,
+            count(*) as trace_count,
+            groupUniqArrayArray(t.tags) as trace_tags,
+            -- Aggregate observations data at session level
+            sum(o.obs_count) as total_observations,
+            date_diff('seconds', min(min_start_time), max(max_end_time)) as duration,
+            sumMap(o.sum_usage_details) as session_usage_details,
+            sumMap(o.sum_cost_details) as session_cost_details,
+            sumMap(o.sum_cost_details)['input'] as session_input_cost,
+            sumMap(o.sum_cost_details)['output'] as session_output_cost,
+            sumMap(o.sum_cost_details)['total'] as session_total_cost,
+            sumMap(o.sum_usage_details)['input'] as session_input_usage,
+            sumMap(o.sum_usage_details)['output'] as session_output_usage,
+            sumMap(o.sum_usage_details)['total'] as session_total_usage
+        FROM traces t FINAL
+        LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
+        WHERE t.session_id IS NOT NULL
+            AND t.project_id = '239ad00f-562f-411d-af14-831c75ddd875'
+            AND t.timestamp > now() - INTERVAL 1 DAY
+        GROUP BY t.session_id
+    )
+    SELECT ${select}
+    FROM session_data
+    ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
+    LIMIT 50;`;
+
+  const res = await queryClickhouse<T>({
+    query: query,
+    params: {
+      limit: limit,
+      offset: offset,
+      ...tracesFilterRes.params,
+      ...observationsStatsRes.params,
+      ...scoresAvgFilterRes.params,
+    },
+  });
+
+  console.log(res);
+  return res;
+};

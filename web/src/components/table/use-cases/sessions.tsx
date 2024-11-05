@@ -29,6 +29,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type SessionTableRow = {
   id: string;
@@ -116,6 +117,7 @@ export default function SessionsTable({
     orderBy: orderByState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    queryClickhouse: useClickhouse(),
   };
 
   const sessions = api.sessions.all.useQuery(payloadGetAll);
@@ -125,6 +127,7 @@ export default function SessionsTable({
     {
       projectId,
       sessionIds: sessions.data?.sessions.map((s) => s.id) ?? [],
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: sessions.data !== undefined,

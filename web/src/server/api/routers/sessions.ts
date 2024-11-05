@@ -17,13 +17,16 @@ import {
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
-
-import type Decimal from "decimal.js";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import Decimal from "decimal.js";
 import {
   createSessionsAllQuery,
   datetimeFilterToPrismaSql,
   traceException,
+  getSessionsTable,
+  getSessionsTableCount,
 } from "@langfuse/shared/src/server";
+
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
@@ -33,9 +36,48 @@ const SessionFilterOptions = z.object({
 
 export const sessionRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(SessionFilterOptions)
+    .input(
+      SessionFilterOptions.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       try {
+        if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        if (input.queryClickhouse) {
+          return {
+            sessions: (
+              await getSessionsTable({
+                projectId: input.projectId,
+                filter: input.filter ?? [],
+                orderBy: input.orderBy,
+                offset: input.page * input.limit,
+                limit: input.limit,
+              })
+            ).map((row) => ({
+              id: row.session_id,
+              userIds: row.user_ids,
+              countTraces: row.trace_ids.length,
+              bookmarked: "false",
+              sessionDuration: Number(row.duration),
+              inputCost: new Decimal(row.session_input_cost),
+              outputCost: new Decimal(row.session_output_cost),
+              totalCost: new Decimal(row.session_total_cost),
+              promptTokens: Number(row.session_input_usage),
+              completionTokens: Number(row.session_output_usage),
+              totalTokens: Number(row.session_total_usage),
+              traceTags: row.trace_tags,
+              createdAt: row.min_timestamp,
+            })),
+          };
+        }
+
         const sessions = await ctx.prisma.$queryRaw<
           Array<{
             id: string;
@@ -67,9 +109,34 @@ export const sessionRouter = createTRPCRouter({
       }
     }),
   countAll: protectedProjectProcedure
-    .input(SessionFilterOptions)
+    .input(
+      SessionFilterOptions.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       try {
+        if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        if (input.queryClickhouse) {
+          const counts = await getSessionsTableCount({
+            projectId: input.projectId,
+            filter: input.filter ?? [],
+            orderBy: input.orderBy,
+            offset: input.page * input.limit,
+            limit: input.limit,
+          });
+
+          return {
+            totalCount: counts.length > 0 ? counts[0].count : 0,
+          };
+        }
+
         const inputForTotal: z.infer<typeof SessionFilterOptions> = {
           filter: input.filter,
           projectId: input.projectId,
@@ -110,11 +177,24 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         sessionIds: z.array(z.string()),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       try {
+        if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
         if (input.sessionIds.length === 0) return [];
+
+        if (input.queryClickhouse) {
+          return []; // initial endpoint returns all data from CH.
+        }
+
         const inputForMetrics: z.infer<typeof SessionFilterOptions> = {
           filter: [],
           projectId: input.projectId,

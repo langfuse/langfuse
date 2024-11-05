@@ -141,6 +141,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
 const withOtelTracingProcedure = t.procedure.use(
   tracing({ collectInput: true, collectResult: true }),
 );
+
 /**
  * Public (unauthenticated) procedure
  *

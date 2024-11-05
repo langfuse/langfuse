@@ -104,7 +104,9 @@ const matchAndVerifyTracesUiColumn = (
   uiTableDefinitions: UiColumnMapping[],
 ) => {
   // tries to match the column name to the clickhouse table name
-  logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
+  logger.debug(
+    `Filter to match: ${JSON.stringify(filter)}, ${JSON.stringify(uiTableDefinitions)}`,
+  );
 
   const uiTable = uiTableDefinitions.find(
     (col) =>
