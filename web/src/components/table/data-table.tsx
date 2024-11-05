@@ -113,7 +113,6 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [showMetadata, setShowMetadata] = useState(false);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
 
@@ -216,161 +215,104 @@ export function DataTable<TData extends object, TValue>({
           <Table>
             <TableHeader className="sticky top-0 z-10">
               {tableHeaders.map((headerGroup) => (
-                <>
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const columnDef = header.column
-                        .columnDef as LangfuseColumnDef<ModelTableRow>;
-                      const sortingEnabled = columnDef.enableSorting;
-                      // if the header id does not translate to a valid css variable name, default to 150px as width
-                      // may only happen for dynamic columns, as column names are user defined
-                      const width = isValidCssVariableName({
-                        name: header.id,
-                        includesHyphens: false,
-                      })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const columnDef = header.column
+                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                    const sortingEnabled = columnDef.enableSorting;
+                    // if the header id does not translate to a valid css variable name, default to 150px as width
+                    // may only happen for dynamic columns, as column names are user defined
+                    const width = isValidCssVariableName({
+                      name: header.id,
+                      includesHyphens: false,
+                    })
+                      ? `calc(var(--header-${header.id}-size) * 1px)`
+                      : 150;
 
-                      return header.column.getIsVisible() ? (
-                        <TableHead
-                          key={header.id}
-                          className={cn(
-                            "group p-1 first:pl-2",
-                            sortingEnabled && "cursor-pointer",
-                          )}
-                          style={{ width }}
-                          onClick={(event) => {
-                            event.preventDefault();
+                    return header.column.getIsVisible() ? (
+                      <TableHead
+                        key={header.id}
+                        className={cn(
+                          "group p-1 first:pl-2",
+                          sortingEnabled && "cursor-pointer",
+                        )}
+                        style={{ width }}
+                        onClick={(event) => {
+                          event.preventDefault();
 
-                            if (
-                              !setOrderBy ||
-                              !columnDef.id ||
-                              !sortingEnabled
-                            ) {
-                              return;
-                            }
+                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
+                            return;
+                          }
 
-                            if (orderBy?.column === columnDef.id) {
-                              if (orderBy.order === "DESC") {
-                                capture("table:column_sorting_header_click", {
-                                  column: columnDef.id,
-                                  order: "ASC",
-                                });
-                                setOrderBy({
-                                  column: columnDef.id,
-                                  order: "ASC",
-                                });
-                              } else {
-                                capture("table:column_sorting_header_click", {
-                                  column: columnDef.id,
-                                  order: "Disabled",
-                                });
-                                setOrderBy(null);
-                              }
-                            } else {
+                          if (orderBy?.column === columnDef.id) {
+                            if (orderBy.order === "DESC") {
                               capture("table:column_sorting_header_click", {
                                 column: columnDef.id,
-                                order: "DESC",
+                                order: "ASC",
                               });
                               setOrderBy({
                                 column: columnDef.id,
-                                order: "DESC",
+                                order: "ASC",
                               });
+                            } else {
+                              capture("table:column_sorting_header_click", {
+                                column: columnDef.id,
+                                order: "Disabled",
+                              });
+                              setOrderBy(null);
                             }
-                          }}
-                        >
-                          {header.isPlaceholder ? null : (
-                            <div className="flex select-none items-center">
-                              <span className="truncate">
-                                {flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
-                              </span>
-                              {columnDef.headerTooltip && (
-                                <DocPopup
-                                  description={
-                                    columnDef.headerTooltip.description
-                                  }
-                                  href={columnDef.headerTooltip.href}
-                                />
+                          } else {
+                            capture("table:column_sorting_header_click", {
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
+                            setOrderBy({
+                              column: columnDef.id,
+                              order: "DESC",
+                            });
+                          }
+                        }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <div className="flex select-none items-center">
+                            <span className="truncate">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
                               )}
-                              {orderBy?.column === columnDef.id
-                                ? renderOrderingIndicator(orderBy)
-                                : null}
-                              {!!columnDef.meta?.metadata && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  title="Expand and view metadata"
-                                  className="ml-2"
-                                  onClick={() => setShowMetadata(!showMetadata)}
-                                >
-                                  {showMetadata ? (
-                                    <ArrowUpFromLine className="h-4 w-4" />
-                                  ) : (
-                                    <ArrowDownFromLine className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
-
-                              <div
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                                onDoubleClick={() => header.column.resetSize()}
-                                onMouseDown={header.getResizeHandler()}
-                                onTouchStart={header.getResizeHandler()}
-                                className={cn(
-                                  "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
-                                  header.column.getIsResizing() &&
-                                    "bg-primary-accent opacity-100",
-                                )}
+                            </span>
+                            {columnDef.headerTooltip && (
+                              <DocPopup
+                                description={
+                                  columnDef.headerTooltip.description
+                                }
+                                href={columnDef.headerTooltip.href}
                               />
-                            </div>
-                          )}
-                        </TableHead>
-                      ) : null;
-                    })}
-                  </TableRow>
-                  {showMetadata &&
-                  headerGroup.headers.some(
-                    (header) =>
-                      !!(
-                        header.column
-                          .columnDef as LangfuseColumnDef<ModelTableRow>
-                      ).meta?.metadata,
-                  ) ? (
-                    <TableRow key={`${headerGroup.id}-details`}>
-                      {headerGroup.headers.map((header) => {
-                        const columnDef = header.column
-                          .columnDef as LangfuseColumnDef<ModelTableRow>;
-                        // if the header id does not translate to a valid css variable name, default to 150px as width
-                        // may only happen for dynamic columns, as column names are user defined
-                        const width = isValidCssVariableName({
-                          name: header.id,
-                          includesHyphens: false,
-                        })
-                          ? `calc(var(--header-${header.id}-size) * 1px)`
-                          : 150;
+                            )}
+                            {orderBy?.column === columnDef.id
+                              ? renderOrderingIndicator(orderBy)
+                              : null}
 
-                        return header.column.getIsVisible() ? (
-                          <TableHead
-                            key={header.id}
-                            className={cn("group h-20 bg-muted p-1 first:pl-2")}
-                            style={{ width }}
-                          >
-                            {!header.isPlaceholder &&
-                            !!columnDef.meta?.metadata ? (
-                              <IOTableCell data={columnDef.meta.metadata} />
-                            ) : null}
-                          </TableHead>
-                        ) : null;
-                      })}
-                    </TableRow>
-                  ) : null}
-                </>
+                            <div
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                header.column.getIsResizing() &&
+                                  "bg-primary-accent opacity-100",
+                              )}
+                            />
+                          </div>
+                        )}
+                      </TableHead>
+                    ) : null;
+                  })}
+                </TableRow>
               ))}
             </TableHeader>
             {table.getState().columnSizingInfo.isResizingColumn ? (
