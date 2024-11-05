@@ -47,6 +47,8 @@ export const env = createEnv({
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
+    // Telemetry
+    TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -258,6 +260,7 @@ export const env = createEnv({
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
+    TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
     // Default org, project and role
     LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
     LANGFUSE_DEFAULT_ORG_ROLE: process.env.LANGFUSE_DEFAULT_ORG_ROLE,
