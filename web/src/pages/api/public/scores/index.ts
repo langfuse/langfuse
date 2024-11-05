@@ -10,16 +10,8 @@ import {
   PostScoresResponse,
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import {
-  eventTypes,
-  logger,
-  traceException,
-} from "@langfuse/shared/src/server";
-import {
-  forwardLegacyEventToIngestionApi,
-  parseSingleTypedIngestionApiResponse,
-} from "@/src/pages/api/public/ingestion";
-import { env } from "@/src/env.mjs";
+import { eventTypes } from "@langfuse/shared/src/server";
+import { forwardLegacyEventToIngestionApi } from "@/src/pages/api/public/ingestion";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
