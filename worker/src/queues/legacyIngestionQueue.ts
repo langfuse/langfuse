@@ -95,15 +95,11 @@ export const legacyIngestionQueueProcessor: Processor = async (
     );
 
     // Do not retry events via bullmq for auth errors
-    const processingErrors = result.errors.flatMap((error) => {
-      if (
-        error.error instanceof UnauthorizedError ||
-        error.error instanceof ForbiddenError
-      ) {
-        return [];
-      }
-      return [error.error];
-    });
+    const processingErrors = result.errors.filter(
+      (e) =>
+        !(e.error instanceof UnauthorizedError) &&
+        !(e.error instanceof ForbiddenError),
+    );
     if (processingErrors.length > 0) {
       // Raise errors if any are returned to retry the batch via bullmq
       logger.error(`Failed to process ${processingErrors.length} events`, {
