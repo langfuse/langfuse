@@ -26,7 +26,7 @@ const isSupportedMarkdownFormat = (
 
 // MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
-function MarkdownOrJsonView({
+export function MarkdownOrJsonView({
   content,
   title,
   className,
