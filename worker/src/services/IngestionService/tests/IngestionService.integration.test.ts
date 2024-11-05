@@ -1245,11 +1245,7 @@ describe("Ingestion end-to-end tests", () => {
       output: 18,
       total: 1313,
     });
-    expect(observation.provided_cost_details).toStrictEqual({
-      input: 0,
-      output: 0,
-      total: 0,
-    });
+    expect(observation.provided_cost_details).toStrictEqual({});
     expect(observation.cost_details).toStrictEqual({
       input: 0.00019425,
       output: 0.0000108,
