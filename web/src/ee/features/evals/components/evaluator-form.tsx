@@ -458,7 +458,7 @@ export const InnerEvalConfigForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
+        className="flex w-full flex-col gap-4"
       >
         <div className="grid gap-4">
           <FormField
@@ -820,8 +820,8 @@ export const InnerEvalConfigForm = (props: {
                     <Input {...field} type="number" />
                   </FormControl>
                   <FormDescription>
-                    Time between first Trace event and evaluation execution to
-                    ensure all Trace data is available
+                    Time between first Trace/Dataset run event and evaluation
+                    execution to ensure all data is available
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
