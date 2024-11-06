@@ -375,6 +375,7 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: true,
           metadata: true,
         },
+        orderBy: { id: "asc" },
         take: input.limit,
         skip: input.page * input.limit,
       });
@@ -727,7 +728,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: input.datasetItemId,
         },
         orderBy: {
-          createdAt: "desc",
+          datasetItemId: "asc", // Order by dataset item ID instead of createdAt
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -833,7 +834,9 @@ export const datasetRouter = createTRPCRouter({
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
           scores: aggregateScores([
-            ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+            ...validatedTraceScores.filter(
+              (s) => s.traceId === ri.traceId && ri.observationId === null,
+            ),
             ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&

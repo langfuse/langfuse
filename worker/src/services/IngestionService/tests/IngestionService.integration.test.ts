@@ -1254,6 +1254,63 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation.total_cost).toBe(0.00020505);
   });
 
+  it("should merge observations from clickhouse and event list", async () => {
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+
+    const latestEvent = new Date();
+
+    const observationEventList1: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: observationId,
+          traceId: traceId,
+          startTime: new Date().toISOString(),
+          output: "to overwrite",
+          usage: undefined,
+        },
+      },
+    ];
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList: observationEventList1,
+    });
+    await clickhouseWriter.flushAll(true);
+
+    const observationEventList2: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: observationId,
+          name: "generation-name",
+          traceId: traceId,
+          output: "overwritten",
+          usage: undefined,
+        },
+      },
+    ];
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList: observationEventList2,
+    });
+    await clickhouseWriter.flushAll(true);
+
+    const observation = await getClickhouseRecord(
+      TableName.Observations,
+      observationId,
+    );
+
+    expect(observation.name).toBe("generation-name");
+    expect(observation.output).toBe("overwritten");
+  });
+
   it("should put observation updates after creates if timestamp is same", async () => {
     const generationId = randomUUID();
 

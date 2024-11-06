@@ -122,6 +122,12 @@ export class IngestionService {
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(scoreEventList);
 
+    const minTimestamp = Math.min(
+      ...timeSortedEvents.flatMap((e) =>
+        e.timestamp ? [new Date(e.timestamp).getTime()] : [],
+      ),
+    );
+    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
     const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
       await Promise.all([
         this.getPostgresRecord({
@@ -133,6 +139,12 @@ export class IngestionService {
           projectId,
           entityId,
           table: TableName.Scores,
+          additionalFilters: {
+            whereCondition: timestamp
+              ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+              : "",
+            params: { timestamp },
+          },
         }),
         Promise.all(
           timeSortedEvents.map(async (scoreEvent) => {
@@ -190,6 +202,12 @@ export class IngestionService {
       traceEventList: timeSortedEvents,
     });
 
+    const minTimestamp = Math.min(
+      ...timeSortedEvents.flatMap((e) =>
+        e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
+      ),
+    );
+    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
     const [postgresTraceRecord, clickhouseTraceRecord] = await Promise.all([
       this.getPostgresRecord({
         projectId,
@@ -200,6 +218,12 @@ export class IngestionService {
         projectId,
         entityId,
         table: TableName.Traces,
+        additionalFilters: {
+          whereCondition: timestamp
+            ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+            : "",
+          params: { timestamp },
+        },
       }),
     ]);
 
@@ -223,6 +247,13 @@ export class IngestionService {
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(observationEventList);
 
+    const type = this.getObservationType(observationEventList[0]);
+    const minStartTime = Math.min(
+      ...observationEventList.flatMap((e) =>
+        e.body?.startTime ? [new Date(e.body.startTime).getTime()] : [],
+      ),
+    );
+    const startTime = minStartTime === Infinity ? undefined : minStartTime;
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -234,6 +265,10 @@ export class IngestionService {
           projectId,
           entityId,
           table: TableName.Observations,
+          additionalFilters: {
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} - INTERVAL 1 DAY" : ""}`,
+            params: { type, startTime },
+          },
         }),
         this.getPrompt(projectId, observationEventList),
       ]);
@@ -608,28 +643,44 @@ export class IngestionService {
     projectId: string;
     entityId: string;
     table: TableName.Traces;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
   }): Promise<TraceRecordInsertType | null>;
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
     table: TableName.Scores;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
   }): Promise<ScoreRecordInsertType | null>;
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
     table: TableName.Observations;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
   }): Promise<ObservationRecordInsertType | null>;
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
     table: TableName;
+    additionalFilters: {
+      whereCondition: string;
+      params: Record<string, unknown>;
+    };
   }) {
     const recordParser = {
       traces: traceRecordReadSchema,
       scores: scoreRecordReadSchema,
       observations: observationRecordReadSchema,
     };
-    const { projectId, entityId, table } = params;
+    const { projectId, entityId, table, additionalFilters } = params;
 
     return await instrumentAsync(
       { name: `get-clickhouse-${table}` },
@@ -640,11 +691,12 @@ export class IngestionService {
             FROM ${table}
             WHERE project_id = {projectId: String}
             AND id = {entityId: String}
+            ${additionalFilters.whereCondition}
             ORDER BY event_ts DESC
             LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
           `,
           format: "JSONEachRow",
-          query_params: { projectId, entityId },
+          query_params: { projectId, entityId, ...additionalFilters.params },
         });
 
         const result = await queryResult.json();
@@ -760,6 +812,24 @@ export class IngestionService {
     });
   }
 
+  private getObservationType(
+    observation: ObservationEvent,
+  ): "EVENT" | "SPAN" | "GENERATION" {
+    switch (observation.type) {
+      case eventTypes.OBSERVATION_CREATE:
+      case eventTypes.OBSERVATION_UPDATE:
+        return observation.body.type;
+      case eventTypes.EVENT_CREATE:
+        return "EVENT" as const;
+      case eventTypes.SPAN_CREATE:
+      case eventTypes.SPAN_UPDATE:
+        return "SPAN" as const;
+      case eventTypes.GENERATION_CREATE:
+      case eventTypes.GENERATION_UPDATE:
+        return "GENERATION" as const;
+    }
+  }
+
   private mapObservationEventsToRecords(params: {
     projectId: string;
     entityId: string;
@@ -769,24 +839,7 @@ export class IngestionService {
     const { projectId, entityId, observationEventList, prompt } = params;
 
     return observationEventList.map((obs) => {
-      let observationType: "EVENT" | "SPAN" | "GENERATION";
-      switch (obs.type) {
-        case eventTypes.OBSERVATION_CREATE:
-        case eventTypes.OBSERVATION_UPDATE:
-          observationType = obs.body.type;
-          break;
-        case eventTypes.EVENT_CREATE:
-          observationType = "EVENT" as const;
-          break;
-        case eventTypes.SPAN_CREATE:
-        case eventTypes.SPAN_UPDATE:
-          observationType = "SPAN" as const;
-          break;
-        case eventTypes.GENERATION_CREATE:
-        case eventTypes.GENERATION_UPDATE:
-          observationType = "GENERATION" as const;
-          break;
-      }
+      const observationType = this.getObservationType(obs);
 
       const newInputCount =
         "usage" in obs.body ? obs.body.usage?.input : undefined;
