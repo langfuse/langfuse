@@ -54,29 +54,49 @@ export const sessionRouter = createTRPCRouter({
         }
 
         if (input.queryClickhouse) {
+          const sessions = (
+            await getSessionsTable({
+              projectId: input.projectId,
+              filter: input.filter ?? [],
+              orderBy: input.orderBy,
+              offset: input.page * input.limit,
+              limit: input.limit,
+            })
+          ).map((row) => ({
+            id: row.session_id,
+            userIds: row.user_ids,
+            countTraces: row.trace_ids.length,
+            bookmarked: false,
+            sessionDuration: Number(row.duration),
+            inputCost: new Decimal(row.session_input_cost),
+            outputCost: new Decimal(row.session_output_cost),
+            totalCost: new Decimal(row.session_total_cost),
+            promptTokens: Number(row.session_input_usage),
+            completionTokens: Number(row.session_output_usage),
+            totalTokens: Number(row.session_total_usage),
+            traceTags: row.trace_tags,
+            createdAt: row.min_timestamp,
+          }));
+
+          const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
+            where: {
+              id: {
+                in: sessions.map((s) => s.id),
+              },
+              projectId: input.projectId,
+            },
+            select: {
+              id: true,
+              bookmarked: true,
+              public: true,
+            },
+          });
           return {
-            sessions: (
-              await getSessionsTable({
-                projectId: input.projectId,
-                filter: input.filter ?? [],
-                orderBy: input.orderBy,
-                offset: input.page * input.limit,
-                limit: input.limit,
-              })
-            ).map((row) => ({
-              id: row.session_id,
-              userIds: row.user_ids,
-              countTraces: row.trace_ids.length,
-              bookmarked: "false",
-              sessionDuration: Number(row.duration),
-              inputCost: new Decimal(row.session_input_cost),
-              outputCost: new Decimal(row.session_output_cost),
-              totalCost: new Decimal(row.session_total_cost),
-              promptTokens: Number(row.session_input_usage),
-              completionTokens: Number(row.session_output_usage),
-              totalTokens: Number(row.session_total_usage),
-              traceTags: row.trace_tags,
-              createdAt: row.min_timestamp,
+            sessions: sessions.map((s) => ({
+              ...s,
+              bookmarked: prismaSessionInfo.find((p) => p.id === s.id)
+                ?.bookmarked,
+              public: prismaSessionInfo.find((p) => p.id === s.id)?.public,
             })),
           };
         }

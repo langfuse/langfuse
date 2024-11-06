@@ -505,10 +505,10 @@ export default function SessionsTable({
                   isError: false,
                   data: sessionRowData.rows?.map((session) => ({
                     id: session.id,
+                    bookmarked: session.bookmarked,
                     createdAt: session.createdAt.toLocaleString(),
                     userIds: session.userIds,
                     countTraces: session.countTraces,
-                    bookmarked: session.bookmarked,
                     sessionDuration: session.sessionDuration,
                     inputCost: session.inputCost,
                     outputCost: session.outputCost,
