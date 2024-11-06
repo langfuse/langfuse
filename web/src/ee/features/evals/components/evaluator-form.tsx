@@ -28,6 +28,7 @@ import {
   availableTraceEvalVariables,
   datasetTableColsWithOptions,
   availableDatasetEvalVariables,
+  type langfuseObjects,
 } from "@langfuse/shared";
 import * as z from "zod";
 import { useEffect, useMemo, useState } from "react";
@@ -37,7 +38,6 @@ import {
   type EvalTemplate,
   variableMapping,
   wipVariableMapping,
-  type LangfuseObject,
 } from "@langfuse/shared";
 import router from "next/router";
 import { Slider } from "@/src/components/ui/slider";
@@ -74,6 +74,8 @@ const formSchema = z.object({
   sampling: z.coerce.number().gte(0).lte(1),
   delay: z.coerce.number().optional().default(10),
 });
+
+type LangfuseObject = (typeof langfuseObjects)[number];
 
 const isTraceTarget = (target: string): boolean => target === "trace";
 const isTraceOrDatasetObject = (object: LangfuseObject): boolean =>
