@@ -18,7 +18,7 @@ export default withMiddlewares({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, res }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
@@ -30,7 +30,10 @@ export default withMiddlewares({
       }
       const result = await processEventBatch([event], auth);
       if (result.errors.length > 0) {
-        throw new Error(result.errors[0].message);
+        const error = result.errors[0];
+        return res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
       }
       if (result.successes.length !== 1) {
         logger.error("Failed to create score", { result });
