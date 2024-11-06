@@ -31,9 +31,10 @@ export default withMiddlewares({
       const result = await processEventBatch([event], auth);
       if (result.errors.length > 0) {
         const error = result.errors[0];
-        return res
+        res
           .status(error.status)
           .json({ message: error.error ?? error.message });
+        throw new Error(error.error ?? error.message);
       }
       if (result.successes.length !== 1) {
         logger.error("Failed to create score", { result });
