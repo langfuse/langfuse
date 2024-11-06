@@ -1,8 +1,18 @@
-import { ScoreDataType, ScoreSource } from "@prisma/client";
-import { queryClickhouse } from "./clickhouse";
+import { Score, ScoreDataType, ScoreSource } from "@prisma/client";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { FilterState } from "../../types";
-import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
+import {
+  createFilterFromFilterState,
+  getProjectIdDefaultFilter,
+} from "../queries/clickhouse-filter/factory";
+import { OrderByState } from "../../interfaces/orderBy";
+import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
+import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { string } from "zod";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -172,6 +182,152 @@ export const getScoresGroupedByName = async (
     params: {
       projectId: projectId,
       ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+  });
+
+  return rows;
+};
+
+export const getScoresUiCount = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+}) =>
+  await getScoresUiGeneric<{ count: string }>({
+    select: `
+    count(*) as count
+    `,
+    ...props,
+  });
+
+export type ScoreUiTableRow = Score & {
+  traceName: string | null;
+  traceUserId: string | null;
+  traceTags: Array<string> | null;
+};
+
+export const getScoresUiTable = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+}): Promise<ScoreUiTableRow[]> => {
+  const rows = await getScoresUiGeneric<{
+    id: string;
+    project_id: string;
+    name: string;
+    value: number;
+    string_value: string | null;
+    timestamp: string;
+    source: string;
+    data_type: string;
+    comment: string | null;
+    trace_id: string;
+    observation_id: string | null;
+    author_user_id: string | null;
+    user_id: string | null;
+    trace_name: string | null;
+    trace_tags: Array<string> | null;
+    job_configuration_id: string | null;
+    author_user_image: string | null;
+    author_user_name: string | null;
+    config_id: string | null;
+    queue_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }>({
+    select: `
+        s.id,
+        s.project_id,
+        s.name,
+        s.value,
+        s.string_value,
+        s.timestamp,
+        s.source,
+        s.data_type,
+        s.comment,
+        s.trace_id,
+        s.observation_id,
+        s.author_user_id,
+        t.user_id,
+        t.name,
+        t.tags,
+        s.created_at,
+        s.updated_at,
+        s.source,
+        s.config_id,
+        s.queue_id,
+        t.user_id,
+        t.name as trace_name,
+        t.tags as trace_tags
+    `,
+    ...props,
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    authorUserId: row.author_user_id,
+    traceId: row.trace_id,
+    observationId: row.observation_id,
+    traceUserId: row.user_id,
+    traceName: row.trace_name,
+    traceTags: row.trace_tags,
+    configId: row.config_id,
+    queueId: row.queue_id,
+    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
+    updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
+    stringValue: row.string_value,
+    comment: row.comment,
+    dataType: row.data_type as ScoreDataType,
+    source: row.source as ScoreSource,
+    name: row.name,
+    value: row.value,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    id: row.id,
+  }));
+};
+
+export const getScoresUiGeneric = async <T>(props: {
+  select: string;
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+}): Promise<T[]> => {
+  const { select, projectId, filter, orderBy, limit, offset } = props;
+
+  const { tracesFilter, scoresFilter, observationsFilter } =
+    getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
+
+  scoresFilter.push(
+    ...createFilterFromFilterState(filter, scoresTableUiColumnDefinitions),
+  );
+
+  const scoresFilterRes = scoresFilter.apply();
+
+  const query = `
+      SELECT 
+          ${select}
+      FROM scores s final
+      LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id
+      WHERE s.project_id = {projectId: String}
+      ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
+      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+
+    `;
+
+  const rows = await queryClickhouse<T>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      limit: limit,
+      offset: offset,
     },
   });
 
