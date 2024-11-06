@@ -6,7 +6,11 @@ import {
   PostDatasetRunItemsV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  InvalidRequestError,
+  jsonSchema,
+} from "@langfuse/shared";
 import { DatasetRunItemUpsertQueue } from "../../../../../packages/shared/dist/src/server/redis/datasetRunItemUpsert";
 import { randomUUID } from "crypto";
 import { QueueJobs } from "@langfuse/shared/src/server";
@@ -115,10 +119,10 @@ export default withMiddlewares({
             projectId: auth.scope.projectId,
             traceId: finalTraceId,
             type: "dataset",
-            observationId,
-            input: datasetItem.input,
-            expectedOutput: datasetItem.expectedOutput,
-            metadata: datasetItem.metadata,
+            observationId: observationId ?? undefined,
+            input: jsonSchema.parse(datasetItem.input),
+            expectedOutput: jsonSchema.parse(datasetItem.expectedOutput),
+            metadata: jsonSchema.parse(datasetItem.metadata),
           },
           id: randomUUID(),
           timestamp: new Date(),

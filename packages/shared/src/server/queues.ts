@@ -113,12 +113,12 @@ export const EventBodySchema = z.union([
 export type EventBodyType = z.infer<typeof EventBodySchema>;
 
 export enum QueueName {
-  TraceUpsert = "trace-upsert-queue",
+  TraceUpsert = "trace-upsert-queue", // Ingestion pipeline adds events on each Trace upsert
+  EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
-  EvaluationExecution = "evaluation-execution-queue",
   BatchExport = "batch-export-queue",
-  IngestionQueue = "ingestion-queue",
-  LegacyIngestionQueue = "legacy-ingestion-queue",
+  IngestionQueue = "ingestion-queue", // Process single events with S3-merge
+  LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
 }
 
