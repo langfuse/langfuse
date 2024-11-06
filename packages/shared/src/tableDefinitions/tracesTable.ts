@@ -138,17 +138,42 @@ export const tracesTableCols: ColumnDefinition[] = [
   },
 ];
 
-export const evalTableCols: ColumnDefinition[] = tracesOnlyCols;
+export const datasetOnlyCols: ColumnDefinition[] = [
+  {
+    name: "Dataset",
+    id: "name",
+    type: "stringOptions",
+    internal: 'd."name"',
+    options: [], // to be filled in at runtime
+  },
+];
 
+export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
+export const evalDatasetTableCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
   scores_avg: Array<string>;
   name: Array<OptionsDefinition>;
   tags: Array<OptionsDefinition>;
 };
+export type DatasetOptions = {
+  name: Array<OptionsDefinition>;
+};
+
+export function datasetTableColsWithOptions(
+  options?: DatasetOptions,
+  cols: ColumnDefinition[] = evalDatasetTableCols,
+): ColumnDefinition[] {
+  return cols.map((col) => {
+    if (col.id === "name") {
+      return { ...col, options: options?.name ?? [] };
+    }
+    return col;
+  });
+}
 
 export function tracesTableColsWithOptions(
   options?: TraceOptions,
-  cols: ColumnDefinition[] = tracesTableCols
+  cols: ColumnDefinition[] = tracesTableCols,
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "scores_avg") {

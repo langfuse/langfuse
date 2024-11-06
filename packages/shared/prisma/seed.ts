@@ -256,7 +256,7 @@ async function main() {
 
     const queueIds = await generateQueuesForProject(
       [project1, project2],
-      configIdsAndNames
+      configIdsAndNames,
     );
 
     const promptIds = await generatePromptsForProject([project1, project2]);
@@ -282,11 +282,11 @@ async function main() {
       project2,
       promptIds,
       queueIds,
-      configIdsAndNames
+      configIdsAndNames,
     );
 
     logger.info(
-      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
+      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`,
     );
 
     await uploadObjects(
@@ -296,7 +296,7 @@ async function main() {
       sessions,
       events,
       comments,
-      queueItems
+      queueItems,
     );
 
     // If openai key is in environment, add it to the projects LLM API keys
@@ -314,7 +314,7 @@ async function main() {
       });
     } else {
       logger.warn(
-        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key."
+        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key.",
       );
     }
 
@@ -388,83 +388,89 @@ async function main() {
     });
 
     for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
-      const dataset = await prisma.dataset.create({
-        data: {
-          name: `demo-dataset-${datasetNumber}`,
-          description:
-            datasetNumber === 0 ? "Dataset test description" : undefined,
-          projectId: project2.id,
-          metadata: datasetNumber === 0 ? { key: "value" } : undefined,
-        },
-      });
-
-      const datasetItemIds = [];
-      for (let i = 0; i < 18; i++) {
-        const sourceObservation =
-          Math.random() > 0.3
-            ? observations[Math.floor(Math.random() * observations.length)]
-            : undefined;
-        const datasetItem = await prisma.datasetItem.create({
+      for (const projectId of [project1.id, project2.id]) {
+        const dataset = await prisma.dataset.create({
           data: {
-            projectId: project2.id,
-            datasetId: dataset.id,
-            sourceTraceId: sourceObservation?.traceId,
-            sourceObservationId:
-              Math.random() > 0.5 ? sourceObservation?.id : undefined,
-            input:
-              Math.random() > 0.3
-                ? [
-                    {
-                      role: "user",
-                      content: "How can i create a React component?",
-                    },
-                  ]
-                : undefined,
-            expectedOutput:
-              Math.random() > 0.3
-                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
-                : undefined,
-            metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
-          },
-        });
-        datasetItemIds.push(datasetItem.id);
-      }
-
-      for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
-        const datasetRun = await prisma.datasetRuns.create({
-          data: {
-            projectId: project2.id,
-            name: `demo-dataset-run-${datasetRunNumber}`,
-            description: Math.random() > 0.5 ? "Dataset run description" : "",
-            datasetId: dataset.id,
-            metadata: [
-              undefined,
-              "string",
-              100,
-              { key: "value" },
-              ["tag1", "tag2"],
-            ][datasetRunNumber % 5],
+            name: `demo-dataset-${datasetNumber}`,
+            description:
+              datasetNumber === 0 ? "Dataset test description" : undefined,
+            projectId,
+            metadata: datasetNumber === 0 ? { key: "value" } : undefined,
           },
         });
 
-        for (const datasetItemId of datasetItemIds) {
-          const relevantObservations = observations.filter(
-            (o) => o.projectId === project2.id
-          );
-          const observation =
-            relevantObservations[
-              Math.floor(Math.random() * relevantObservations.length)
-            ];
-
-          await prisma.datasetRunItems.create({
+        const datasetItemIds = [];
+        for (let i = 0; i < 18; i++) {
+          const sourceObservation =
+            Math.random() > 0.3
+              ? observations[Math.floor(Math.random() * observations.length)]
+              : undefined;
+          const datasetItem = await prisma.datasetItem.create({
             data: {
-              projectId: project2.id,
-              datasetItemId,
-              traceId: observation.traceId as string,
-              observationId: Math.random() > 0.5 ? observation.id : undefined,
-              datasetRunId: datasetRun.id,
+              projectId,
+              datasetId: dataset.id,
+              sourceTraceId: sourceObservation?.traceId,
+              sourceObservationId:
+                Math.random() > 0.5 ? sourceObservation?.id : undefined,
+              input:
+                Math.random() > 0.3
+                  ? [
+                      {
+                        role: "user",
+                        content: "How can i create a React component?",
+                      },
+                    ]
+                  : undefined,
+              expectedOutput:
+                Math.random() > 0.3
+                  ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
+                  : undefined,
+              metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
             },
           });
+          datasetItemIds.push(datasetItem.id);
+        }
+
+        for (
+          let datasetRunNumber = 0;
+          datasetRunNumber < 5;
+          datasetRunNumber++
+        ) {
+          const datasetRun = await prisma.datasetRuns.create({
+            data: {
+              projectId,
+              name: `demo-dataset-run-${datasetRunNumber}`,
+              description: Math.random() > 0.5 ? "Dataset run description" : "",
+              datasetId: dataset.id,
+              metadata: [
+                undefined,
+                "string",
+                100,
+                { key: "value" },
+                ["tag1", "tag2"],
+              ][datasetRunNumber % 5],
+            },
+          });
+
+          for (const datasetItemId of datasetItemIds) {
+            const relevantObservations = observations.filter(
+              (o) => o.projectId === projectId,
+            );
+            const observation =
+              relevantObservations[
+                Math.floor(Math.random() * relevantObservations.length)
+              ];
+
+            await prisma.datasetRunItems.create({
+              data: {
+                projectId,
+                datasetItemId,
+                traceId: observation.traceId as string,
+                observationId: Math.random() > 0.5 ? observation.id : undefined,
+                datasetRunId: datasetRun.id,
+              },
+            });
+          }
         }
       }
     }
@@ -492,7 +498,7 @@ async function uploadObjects(
   sessions: Prisma.TraceSessionCreateManyInput[],
   events: Prisma.ObservationCreateManyInput[],
   comments: Prisma.CommentCreateManyInput[],
-  queueItems: Prisma.AnnotationQueueItemCreateManyInput[]
+  queueItems: Prisma.AnnotationQueueItemCreateManyInput[],
 ) {
   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -506,14 +512,14 @@ async function uploadObjects(
         },
         create: chunk[0]!,
         update: {},
-      })
+      }),
     );
   });
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -524,13 +530,13 @@ async function uploadObjects(
     promises.push(
       prisma.trace.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Traces ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Traces ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -540,14 +546,14 @@ async function uploadObjects(
     promises.push(
       prisma.observation.createMany({
         data: chunk,
-      })
+      }),
     );
   });
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Observations ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Observations ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -557,14 +563,14 @@ async function uploadObjects(
     promises.push(
       prisma.observation.createMany({
         data: chunk,
-      })
+      }),
     );
   });
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Events ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Events ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -574,13 +580,13 @@ async function uploadObjects(
     promises.push(
       prisma.score.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Scores ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Scores ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -590,13 +596,13 @@ async function uploadObjects(
     promises.push(
       prisma.comment.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -606,13 +612,13 @@ async function uploadObjects(
     promises.push(
       prisma.annotationQueueItem.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -634,7 +640,7 @@ function createObjects(
       dataType: ScoreDataType;
       categories: ConfigCategory[] | null;
     }[]
-  >
+  >,
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
@@ -649,7 +655,7 @@ function createObjects(
     // print progress to console with a progress bar that refreshes every 10 iterations
     // random date within last 90 days, with a linear bias towards more recent dates
     const traceTs = new Date(
-      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000)
+      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
     );
 
     const envTag = envTags[Math.floor(Math.random() * envTags.length)];
@@ -805,11 +811,11 @@ function createObjects(
     for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
       // add between 1 and 30 ms to trace timestamp
       const spanTsStart = new Date(
-        traceTs.getTime() + Math.floor(Math.random() * 30)
+        traceTs.getTime() + Math.floor(Math.random() * 30),
       );
       // random duration of upto 5000ms
       const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 5000)
+        spanTsStart.getTime() + Math.floor(Math.random() * 5000),
       );
 
       const span = {
@@ -844,22 +850,22 @@ function createObjects(
         const generationTsStart = new Date(
           spanTsStart.getTime() +
             Math.floor(
-              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-            )
+              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+            ),
         );
         const generationTsEnd = new Date(
           generationTsStart.getTime() +
             Math.floor(
               Math.random() *
-                (spanTsEnd.getTime() - generationTsStart.getTime())
-            )
+                (spanTsEnd.getTime() - generationTsStart.getTime()),
+            ),
         );
         // somewhere in the middle
         const generationTsCompletionStart = new Date(
           generationTsStart.getTime() +
             Math.floor(
-              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3
-            )
+              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3,
+            ),
         );
 
         const promptTokens = Math.floor(Math.random() * 1000) + 300;
@@ -880,7 +886,7 @@ function createObjects(
         const promptId =
           promptIds.get(projectId)![
             Math.floor(
-              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2)
+              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2),
             )
           ];
 
@@ -962,8 +968,8 @@ function createObjects(
           const eventTs = new Date(
             spanTsStart.getTime() +
               Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-              )
+                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+              ),
           );
 
           events.push({
@@ -985,7 +991,7 @@ function createObjects(
   }
   // find unique sessions by id and projectid
   const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
-    new Set(sessions.map((session) => JSON.stringify(session)))
+    new Set(sessions.map((session) => JSON.stringify(session))),
   ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
 
   return {
@@ -1007,7 +1013,7 @@ async function generatePromptsForProject(projects: Project[]) {
     projects.map(async (project) => {
       const promptIdsForProject = await generatePrompts(project);
       promptIds.set(project.id, promptIdsForProject);
-    })
+    }),
   );
   return promptIds;
 }
@@ -1193,7 +1199,7 @@ async function generateConfigsForProject(projects: Project[]) {
     projects.map(async (project) => {
       const configNameAndId = await generateConfigs(project);
       projectIdsToConfigs.set(project.id, configNameAndId);
-    })
+    }),
   );
   return projectIdsToConfigs;
 }
@@ -1343,7 +1349,7 @@ async function generateQueuesForProject(
       dataType: ScoreDataType;
       categories: ConfigCategory[] | null;
     }[]
-  >
+  >,
 ) {
   const projectIdsToQueues: Map<string, string[]> = new Map();
 
@@ -1351,10 +1357,10 @@ async function generateQueuesForProject(
     projects.map(async (project) => {
       const queueIds = await generateQueues(
         project,
-        configIdsAndNames.get(project.id) ?? []
+        configIdsAndNames.get(project.id) ?? [],
       );
       projectIdsToQueues.set(project.id, queueIds);
-    })
+    }),
   );
   return projectIdsToQueues;
 }
@@ -1366,7 +1372,7 @@ async function generateQueues(
     id: string;
     dataType: ScoreDataType;
     categories: ConfigCategory[] | null;
-  }[]
+  }[],
 ) {
   const queue = {
     id: `queue-${v4()}`,

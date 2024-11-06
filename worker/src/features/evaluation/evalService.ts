@@ -11,9 +11,9 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
-  availableEvalVariables,
+  availableTraceEvalVariables,
   ChatMessageRole,
-  evalTableCols,
+  evalTraceTableCols,
   ForbiddenError,
   LangfuseNotFoundError,
   LLMApiKeySchema,
@@ -63,7 +63,7 @@ export const createEvalJobs = async ({
 
     const condition = tableColumnsToSqlFilterAndPrefix(
       validatedFilter,
-      evalTableCols,
+      evalTraceTableCols,
       "traces",
     );
 
@@ -417,7 +417,7 @@ export async function extractVariablesFromTrace(
 
     if (mapping.langfuseObject === "trace") {
       // find the internal definitions of the column
-      const safeInternalColumn = availableEvalVariables
+      const safeInternalColumn = availableTraceEvalVariables
         .find((o) => o.id === "trace")
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
@@ -457,7 +457,7 @@ export async function extractVariablesFromTrace(
       });
     }
     if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-      const safeInternalColumn = availableEvalVariables
+      const safeInternalColumn = availableTraceEvalVariables
         .find((o) => o.id === mapping.langfuseObject)
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 

@@ -5,6 +5,7 @@ export const langfuseObjects = [
   "span",
   "generation",
   "event",
+  "dataset_item",
 ] as const;
 
 // variable mapping stored in the db for eval templates
@@ -21,7 +22,7 @@ export const variableMapping = z
     (value) => value.langfuseObject === "trace" || value.objectName !== null,
     {
       message: "objectName is required for langfuseObjects other than trace",
-    }
+    },
   );
 
 export const variableMappingList = z.array(variableMapping);
@@ -44,7 +45,7 @@ const observationCols = [
   { name: "Output", id: "output", internal: 'o."output"' },
 ];
 
-export const availableEvalVariables = [
+export const availableTraceEvalVariables = [
   {
     id: "trace",
     display: "Trace",
@@ -76,6 +77,27 @@ export const availableEvalVariables = [
   },
 ];
 
+export const availableDatasetEvalVariables = [
+  {
+    id: "dataset_item",
+    display: "Dataset item",
+    availableColumns: [
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: 'd."metadata"',
+      },
+      { name: "Input", id: "input", internal: 'd."input"' },
+      {
+        name: "Expected output",
+        id: "expected_output",
+        internal: 'd."expected_output"',
+      },
+    ],
+  },
+];
+
 export const OutputSchema = z.object({
   reasoning: z.string(),
   score: z.string(),
@@ -83,6 +105,7 @@ export const OutputSchema = z.object({
 
 export enum EvalTargetObject {
   Trace = "trace",
+  Dataset = "dataset",
 }
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;

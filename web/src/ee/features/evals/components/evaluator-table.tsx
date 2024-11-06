@@ -23,6 +23,7 @@ export type EvalConfigRow = {
     version: number;
   };
   scoreName: string;
+  target: string; // "trace" or "dataset"
   filter: FilterState;
 };
 
@@ -101,6 +102,11 @@ export default function EvaluatorTable({
         );
       },
     }),
+    columnHelper.accessor("target", {
+      id: "target",
+      header: "Target",
+      size: 150,
+    }),
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Score Name",
@@ -139,6 +145,7 @@ export default function EvaluatorTable({
           }
         : undefined,
       scoreName: jobConfig.scoreName,
+      target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),
     };
   };

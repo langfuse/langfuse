@@ -358,7 +358,7 @@ export const evalRouter = createTRPCRouter({
             jobType: "EVAL",
             evalTemplateId: input.evalTemplateId,
             scoreName: input.scoreName,
-            targetObject: EvalTargetObject.Trace,
+            targetObject: input.target,
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
