@@ -33,6 +33,8 @@ import {
   getScoresUiTable,
   orderByToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
+  getScoreNames,
+  getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
@@ -219,6 +221,32 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { timestampFilter } = input;
+
+      if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Clickhouse access is not enabled",
+        });
+      }
+
+      if (input.queryClickhouse) {
+        const [names, tags] = await Promise.all([
+          getScoreNames(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getTracesGroupedByTags(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+        ]);
+
+        const res: ScoreOptions = {
+          name: names.map((i) => ({ value: i.name, count: i.count })),
+          tags: tags,
+        };
+        return res;
+      }
       const prismaTimestampFilter = timestampFilter
         ? datetimeFilterToPrisma(timestampFilter)
         : {};

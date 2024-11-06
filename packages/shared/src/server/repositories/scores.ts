@@ -333,3 +333,44 @@ export const getScoresUiGeneric = async <T>(props: {
 
   return rows;
 };
+
+export const getScoreNames = async (
+  projectId: string,
+  timestampFilter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(
+      timestampFilter,
+      scoresTableUiColumnDefinitions,
+    ),
+  );
+  const timestampFilterRes = chFilter.apply();
+
+  const query = `
+      select 
+        name,
+        count(*) as count
+      from scores s final
+      WHERE s.project_id = {projectId: String}
+      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+      GROUP BY name
+      ORDER BY count() desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    name: string;
+    count: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+    },
+  });
+
+  return rows.map((row) => ({
+    name: row.name,
+    count: Number(row.count),
+  }));
+};
