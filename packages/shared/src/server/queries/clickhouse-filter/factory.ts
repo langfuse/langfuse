@@ -13,6 +13,7 @@ import {
   ArrayOptionsFilter,
   BooleanFilter,
   NumberObjectFilter,
+  StringObjectFilter,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -90,11 +91,19 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
+      case "stringObject":
+        return new StringObjectFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          operator: frontEndFilter.operator,
+          key: frontEndFilter.key,
+          value: frontEndFilter.value,
+          tablePrefix: column.queryPrefix,
+        });
 
       default:
-        throw new QueryBuilderError(
-          `Invalid filter type: ${frontEndFilter.type}`,
-        );
+        logger.error(`Invalid filter type: ${JSON.stringify(frontEndFilter)}`);
+        throw new QueryBuilderError(`Invalid filter type`);
     }
   });
 };
