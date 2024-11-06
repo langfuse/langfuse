@@ -14,6 +14,7 @@ import {
   type SessionOptions,
   singleFilter,
   timeFilter,
+  tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -25,6 +26,8 @@ import {
   traceException,
   getSessionsTable,
   getSessionsTableCount,
+  getTracesGroupedByUserIds,
+  getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -133,7 +136,7 @@ export const sessionRouter = createTRPCRouter({
           });
 
           return {
-            totalCount: counts.length > 0 ? counts[0].count : 0,
+            totalCount: counts.length > 0 ? Number(counts[0].count) : 0,
           };
         }
 
@@ -259,11 +262,55 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       try {
         const { timestampFilter } = input;
+
+        if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        if (input.queryClickhouse) {
+          const columns = [
+            ...tracesTableUiColumnDefinitions,
+            {
+              uiTableName: "Created At",
+              uiTableId: "createdAt",
+              clickhouseTableName: "traces",
+              clickhouseSelect: "timestamp",
+            },
+          ];
+          const [userIds, tags] = await Promise.all([
+            getTracesGroupedByUserIds({
+              projectId: input.projectId,
+              filter: timestampFilter ? [timestampFilter] : [],
+              sessionIdNullFilter: true,
+              columns,
+            }),
+            getTracesGroupedByTags({
+              projectId: input.projectId,
+              filter: timestampFilter ? [timestampFilter] : [],
+              sessionIdNullFilter: true,
+              columns,
+            }),
+          ]);
+
+          return {
+            userIds: userIds.map((row) => ({
+              value: row.user_id,
+            })),
+            tags: tags.map((row) => ({
+              value: row.value,
+            })),
+          };
+        }
+
         const rawTimestampFilter =
           timestampFilter && timestampFilter.type === "datetime"
             ? datetimeFilterToPrismaSql(

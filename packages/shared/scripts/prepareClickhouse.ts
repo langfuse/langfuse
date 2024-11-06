@@ -70,7 +70,7 @@ export const prepareClickhouse = async (
       array('tag1', 'tag2') as tags,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
       repeat('output', toInt64(randExponential(1 / 100))) AS output,
-      concat('session_', toString(rand() % 100)) AS session_id,
+      if(randUniform(0, 1) < 0.2, NULL, concat('session_', toString(rand() % 1000))) AS session_id,
       timestamp AS created_at,
       timestamp AS updated_at,
       timestamp AS event_ts,

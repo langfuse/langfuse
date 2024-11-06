@@ -149,6 +149,7 @@ export default function SessionsTable({
         dateRangeFilter[0]?.type === "datetime"
           ? dateRangeFilter[0]
           : undefined,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
