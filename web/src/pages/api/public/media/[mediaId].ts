@@ -4,7 +4,7 @@ import { env } from "@/src/env.mjs";
 import {
   GetMediaQuerySchema,
   GetMediaResponseSchema,
-  PatchMediaUploadedAtQuery,
+  PatchMediaBodySchema,
 } from "@/src/features/media/validation";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -35,6 +35,10 @@ export default withMiddlewares({
       });
 
       if (!media) throw new LangfuseNotFoundError("Media asset not found");
+      if (!media.uploadHttpStatus)
+        throw new LangfuseNotFoundError("Media not yet uploaded");
+      if (media.uploadHttpStatus !== 200)
+        throw new LangfuseNotFoundError(`Media upload failed`);
 
       const mediaStorageClient = getMediaStorageServiceClient(media.bucketName);
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
@@ -43,6 +47,7 @@ export default withMiddlewares({
       const url = await mediaStorageClient.getSignedUrl(
         media.bucketPath,
         ttlSeconds,
+        false,
       );
 
       return {
@@ -56,13 +61,17 @@ export default withMiddlewares({
 
   PATCH: createAuthedAPIRoute({
     name: "Update Media Uploaded At",
-    querySchema: PatchMediaUploadedAtQuery,
+    querySchema: z.object({
+      mediaId: z.string(),
+    }),
+    bodySchema: PatchMediaBodySchema,
     responseSchema: z.void(),
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, body, auth }) => {
       if (auth.scope.accessLevel !== "all") throw new ForbiddenError();
 
       const { projectId } = auth.scope;
-      const { mediaId, uploadedAt } = query;
+      const { mediaId } = query;
+      const { uploadedAt, uploadHttpStatus, uploadHttpError } = body;
 
       try {
         await prisma.media.update({
@@ -72,6 +81,8 @@ export default withMiddlewares({
           },
           data: {
             uploadedAt,
+            uploadHttpStatus,
+            uploadHttpError,
           },
         });
       } catch (e) {
@@ -82,7 +93,9 @@ export default withMiddlewares({
           /* https://www.prisma.io/docs/orm/reference/error-reference#p2025
            * An operation failed because it depends on one or more records that were required but not found.
            */
-          throw new LangfuseNotFoundError("Media asset not found");
+          throw new LangfuseNotFoundError(
+            `Media asset ${mediaId} not found in project ${projectId}`,
+          );
         }
 
         throw new InternalServerError(

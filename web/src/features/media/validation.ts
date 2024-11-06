@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { env } from "@/src/env.mjs";
 
 export enum MediaEnabledFields {
   Input = "input",
@@ -36,14 +37,30 @@ export enum MediaFileExtension {
 export const GetMediaUploadUrlQuerySchema = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
-  contentType: z.nativeEnum(MediaContentType),
+  contentType: z.nativeEnum(MediaContentType, {
+    message: `Invalid content type. Only supporting ${Object.values(
+      MediaContentType,
+    ).join(", ")}`,
+  }),
+  contentLength: z
+    .number()
+    .positive()
+    .int()
+    .max(
+      env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
+      `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
+    ),
   sha256Hash: z
     .string()
     .regex(
       /^[A-Za-z0-9+/=]{44}$/,
       "Must be a 44 character base64 encoded SHA-256 hash",
     ),
-  field: z.nativeEnum(MediaEnabledFields),
+  field: z.nativeEnum(MediaEnabledFields, {
+    message: `Invalid field. Only supporting ${Object.values(
+      MediaEnabledFields,
+    ).join(", ")}`,
+  }),
 });
 
 export type GetMediaUploadUrlQuery = z.infer<
@@ -59,14 +76,13 @@ export type GetMediaUploadUrlResponse = z.infer<
   typeof GetMediaUploadUrlResponseSchema
 >;
 
-export const PatchMediaUploadedAtQuery = z.object({
-  mediaId: z.string(),
+export const PatchMediaBodySchema = z.object({
   uploadedAt: z.coerce.date(),
+  uploadHttpStatus: z.number().positive().int(),
+  uploadHttpError: z.string().nullish(),
 });
 
-export type PatchMediaUploadedAtQuery = z.infer<
-  typeof PatchMediaUploadedAtQuery
->;
+export type PatchMediaBody = z.infer<typeof PatchMediaBodySchema>;
 
 export const GetMediaQuerySchema = z.object({
   mediaId: z.string(),

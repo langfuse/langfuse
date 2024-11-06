@@ -303,9 +303,12 @@ export type Media = {
     expires_at: Timestamp | null;
     deleted_at: Timestamp | null;
     uploaded_at: Timestamp | null;
+    upload_http_status: number | null;
+    upload_http_error: string | null;
     bucket_path: string;
     bucket_name: string;
     content_type: string;
+    content_length: string;
 };
 export type MembershipInvitation = {
     id: string;

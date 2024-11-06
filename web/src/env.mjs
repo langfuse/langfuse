@@ -160,6 +160,11 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
 
     // Multimodal media upload to S3
+    LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
+      .number()
+      .positive()
+      .int()
+      .default(1_000_000_000),
     LANGFUSE_S3_MEDIA_UPLOAD_ENABLED: z
       .enum(["true", "false"])
       .default("false"),
@@ -357,6 +362,8 @@ export const env = createEnv({
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
 
     // S3 media upload
+    LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
+      process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
     LANGFUSE_S3_MEDIA_UPLOAD_ENABLED:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED,
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:

@@ -11,6 +11,9 @@ CREATE TABLE "media" (
     "bucket_path" TEXT NOT NULL,
     "bucket_name" TEXT NOT NULL,
     "content_type" TEXT NOT NULL,
+    "content_length" BIGINT NOT NULL,
+    "upload_http_status" INTEGER,
+    "upload_http_error" TEXT,
 
     CONSTRAINT "media_pkey" PRIMARY KEY ("id")
 );

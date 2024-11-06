@@ -125,7 +125,8 @@ export class S3StorageService {
 
   public async getSignedUrl(
     fileName: string,
-    ttlSeconds: number
+    ttlSeconds: number,
+    asAttachment: boolean = true,
   ): Promise<string> {
     try {
       return await getSignedUrl(
@@ -133,9 +134,11 @@ export class S3StorageService {
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: fileName,
-          ResponseContentDisposition: `attachment; filename="${fileName}"`,
+          ResponseContentDisposition: asAttachment
+            ? `attachment; filename="${fileName}"`
+            : undefined,
         }),
-        { expiresIn: ttlSeconds }
+        { expiresIn: ttlSeconds },
       );
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
@@ -148,8 +151,9 @@ export class S3StorageService {
     ttlSeconds: number;
     sha256Hash: string;
     contentType: string;
+    contentLength: number;
   }): Promise<string> {
-    const { path, ttlSeconds, contentType, sha256Hash } = params;
+    const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 
     return await getSignedUrl(
       this.client,
@@ -158,12 +162,13 @@ export class S3StorageService {
         Key: path,
         ContentType: contentType,
         ChecksumSHA256: sha256Hash,
+        ContentLength: contentLength,
       }),
       {
         expiresIn: ttlSeconds,
-        signableHeaders: new Set(["content-type"]),
-        unhoistableHeaders: new Set(["x-amz-checksum-sha256"]), // This is not supported by the SDK: https://github.com/aws/aws-sdk/issues/480#issuecomment-2246917170
-      }
+        signableHeaders: new Set(["content-type", "content-length"]),
+        unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
+      },
     );
   }
 }
