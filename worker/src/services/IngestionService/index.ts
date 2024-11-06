@@ -141,7 +141,7 @@ export class IngestionService {
           table: TableName.Scores,
           additionalFilters: {
             whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+              ? " AND timestamp >= {timestamp: DateTime} "
               : "",
             params: { timestamp },
           },
@@ -220,7 +220,7 @@ export class IngestionService {
         table: TableName.Traces,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+            ? " AND timestamp >= {timestamp: DateTime} "
             : "",
           params: { timestamp },
         },
@@ -266,7 +266,7 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} - INTERVAL 1 DAY" : ""}`,
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} " : ""}`,
             params: { type, startTime },
           },
         }),
