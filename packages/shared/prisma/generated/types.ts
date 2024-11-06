@@ -370,6 +370,16 @@ export type Observation = {
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
 };
+export type ObservationMedia = {
+    id: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    media_id: string;
+    trace_id: string;
+    observation_id: string;
+    field: string;
+};
 export type ObservationView = {
     id: string;
     trace_id: string | null;
@@ -538,7 +548,6 @@ export type TraceMedia = {
     updated_at: Generated<Timestamp>;
     media_id: string;
     trace_id: string;
-    observation_id: string | null;
     field: string;
 };
 export type TraceSession = {
@@ -608,6 +617,7 @@ export type DB = {
     media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
+    observation_media: ObservationMedia;
     observations: Observation;
     observations_view: ObservationView;
     organization_memberships: OrganizationMembership;

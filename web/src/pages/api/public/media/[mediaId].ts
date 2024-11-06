@@ -83,7 +83,7 @@ export default withMiddlewares({
           data: {
             uploadedAt,
             uploadHttpStatus,
-            uploadHttpError,
+            uploadHttpError: uploadHttpStatus === 200 ? null : uploadHttpError,
           },
         });
       } catch (e) {

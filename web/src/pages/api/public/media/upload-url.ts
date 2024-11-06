@@ -42,16 +42,46 @@ export default withMiddlewares({
           },
         });
 
-        if (existingMedia) {
-          await tx.traceMedia.create({
-            data: {
-              projectId,
-              traceId,
-              observationId,
-              field,
-              mediaId: existingMedia.id,
-            },
-          });
+        if (existingMedia && existingMedia.uploadHttpStatus === 200) {
+          if (observationId) {
+            await tx.observationMedia.upsert({
+              where: {
+                projectId_traceId_observationId_mediaId_field: {
+                  projectId,
+                  traceId,
+                  observationId,
+                  mediaId: existingMedia.id,
+                  field,
+                },
+              },
+              update: {},
+              create: {
+                projectId,
+                traceId,
+                observationId,
+                mediaId: existingMedia.id,
+                field,
+              },
+            });
+          } else {
+            await tx.traceMedia.upsert({
+              where: {
+                projectId_traceId_mediaId_field: {
+                  projectId,
+                  traceId,
+                  mediaId: existingMedia.id,
+                  field,
+                },
+              },
+              update: {},
+              create: {
+                projectId,
+                traceId,
+                field,
+                mediaId: existingMedia.id,
+              },
+            });
+          }
 
           return {
             mediaId: existingMedia.id,
@@ -59,7 +89,7 @@ export default withMiddlewares({
           };
         }
 
-        const mediaId = randomUUID();
+        const mediaId = existingMedia?.id ?? randomUUID();
 
         if (
           !(
@@ -90,8 +120,20 @@ export default withMiddlewares({
         });
 
         await Promise.all([
-          tx.media.create({
-            data: {
+          tx.media.upsert({
+            where: {
+              projectId_sha256Hash: {
+                projectId,
+                sha256Hash,
+              },
+            },
+            update: {
+              bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+              bucketPath,
+              contentType,
+              contentLength,
+            },
+            create: {
               id: mediaId,
               projectId,
               sha256Hash,
@@ -101,15 +143,43 @@ export default withMiddlewares({
               contentLength,
             },
           }),
-          tx.traceMedia.create({
-            data: {
-              projectId,
-              traceId,
-              observationId,
-              field,
-              mediaId,
-            },
-          }),
+          observationId
+            ? tx.observationMedia.upsert({
+                where: {
+                  projectId_traceId_observationId_mediaId_field: {
+                    projectId,
+                    traceId,
+                    observationId,
+                    mediaId,
+                    field,
+                  },
+                },
+                update: {},
+                create: {
+                  projectId,
+                  traceId,
+                  observationId,
+                  mediaId,
+                  field,
+                },
+              })
+            : tx.traceMedia.upsert({
+                where: {
+                  projectId_traceId_mediaId_field: {
+                    projectId,
+                    traceId,
+                    mediaId,
+                    field,
+                  },
+                },
+                update: {},
+                create: {
+                  projectId,
+                  traceId,
+                  field,
+                  mediaId,
+                },
+              }),
         ]);
 
         return {
