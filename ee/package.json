@@ -27,7 +27,7 @@
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "axios": "^1.7.7",
-    "next": "^14.2.15",
+    "next": "^15.0.2",
     "next-auth": "^4.24.7",
     "zod": "^3.23.8"
   },
