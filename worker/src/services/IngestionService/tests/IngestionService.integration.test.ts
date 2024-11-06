@@ -1259,9 +1259,6 @@ describe("Ingestion end-to-end tests", () => {
     const observationId = randomUUID();
 
     const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
 
     const observationEventList1: ObservationEvent[] = [
       {
@@ -1271,6 +1268,7 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: observationId,
           traceId: traceId,
+          startTime: new Date().toISOString(),
           output: "to overwrite",
           usage: undefined,
         },

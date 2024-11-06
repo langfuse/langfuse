@@ -122,6 +122,12 @@ export class IngestionService {
     const timeSortedEvents =
       IngestionService.toTimeSortedEventList(scoreEventList);
 
+    const minTimestamp = Math.min(
+      ...timeSortedEvents.flatMap((e) =>
+        e.timestamp ? [new Date(e.timestamp).getTime()] : [],
+      ),
+    );
+    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
     const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
       await Promise.all([
         this.getPostgresRecord({
@@ -133,7 +139,12 @@ export class IngestionService {
           projectId,
           entityId,
           table: TableName.Scores,
-          additionalFilters: { whereCondition: "", params: {} },
+          additionalFilters: {
+            whereCondition: timestamp
+              ? " AND timestamp = {timestamp: DateTime} - INTERVAL 1 DAY "
+              : "",
+            params: { timestamp },
+          },
         }),
         Promise.all(
           timeSortedEvents.map(async (scoreEvent) => {
@@ -191,6 +202,12 @@ export class IngestionService {
       traceEventList: timeSortedEvents,
     });
 
+    const minTimestamp = Math.min(
+      ...timeSortedEvents.flatMap((e) =>
+        e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
+      ),
+    );
+    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
     const [postgresTraceRecord, clickhouseTraceRecord] = await Promise.all([
       this.getPostgresRecord({
         projectId,
@@ -201,7 +218,12 @@ export class IngestionService {
         projectId,
         entityId,
         table: TableName.Traces,
-        additionalFilters: { whereCondition: "", params: {} },
+        additionalFilters: {
+          whereCondition: timestamp
+            ? " AND timestamp = {timestamp: DateTime} - INTERVAL 1 DAY "
+            : "",
+          params: { timestamp },
+        },
       }),
     ]);
 
@@ -226,6 +248,12 @@ export class IngestionService {
       IngestionService.toTimeSortedEventList(observationEventList);
 
     const type = this.getObservationType(observationEventList[0]);
+    const minStartTime = Math.min(
+      ...observationEventList.flatMap((e) =>
+        e.body?.startTime ? [new Date(e.body.startTime).getTime()] : [],
+      ),
+    );
+    const startTime = minStartTime === Infinity ? undefined : minStartTime;
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -238,8 +266,8 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: "AND type = {type: String}",
-            params: { type },
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time = {startTime: DateTime} - INTERVAL 1 DAY" : ""}`,
+            params: { type, startTime },
           },
         }),
         this.getPrompt(projectId, observationEventList),
