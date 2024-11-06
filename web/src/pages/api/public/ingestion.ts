@@ -20,7 +20,6 @@ import {
   type AuthHeaderValidVerificationResult,
   type LegacyIngestionEventType,
   type IngestionEventType,
-  type IngestionBatchEventType,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
