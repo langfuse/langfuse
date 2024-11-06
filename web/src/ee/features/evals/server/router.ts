@@ -8,7 +8,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  EvalTargetObject,
   ZodModelConfig,
   singleFilter,
   variableMapping,

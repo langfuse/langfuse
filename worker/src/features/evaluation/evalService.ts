@@ -6,7 +6,7 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  TraceUpsertEventSchema,
+  UpsertEventSchema,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
@@ -35,7 +35,7 @@ import { backOff } from "exponential-backoff";
 export const createEvalJobs = async ({
   event,
 }: {
-  event: z.infer<typeof TraceUpsertEventSchema>;
+  event: z.infer<typeof UpsertEventSchema>;
 }) => {
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
@@ -43,6 +43,10 @@ export const createEvalJobs = async ({
     .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", event.projectId)
     .execute();
+
+  if (event.type === "dataset") {
+    return;
+  }
 
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);

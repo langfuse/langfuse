@@ -41,7 +41,7 @@ export class EvalExecutionQueue {
                 delay: 5000,
               },
             },
-          }
+          },
         )
       : null;
 
@@ -54,7 +54,10 @@ export class EvalExecutionQueue {
 }
 
 export const evalJobCreatorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.TraceUpsert]>
+  job: Job<
+    | TQueueJobTypes[QueueName.TraceUpsert]
+    | TQueueJobTypes[QueueName.DatasetRunItemUpsert]
+  >,
 ) => {
   try {
     await createEvalJobs({ event: job.data.payload });
@@ -62,7 +65,7 @@ export const evalJobCreatorQueueProcessor = async (
   } catch (e) {
     logger.error(
       `Failed job Evaluation for traceId ${job.data.payload.traceId}`,
-      e
+      e,
     );
     traceException(e);
     throw e;
@@ -70,7 +73,7 @@ export const evalJobCreatorQueueProcessor = async (
 };
 
 export const evalJobExecutorQueueProcessor = async (
-  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>
+  job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>,
 ) => {
   try {
     logger.info("Executing Evaluation Execution Job", job.data);
@@ -95,7 +98,7 @@ export const evalJobExecutorQueueProcessor = async (
       !(
         e instanceof BaseError &&
         e.message.includes(
-          "Please ensure the mapped data exists and consider extending the job delay."
+          "Please ensure the mapped data exists and consider extending the job delay.",
         )
       ) &&
       !(e instanceof ApiError) // API errors are expected (e.g. wrong API key or rate limit or invalid return data)
@@ -103,7 +106,7 @@ export const evalJobExecutorQueueProcessor = async (
       traceException(e);
       logger.error(
         `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
-        e
+        e,
       );
       throw e;
     }

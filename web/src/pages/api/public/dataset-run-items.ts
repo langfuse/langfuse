@@ -7,6 +7,9 @@ import {
   transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
+import { DatasetRunItemUpsertQueue } from "../../../../../packages/shared/dist/src/server/redis/datasetRunItemUpsert";
+import { randomUUID } from "crypto";
+import { QueueJobs } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -22,6 +25,10 @@ export default withMiddlewares({
         runDescription,
         metadata,
       } = body;
+
+      /**************
+       * VALIDATION *
+       **************/
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
@@ -62,6 +69,10 @@ export default withMiddlewares({
         throw new InvalidRequestError("No traceId set");
       }
 
+      /********************
+       * SYNC PROCESSING *
+       ********************/
+
       const run = await prisma.datasetRuns.upsert({
         where: {
           datasetId_projectId_name: {
@@ -92,6 +103,28 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
         },
       });
+
+      /********************
+       * ASYNC PROCESSING *
+       ********************/
+
+      const queue = DatasetRunItemUpsertQueue.getInstance();
+      if (queue) {
+        queue.add(QueueJobs.DatasetRunItemUpsert, {
+          payload: {
+            projectId: auth.scope.projectId,
+            traceId: finalTraceId,
+            type: "dataset",
+            observationId,
+            input: datasetItem.input,
+            expectedOutput: datasetItem.expectedOutput,
+            metadata: datasetItem.metadata,
+          },
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.DatasetRunItemUpsert as const,
+        });
+      }
 
       return transformDbDatasetRunItemToAPIDatasetRunItem({
         ...runItem,
