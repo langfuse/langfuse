@@ -93,6 +93,7 @@ export type GetMediaQuery = z.infer<typeof GetMediaQuerySchema>;
 export const GetMediaResponseSchema = z.object({
   mediaId: z.string(),
   contentType: z.string(),
+  contentLength: z.number(),
   uploadedAt: z.coerce.date().nullish(),
   url: z.string(),
   urlExpiry: z.string(),

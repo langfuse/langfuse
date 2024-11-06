@@ -53,6 +53,7 @@ export default withMiddlewares({
       return {
         mediaId,
         contentType: media.contentType,
+        contentLength: Number(media.contentLength),
         url,
         urlExpiry,
       };
