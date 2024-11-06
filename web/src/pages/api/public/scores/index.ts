@@ -34,7 +34,7 @@ export default withMiddlewares({
         res
           .status(error.status)
           .json({ message: error.error ?? error.message });
-        throw new Error(error.error ?? error.message);
+        return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
         logger.error("Failed to create score", { result });
