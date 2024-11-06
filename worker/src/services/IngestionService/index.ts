@@ -33,7 +33,6 @@ import {
   traceRecordReadSchema,
   validateAndInflateScore,
   UsageCostType,
-  getClickhouseEntityType,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
