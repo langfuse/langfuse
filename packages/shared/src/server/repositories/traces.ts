@@ -494,3 +494,43 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   return res;
 };
+
+export const getTracesForSession = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  const query = `
+    SELECT
+      id,
+      user_id,
+      name,
+      timestamp,
+      project_id
+      FROM traces
+      WHERE (project_id = {projectId: String}) AND (session_id = {sessionId: String})
+      ORDER BY timestamp ASC
+      LIMIT 1 BY
+          id,
+          project_id;
+  `;
+
+  const rows = await queryClickhouse<{
+    id: string;
+    user_id: string;
+    name: string;
+    timestamp: string;
+  }>({
+    query: query,
+    params: {
+      projectId,
+      sessionId,
+    },
+  });
+  console.log(rows);
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};

@@ -28,6 +28,9 @@ import {
   getSessionsTableCount,
   getTracesGroupedByUserIds,
   getTracesGroupedByTags,
+  getTracesForSession,
+  getScoresForTraces,
+  getCostForTraces,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -54,34 +57,18 @@ export const sessionRouter = createTRPCRouter({
         }
 
         if (input.queryClickhouse) {
-          const sessions = (
-            await getSessionsTable({
-              projectId: input.projectId,
-              filter: input.filter ?? [],
-              orderBy: input.orderBy,
-              offset: input.page * input.limit,
-              limit: input.limit,
-            })
-          ).map((row) => ({
-            id: row.session_id,
-            userIds: row.user_ids,
-            countTraces: row.trace_ids.length,
-            bookmarked: false,
-            sessionDuration: Number(row.duration),
-            inputCost: new Decimal(row.session_input_cost),
-            outputCost: new Decimal(row.session_output_cost),
-            totalCost: new Decimal(row.session_total_cost),
-            promptTokens: Number(row.session_input_usage),
-            completionTokens: Number(row.session_output_usage),
-            totalTokens: Number(row.session_total_usage),
-            traceTags: row.trace_tags,
-            createdAt: row.min_timestamp,
-          }));
+          const sessions = await getSessionsTable({
+            projectId: input.projectId,
+            filter: input.filter ?? [],
+            orderBy: input.orderBy,
+            offset: input.page * input.limit,
+            limit: input.limit,
+          });
 
           const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
             where: {
               id: {
-                in: sessions.map((s) => s.id),
+                in: sessions.map((s) => s.session_id),
               },
               projectId: input.projectId,
             },
@@ -93,10 +80,22 @@ export const sessionRouter = createTRPCRouter({
           });
           return {
             sessions: sessions.map((s) => ({
-              ...s,
-              bookmarked: prismaSessionInfo.find((p) => p.id === s.id)
+              id: s.session_id,
+              userIds: s.user_ids,
+              countTraces: s.trace_ids.length,
+              sessionDuration: Number(s.duration),
+              inputCost: new Decimal(s.session_input_cost),
+              outputCost: new Decimal(s.session_output_cost),
+              totalCost: new Decimal(s.session_total_cost),
+              promptTokens: Number(s.session_input_usage),
+              completionTokens: Number(s.session_output_usage),
+              totalTokens: Number(s.session_total_usage),
+              traceTags: s.trace_tags,
+              createdAt: s.min_timestamp,
+              bookmarked: prismaSessionInfo.find((p) => p.id === s.session_id)
                 ?.bookmarked,
-              public: prismaSessionInfo.find((p) => p.id === s.id)?.public,
+              public: prismaSessionInfo.find((p) => p.id === s.session_id)
+                ?.public,
             })),
           };
         }
@@ -382,9 +381,73 @@ export const sessionRouter = createTRPCRouter({
       }
     }),
   byId: protectedGetSessionProcedure
-    .input(z.object({ projectId: z.string(), sessionId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       try {
+        if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Not eligible to query clickhouse",
+          });
+        }
+
+        if (input.queryClickhouse) {
+          const postgresSession = await ctx.prisma.traceSession.findFirst({
+            where: {
+              id: input.sessionId,
+              projectId: input.projectId,
+            },
+          });
+
+          if (!postgresSession) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Session not found in project",
+            });
+          }
+
+          const clickhouseTraces = await getTracesForSession(
+            input.projectId,
+            input.sessionId,
+          );
+
+          const [scores, costData] = await Promise.all([
+            getScoresForTraces(
+              input.projectId,
+              clickhouseTraces.map((t) => t.id),
+            ),
+            getCostForTraces(
+              input.projectId,
+              clickhouseTraces.map((t) => t.id),
+            ),
+          ]);
+
+          const validatedScores = filterAndValidateDbScoreList(
+            scores,
+            traceException,
+          );
+
+          return {
+            ...postgresSession,
+            traces: clickhouseTraces.map((t) => ({
+              ...t,
+              scores: validatedScores.filter((s) => s.traceId === t.id),
+            })),
+            totalCost: costData,
+            users: [
+              ...new Set(
+                clickhouseTraces.map((t) => t.userId).filter((t) => t !== null),
+              ),
+            ],
+          };
+        }
+
         const session = await ctx.prisma.traceSession.findFirst({
           where: {
             id: input.sessionId,

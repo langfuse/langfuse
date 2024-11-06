@@ -653,3 +653,25 @@ export const getObservationsGroupedByPromptName = async (
     promptName: p.name,
   }));
 };
+
+export const getCostForTraces = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  const query = `
+    SELECT
+      sum(o.total_cost) as total_cost
+    FROM observations o FINAL
+    WHERE o.project_id = {projectId: String}
+    AND o.trace_id IN ({traceIds: Array(String)});
+    `;
+
+  const res = await queryClickhouse<{ total_cost: number }>({
+    query,
+    params: {
+      projectId,
+      traceIds,
+    },
+  });
+  return res[0].total_cost;
+};
