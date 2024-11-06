@@ -10,22 +10,33 @@ import {
   PostScoresResponse,
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { eventTypes } from "@langfuse/shared/src/server";
-import { forwardLegacyEventToIngestionApi } from "@/src/pages/api/public/ingestion";
+import { eventTypes, logger } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@/src/pages/api/public/ingestion";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, req }) => {
+    fn: async ({ body, auth }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
         body,
       };
-      return forwardLegacyEventToIngestionApi(req, [event]);
+      if (!event.body.id) {
+        event.body.id = v4();
+      }
+      const result = await processEventBatch([event], auth);
+      if (result.errors.length > 0) {
+        throw new Error(result.errors[0].message);
+      }
+      if (result.successes.length !== 1) {
+        logger.error("Failed to create score", { result });
+        throw new Error("Failed to create score");
+      }
+      return result.successes[0];
     },
   }),
   GET: createAuthedAPIRoute({
