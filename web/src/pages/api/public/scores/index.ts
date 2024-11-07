@@ -2,7 +2,6 @@ import { v4 } from "uuid";
 
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
 import {
   GetScoresQuery,
   GetScoresResponse,
@@ -11,36 +10,37 @@ import {
   PostScoresResponse,
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import {
-  eventTypes,
-  handleBatch,
-  ingestionBatchEvent,
-} from "@langfuse/shared/src/server";
-import { tokenCount } from "@/src/features/ingest/usage";
+import { eventTypes, logger } from "@langfuse/shared/src/server";
+import { processEventBatch } from "@/src/pages/api/public/ingestion";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
     name: "Create Score",
     bodySchema: PostScoresBody,
     responseSchema: PostScoresResponse,
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, res }) => {
       const event = {
         id: v4(),
         type: eventTypes.SCORE_CREATE,
         timestamp: new Date().toISOString(),
         body,
       };
-      const result = await handleBatch(
-        ingestionBatchEvent.parse([event]),
-        auth,
-        tokenCount,
-      );
-      const response = parseSingleTypedIngestionApiResponse(
-        result.errors,
-        result.results,
-        PostScoresResponse,
-      );
-      return response;
+      if (!event.body.id) {
+        event.body.id = v4();
+      }
+      const result = await processEventBatch([event], auth);
+      if (result.errors.length > 0) {
+        const error = result.errors[0];
+        res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
+        return { id: "" }; // dummy return
+      }
+      if (result.successes.length !== 1) {
+        logger.error("Failed to create score", { result });
+        throw new Error("Failed to create score");
+      }
+      return result.successes[0];
     },
   }),
   GET: createAuthedAPIRoute({
