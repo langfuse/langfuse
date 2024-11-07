@@ -241,10 +241,10 @@ export const scoresRouter = createTRPCRouter({
             input.projectId,
             timestampFilter ? [timestampFilter] : [],
           ),
-          getTracesGroupedByTags(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ? [timestampFilter] : [],
+          }),
         ]);
 
         const res: ScoreOptions = {
