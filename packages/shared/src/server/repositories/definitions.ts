@@ -279,9 +279,12 @@ export const convertPostgresObservationToInsert = (
       : null,
     provided_usage_details: {},
     usage_details: {
-      input: observation.prompt_tokens,
-      output: observation.completion_tokens,
-      total: observation.total_tokens,
+      input: observation.prompt_tokens >= 0 ? observation.prompt_tokens : null,
+      output:
+        observation.completion_tokens >= 0
+          ? observation.completion_tokens
+          : null,
+      total: observation.total_tokens >= 0 ? observation.total_tokens : null,
     },
     provided_cost_details: {
       input: observation.input_cost?.toNumber() ?? null,
