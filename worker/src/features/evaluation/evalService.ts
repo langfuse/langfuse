@@ -11,7 +11,6 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   traceException,
   S3StorageService,
-  IngestionEventType,
   eventTypes,
   redis,
   IngestionQueue,
