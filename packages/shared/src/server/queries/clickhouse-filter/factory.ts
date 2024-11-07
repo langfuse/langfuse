@@ -80,6 +80,7 @@ export const createFilterFromFilterState = (
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           value: frontEndFilter.value,
+          operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
         });
       case "numberObject":

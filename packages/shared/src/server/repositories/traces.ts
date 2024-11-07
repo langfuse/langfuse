@@ -436,6 +436,11 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresAvgFilterRes = scoresFilter.apply();
   const observationsStatsRes = observationsFilter.apply();
 
+  const traceTimestampFilter = tracesFilter.find(
+    (f) =>
+      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+  );
+
   const query = `
       WITH observations_agg AS (
         SELECT o.trace_id,
@@ -447,6 +452,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
               anyLast(project_id) as project_id
         FROM observations o FINAL
         WHERE o.project_id = {projectId: String}
+        AND o.start_time >= {observationsStartTime: DateTime} - INTERVAL 1 DAY
         GROUP BY o.trace_id
     ),
     session_data AS (
@@ -491,6 +497,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
+      observationsStartTime: traceTimestampFilter?.value,
     },
   });
 
