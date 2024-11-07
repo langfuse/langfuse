@@ -148,7 +148,7 @@ export type BackgroundMigration = {
     name: string;
     script: string;
     args: unknown;
-    state: unknown;
+    state: Generated<unknown>;
     finished_at: Timestamp | null;
     failed_at: Timestamp | null;
     failed_reason: string | null;

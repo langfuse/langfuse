@@ -27,8 +27,6 @@ describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
   let clickhouseWriter: ClickhouseWriter;
 
-  const mockIngestionFlushQueue = vi.fn() as any;
-
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
     await pruneDatabase();
@@ -1111,6 +1109,141 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
+  it("should merge observations and set negative tokens and cost to null", async () => {
+    await prisma.model.create({
+      data: {
+        id: "clyrjpbe20000t0mzcbwc42rg",
+        modelName: "gpt-4o-mini-2024-07-18",
+        matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
+        startDate: new Date("2021-01-01T00:00:00.000Z"),
+        unit: ModelUsageUnit.Tokens,
+        tokenizerId: "openai",
+        inputPrice: 0.00000015,
+        outputPrice: 0.0000006,
+        tokenizerConfig: {
+          tokensPerName: 1,
+          tokenizerModel: "gpt-4o",
+          tokensPerMessage: 3,
+        },
+      },
+    });
+
+    await prisma.price.create({
+      data: {
+        id: "cm2uio8ef006mh6qlzc2mqa0e",
+        modelId: "clyrjpbe20000t0mzcbwc42rg",
+        price: 0.00000015,
+        usageType: "input",
+      },
+    });
+
+    await prisma.price.create({
+      data: {
+        id: "cm2uio8ef006oh6qlldn36376",
+        modelId: "clyrjpbe20000t0mzcbwc42rg",
+        price: 0.0000006,
+        usageType: "output",
+      },
+    });
+
+    await prisma.observation.create({
+      data: {
+        id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
+        name: "extract_location",
+        startTime: "2024-11-04T16:13:51.495868Z",
+        endTime: "2024-11-04T16:13:52.156248Z",
+        type: "GENERATION",
+        traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
+        internalModel: "gpt-4o-mini-2024-07-18",
+        internalModelId: "clyrjpbe20000t0mzcbwc42rg",
+        modelParameters: {
+          temperature: "0.4",
+          max_tokens: 1000,
+        },
+        input: "Sample input",
+        output: "Sample output",
+        projectId,
+        completionTokens: -7,
+        promptTokens: 4,
+        totalTokens: -3,
+      },
+    });
+
+    const observationId = "c8d30f61-4097-407f-a337-5fb1e0c100f2";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "084274e5-f15e-4f66-8419-a171808d8180",
+        timestamp: "2024-11-04T16:13:51.496457Z",
+        type: "generation-create",
+        body: {
+          traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
+          name: "extract_location",
+          startTime: "2024-11-04T16:13:51.495868Z",
+          metadata: {
+            ls_provider: "openai",
+            ls_model_name: "gpt-4o-mini-2024-07-18",
+            ls_model_type: "chat",
+            ls_temperature: 0.4,
+            ls_max_tokens: 1000,
+          },
+          input: "Sample input",
+          id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
+          model: "gpt-4o-mini-2024-07-18",
+          modelParameters: {
+            temperature: "0.4",
+            max_tokens: 1000,
+          },
+          usage: null,
+        },
+      },
+      {
+        id: "ef654262-b1d0-4b0b-9e4a-2a410e0577a6",
+        timestamp: "2024-11-04T16:13:52.156691Z",
+        type: "generation-update",
+        body: {
+          traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
+          output: "Sample output",
+          id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
+          endTime: "2024-11-04T16:13:52.156248Z",
+          model: "gpt-4o-mini-2024-07-18",
+          usage: {
+            input: 4,
+            output: -7,
+            total: -3,
+            unit: "TOKENS",
+          },
+        },
+      },
+    ];
+
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const observation = await getClickhouseRecord(
+      TableName.Observations,
+      observationId,
+    );
+
+    expect(observation.name).toBe("extract_location");
+    expect(observation.provided_usage_details).toStrictEqual({
+      input: 4,
+    });
+    expect(observation.usage_details).toStrictEqual({
+      input: 4,
+    });
+    expect(observation.provided_cost_details).toStrictEqual({});
+    expect(observation.cost_details).toStrictEqual({
+      input: 0.0000006,
+      total: 0.0000006,
+    });
+    expect(observation.total_cost).toBe(0.0000006);
+  });
+
   it("should merge observations and calculate cost", async () => {
     await prisma.model.create({
       data: {
@@ -1252,6 +1385,63 @@ describe("Ingestion end-to-end tests", () => {
       total: 0.00020505,
     });
     expect(observation.total_cost).toBe(0.00020505);
+  });
+
+  it("should merge observations from clickhouse and event list", async () => {
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+
+    const latestEvent = new Date();
+
+    const observationEventList1: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: observationId,
+          traceId: traceId,
+          startTime: new Date().toISOString(),
+          output: "to overwrite",
+          usage: undefined,
+        },
+      },
+    ];
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList: observationEventList1,
+    });
+    await clickhouseWriter.flushAll(true);
+
+    const observationEventList2: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-update",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: observationId,
+          name: "generation-name",
+          traceId: traceId,
+          output: "overwritten",
+          usage: undefined,
+        },
+      },
+    ];
+    await ingestionService.processObservationEventList({
+      projectId,
+      entityId: observationId,
+      observationEventList: observationEventList2,
+    });
+    await clickhouseWriter.flushAll(true);
+
+    const observation = await getClickhouseRecord(
+      TableName.Observations,
+      observationId,
+    );
+
+    expect(observation.name).toBe("generation-name");
+    expect(observation.output).toBe("overwritten");
   });
 
   it("should put observation updates after creates if timestamp is same", async () => {

@@ -250,12 +250,12 @@ export const traceRouter = createTRPCRouter({
           ctx.session.projectId,
           input.filter ?? [],
           null,
-          input.limit,
-          input.page,
+          1,
+          0,
         );
 
         return {
-          totalCount: countQuery.shift()?.count,
+          totalCount: countQuery,
         };
       }
     }),
@@ -438,10 +438,10 @@ export const traceRouter = createTRPCRouter({
             tracesTableUiColumnDefinitions,
             timestampFilter ? [timestampFilter] : [],
           ),
-          getTracesGroupedByTags(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ? [timestampFilter] : [],
+          }),
         ]);
 
         const res: TraceOptions = {
@@ -457,6 +457,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         queryClickhouse: z.boolean().default(false),
       }),
     )
@@ -476,13 +477,18 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        return await getTraceByIdOrThrow(input.traceId, input.projectId);
+        return await getTraceByIdOrThrow(
+          input.traceId,
+          input.projectId,
+          input.timestamp ?? undefined,
+        );
       }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
       z.object({
         traceId: z.string(), // used for security check
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
         queryClickhouse: z.boolean().default(false),
       }),
@@ -581,7 +587,11 @@ export const traceRouter = createTRPCRouter({
       }
 
       const [trace, observations, scores] = await Promise.all([
-        getTraceByIdOrThrow(input.traceId, input.projectId),
+        getTraceByIdOrThrow(
+          input.traceId,
+          input.projectId,
+          input.timestamp ?? undefined,
+        ),
         getObservationsViewForTrace(input.traceId, input.projectId),
         getScoresForTraces(
           input.projectId,

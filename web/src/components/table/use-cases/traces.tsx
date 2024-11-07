@@ -520,10 +520,13 @@ export default function TracesTable({
       size: 400,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return (
           <TracesDynamicCell
             traceId={traceId}
             projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -539,10 +542,13 @@ export default function TracesTable({
       size: 400,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return (
           <TracesDynamicCell
             traceId={traceId}
             projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -561,10 +567,13 @@ export default function TracesTable({
       },
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return (
           <TracesDynamicCell
             traceId={traceId}
             projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -817,16 +826,18 @@ export default function TracesTable({
 const TracesDynamicCell = ({
   traceId,
   projectId,
+  timestamp,
   col,
   singleLine = false,
 }: {
   traceId: string;
   projectId: string;
+  timestamp: Date;
   col: "input" | "output" | "metadata";
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, queryClickhouse: useClickhouse() },
+    { traceId, projectId, queryClickhouse: useClickhouse(), timestamp },
     {
       enabled: typeof traceId === "string",
       trpc: {
