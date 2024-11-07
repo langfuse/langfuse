@@ -46,7 +46,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 5000);
     const maxDate = initialMigrationState.state?.[`maxDate${stateSuffix}`]
-      ? new Date(initialMigrationState.state[`maxDate${stateSuffix}`])
+      ? new Date(initialMigrationState.state[`maxDate${stateSuffix}`] as string)
       : new Date((args.maxDate as string) ?? new Date());
 
     await prisma.backgroundMigration.update({
