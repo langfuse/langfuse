@@ -254,8 +254,6 @@ export const traceRouter = createTRPCRouter({
           0,
         );
 
-        console.log("countQuery", countQuery);
-
         return {
           totalCount: countQuery,
         };
