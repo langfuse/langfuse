@@ -33,6 +33,7 @@ import {
   traceRecordReadSchema,
   validateAndInflateScore,
   UsageCostType,
+  convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -130,9 +131,7 @@ export class IngestionService {
     const timestamp =
       minTimestamp === Infinity
         ? undefined
-        : IngestionService.convertDateToClickhouseDateTime(
-            new Date(minTimestamp),
-          );
+        : convertDateToClickhouseDateTime(new Date(minTimestamp));
     const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
       await Promise.all([
         this.getPostgresRecord({
@@ -215,9 +214,7 @@ export class IngestionService {
     const timestamp =
       minTimestamp === Infinity
         ? undefined
-        : IngestionService.convertDateToClickhouseDateTime(
-            new Date(minTimestamp),
-          );
+        : convertDateToClickhouseDateTime(new Date(minTimestamp));
     const [postgresTraceRecord, clickhouseTraceRecord] = await Promise.all([
       this.getPostgresRecord({
         projectId,
@@ -266,9 +263,7 @@ export class IngestionService {
     const startTime =
       minStartTime === Infinity
         ? undefined
-        : IngestionService.convertDateToClickhouseDateTime(
-            new Date(minStartTime),
-          );
+        : convertDateToClickhouseDateTime(new Date(minStartTime));
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -953,13 +948,6 @@ export class IngestionService {
       return observationRecord;
     });
   }
-
-  /**
-   * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
-   */
-  private static convertDateToClickhouseDateTime = (date: Date): string => {
-    return date.toISOString().slice(0, 19).replace("T", " ");
-  };
 
   private stringify(
     obj: string | object | number | boolean | undefined | null,
