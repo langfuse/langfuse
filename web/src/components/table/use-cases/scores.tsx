@@ -27,6 +27,7 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type ScoresTableRow = {
   id: string;
@@ -131,6 +132,7 @@ export default function ScoresTable({
     page: 0,
     limit: 1,
     orderBy: null,
+    queryClickhouse: useClickhouse(),
   };
 
   const getAllPayload = {
@@ -138,6 +140,7 @@ export default function ScoresTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
+    queryClickhouse: useClickhouse(),
   };
 
   const scores = api.scores.all.useQuery(getAllPayload);
@@ -151,6 +154,7 @@ export default function ScoresTable({
         dateRangeFilter[0]?.type === "datetime"
           ? dateRangeFilter[0]
           : undefined,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
