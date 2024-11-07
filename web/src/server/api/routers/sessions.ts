@@ -156,7 +156,7 @@ export const sessionRouter = createTRPCRouter({
           });
 
           return {
-            totalCount: counts.length > 0 ? Number(counts[0].count) : 0,
+            totalCount: counts.length > 0 ? counts[0].count : 0,
           };
         }
 
@@ -297,6 +297,7 @@ export const sessionRouter = createTRPCRouter({
         }
 
         if (input.queryClickhouse) {
+          console.log("queryClickhouse");
           const columns = [
             ...tracesTableUiColumnDefinitions,
             {

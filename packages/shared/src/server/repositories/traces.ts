@@ -9,7 +9,10 @@ import {
 import { ObservationLevel, Trace } from "@prisma/client";
 import { FilterState } from "../../types";
 import { logger } from "../logger";
-import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
+import {
+  DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-filter/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -385,7 +388,7 @@ export const getSessionsTableCount = async (props: {
 }) => {
   const rows = await getSessionsTableGeneric<{ count: string }>({
     select: `
-      count(*) as count
+      count(session_id) as count
     `,
     projectId: props.projectId,
     filter: props.filter,
@@ -394,7 +397,9 @@ export const getSessionsTableCount = async (props: {
     offset: props.offset,
   });
 
-  return rows;
+  return rows.map((row) => ({
+    count: Number(row.count),
+  }));
 };
 
 export const getSessionsTable = async (props: {
@@ -446,10 +451,11 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const scoresAvgFilterRes = scoresFilter.apply();
   const observationsStatsRes = observationsFilter.apply();
 
-  const traceTimestampFilter = tracesFilter.find(
+  const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
     (f) =>
-      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  );
+      f.field === "min_timestamp" &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
 
   const query = `
       WITH observations_agg AS (
@@ -462,7 +468,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
               anyLast(project_id) as project_id
         FROM observations o FINAL
         WHERE o.project_id = {projectId: String}
-        AND o.start_time >= {observationsStartTime: DateTime} - INTERVAL 1 DAY
+        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime} - INTERVAL 1 DAY` : ""}
         GROUP BY o.trace_id
     ),
     session_data AS (
@@ -496,7 +502,12 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     FROM session_data s
     WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
-    LIMIT 50;`;
+    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    `;
+
+  const obsStartTimeValue = traceTimestampFilter
+    ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
+    : null;
 
   const res = await queryClickhouse<T>({
     query: query,
@@ -507,7 +518,9 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
-      observationsStartTime: traceTimestampFilter?.value,
+      ...(obsStartTimeValue
+        ? { observationsStartTime: obsStartTimeValue }
+        : {}),
     },
   });
 
@@ -545,7 +558,7 @@ export const getTracesForSession = async (
       sessionId,
     },
   });
-  console.log(rows);
+
   return rows.map((row) => ({
     id: row.id,
     userId: row.user_id,

@@ -25,7 +25,7 @@ type ClickhouseFilter = {
 export class StringFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected value: string;
+  public value: string;
   public operator: (typeof filterOperators)["string"][number];
   protected tablePrefix?: string;
 
@@ -78,7 +78,7 @@ export class StringFilter implements Filter {
 export class NumberFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected value: number;
+  public value: number;
   public operator: (typeof filterOperators)["number"][number];
   protected tablePrefix?: string;
 
@@ -109,7 +109,7 @@ export class NumberFilter implements Filter {
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected value: Date;
+  public value: Date;
   public operator: (typeof filterOperators)["datetime"][number];
   protected tablePrefix?: string;
 
@@ -140,7 +140,7 @@ export class DateTimeFilter implements Filter {
 export class StringOptionsFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected values: string[];
+  public values: string[];
   public operator: (typeof filterOperators.stringOptions)[number];
   protected tablePrefix?: string;
 
@@ -176,8 +176,8 @@ export class StringOptionsFilter implements Filter {
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected key: string;
-  protected value: string;
+  public key: string;
+  public value: string;
   public operator: (typeof filterOperators)["stringObject"][number];
   protected tablePrefix?: string;
 
@@ -235,7 +235,7 @@ export class StringObjectFilter implements Filter {
 export class ArrayOptionsFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected values: string[];
+  public values: string[];
   public operator: (typeof filterOperators.arrayOptions)[number];
   protected tablePrefix?: string;
 
@@ -282,8 +282,8 @@ export class ArrayOptionsFilter implements Filter {
 export class NumberObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
-  protected key: string;
-  protected value: number;
+  public key: string;
+  public value: number;
   public operator: (typeof filterOperators)["numberObject"][number];
   protected tablePrefix?: string;
 
@@ -318,7 +318,7 @@ export class BooleanFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public operator: (typeof filterOperators)["boolean"][number];
-  protected value: boolean;
+  public value: boolean;
   protected tablePrefix?: string;
 
   constructor(opts: {

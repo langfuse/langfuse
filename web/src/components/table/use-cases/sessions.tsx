@@ -110,6 +110,7 @@ export default function SessionsTable({
     orderBy: null,
     page: 0,
     limit: 1,
+    queryClickhouse: useClickhouse(),
   };
 
   const payloadGetAll = {
@@ -117,7 +118,6 @@ export default function SessionsTable({
     orderBy: orderByState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    queryClickhouse: useClickhouse(),
   };
 
   const sessions = api.sessions.all.useQuery(payloadGetAll);
