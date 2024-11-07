@@ -11,6 +11,7 @@ import {
   InvalidRequestError,
   jsonSchema,
 } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { DatasetRunItemUpsertQueue } from "../../../../../packages/shared/dist/src/server/redis/datasetRunItemUpsert";
 import { randomUUID } from "crypto";
 import { QueueJobs } from "@langfuse/shared/src/server";
@@ -112,22 +113,26 @@ export default withMiddlewares({
        * ASYNC PROCESSING *
        ********************/
 
-      const queue = DatasetRunItemUpsertQueue.getInstance();
-      if (queue) {
-        queue.add(QueueJobs.DatasetRunItemUpsert, {
-          payload: {
-            projectId: auth.scope.projectId,
-            traceId: finalTraceId,
-            type: "dataset",
-            observationId: observationId ?? undefined,
-            input: jsonSchema.parse(datasetItem.input),
-            expectedOutput: jsonSchema.parse(datasetItem.expectedOutput),
-            metadata: jsonSchema.parse(datasetItem.metadata),
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.DatasetRunItemUpsert as const,
-        });
+      if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+        const queue = DatasetRunItemUpsertQueue.getInstance();
+        if (queue) {
+          await queue.add(QueueJobs.DatasetRunItemUpsert, {
+            payload: {
+              projectId: auth.scope.projectId,
+              traceId: finalTraceId,
+              type: "dataset" as const,
+              observationId: observationId ?? undefined,
+              input: jsonSchema.nullish().parse(datasetItem.input),
+              expectedOutput: jsonSchema
+                .nullish()
+                .parse(datasetItem.expectedOutput),
+              metadata: jsonSchema.nullish().parse(datasetItem.metadata),
+            },
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.DatasetRunItemUpsert as const,
+          });
+        }
       }
 
       return transformDbDatasetRunItemToAPIDatasetRunItem({

@@ -62,6 +62,13 @@ export const createEvalJobs = async ({
       continue;
     }
 
+    if (config.target_object !== "trace") {
+      logger.debug(
+        `Skipping eval config ${config.id} as target object is not trace`,
+      );
+      continue;
+    }
+
     logger.info("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
