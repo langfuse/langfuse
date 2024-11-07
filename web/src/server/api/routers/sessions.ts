@@ -418,12 +418,6 @@ export const sessionRouter = createTRPCRouter({
             input.sessionId,
           );
 
-          // get the minimum timestamp of the traces
-          const minTimestamp = clickhouseTraces.reduce(
-            (acc, t) => (t.timestamp < acc ? t.timestamp : acc),
-            clickhouseTraces[0].timestamp,
-          );
-
           const [scores, costData] = await Promise.all([
             getScoresForTraces(
               input.projectId,
@@ -432,7 +426,6 @@ export const sessionRouter = createTRPCRouter({
             getCostForTraces(
               input.projectId,
               clickhouseTraces.map((t) => t.id),
-              minTimestamp,
             ),
           ]);
 

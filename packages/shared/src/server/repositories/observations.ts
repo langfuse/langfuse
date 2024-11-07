@@ -657,17 +657,13 @@ export const getObservationsGroupedByPromptName = async (
 export const getCostForTraces = async (
   projectId: string,
   traceIds: string[],
-  minTraceTimestamp: Date,
 ) => {
-  // we filter observations by the minimum trace timestamp minus one day.
-  // this should be enough to cover all observations for the traces.
   const query = `
     SELECT
       sum(o.total_cost) as total_cost
     FROM observations o FINAL
     WHERE o.project_id = {projectId: String}
     AND o.trace_id IN ({traceIds: Array(String)});
-    AND o.start_time >= {minTraceTimestamp: DateTime} - INTERVAL 1 DAY
     `;
 
   const res = await queryClickhouse<{ total_cost: string }>({
@@ -675,7 +671,6 @@ export const getCostForTraces = async (
     params: {
       projectId,
       traceIds,
-      minTraceTimestamp,
     },
   });
   return res.length > 0 ? Number(res[0].total_cost) : undefined;
