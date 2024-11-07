@@ -8,18 +8,17 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { Prisma } from "@langfuse/shared/src/db";
-import { parseSingleTypedIngestionApiResponse } from "@/src/pages/api/public/ingestion";
+import { processEventBatch } from "@/src/pages/api/public/ingestion";
 import { type Trace } from "@langfuse/shared";
 import {
   eventTypes,
-  handleBatch,
+  logger,
   orderByToPrismaSql,
 } from "@langfuse/shared/src/server";
 
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
 import { tracesTableCols } from "@langfuse/shared";
-import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -27,23 +26,30 @@ export default withMiddlewares({
     bodySchema: PostTracesV1Body,
     responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
     rateLimitResource: "legacy-ingestion",
-    fn: async ({ body, auth }) => {
+    fn: async ({ body, auth, res }) => {
       await telemetry();
-
       const event = {
         id: v4(),
         type: eventTypes.TRACE_CREATE,
         timestamp: new Date().toISOString(),
         body: body,
       };
-
-      const result = await handleBatch([event], auth, tokenCount);
-      const response = parseSingleTypedIngestionApiResponse(
-        result.errors,
-        result.results,
-        PostTracesV1Response,
-      );
-      return response;
+      if (!event.body.id) {
+        event.body.id = v4();
+      }
+      const result = await processEventBatch([event], auth);
+      if (result.errors.length > 0) {
+        const error = result.errors[0];
+        res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
+        return { id: "" }; // dummy return
+      }
+      if (result.successes.length !== 1) {
+        logger.error("Failed to create trace", { result });
+        throw new Error("Failed to create trace");
+      }
+      return result.successes[0];
     },
   }),
 
@@ -61,9 +67,10 @@ export default withMiddlewares({
         : Prisma.empty;
       const tagsCondition = query.tags
         ? Prisma.sql`AND ARRAY[${Prisma.join(
-            (Array.isArray(query.tags) ? query.tags : query.tags.split(',')).map(
-              (v) => Prisma.sql`${v}`,
-            ),
+            (Array.isArray(query.tags)
+              ? query.tags
+              : query.tags.split(",")
+            ).map((v) => Prisma.sql`${v}`),
             ", ",
           )}] <@ t."tags"`
         : Prisma.empty;
@@ -169,7 +176,9 @@ export default withMiddlewares({
           },
           tags: query.tags
             ? {
-                hasEvery: Array.isArray(query.tags) ? query.tags : query.tags.split(','),
+                hasEvery: Array.isArray(query.tags)
+                  ? query.tags
+                  : query.tags.split(","),
               }
             : undefined,
         },
