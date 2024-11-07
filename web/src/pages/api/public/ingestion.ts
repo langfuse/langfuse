@@ -1,7 +1,7 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { LangfuseNotFoundError, InternalServerError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   eventTypes,
   ingestionEvent,
