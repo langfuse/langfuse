@@ -522,12 +522,11 @@ export const evaluate = async ({
   // persist the score and update the job status
   const scoreId = randomUUID();
 
-  // need to adjust this for dataset items, as scores might be associated with observation rather than trace
   await prisma.score.create({
     data: {
       id: scoreId,
       traceId: job.job_input_trace_id,
-      // observationId: job.job_input_observation_id,
+      observationId: job.job_input_observation_id,
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
