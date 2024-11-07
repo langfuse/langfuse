@@ -549,17 +549,20 @@ export class IngestionService {
   private getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
-  ): Pick<ObservationRecordInsertType, "usage_details"> {
-    const providedUsageKeys = Object.entries(
-      observationRecord.provided_usage_details ?? {},
-    )
-      .filter(([_, value]) => value != null)
-      .map(([key]) => key);
+  ): Pick<
+    ObservationRecordInsertType,
+    "usage_details" | "provided_usage_details"
+  > {
+    const providedUsageDetails = Object.fromEntries(
+      Object.entries(observationRecord.provided_usage_details).filter(
+        ([k, v]) => v != null && v >= 0,
+      ),
+    );
 
     if (
       // Manual tokenisation when no user provided usage
       model &&
-      providedUsageKeys.length === 0
+      Object.keys(providedUsageDetails).length === 0
     ) {
       const newInputCount = tokenCount({
         text: observationRecord.input,
@@ -581,11 +584,12 @@ export class IngestionService {
       if (newOutputCount != null) usage_details.output = newOutputCount;
       if (newTotalCount != null) usage_details.total = newTotalCount;
 
-      return { usage_details };
+      return { usage_details, provided_usage_details: providedUsageDetails };
     }
 
     return {
-      usage_details: observationRecord.provided_usage_details,
+      usage_details: providedUsageDetails,
+      provided_usage_details: providedUsageDetails,
     };
   }
 
