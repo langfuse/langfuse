@@ -1,7 +1,9 @@
 import { Score, ScoreDataType, ScoreSource } from "@prisma/client";
 import {
+  commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  upsertClickhouse,
 } from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { FilterState } from "../../types";
@@ -12,7 +14,6 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
-import { string } from "zod";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -55,6 +56,46 @@ const convertToScore = (row: FetchScoresReturnType) => {
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
+};
+
+export const getScore = async (
+  projectId: string,
+  scoreId: string,
+  source: ScoreSource,
+) => {
+  const query = `
+    SELECT *
+    FROM scores s FINAL
+    WHERE s.project_id = {projectId: String}
+    AND s.id = {scoreId: String}
+    AND s.source = {source: String}
+    ORDER BY s.event_ts DESC
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query,
+    params: {
+      projectId,
+      scoreId,
+      source,
+    },
+  });
+  return rows.map(convertToScore).shift();
+};
+
+/**
+ * Accepts a score in a Clickhouse-ready format.
+ * id, project_id, name, and timestamp must always be provided.
+ */
+export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
+  if (!["id", "project_id", "name", "timestamp"].every((key) => key in score)) {
+    throw new Error("Identifier fields must be provided to upsert Score.");
+  }
+  await upsertClickhouse({
+    table: "scores",
+    records: [score],
+  });
 };
 
 export const getScoresForTraces = async (
@@ -376,4 +417,19 @@ export const getScoreNames = async (
     name: row.name,
     count: Number(row.count),
   }));
+};
+
+export const deleteScore = async (projectId: string, scoreId: string) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String}
+    AND id = {scoreId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      scoreId,
+    },
+  });
 };

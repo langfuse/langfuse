@@ -23,6 +23,7 @@ import {
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
+  ScoreSource,
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 import {
@@ -35,9 +36,14 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   getScoreNames,
   getTracesGroupedByTags,
+  getScore,
+  deleteScore,
+  upsertScore,
+  logger,
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -322,6 +328,7 @@ export const scoresRouter = createTRPCRouter({
         },
       });
 
+      // TODO: Can we drop this upsert logic and just error if a score already exists?
       if (existingScore) {
         const updatedScore = await ctx.prisma.score.update({
           where: {
@@ -381,6 +388,38 @@ export const scoresRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "scores:CUD",
       });
+
+      if (env.CLICKHOUSE_URL) {
+        // Fetch the current score from Clickhouse
+        const clickhouseScore = await getScore(
+          input.projectId,
+          input.id,
+          ScoreSource.ANNOTATION,
+        );
+        if (!clickhouseScore) {
+          // Continue processing the update in Postgres
+          logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+        } else {
+          await upsertScore({
+            id: input.id,
+            project_id: input.projectId,
+            value: input.value !== null ? input.value : undefined,
+            string_value: input.stringValue,
+            comment: input.comment,
+            author_user_id: ctx.session.user.id,
+            queue_id: input.queueId,
+            source: ScoreSource.ANNOTATION,
+            name: clickhouseScore.name,
+            data_type: clickhouseScore.dataType,
+            config_id: clickhouseScore.configId,
+            trace_id: clickhouseScore.traceId,
+            observation_id: clickhouseScore.observationId,
+          });
+        }
+      }
+
       const score = await ctx.prisma.score.findFirst({
         where: {
           id: input.id,
@@ -444,6 +483,12 @@ export const scoresRouter = createTRPCRouter({
         before: score,
       });
 
+      if (env.CLICKHOUSE_URL) {
+        // Delete the score from Clickhouse
+        await deleteScore(input.projectId, score.id);
+      }
+
+      // Delete the score from Postgres
       return await ctx.prisma.score.delete({
         where: {
           id: score.id,
