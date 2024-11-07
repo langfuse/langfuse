@@ -333,7 +333,6 @@ export const getScoresUiGeneric = async <T>(props: {
       offset: offset,
     },
   });
-  console.log(rows);
 
   return rows;
 };
