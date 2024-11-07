@@ -23,7 +23,6 @@ export class S3StorageService {
   constructor(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
-    sessionToken?: string;
     bucketName: string;
     endpoint: string | undefined;
     region: string | undefined;
@@ -36,7 +35,6 @@ export class S3StorageService {
         ? {
             accessKeyId,
             secretAccessKey,
-            sessionToken: params.sessionToken,
           }
         : undefined;
 
