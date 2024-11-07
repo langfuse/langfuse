@@ -131,7 +131,6 @@ jobs:
           LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
-          LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "true"
       - name: run tests
         run: pnpm --filter=web run test
 
