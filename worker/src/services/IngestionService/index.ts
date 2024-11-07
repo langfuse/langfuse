@@ -127,7 +127,12 @@ export class IngestionService {
         e.timestamp ? [new Date(e.timestamp).getTime()] : [],
       ),
     );
-    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
+    const timestamp =
+      minTimestamp === Infinity
+        ? undefined
+        : IngestionService.convertDateToClickhouseDateTime(
+            new Date(minTimestamp),
+          );
     const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
       await Promise.all([
         this.getPostgresRecord({
@@ -141,7 +146,7 @@ export class IngestionService {
           table: TableName.Scores,
           additionalFilters: {
             whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+              ? " AND timestamp >= {timestamp: DateTime} "
               : "",
             params: { timestamp },
           },
@@ -207,7 +212,12 @@ export class IngestionService {
         e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
       ),
     );
-    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
+    const timestamp =
+      minTimestamp === Infinity
+        ? undefined
+        : IngestionService.convertDateToClickhouseDateTime(
+            new Date(minTimestamp),
+          );
     const [postgresTraceRecord, clickhouseTraceRecord] = await Promise.all([
       this.getPostgresRecord({
         projectId,
@@ -220,7 +230,7 @@ export class IngestionService {
         table: TableName.Traces,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+            ? " AND timestamp >= {timestamp: DateTime} "
             : "",
           params: { timestamp },
         },
@@ -253,7 +263,12 @@ export class IngestionService {
         e.body?.startTime ? [new Date(e.body.startTime).getTime()] : [],
       ),
     );
-    const startTime = minStartTime === Infinity ? undefined : minStartTime;
+    const startTime =
+      minStartTime === Infinity
+        ? undefined
+        : IngestionService.convertDateToClickhouseDateTime(
+            new Date(minStartTime),
+          );
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -266,8 +281,11 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} - INTERVAL 1 DAY" : ""}`,
-            params: { type, startTime },
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} " : ""}`,
+            params: {
+              type,
+              startTime,
+            },
           },
         }),
         this.getPrompt(projectId, observationEventList),
@@ -531,17 +549,20 @@ export class IngestionService {
   private getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
-  ): Pick<ObservationRecordInsertType, "usage_details"> {
-    const providedUsageKeys = Object.entries(
-      observationRecord.provided_usage_details ?? {},
-    )
-      .filter(([_, value]) => value != null)
-      .map(([key]) => key);
+  ): Pick<
+    ObservationRecordInsertType,
+    "usage_details" | "provided_usage_details"
+  > {
+    const providedUsageDetails = Object.fromEntries(
+      Object.entries(observationRecord.provided_usage_details).filter(
+        ([k, v]) => v != null && v >= 0,
+      ),
+    );
 
     if (
       // Manual tokenisation when no user provided usage
       model &&
-      providedUsageKeys.length === 0
+      Object.keys(providedUsageDetails).length === 0
     ) {
       const newInputCount = tokenCount({
         text: observationRecord.input,
@@ -563,11 +584,12 @@ export class IngestionService {
       if (newOutputCount != null) usage_details.output = newOutputCount;
       if (newTotalCount != null) usage_details.total = newTotalCount;
 
-      return { usage_details };
+      return { usage_details, provided_usage_details: providedUsageDetails };
     }
 
     return {
-      usage_details: observationRecord.provided_usage_details,
+      usage_details: providedUsageDetails,
+      provided_usage_details: providedUsageDetails,
     };
   }
 
@@ -931,6 +953,13 @@ export class IngestionService {
       return observationRecord;
     });
   }
+
+  /**
+   * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
+   */
+  private static convertDateToClickhouseDateTime = (date: Date): string => {
+    return date.toISOString().slice(0, 19).replace("T", " ");
+  };
 
   private stringify(
     obj: string | object | number | boolean | undefined | null,

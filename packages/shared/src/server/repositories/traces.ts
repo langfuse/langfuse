@@ -69,8 +69,8 @@ export const getTracesTableCount = async (
   orderBy?: OrderByState,
   limit?: number,
   offset?: number,
-) =>
-  getTracesTableGeneric<TableCount>({
+) => {
+  const countRows = await getTracesTableGeneric<{ count: string }>({
     select: "count(*) as count",
     projectId,
     filter,
@@ -78,6 +78,13 @@ export const getTracesTableCount = async (
     limit,
     offset,
   });
+
+  const converted = countRows.map((row) => ({
+    count: Number(row.count),
+  }));
+
+  return converted.length > 0 ? converted[0].count : 0;
+};
 
 export const getTracesTable = async (
   projectId: string,

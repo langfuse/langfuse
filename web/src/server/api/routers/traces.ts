@@ -250,12 +250,12 @@ export const traceRouter = createTRPCRouter({
           ctx.session.projectId,
           input.filter ?? [],
           null,
-          input.limit,
-          input.page,
+          1,
+          0,
         );
 
         return {
-          totalCount: countQuery.shift()?.count,
+          totalCount: countQuery,
         };
       }
     }),
