@@ -55,6 +55,7 @@ export const tableNames = [
   "sessions",
   "prompts",
   "users",
+  "dataset_items",
 ] as const;
 
 export type TableNames = (typeof tableNames)[number];

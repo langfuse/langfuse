@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import Handlebars from "handlebars";
-import { sql } from "kysely";
+import { InferResult, sql } from "kysely";
 import { z } from "zod";
 import {
   QueueJobs,
@@ -8,6 +8,8 @@ import {
   EvalExecutionEvent,
   UpsertEventSchema,
   tableColumnsToSqlFilterAndPrefix,
+  TraceUpsertEventSchema,
+  DatasetRunItemUpsertEventSchema,
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
@@ -23,35 +25,27 @@ import {
   variableMappingList,
   ZodModelConfig,
   EvalTemplate,
+  evalDatasetTableCols,
+  availableDatasetEvalVariables,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
+import { partition } from "lodash";
 
-// this function is used to determine which eval jobs to create for a given trace
-// there might be multiple eval jobs to create for a single trace
-export const createEvalJobs = async ({
+const query = kyselyPrisma.$kysely.selectFrom("job_configurations").selectAll();
+
+type JobConfigurationsRaw = InferResult<typeof query>;
+
+const traceEval = async ({
   event,
+  configs,
 }: {
-  event: z.infer<typeof UpsertEventSchema>;
+  event: z.infer<typeof TraceUpsertEventSchema>;
+  configs: JobConfigurationsRaw;
 }) => {
-  const configs = await kyselyPrisma.$kysely
-    .selectFrom("job_configurations")
-    .selectAll()
-    .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .execute();
-
-  if (event.type === "dataset") {
-    return;
-  }
-
-  if (configs.length === 0) {
-    logger.debug("No evaluation jobs found for project", event.projectId);
-    return;
-  }
   logger.info(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
@@ -62,6 +56,7 @@ export const createEvalJobs = async ({
       continue;
     }
 
+    // safeguard only, this should never happen
     if (config.target_object !== "trace") {
       logger.debug(
         `Skipping eval config ${config.id} as target object is not trace`,
@@ -183,6 +178,185 @@ export const createEvalJobs = async ({
   }
 };
 
+const datasetEval = async ({
+  event,
+  configs,
+}: {
+  event: z.infer<typeof DatasetRunItemUpsertEventSchema>;
+  configs: JobConfigurationsRaw;
+}) => {
+  logger.info(
+    `Creating eval jobs for dataset run item ${event.datasetItemId} on project ${event.projectId}`,
+  );
+
+  for (const config of configs) {
+    if (config.status === "INACTIVE") {
+      logger.debug(`Skipping inactive config ${config.id}`);
+      continue;
+    }
+
+    // safeguard only, this should never happen
+    if (config.target_object !== "dataset") {
+      logger.debug(
+        `Skipping eval config ${config.id} as target object is not dataset run item`,
+      );
+      continue;
+    }
+
+    logger.info("Creating eval job for config", config.id);
+    const validatedFilter = z.array(singleFilter).parse(config.filter);
+
+    const condition = tableColumnsToSqlFilterAndPrefix(
+      validatedFilter,
+      evalDatasetTableCols,
+      "dataset_items",
+    );
+
+    const joinedQuery = Prisma.sql`
+        SELECT id
+        FROM dataset_items as di
+        WHERE project_id = ${event.projectId}
+        ${condition}
+      `;
+
+    const datasetItems =
+      await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+
+    const existingJob = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .select("id")
+      .where("project_id", "=", event.projectId)
+      .where("job_configuration_id", "=", config.id)
+      .where("job_input_dataset_item_id", "=", event.datasetItemId)
+      .where("job_input_trace_id", "=", event.traceId)
+      .where(
+        "job_input_observation_id",
+        event.observationId ? "=" : "is",
+        event.observationId ?? null,
+      )
+      .execute();
+
+    // if we matched a dataset item, we might want to create a job
+    if (datasetItems.length > 0) {
+      logger.info(
+        `Eval job for config ${config.id} matched dataset run item ids ${JSON.stringify(datasetItems.map((d) => d.id))}`,
+      );
+
+      const jobExecutionId = randomUUID();
+
+      // deduplication: if a job exists already for the given dataset item, trace and observation, we do not create a new one.
+      if (existingJob.length > 0) {
+        logger.info(
+          `Eval job for config ${config.id}, dataset item ${event.datasetItemId} already exists for the given run`,
+        );
+        continue;
+      }
+
+      // apply sampling. Only if the job is sampled, we create a job
+      // user supplies a number between 0 and 1, which is the probability of sampling
+      if (parseFloat(config.sampling) !== 1) {
+        const random = Math.random();
+        if (random > parseFloat(config.sampling)) {
+          logger.info(
+            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
+          );
+          continue;
+        }
+      }
+
+      logger.info(
+        `Creating eval job for config ${config.id} and trace ${event.traceId}`,
+      );
+
+      await prisma.jobExecution.create({
+        data: {
+          id: jobExecutionId,
+          projectId: event.projectId,
+          jobConfigurationId: config.id,
+          jobInputTraceId: event.traceId,
+          jobInputObservationId: event.observationId,
+          jobInputDatasetItemId: event.datasetItemId,
+          status: "PENDING",
+          startTime: new Date(),
+        },
+      });
+
+      // add the job to the next queue so that eval can be executed
+      await EvalExecutionQueue.getInstance()?.add(
+        QueueName.EvaluationExecution,
+        {
+          name: QueueJobs.EvaluationExecution,
+          id: randomUUID(),
+          timestamp: new Date(),
+          payload: {
+            projectId: event.projectId,
+            jobExecutionId: jobExecutionId,
+            delay: config.delay,
+          },
+        },
+        {
+          attempts: 10,
+          backoff: {
+            type: "exponential",
+            delay: 1000,
+          },
+          delay: config.delay, // milliseconds
+          removeOnComplete: true,
+          removeOnFail: 1_000,
+        },
+      );
+    } else {
+      // if we do not have a match, and execution exists, we mark the job as cancelled
+      // we do this, because a second trace event might 'deselect' a trace
+      logger.info(`Eval job for config ${config.id} did not match trace`);
+      if (existingJob.length > 0) {
+        logger.info(
+          `Cancelling eval job for config ${config.id} and dataset item ${event.datasetItemId}`,
+        );
+        await kyselyPrisma.$kysely
+          .updateTable("job_executions")
+          .set("status", sql`'CANCELLED'::"JobExecutionStatus"`)
+          .set("end_time", new Date())
+          .where("id", "=", existingJob[0].id)
+          .execute();
+      }
+    }
+  }
+};
+
+// this function is used to determine which eval jobs to create for a given trace or dataset run item
+// there might be multiple eval jobs to create for a single trace
+// there might be 0 or 1 eval jobs to create for a single dataset run item
+export const createEvalJobs = async ({
+  event,
+}: {
+  event: z.infer<typeof UpsertEventSchema>;
+}) => {
+  const configs = await kyselyPrisma.$kysely
+    .selectFrom("job_configurations")
+    .selectAll()
+    .where(sql.raw("job_type::text"), "=", "EVAL")
+    .where("project_id", "=", event.projectId)
+    .execute();
+
+  if (configs.length === 0) {
+    logger.debug("No evaluation jobs found for project", event.projectId);
+    return;
+  }
+
+  // partition the configs into trace and dataset
+  const [traceConfigs, datasetConfigs] = partition(
+    configs,
+    (c) => c.target_object === "trace",
+  );
+
+  if (event.type === "dataset") {
+    await datasetEval({ event, configs: datasetConfigs });
+  } else {
+    await traceEval({ event, configs: traceConfigs });
+  }
+};
+
 // for a single eval job, this function is used to evaluate the job
 export const evaluate = async ({
   event,
@@ -201,7 +375,9 @@ export const evaluate = async ({
     .executeTakeFirstOrThrow();
 
   if (!job?.job_input_trace_id) {
-    throw new ForbiddenError("Jobs can only be executed on traces for now.");
+    throw new ForbiddenError(
+      "Jobs can only be executed on traces and dataset runs for now.",
+    );
   }
 
   if (job.status === "CANCELLED") {
@@ -249,12 +425,28 @@ export const evaluate = async ({
   );
 
   // extract the variables which need to be inserted into the prompt
-  const mappingResult = await extractVariablesFromTrace(
-    event.projectId,
-    template.vars,
-    job.job_input_trace_id,
-    parsedVariableMapping,
-  );
+  let mappingResult: { var: string; value: string }[] = [];
+  if (config.target_object === "trace") {
+    mappingResult = await extractVariablesFromTrace(
+      event.projectId,
+      template.vars,
+      job.job_input_trace_id,
+      parsedVariableMapping,
+    );
+  } else {
+    if (!job.job_input_dataset_item_id) {
+      throw new ForbiddenError(
+        "Jobs can only be executed on traces and dataset runs for now.", // add option to link to generations
+      );
+    } else {
+      mappingResult = await extractVariablesFromDatasetItem(
+        event.projectId,
+        template.vars,
+        job.job_input_dataset_item_id,
+        parsedVariableMapping,
+      );
+    }
+  }
 
   logger.debug(
     `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
@@ -330,10 +522,12 @@ export const evaluate = async ({
   // persist the score and update the job status
   const scoreId = randomUUID();
 
+  // need to adjust this for dataset items, as scores might be associated with observation rather than trace
   await prisma.score.create({
     data: {
       id: scoreId,
       traceId: job.job_input_trace_id,
+      // observationId: job.job_input_observation_id,
       name: config.score_name,
       value: parsedLLMOutput.score,
       comment: parsedLLMOutput.reasoning,
@@ -405,6 +599,72 @@ export function compileHandlebarString(
   return template(context);
 }
 
+export async function extractVariablesFromDatasetItem(
+  projectId: string,
+  variables: string[],
+  datasetItemId: string,
+  // this here are variables which were inserted by users. Need to validate before DB query.
+  variableMapping: z.infer<typeof variableMappingList>,
+) {
+  const mappingResult: { var: string; value: string }[] = [];
+
+  // find the context for each variable of the template
+  for (const variable of variables) {
+    const mapping = variableMapping.find(
+      (m) => m.templateVariable === variable,
+    );
+
+    if (!mapping) {
+      logger.debug(`No mapping found for variable ${variable}`);
+      mappingResult.push({ var: variable, value: "" });
+      continue; // no need to fetch additional data
+    }
+
+    if (mapping.langfuseObject === "dataset_item") {
+      // find the internal definitions of the column
+      const safeInternalColumn = availableDatasetEvalVariables
+        .find((o) => o.id === "dataset_item")
+        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+
+      // if no column was found, we still process with an empty variable
+      if (!safeInternalColumn?.id) {
+        logger.error(
+          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+        );
+        mappingResult.push({ var: variable, value: "" });
+        continue;
+      }
+
+      const datasetItem = await kyselyPrisma.$kysely
+        .selectFrom("dataset_items as d")
+        .select(
+          sql`${sql.raw(safeInternalColumn.internal)}`.as(
+            safeInternalColumn.id,
+          ),
+        ) // query the internal column name raw
+        .where("id", "=", datasetItemId)
+        .where("project_id", "=", projectId)
+        .executeTakeFirst();
+
+      // user facing errors
+      if (!datasetItem) {
+        logger.error(
+          `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+        );
+        throw new LangfuseNotFoundError(
+          `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+        );
+      }
+
+      mappingResult.push({
+        var: variable,
+        value: parseUnknownToString(datasetItem[mapping.selectedColumnId]),
+      });
+    }
+  }
+  return mappingResult;
+}
+
 export async function extractVariablesFromTrace(
   projectId: string,
   variables: string[],
@@ -464,7 +724,7 @@ export async function extractVariablesFromTrace(
 
       mappingResult.push({
         var: variable,
-        value: parseUnknwnToString(trace[mapping.selectedColumnId]),
+        value: parseUnknownToString(trace[mapping.selectedColumnId]),
       });
     }
     if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
@@ -513,14 +773,14 @@ export async function extractVariablesFromTrace(
 
       mappingResult.push({
         var: variable,
-        value: parseUnknwnToString(observation[mapping.selectedColumnId]),
+        value: parseUnknownToString(observation[mapping.selectedColumnId]),
       });
     }
   }
   return mappingResult;
 }
 
-export const parseUnknwnToString = (value: unknown): string => {
+export const parseUnknownToString = (value: unknown): string => {
   if (value === null || value === undefined) {
     return "";
   }

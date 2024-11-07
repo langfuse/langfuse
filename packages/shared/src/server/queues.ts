@@ -70,11 +70,9 @@ export const TraceUpsertEventSchema = z.object({
 });
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
+  datasetItemId: z.string(),
   traceId: z.string(),
   observationId: z.string().optional(),
-  input: jsonSchema.nullish(),
-  expectedOutput: jsonSchema.nullish(),
-  metadata: jsonSchema.nullish(),
   type: z.literal("dataset"),
 });
 export const UpsertEventSchema = z.discriminatedUnion("type", [

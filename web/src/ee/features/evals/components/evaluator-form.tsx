@@ -362,8 +362,8 @@ export const InnerEvalConfigForm = (props: {
   const datasetFilterOptions = useMemo(() => {
     if (!datasets.data) return undefined;
     return {
-      name: datasets.data?.map((d) => ({
-        value: d.name,
+      datasetId: datasets.data?.map((d) => ({
+        value: d.id,
       })),
     };
   }, [datasets.data]);

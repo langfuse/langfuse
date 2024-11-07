@@ -273,4 +273,16 @@ export const tableDefinitions: TableDefinitions = {
       traceTags,
     ],
   },
+
+  dataset_items: {
+    table: ` dataset_items di`,
+    columns: [
+      {
+        name: "Dataset",
+        id: "datasetId",
+        type: "string",
+        internal: 'di."dataset_id"',
+      },
+    ],
+  },
 };

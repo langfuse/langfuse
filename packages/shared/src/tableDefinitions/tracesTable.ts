@@ -141,9 +141,9 @@ export const tracesTableCols: ColumnDefinition[] = [
 export const datasetOnlyCols: ColumnDefinition[] = [
   {
     name: "Dataset",
-    id: "name",
+    id: "datasetId",
     type: "stringOptions",
-    internal: 'd."name"',
+    internal: 'di."dataset_id"',
     options: [], // to be filled in at runtime
   },
 ];
@@ -156,7 +156,7 @@ export type TraceOptions = {
   tags: Array<OptionsDefinition>;
 };
 export type DatasetOptions = {
-  name: Array<OptionsDefinition>;
+  datasetId: Array<OptionsDefinition>;
 };
 
 export function datasetTableColsWithOptions(
@@ -164,8 +164,8 @@ export function datasetTableColsWithOptions(
   cols: ColumnDefinition[] = evalDatasetTableCols,
 ): ColumnDefinition[] {
   return cols.map((col) => {
-    if (col.id === "name") {
-      return { ...col, options: options?.name ?? [] };
+    if (col.id === "datasetId") {
+      return { ...col, options: options?.datasetId ?? [] };
     }
     return col;
   });

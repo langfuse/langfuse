@@ -63,10 +63,11 @@ export const evalJobCreatorQueueProcessor = async (
     await createEvalJobs({ event: job.data.payload });
     return true;
   } catch (e) {
-    logger.error(
-      `Failed job Evaluation for traceId ${job.data.payload.traceId}`,
-      e,
-    );
+    const errorMessage =
+      job.data.payload.type === "trace"
+        ? `Failed job Evaluation for traceId ${job.data.payload.traceId}`
+        : `Failed job Evaluation for dataset item: ${job.data.payload.datasetItemId}`;
+    logger.error(errorMessage, e);
     traceException(e);
     throw e;
   }
