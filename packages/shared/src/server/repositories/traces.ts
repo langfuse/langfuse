@@ -145,9 +145,38 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
   );
 
+  // for query optimisation, we have to add the timeseries filter to observations + scores as well
+  // stats show, that 98% of all observations have their start_time larger than trace.timestamp - 5 min
+  const timeStampFilter = tracesFilter.find(
+    (f) =>
+      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+  timeStampFilter
+    ? scoresFilter.push(
+        new DateTimeFilter({
+          clickhouseTable: "scores",
+          field: "timestamp",
+          operator: ">=",
+          value: timeStampFilter.value,
+        }),
+      )
+    : null;
+
+  timeStampFilter
+    ? observationsFilter.push(
+        new DateTimeFilter({
+          clickhouseTable: "observations",
+          field: "start_time",
+          operator: ">=",
+          value: timeStampFilter.value,
+        }),
+      )
+    : null;
+
   const tracesFilterRes = tracesFilter.apply();
-  const scoresAvgFilterRes = scoresFilter.apply();
-  const observationsStatsRes = observationsFilter.apply();
+  const scoresFilterRes = scoresFilter.apply();
+  const observationFilterRes = observationsFilter.apply();
 
   const query = `
   WITH observations_stats AS (
@@ -167,7 +196,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       project_id
     FROM
         observations final
-    WHERE ${observationsStatsRes.query}
+    WHERE ${observationFilterRes.query}
+    
     group by trace_id, project_id
 ),
 
@@ -180,7 +210,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
                                           name,
                                           avg(value) avg_value
                                   FROM scores final
-                                  WHERE ${scoresAvgFilterRes.query}
+                                  WHERE ${scoresFilterRes.query}
                                   GROUP BY project_id,
                                             trace_id,
                                             name
@@ -204,8 +234,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       limit: limit,
       offset: offset,
       ...tracesFilterRes.params,
-      ...observationsStatsRes.params,
-      ...scoresAvgFilterRes.params,
+      ...observationFilterRes.params,
+      ...scoresFilterRes.params,
     },
   });
 };
