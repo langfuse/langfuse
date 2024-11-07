@@ -12,10 +12,10 @@ import { logger } from "../logger";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
-import { TableCount } from "./types";
 import { OrderByState } from "../../interfaces/orderBy";
 import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
 import { UiColumnMapping } from "../../tableDefinitions";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
   return {
@@ -209,17 +209,27 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 export const getTraceByIdOrThrow = async (
   traceId: string,
   projectId: string,
+  timestamp?: Date,
 ) => {
-  const query = `SELECT * FROM traces where id = {traceId: String} and project_id = {projectId: String} order by event_ts desc LIMIT 1 by id, project_id`;
+  const query = `SELECT * 
+      FROM traces
+      WHERE id = {traceId: String} 
+        AND project_id = {projectId: String}
+        ${timestamp ? `AND timestamp >= {timestamp: DateTime}` : ""} 
+      ORDER BY event_ts DESC LIMIT 1 by id, project_id`;
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
-    params: { traceId, projectId },
+    params: {
+      traceId,
+      projectId,
+      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+    },
   });
 
   const res = records.map(convertClickhouseToDomain);
 
-  if (res.length !== 1) {
-    const errorMessage = `Trace not found or multiple traces found for traceId: ${traceId}, projectId: ${projectId}`;
+  if (res.length === 0) {
+    const errorMessage = `Trace not found for traceId: ${traceId}, projectId: ${projectId}`;
     logger.error(errorMessage);
     throw new Error(errorMessage);
   }
