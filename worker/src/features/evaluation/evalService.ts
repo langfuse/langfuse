@@ -268,6 +268,8 @@ const datasetEval = async ({
         `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
+      // fk violoation on traceId, unsure why
+      // Foreign key constraint violated: `job_executions_job_input_trace_id_fkey (index)
       await prisma.jobExecution.create({
         data: {
           id: jobExecutionId,
@@ -424,29 +426,20 @@ export const evaluate = async ({
     config.variable_mapping,
   );
 
-  // extract the variables which need to be inserted into the prompt
-  let mappingResult: { var: string; value: string }[] = [];
-  if (config.target_object === "trace") {
-    mappingResult = await extractVariablesFromTrace(
-      event.projectId,
-      template.vars,
-      job.job_input_trace_id,
-      parsedVariableMapping,
+  if (!job.job_input_dataset_item_id) {
+    throw new ForbiddenError(
+      "Jobs can only be executed on traces and dataset runs for now.", // add option to link to generations
     );
-  } else {
-    if (!job.job_input_dataset_item_id) {
-      throw new ForbiddenError(
-        "Jobs can only be executed on traces and dataset runs for now.", // add option to link to generations
-      );
-    } else {
-      mappingResult = await extractVariablesFromDatasetItem(
-        event.projectId,
-        template.vars,
-        job.job_input_dataset_item_id,
-        parsedVariableMapping,
-      );
-    }
   }
+
+  // extract the variables which need to be inserted into the prompt
+  const mappingResult = await extractVariables({
+    projectId: event.projectId,
+    variables: template.vars,
+    traceId: job.job_input_trace_id,
+    datasetItemId: job.job_input_dataset_item_id,
+    variableMapping: parsedVariableMapping,
+  });
 
   logger.debug(
     `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
@@ -598,13 +591,20 @@ export function compileHandlebarString(
   return template(context);
 }
 
-export async function extractVariablesFromDatasetItem(
-  projectId: string,
-  variables: string[],
-  datasetItemId: string,
+export async function extractVariables({
+  projectId,
+  variables,
+  traceId,
+  variableMapping,
+  datasetItemId,
+}: {
+  projectId: string;
+  variables: string[];
+  traceId: string;
   // this here are variables which were inserted by users. Need to validate before DB query.
-  variableMapping: z.infer<typeof variableMappingList>,
-) {
+  variableMapping: z.infer<typeof variableMappingList>;
+  datasetItemId?: string;
+}) {
   const mappingResult: { var: string; value: string }[] = [];
 
   // find the context for each variable of the template
@@ -620,6 +620,14 @@ export async function extractVariablesFromDatasetItem(
     }
 
     if (mapping.langfuseObject === "dataset_item") {
+      if (!datasetItemId) {
+        logger.error(
+          `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
+        );
+        mappingResult.push({ var: variable, value: "" });
+        continue;
+      }
+
       // find the internal definitions of the column
       const safeInternalColumn = availableDatasetEvalVariables
         .find((o) => o.id === "dataset_item")
@@ -659,30 +667,6 @@ export async function extractVariablesFromDatasetItem(
         var: variable,
         value: parseUnknownToString(datasetItem[mapping.selectedColumnId]),
       });
-    }
-  }
-  return mappingResult;
-}
-
-export async function extractVariablesFromTrace(
-  projectId: string,
-  variables: string[],
-  traceId: string,
-  // this here are variables which were inserted by users. Need to validate before DB query.
-  variableMapping: z.infer<typeof variableMappingList>,
-) {
-  const mappingResult: { var: string; value: string }[] = [];
-
-  // find the context for each variable of the template
-  for (const variable of variables) {
-    const mapping = variableMapping.find(
-      (m) => m.templateVariable === variable,
-    );
-
-    if (!mapping) {
-      logger.debug(`No mapping found for variable ${variable}`);
-      mappingResult.push({ var: variable, value: "" });
-      continue; // no need to fetch additional data
     }
 
     if (mapping.langfuseObject === "trace") {

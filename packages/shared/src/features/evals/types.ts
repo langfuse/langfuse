@@ -96,6 +96,7 @@ export const availableDatasetEvalVariables = [
       },
     ],
   },
+  ...availableTraceEvalVariables,
 ];
 
 export const OutputSchema = z.object({
