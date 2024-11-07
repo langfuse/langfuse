@@ -317,14 +317,12 @@ export const getTracesGroupedByUserIds = async (
     columns,
   } = props;
 
-  const chFilter = filter
-    ? createFilterFromFilterState(
-        filter,
-        columns ?? tracesTableUiColumnDefinitions,
-      )
-    : undefined;
+  const chFilter = createFilterFromFilterState(
+    filter,
+    columns ?? tracesTableUiColumnDefinitions,
+  );
 
-  const appliedFilter = chFilter ? new FilterList(chFilter).apply() : undefined;
+  const appliedFilter = new FilterList(chFilter).apply();
 
   const query = `
       select distinct user_id as user_id
