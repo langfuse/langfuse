@@ -41,8 +41,8 @@ export default withMiddlewares({
         return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
-        logger.error("Failed to create score", { result });
-        throw new Error("Failed to create score");
+        logger.error("Failed to create generation", { result });
+        throw new Error("Failed to create generation");
       }
       return result.successes[0];
     },
@@ -75,8 +75,8 @@ export default withMiddlewares({
         return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
-        logger.error("Failed to create score", { result });
-        throw new Error("Failed to create score");
+        logger.error("Failed to update generation", { result });
+        throw new Error("Failed to update generation");
       }
       return result.successes[0];
     },

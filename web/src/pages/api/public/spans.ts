@@ -37,8 +37,8 @@ export default withMiddlewares({
         return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
-        logger.error("Failed to create score", { result });
-        throw new Error("Failed to create score");
+        logger.error("Failed to create span", { result });
+        throw new Error("Failed to create span");
       }
       return result.successes[0];
     },
@@ -66,8 +66,8 @@ export default withMiddlewares({
         return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
-        logger.error("Failed to create score", { result });
-        throw new Error("Failed to create score");
+        logger.error("Failed to update span", { result });
+        throw new Error("Failed to update span");
       }
       return result.successes[0];
     },

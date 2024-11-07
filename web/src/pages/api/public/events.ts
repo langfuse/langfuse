@@ -35,8 +35,8 @@ export default withMiddlewares({
         return { id: "" }; // dummy return
       }
       if (result.successes.length !== 1) {
-        logger.error("Failed to create score", { result });
-        throw new Error("Failed to create score");
+        logger.error("Failed to create event", { result });
+        throw new Error("Failed to create event");
       }
       return result.successes[0];
     },
