@@ -457,7 +457,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
-        timestamp: z.date(), // timestamp of the trace. Used to query CH more efficiently
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         queryClickhouse: z.boolean().default(false),
       }),
     )
@@ -480,7 +480,7 @@ export const traceRouter = createTRPCRouter({
         return await getTraceByIdOrThrow(
           input.traceId,
           input.projectId,
-          input.timestamp,
+          input.timestamp ?? undefined,
         );
       }
     }),
