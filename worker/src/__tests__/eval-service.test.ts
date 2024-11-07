@@ -682,7 +682,7 @@ describe("execute evals", () => {
 
   test("evals a valid event and inserts score to ingestion pipeline", async () => {
     await pruneDatabase();
-    // openAIServer.respondWithDefault();
+    openAIServer.respondWithDefault();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely

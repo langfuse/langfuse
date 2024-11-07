@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, passthrough } from "msw";
 import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
@@ -51,12 +51,21 @@ function JsonCompletionHandler(data: object) {
   return CompletionHandler(HttpResponse.json(data));
 }
 
+function MinioCompletionHandler() {
+  return http.all("http://localhost:9090*", async (request) => {
+    if ((request.params[0] as string).startsWith("/langfuse/events/")) {
+      return new HttpResponse("Success");
+    }
+    throw new Error("Unexpected path");
+  });
+}
+
 function ErrorCompletionHandler(status: number, statusText: string) {
   return CompletionHandler(
     new HttpResponse(null, {
       status,
       statusText,
-    })
+    }),
   );
 }
 
@@ -78,7 +87,7 @@ export class OpenAIServer {
 
     this.hasActiveKey = hasActiveKey;
     this.internalServer = setupServer(
-      ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : [])
+      ...(useDefaultResponse ? [JsonCompletionHandler(DEFAULT_RESPONSE)] : []),
     );
     if (hasActiveKey) {
       this.internalServer.events.on("response:bypass", async ({ response }) => {
@@ -100,7 +109,10 @@ export class OpenAIServer {
   }
 
   respondWithData(data: object) {
-    this.internalServer.use(JsonCompletionHandler(data));
+    this.internalServer.use(
+      JsonCompletionHandler(data),
+      MinioCompletionHandler(),
+    );
   }
 
   respondWithDefault() {
