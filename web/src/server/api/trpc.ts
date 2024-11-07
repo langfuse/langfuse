@@ -141,6 +141,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
 const withOtelTracingProcedure = t.procedure.use(
   tracing({ collectInput: true, collectResult: true }),
 );
+
 /**
  * Public (unauthenticated) procedure
  *
@@ -405,6 +406,7 @@ export const protectedGetTraceProcedure = withOtelTracingProcedure
 const inputSessionSchema = z.object({
   sessionId: z.string(),
   projectId: z.string(),
+  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -417,6 +419,7 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 
   const { sessionId, projectId } = result.data;
 
+  // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
   const session = await prisma.traceSession.findFirst({
     where: {
       id: sessionId,
