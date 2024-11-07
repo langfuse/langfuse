@@ -4568,17 +4568,72 @@ components:
             type: string
           nullable: true
           description: A list of tags associated with the trace referenced by score
-    GetScoresResponseData:
-      title: GetScoresResponseData
+    GetScoresResponseDataNumeric:
+      title: GetScoresResponseDataNumeric
       type: object
       properties:
-        '<<':
-          $ref: '#/components/schemas/Score'
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
       required:
-        - '<<'
         - trace
+      allOf:
+        - $ref: '#/components/schemas/NumericScore'
+    GetScoresResponseDataCategorical:
+      title: GetScoresResponseDataCategorical
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+      required:
+        - trace
+      allOf:
+        - $ref: '#/components/schemas/CategoricalScore'
+    GetScoresResponseDataBoolean:
+      title: GetScoresResponseDataBoolean
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+      required:
+        - trace
+      allOf:
+        - $ref: '#/components/schemas/BooleanScore'
+    GetScoresResponseData:
+      title: GetScoresResponseData
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/GetScoresResponseDataNumeric'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/GetScoresResponseDataCategorical'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/GetScoresResponseDataBoolean'
+          required:
+            - dataType
     GetScoresResponse:
       title: GetScoresResponse
       type: object
