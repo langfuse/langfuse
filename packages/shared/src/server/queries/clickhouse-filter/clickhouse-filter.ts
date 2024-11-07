@@ -339,7 +339,7 @@ export class BooleanFilter implements Filter {
     const uid = randomCharacters();
     const varName = `booleanFilter${uid}`;
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Boolean} ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} = {${varName}: Boolean}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Boolean}`,
       params: { [varName]: this.value },
     };
   }

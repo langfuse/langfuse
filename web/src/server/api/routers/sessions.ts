@@ -297,7 +297,6 @@ export const sessionRouter = createTRPCRouter({
         }
 
         if (input.queryClickhouse) {
-          console.log("queryClickhouse");
           const columns = [
             ...tracesTableUiColumnDefinitions,
             {
