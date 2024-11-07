@@ -111,7 +111,7 @@ export const EventBodySchema = z.union([
 export type EventBodyType = z.infer<typeof EventBodySchema>;
 
 export enum QueueName {
-  TraceUpsert = "trace-upsert-queue", // Ingestion pipeline adds events on each Trace upsert
+  TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
