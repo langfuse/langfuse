@@ -194,13 +194,16 @@ export const getScoresUiCount = async (props: {
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-}) =>
-  await getScoresUiGeneric<{ count: string }>({
+}) => {
+  const rows = await getScoresUiGeneric<{ count: string }>({
     select: `
     count(*) as count
     `,
     ...props,
   });
+
+  return Number(rows[0].count);
+};
 
 export type ScoreUiTableRow = Score & {
   traceName: string | null;
@@ -330,6 +333,7 @@ export const getScoresUiGeneric = async <T>(props: {
       offset: offset,
     },
   });
+  console.log(rows);
 
   return rows;
 };

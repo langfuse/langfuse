@@ -181,12 +181,12 @@ export const scoresRouter = createTRPCRouter({
           projectId: input.projectId,
           filter: input.filter ?? [],
           orderBy: input.orderBy,
-          limit: input.limit,
-          offset: input.page * input.limit,
+          limit: 1,
+          offset: 0,
         });
 
         return {
-          totalCount: clickhouseScoreData.length,
+          totalCount: clickhouseScoreData,
         };
       }
 
