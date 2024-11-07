@@ -269,23 +269,20 @@ export const getTracesGroupedByName = async (
 
 export type GroupedTracesQueryProp = {
   projectId: string;
-  filter?: FilterState;
+  filter: FilterState;
   sessionIdNullFilter?: boolean;
   columns?: UiColumnMapping[];
 };
 
 export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
   const { projectId, filter, sessionIdNullFilter, columns } = props;
-  const chFilter = filter
-    ? createFilterFromFilterState(
-        filter,
-        columns ?? tracesTableUiColumnDefinitions,
-      )
-    : undefined;
 
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
+  const chFilter = createFilterFromFilterState(
+    filter,
+    columns ?? tracesTableUiColumnDefinitions,
+  );
+
+  const filterRes = new FilterList(chFilter).apply();
 
   const query = `
       select 
@@ -293,7 +290,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
       from traces t final
       WHERE t.project_id = {projectId: String}
       ${sessionIdNullFilter ? "AND t.session_id IS NOT NULL" : ""}
-      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
+      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
       LIMIT 1000;
     `;
 
@@ -303,7 +300,7 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
     query: query,
     params: {
       projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
+      ...(filterRes ? filterRes.params : {}),
     },
   });
 

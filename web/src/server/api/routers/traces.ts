@@ -438,10 +438,10 @@ export const traceRouter = createTRPCRouter({
             tracesTableUiColumnDefinitions,
             timestampFilter ? [timestampFilter] : [],
           ),
-          getTracesGroupedByTags(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ? [timestampFilter] : [],
+          }),
         ]);
 
         const res: TraceOptions = {

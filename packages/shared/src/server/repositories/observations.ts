@@ -666,12 +666,12 @@ export const getCostForTraces = async (
     AND o.trace_id IN ({traceIds: Array(String)});
     `;
 
-  const res = await queryClickhouse<{ total_cost: number }>({
+  const res = await queryClickhouse<{ total_cost: string }>({
     query,
     params: {
       projectId,
       traceIds,
     },
   });
-  return res[0].total_cost;
+  return res.length > 0 ? Number(res[0].total_cost) : undefined;
 };
