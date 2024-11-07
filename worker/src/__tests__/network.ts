@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { HttpResponse, http, passthrough } from "msw";
+import { HttpResponse, http } from "msw";
 import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
