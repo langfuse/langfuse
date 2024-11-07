@@ -503,21 +503,23 @@ export default function SessionsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: sessionRowData.rows?.map((session) => ({
-                    id: session.id,
-                    bookmarked: session.bookmarked,
-                    createdAt: session.createdAt.toLocaleString(),
-                    userIds: session.userIds,
-                    countTraces: session.countTraces,
-                    sessionDuration: session.sessionDuration,
-                    inputCost: session.inputCost,
-                    outputCost: session.outputCost,
-                    totalCost: session.totalCost,
-                    inputTokens: session.promptTokens,
-                    outputTokens: session.completionTokens,
-                    totalTokens: session.totalTokens,
-                    traceTags: session.traceTags,
-                  })),
+                  data: sessionRowData.rows?.map<SessionTableRow>(
+                    (session) => ({
+                      id: session.id,
+                      bookmarked: session.bookmarked,
+                      createdAt: session.createdAt.toLocaleString(),
+                      userIds: session.userIds,
+                      countTraces: session.countTraces,
+                      sessionDuration: session.sessionDuration,
+                      inputCost: session.inputCost,
+                      outputCost: session.outputCost,
+                      totalCost: session.totalCost,
+                      inputTokens: session.promptTokens,
+                      outputTokens: session.completionTokens,
+                      totalTokens: session.totalTokens,
+                      traceTags: session.traceTags,
+                    }),
+                  ),
                 }
         }
         pagination={{

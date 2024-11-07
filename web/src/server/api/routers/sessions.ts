@@ -92,8 +92,9 @@ export const sessionRouter = createTRPCRouter({
               totalTokens: Number(s.session_total_usage),
               traceTags: s.trace_tags,
               createdAt: s.min_timestamp,
-              bookmarked: prismaSessionInfo.find((p) => p.id === s.session_id)
-                ?.bookmarked,
+              bookmarked:
+                prismaSessionInfo.find((p) => p.id === s.session_id)
+                  ?.bookmarked ?? false,
               public: prismaSessionInfo.find((p) => p.id === s.session_id)
                 ?.public,
             })),
