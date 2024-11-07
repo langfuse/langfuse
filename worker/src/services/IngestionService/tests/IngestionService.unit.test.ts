@@ -1,5 +1,6 @@
 import { expect, describe, it, vi } from "vitest";
 import { IngestionService } from "../../IngestionService";
+import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
 
 describe("IngestionService unit tests", () => {
   it("correctly sorts events in ascending order by timestamp", async () => {
@@ -20,9 +21,7 @@ describe("IngestionService unit tests", () => {
   it("correctly convert Date to Clickhouse DateTime", async () => {
     const date = new Date("2024-10-12T12:13:14.000Z");
 
-    const clickhouseDateTime = (
-      IngestionService as any
-    ).convertDateToClickhouseDateTime(date);
+    const clickhouseDateTime = convertDateToClickhouseDateTime(date);
 
     expect(clickhouseDateTime).toEqual("2024-10-12 12:13:14");
   });

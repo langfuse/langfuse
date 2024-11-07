@@ -12,7 +12,6 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
-import { string } from "zod";
 
 export type FetchScoresReturnType = {
   id: string;

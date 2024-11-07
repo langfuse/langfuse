@@ -318,6 +318,7 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
 const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
+  timestamp: z.date().nullish(),
   queryClickhouse: z.boolean().nullish(),
 });
 
@@ -328,12 +329,13 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     logger.error("Invalid input when parsing request body", result.error);
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Invalid input, traceId is required",
+      message: `Invalid input, ${result.error.message}`,
     });
   }
 
   const traceId = result.data.traceId;
   const projectId = result.data.projectId;
+  const timestamp = result.data.timestamp;
 
   // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
   let trace;
@@ -345,7 +347,11 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     logger.info(
       `Querying Clickhouse for traceid: ${traceId} and project: ${projectId} `,
     );
-    trace = await getTraceByIdOrThrow(traceId, projectId);
+    trace = await getTraceByIdOrThrow(
+      traceId,
+      projectId,
+      timestamp ?? undefined,
+    );
   } else {
     trace = await prisma.trace.findFirst({
       where: {
