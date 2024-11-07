@@ -127,7 +127,12 @@ export class IngestionService {
         e.timestamp ? [new Date(e.timestamp).getTime()] : [],
       ),
     );
-    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
+    const timestamp =
+      minTimestamp === Infinity
+        ? undefined
+        : IngestionService.convertDateToClickhouseDateTime(
+            new Date(minTimestamp),
+          );
     const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
       await Promise.all([
         this.getPostgresRecord({
@@ -141,7 +146,7 @@ export class IngestionService {
           table: TableName.Scores,
           additionalFilters: {
             whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+              ? " AND timestamp >= {timestamp: DateTime} "
               : "",
             params: { timestamp },
           },
@@ -207,7 +212,12 @@ export class IngestionService {
         e.body?.timestamp ? [new Date(e.body.timestamp).getTime()] : [],
       ),
     );
-    const timestamp = minTimestamp === Infinity ? undefined : minTimestamp;
+    const timestamp =
+      minTimestamp === Infinity
+        ? undefined
+        : IngestionService.convertDateToClickhouseDateTime(
+            new Date(minTimestamp),
+          );
     const [postgresTraceRecord, clickhouseTraceRecord] = await Promise.all([
       this.getPostgresRecord({
         projectId,
@@ -220,7 +230,7 @@ export class IngestionService {
         table: TableName.Traces,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime} - INTERVAL 1 DAY "
+            ? " AND timestamp >= {timestamp: DateTime} "
             : "",
           params: { timestamp },
         },
@@ -253,7 +263,12 @@ export class IngestionService {
         e.body?.startTime ? [new Date(e.body.startTime).getTime()] : [],
       ),
     );
-    const startTime = minStartTime === Infinity ? undefined : minStartTime;
+    const startTime =
+      minStartTime === Infinity
+        ? undefined
+        : IngestionService.convertDateToClickhouseDateTime(
+            new Date(minStartTime),
+          );
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -266,8 +281,11 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} - INTERVAL 1 DAY" : ""}`,
-            params: { type, startTime },
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} " : ""}`,
+            params: {
+              type,
+              startTime,
+            },
           },
         }),
         this.getPrompt(projectId, observationEventList),
@@ -931,6 +949,13 @@ export class IngestionService {
       return observationRecord;
     });
   }
+
+  /**
+   * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
+   */
+  private static convertDateToClickhouseDateTime = (date: Date): string => {
+    return date.toISOString().slice(0, 19).replace("T", " ");
+  };
 
   private stringify(
     obj: string | object | number | boolean | undefined | null,
