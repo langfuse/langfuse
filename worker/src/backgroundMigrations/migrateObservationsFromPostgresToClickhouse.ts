@@ -17,6 +17,41 @@ export default class MigrateObservationsFromPostgresToClickhouse
   private isAborted = false;
   private isFinished = false;
 
+  private async updateMaxDate(stateSuffix: string, maxDate: Date) {
+    await prisma.$transaction(
+      async (tx) => {
+        // @ts-ignore
+        const migrationState: { state: Record<string, string> } =
+          await tx.backgroundMigration.findUniqueOrThrow({
+            where: { id: backgroundMigrationId },
+            select: { state: true },
+          });
+        migrationState.state[`maxDate${stateSuffix}`] = maxDate.toISOString();
+        await tx.backgroundMigration.update({
+          where: { id: backgroundMigrationId },
+          data: { state: migrationState.state },
+        });
+      },
+      {
+        maxWait: 5000,
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
+  private async getMaxDate(stateSuffix: string): Promise<Date | undefined> {
+    // @ts-ignore
+    const migrationState: { state: Record<string, string | undefined> } =
+      await prisma.backgroundMigration.findUniqueOrThrow({
+        where: { id: backgroundMigrationId },
+        select: { state: true },
+      });
+
+    return migrationState.state?.[`maxDate${stateSuffix}`]
+      ? new Date(migrationState.state[`maxDate${stateSuffix}`] as string)
+      : undefined;
+  }
+
   async validate(
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
@@ -35,24 +70,14 @@ export default class MigrateObservationsFromPostgresToClickhouse
       `Migrating observations from postgres to clickhouse with ${JSON.stringify(args)}`,
     );
 
-    // @ts-ignore
-    const initialMigrationState: { state: Record<string, string | undefined> } =
-      await prisma.backgroundMigration.findUniqueOrThrow({
-        where: { id: backgroundMigrationId },
-        select: { state: true },
-      });
-
     const stateSuffix = (args.stateSuffix as string) ?? "";
+    const initialDate = await this.getMaxDate(stateSuffix);
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 5000);
-    const maxDate = initialMigrationState.state?.[`maxDate${stateSuffix}`]
-      ? new Date(initialMigrationState.state[`maxDate${stateSuffix}`] as string)
-      : new Date((args.maxDate as string) ?? new Date());
+    const maxDate =
+      initialDate ?? new Date((args.maxDate as string) ?? new Date());
 
-    await prisma.backgroundMigration.update({
-      where: { id: backgroundMigrationId },
-      data: { state: { [`maxDate${stateSuffix}`]: maxDate } },
-    });
+    await this.updateMaxDate(stateSuffix, maxDate);
 
     let processedRows = 0;
     while (
@@ -62,12 +87,8 @@ export default class MigrateObservationsFromPostgresToClickhouse
     ) {
       const fetchStart = Date.now();
 
-      // @ts-ignore
-      const migrationState: { state: Record<string, string> } =
-        await prisma.backgroundMigration.findUniqueOrThrow({
-          where: { id: backgroundMigrationId },
-          select: { state: true },
-        });
+      const maxDate = await this.getMaxDate(stateSuffix);
+      logger.info(`Max date: ${maxDate?.toISOString()}`);
 
       const observations = await prisma.$queryRaw<
         Array<Record<string, any>>
@@ -75,7 +96,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
         SELECT o.id, o.trace_id, o.project_id, o.type, o.parent_observation_id, o.start_time, o.end_time, o.name, o.metadata, o.level, o.status_message, o.version, o.input, o.output, o.unit, o.model, o.internal_model_id, o."modelParameters" as model_parameters, o.prompt_tokens, o.completion_tokens, o.total_tokens, o.completion_start_time, o.prompt_id, p.name as prompt_name, p.version as prompt_version, o.input_cost, o.output_cost, o.total_cost, o.calculated_input_cost, o.calculated_output_cost, o.calculated_total_cost, o.created_at, o.updated_at
         FROM observations o
         LEFT JOIN prompts p ON o.prompt_id = p.id
-        WHERE o.created_at <= ${new Date(migrationState.state[`maxDate${stateSuffix}`])}
+        WHERE o.created_at <= ${maxDate}
         ORDER BY o.created_at DESC
         LIMIT ${batchSize};
       `);
@@ -99,16 +120,10 @@ export default class MigrateObservationsFromPostgresToClickhouse
         `Inserted ${observations.length} observations into Clickhouse in ${Date.now() - insertStart}ms`,
       );
 
-      await prisma.backgroundMigration.update({
-        where: { id: backgroundMigrationId },
-        data: {
-          state: {
-            [`maxDate${stateSuffix}`]: new Date(
-              observations[observations.length - 1].created_at,
-            ),
-          },
-        },
-      });
+      await this.updateMaxDate(
+        stateSuffix,
+        new Date(observations[observations.length - 1].created_at),
+      );
 
       if (observations.length < batchSize) {
         logger.info("No more observations to migrate. Exiting...");
