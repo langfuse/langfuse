@@ -147,7 +147,7 @@ export const sessionRouter = createTRPCRouter({
         }
 
         if (input.queryClickhouse) {
-          const counts = await getSessionsTableCount({
+          const count = await getSessionsTableCount({
             projectId: input.projectId,
             filter: input.filter ?? [],
             orderBy: input.orderBy,
@@ -156,7 +156,7 @@ export const sessionRouter = createTRPCRouter({
           });
 
           return {
-            totalCount: counts.length > 0 ? counts[0].count : 0,
+            totalCount: count,
           };
         }
 

@@ -397,9 +397,7 @@ export const getSessionsTableCount = async (props: {
     offset: props.offset,
   });
 
-  return rows.map((row) => ({
-    count: Number(row.count),
-  }));
+  return rows.length > 0 ? Number(rows[0].count) : 0;
 };
 
 export const getSessionsTable = async (props: {
