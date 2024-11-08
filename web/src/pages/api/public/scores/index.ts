@@ -40,7 +40,7 @@ export default withMiddlewares({
         logger.error("Failed to create score", { result });
         throw new Error("Failed to create score");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
   GET: createAuthedAPIRoute({
