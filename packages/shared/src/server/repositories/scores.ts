@@ -1,7 +1,9 @@
 import { Score, ScoreDataType, ScoreSource } from "@prisma/client";
 import {
+  commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  upsertClickhouse,
 } from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
 import { FilterState } from "../../types";
@@ -54,6 +56,86 @@ const convertToScore = (row: FetchScoresReturnType) => {
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
+};
+
+export const searchExistingAnnotationScore = async (
+  projectId: string,
+  traceId: string,
+  observationId: string | null,
+  name: string | undefined,
+  configId: string | undefined,
+) => {
+  if (!name && !configId) {
+    throw new Error("Either name or configId (or both) must be provided.");
+  }
+  const query = `
+    SELECT *
+    FROM scores s FINAL
+    WHERE s.project_id = {projectId: String}
+    AND s.source = 'ANNOTATION'
+    AND s.trace_id = {traceId: String}
+    ${observationId ? `AND s.observation_id = {observationId: String}` : "AND isNull(s.observation_id)"}
+    AND (
+      FALSE
+      ${name ? `OR s.name = {name: String}` : ""}
+      ${configId ? `OR s.config_id = {configId: String}` : ""}
+    )
+    ORDER BY s.event_ts DESC
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query,
+    params: {
+      projectId,
+      name,
+      configId,
+      traceId,
+      observationId,
+    },
+  });
+  return rows.map(convertToScore).shift();
+};
+
+export const getScoreById = async (
+  projectId: string,
+  scoreId: string,
+  source: ScoreSource,
+) => {
+  const query = `
+    SELECT *
+    FROM scores s FINAL
+    WHERE s.project_id = {projectId: String}
+    AND s.id = {scoreId: String}
+    AND s.source = {source: String}
+    ORDER BY s.event_ts DESC
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query,
+    params: {
+      projectId,
+      scoreId,
+      source,
+    },
+  });
+  return rows.map(convertToScore).shift();
+};
+
+/**
+ * Accepts a score in a Clickhouse-ready format.
+ * id, project_id, name, and timestamp must always be provided.
+ */
+export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
+  if (!["id", "project_id", "name", "timestamp"].every((key) => key in score)) {
+    throw new Error("Identifier fields must be provided to upsert Score.");
+  }
+  await upsertClickhouse({
+    table: "scores",
+    records: [score as FetchScoresReturnType],
+    eventBodyMapper: convertToScore,
+  });
 };
 
 export const getScoresForTraces = async (
@@ -375,4 +457,19 @@ export const getScoreNames = async (
     name: row.name,
     count: Number(row.count),
   }));
+};
+
+export const deleteScore = async (projectId: string, scoreId: string) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String}
+    AND id = {scoreId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      scoreId,
+    },
+  });
 };

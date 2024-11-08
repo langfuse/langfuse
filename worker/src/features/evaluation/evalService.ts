@@ -2,12 +2,18 @@ import { randomUUID } from "crypto";
 import Handlebars from "handlebars";
 import { sql } from "kysely";
 import { z } from "zod";
+import { ScoreSource } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
   TraceUpsertEventSchema,
   tableColumnsToSqlFilterAndPrefix,
+  traceException,
+  S3StorageService,
+  eventTypes,
+  redis,
+  IngestionQueue,
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
@@ -29,6 +35,23 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
+import { env } from "../../env";
+
+let s3StorageServiceClient: S3StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = new S3StorageService({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -319,17 +342,76 @@ export const evaluate = async ({
   // persist the score and update the job status
   const scoreId = randomUUID();
 
+  const baseScore = {
+    id: scoreId,
+    traceId: job.job_input_trace_id,
+    name: config.score_name,
+    value: parsedLLMOutput.score,
+    comment: parsedLLMOutput.reasoning,
+    source: ScoreSource.EVAL,
+  };
+
   await prisma.score.create({
     data: {
-      id: scoreId,
-      traceId: job.job_input_trace_id,
-      name: config.score_name,
-      value: parsedLLMOutput.score,
-      comment: parsedLLMOutput.reasoning,
-      source: "EVAL",
+      ...baseScore,
       projectId: event.projectId,
     },
   });
+
+  // Write score to S3 and ingest into queue for Clickhouse processing
+  try {
+    if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && env.CLICKHOUSE_URL) {
+      if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
+        throw new Error("S3 event store is enabled but no bucket is set");
+      }
+      const s3Client = getS3StorageServiceClient(
+        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      );
+      await s3Client.uploadJson(
+        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
+        [
+          {
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            type: eventTypes.SCORE_CREATE,
+            body: {
+              ...baseScore,
+              dataType: "NUMERIC",
+            },
+          },
+        ],
+      );
+
+      if (redis) {
+        const queue = IngestionQueue.getInstance();
+        if (!queue) {
+          throw new Error("Ingestion queue not available");
+        }
+        await queue.add(QueueJobs.IngestionJob, {
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.IngestionJob as const,
+          payload: {
+            data: {
+              type: eventTypes.SCORE_CREATE,
+              eventBodyId: scoreId,
+            },
+            authCheck: {
+              validKey: true,
+              scope: {
+                projectId: event.projectId,
+                accessLevel: "scores",
+              },
+            },
+          },
+        });
+      }
+    }
+  } catch (e) {
+    logger.error(`Failed to add score into IngestionQueue: ${e}`, e);
+    traceException(e);
+    throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
+  }
 
   logger.info(
     `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`,
