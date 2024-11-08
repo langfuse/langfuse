@@ -444,7 +444,7 @@ export class IngestionService {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
 
-    result.event_ts = Math.max(...records.map((r) => r.event_ts ?? -Infinity));
+    result.event_ts = new Date().getTime();
 
     return result;
   }
