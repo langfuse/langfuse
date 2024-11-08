@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.87.0",
+  "version": "2.88.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -74,7 +74,6 @@
     "msw": "^2.4.9",
     "nodemon": "^3.1.7",
     "prettier": "^3.3.3",
-    "rus-diff": "^1.1.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "tsx": "^4.19.1",

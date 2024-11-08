@@ -72,15 +72,15 @@ export const filterOptionsQuery = protectedProjectProcedure
             ]
           : [],
       );
-      return traces.map((i) => ({ traceName: i.count }));
+      return traces.map((i) => ({ traceName: i.name }));
     };
 
     const getClickhouseTraceTags = async (): Promise<
       Array<{ tag: string }>
     > => {
-      const traces = await getTracesGroupedByTags(
-        input.projectId,
-        startTimeFilter
+      const traces = await getTracesGroupedByTags({
+        projectId: input.projectId,
+        filter: startTimeFilter
           ? [
               {
                 column: "Timestamp",
@@ -90,7 +90,7 @@ export const filterOptionsQuery = protectedProjectProcedure
               },
             ]
           : [],
-      );
+      });
       return traces.map((i) => ({ tag: i.value }));
     };
 

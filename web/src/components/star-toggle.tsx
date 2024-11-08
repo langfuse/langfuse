@@ -122,11 +122,13 @@ export function StarTraceToggle({
 export function StarTraceDetailsToggle({
   projectId,
   traceId,
+  timestamp,
   value,
   size = "icon",
 }: {
   projectId: string;
   traceId: string;
+  timestamp?: Date;
   value: boolean;
   size?: "icon" | "icon-xs";
 }) {
@@ -150,6 +152,7 @@ export function StarTraceDetailsToggle({
       const prevData = utils.traces.byIdWithObservationsAndScores.getData({
         traceId,
         projectId,
+        timestamp,
       });
 
       return { prevData };
@@ -159,7 +162,7 @@ export function StarTraceDetailsToggle({
       trpcErrorToast(err);
       // Rollback to the previous value if mutation fails
       utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId },
+        { traceId, projectId, timestamp },
         context?.prevData,
       );
     },
@@ -167,7 +170,7 @@ export function StarTraceDetailsToggle({
       setIsLoading(false);
 
       utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId },
+        { traceId, projectId, timestamp },
         (
           oldQueryData:
             | RouterOutput["traces"]["byIdWithObservationsAndScores"]

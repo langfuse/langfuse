@@ -10,7 +10,7 @@ import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -23,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 
 export type RunMetrics = {
   id: string;
@@ -56,7 +55,6 @@ export function DatasetCompareRunsTable(props: {
   runIds: string[];
   runsData?: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
 }) {
-  const { setDetailPageList } = useDetailPageLists();
   const [selectedMetrics, setSelectedMetrics] = useState<DatasetRunMetric[]>([
     "scores",
     "resourceMetrics",
@@ -80,16 +78,6 @@ export function DatasetCompareRunsTable(props: {
     limit: paginationState.pageSize,
   });
 
-  useEffect(() => {
-    if (baseDatasetItems.isSuccess) {
-      setDetailPageList(
-        "compare-runs",
-        baseDatasetItems.data.map((item) => item.id),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseDatasetItems.isSuccess, baseDatasetItems.data]);
-
   // Individual queries for each run
   const runs = (props.runIds ?? []).map((runId) => ({
     runId,
@@ -101,6 +89,9 @@ export function DatasetCompareRunsTable(props: {
         limit: paginationState.pageSize,
       },
       {
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
         staleTime: 5 * 60 * 1000, // 5 minutes
         enabled: baseDatasetItems.isSuccess,
       },
@@ -152,10 +143,18 @@ export function DatasetCompareRunsTable(props: {
     );
   }, [baseDatasetItems.data, runs]);
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
-    projectId: props.projectId,
-    selectedTimeOption: { filterSource: "TABLE", option: "All time" },
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: props.projectId,
+      selectedTimeOption: { filterSource: "TABLE", option: "All time" },
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
 
   const scoreKeyToDisplayName = useMemo(() => {
     if (!scoreKeysAndProps.data) return new Map<string, string>();
