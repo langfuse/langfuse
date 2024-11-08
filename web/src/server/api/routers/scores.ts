@@ -355,6 +355,14 @@ export const scoresRouter = createTRPCRouter({
         },
       });
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: score.id,
+        action: "create",
+        after: score,
+      });
+
       if (env.CLICKHOUSE_URL) {
         const clickhouseTrace = await getTraceById(
           input.traceId,
@@ -362,10 +370,11 @@ export const scoresRouter = createTRPCRouter({
         );
 
         if (!clickhouseTrace) {
-          // Fail silently while Postgres is in lead.
+          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
           );
+          return validateDbScore(score);
         }
 
         const clickhouseScore = await searchExistingAnnotationScore(
@@ -377,9 +386,11 @@ export const scoresRouter = createTRPCRouter({
         );
 
         if (clickhouseScore) {
-          throw new Error(
+          // Fail silently while Postgres is in lead and return early.
+          logger.error(
             `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
           );
+          return validateDbScore(score);
         }
 
         await upsertScore({
@@ -400,13 +411,6 @@ export const scoresRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "create",
-        after: score,
-      });
       return validateDbScore(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
