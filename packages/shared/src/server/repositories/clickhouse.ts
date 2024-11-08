@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import { instrumentAsync } from "../instrumentation";
 import { S3StorageService } from "../services/S3StorageService";
 import { randomUUID } from "crypto";
+import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -22,12 +23,16 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 };
 
 export async function upsertClickhouse(opts: {
-  table: "observations" | "traces" | "scores";
+  table: "scores"; // TODO: Modify eventType logic to support more tables going forward
   records: Record<string, unknown>[];
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-upsert" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
+
+    // drop trailing s and pretend it's always a create.
+    // Only applicable to scores (and eventually traces).
+    const eventType = `${opts.table.slice(0, -1)}-create`;
 
     const records: Record<string, unknown>[] = opts.records.map((record) => ({
       ...record,
@@ -45,12 +50,12 @@ export async function upsertClickhouse(opts: {
       await Promise.all(
         records.map((record) => {
           s3Client.uploadJson(
-            `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${record.id}/${randomUUID()}.json`,
+            `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
             [
               {
                 id: randomUUID(),
                 timestamp: new Date().toISOString(),
-                type: `${opts.table.slice(0, -1)}-create`, // drop trailing s and pretend it's always a create.
+                type: eventType,
                 body: record,
               },
             ],

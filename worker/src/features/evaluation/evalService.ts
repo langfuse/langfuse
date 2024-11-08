@@ -368,7 +368,7 @@ export const evaluate = async ({
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
       await s3Client.uploadJson(
-        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/${scoreId}/${scoreId}.json`,
+        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
         [
           {
             id: randomUUID(),
