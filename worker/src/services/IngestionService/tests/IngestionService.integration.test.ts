@@ -281,6 +281,7 @@ describe("Ingestion end-to-end tests", () => {
             dataType: "NUMERIC",
             name: "score-name",
             value: 100.5,
+            source: ScoreSource.EVAL,
             traceId: traceId,
           },
         },
@@ -371,6 +372,7 @@ describe("Ingestion end-to-end tests", () => {
       expect(score.name).toBe("score-name");
       expect(score.value).toBe(100.5);
       expect(score.observation_id).toBeNull();
+      expect(score.source).toBe(ScoreSource.EVAL);
       expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     });
   });
@@ -754,6 +756,7 @@ describe("Ingestion end-to-end tests", () => {
           dataType: "NUMERIC",
           name: "score-name",
           traceId: traceId,
+          source: ScoreSource.API,
           value: 100.5,
           observationId: generationId,
         },
