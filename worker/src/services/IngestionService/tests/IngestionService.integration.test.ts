@@ -661,6 +661,78 @@ describe("Ingestion end-to-end tests", () => {
     });
   });
 
+  it("should create and update traces", async () => {
+    const traceId = "7ca1e2a4-4226-4ad0-8134-bbe6953ebff5";
+
+    const traceEventList1: TraceEventType[] = [
+      {
+        id: "e6b00a50-e856-451d-9d15-6535e0fc5ede",
+        timestamp: "2024-11-07T19:32:17.085Z",
+        type: "trace-create",
+        body: {
+          id: "7ca1e2a4-4226-4ad0-8134-bbe6953ebff5",
+          timestamp: "2024-11-07T19:32:17.085Z",
+          name: "qa",
+          sessionId: "lf.docs.conversation.6Lpjd8B",
+          userId: "u-PiVneBZ",
+          metadata: {
+            pathname: "/docs/demo",
+          },
+          release: "53d2e06362f7bf5122ce35a3650da5d95996110f",
+        },
+      },
+      {
+        id: "f8711fba-6054-4ddf-9e26-fb857d2a3b00",
+        timestamp: "2024-11-07T19:32:17.085Z",
+        type: "trace-create",
+        body: {
+          id: "7ca1e2a4-4226-4ad0-8134-bbe6953ebff5",
+          timestamp: "2024-11-07T19:32:17.085Z",
+          input: "What kind of evaluation metrics does Langfuse provide?",
+          release: "53d2e06362f7bf5122ce35a3650da5d95996110f",
+        },
+      },
+    ];
+
+    const traceEventList2: TraceEventType[] = [
+      {
+        id: "0d82b8f2-8a87-4083-ad83-6a32708a645c",
+        timestamp: "2024-11-07T19:32:25.406Z",
+        type: "trace-create",
+        body: {
+          id: "7ca1e2a4-4226-4ad0-8134-bbe6953ebff5",
+          timestamp: "2024-11-07T19:32:25.406Z",
+          output:
+            "## Evaluation Metrics in Langfuse\n\nLangfuse supports a variety of evaluation metrics to help you assess the performance of your LLM applications. Here are some of the key metrics and methods you can use:\n\n### Common Evaluation Methods\n\n1. **Model-based Evaluations**: \n   - Automate evaluations for incoming traces.\n   - Use predefined templates for common criteria such as:\n     - Hallucinations\n     - Toxicity\n     - Relevance\n     - Correctness\n   - Create custom evaluation templates tailored to your specific needs.\n\n2. **User Feedback**: \n   - Collect feedback directly from users, which can provide valuable insights into the application's performance.\n\n3. **Manual Labeling**: \n   - Manually label observations within the Langfuse UI, which allows for human annotation and data labeling.\n\n4. **Evaluation Libraries**: \n   - Integrate with popular evaluation libraries through the Langfuse Python SDK, including:\n     - OpenAI Evals\n     - Langchain Evaluators\n     - RAGAS (for RAG applications)\n     - UpTrain evals\n\n### Scoring and Metrics\n\n- Quality measurement can encompass various factors: \n  - Tonality\n  - Factual accuracy\n  - Completeness\n  - Relevance\n\nThese approaches collectively help pinpoint the strengths and areas for improvement, ensuring that your LLM application produces accurate and contextually appropriate outputs. You can learn more about the [Langfuse scoring system here](https://docs.langfuse.com/docs/scores).\n\nIf you need any further assistance, feel free to reach out to the founders directly via the chat widget or GitHub! 😊",
+          release: "53d2e06362f7bf5122ce35a3650da5d95996110f",
+          tags: ["with-context"],
+        },
+      },
+    ];
+
+    await Promise.all([
+      ingestionService.processTraceEventList({
+        projectId,
+        entityId: traceId,
+        traceEventList: traceEventList2,
+      }),
+    ]);
+
+    await Promise.all([
+      ingestionService.processTraceEventList({
+        projectId,
+        entityId: traceId,
+        traceEventList: traceEventList1,
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+
+    const trace = await getClickhouseRecord(TableName.Traces, traceId);
+
+    expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+  });
+
   it("should create and update all events", async () => {
     const traceId = randomUUID();
     const generationId = randomUUID();
