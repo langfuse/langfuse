@@ -61,7 +61,7 @@ const convertToScore = (row: FetchScoresReturnType) => {
 export const searchExistingAnnotationScore = async (
   projectId: string,
   traceId: string,
-  observationId: string | undefined,
+  observationId: string | null,
   name: string | undefined,
   configId: string | undefined,
 ) => {
@@ -74,7 +74,7 @@ export const searchExistingAnnotationScore = async (
     WHERE s.project_id = {projectId: String}
     AND s.source = 'ANNOTATION'
     AND s.trace_id = {traceId: String}
-    ${observationId ? `AND s.observation_id = {observationId: String}` : ""}
+    ${observationId ? `AND s.observation_id = {observationId: String}` : "AND isNull(s.observation_id)"}
     AND (
       FALSE
       ${name ? `OR s.name = {name: String}` : ""}

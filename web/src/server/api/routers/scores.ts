@@ -371,7 +371,7 @@ export const scoresRouter = createTRPCRouter({
         const clickhouseScore = await searchExistingAnnotationScore(
           input.projectId,
           input.traceId,
-          input.observationId,
+          input.observationId ?? null,
           input.name,
           input.configId,
         );
