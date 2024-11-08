@@ -1,6 +1,7 @@
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  upsertClickhouse,
 } from "./clickhouse";
 import {
   createFilterFromFilterState,
@@ -237,6 +238,21 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...observationFilterRes.params,
       ...scoresFilterRes.params,
     },
+  });
+};
+
+/**
+ * Accepts a trace in a Clickhouse-ready format.
+ * id, project_id, and timestamp must always be provided.
+ */
+export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
+  if (!["id", "project_id", "timestamp"].every((key) => key in trace)) {
+    throw new Error("Identifier fields must be provided to upsert Score.");
+  }
+  await upsertClickhouse({
+    table: "traces",
+    records: [trace as TraceRecordReadType],
+    eventBodyMapper: convertClickhouseToDomain,
   });
 };
 
