@@ -1,7 +1,7 @@
 import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
-import { isValidTableName } from "../../clickhouse/schema-utils";
+import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
 import {
