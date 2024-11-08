@@ -40,10 +40,14 @@ import {
   deleteScore,
   upsertScore,
   logger,
+  getTraceById,
+  getScoreById,
+  getScoreByNameAndTraceId,
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
+import { randomUUID } from "crypto";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -308,6 +312,50 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
+      if (env.CLICKHOUSE_URL) {
+        const clickhouseTrace = await getTraceById(
+          input.traceId,
+          input.projectId,
+        );
+
+        if (!clickhouseTrace) {
+          // Fail silently while Postgres is in lead.
+          logger.error(
+            `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+          );
+        }
+
+        const clickhouseScore = await getScoreByNameAndTraceId(
+          input.projectId,
+          input.name,
+          input.traceId,
+          ScoreSource.ANNOTATION,
+        );
+
+        if (clickhouseScore) {
+          throw new Error(
+            `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+          );
+        }
+
+        await upsertScore({
+          id: randomUUID(),
+          timestamp: new Date(),
+          project_id: input.projectId,
+          trace_id: input.traceId,
+          observation_id: input.observationId,
+          name: input.name,
+          value: input.value !== null ? input.value : undefined,
+          source: ScoreSource.ANNOTATION,
+          comment: input.comment,
+          author_user_id: ctx.session.user.id,
+          config_id: input.configId,
+          data_type: input.dataType,
+          string_value: input.stringValue,
+          queue_id: input.queueId,
+        });
+      }
+
       const trace = await ctx.prisma.trace.findFirst({
         where: {
           id: input.traceId,
@@ -328,30 +376,10 @@ export const scoresRouter = createTRPCRouter({
         },
       });
 
-      // TODO: Can we drop this upsert logic and just error if a score already exists?
       if (existingScore) {
-        const updatedScore = await ctx.prisma.score.update({
-          where: {
-            id: existingScore.id,
-            projectId: input.projectId,
-          },
-          data: {
-            value: input.value,
-            stringValue: input.stringValue,
-            comment: input.comment,
-            authorUserId: ctx.session.user.id,
-            queueId: input.queueId,
-          },
-        });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "score",
-          resourceId: updatedScore.id,
-          action: "update",
-          before: existingScore,
-          after: updatedScore,
-        });
-        return validateDbScore(updatedScore);
+        throw new Error(
+          `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+        );
       }
 
       const score = await ctx.prisma.score.create({
@@ -391,7 +419,7 @@ export const scoresRouter = createTRPCRouter({
 
       if (env.CLICKHOUSE_URL) {
         // Fetch the current score from Clickhouse
-        const clickhouseScore = await getScore(
+        const clickhouseScore = await getScoreById(
           input.projectId,
           input.id,
           ScoreSource.ANNOTATION,

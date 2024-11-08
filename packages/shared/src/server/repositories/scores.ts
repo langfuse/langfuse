@@ -58,7 +58,36 @@ const convertToScore = (row: FetchScoresReturnType) => {
   };
 };
 
-export const getScore = async (
+export const getScoreByNameAndTraceId = async (
+  projectId: string,
+  scoreName: string,
+  traceId: string,
+  source: ScoreSource,
+) => {
+  const query = `
+    SELECT *
+    FROM scores s FINAL
+    WHERE s.project_id = {projectId: String}
+    AND s.name = {scoreName: String}
+    AND s.source = {source: String}
+    and s.trace_id = {traceId: String}
+    ORDER BY s.event_ts DESC
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query,
+    params: {
+      projectId,
+      scoreName,
+      traceId,
+      source,
+    },
+  });
+  return rows.map(convertToScore).shift();
+};
+
+export const getScoreById = async (
   projectId: string,
   scoreId: string,
   source: ScoreSource,

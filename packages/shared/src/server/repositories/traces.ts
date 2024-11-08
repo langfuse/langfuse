@@ -240,6 +240,18 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   });
 };
 
+export const getTraceById = async (
+  traceId: string,
+  projectId: string,
+  timestamp?: Date,
+): Promise<Trace | undefined> => {
+  try {
+    return getTraceByIdOrThrow(traceId, projectId, timestamp);
+  } catch (e) {
+    return undefined;
+  }
+};
+
 export const getTraceByIdOrThrow = async (
   traceId: string,
   projectId: string,
