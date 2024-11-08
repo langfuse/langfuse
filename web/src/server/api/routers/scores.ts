@@ -41,7 +41,6 @@ import {
   logger,
   getTraceById,
   getScoreById,
-  getScoreByNameAndTraceId,
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
 } from "@langfuse/shared/src/server";
