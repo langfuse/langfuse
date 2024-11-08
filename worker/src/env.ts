@@ -45,6 +45,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100),
+  LANGFUSE_INGESTION_QEUEUE_PROCESSING_DELAY_MS: z.coerce
+    .number()
+    .positive()
+    .default(15_000),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()

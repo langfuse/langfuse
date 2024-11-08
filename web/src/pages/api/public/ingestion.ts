@@ -355,7 +355,7 @@ export const processEventBatch = async (
                 },
               },
               {
-                delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS,
+                delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
               },
             )
           : Promise.reject("Failed to instantiate queue"),
