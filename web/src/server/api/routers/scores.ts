@@ -327,6 +327,7 @@ export const scoresRouter = createTRPCRouter({
           traceId: input.traceId,
           observationId: input.observationId ?? null,
           source: "ANNOTATION",
+          // configId functions as unique constraint for scores with source ANNOTATION
           configId: input.configId,
         },
       });
