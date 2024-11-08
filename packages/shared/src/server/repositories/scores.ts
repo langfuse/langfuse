@@ -123,7 +123,8 @@ export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
   }
   await upsertClickhouse({
     table: "scores",
-    records: [score],
+    records: [score as FetchScoresReturnType],
+    eventBodyMapper: convertToScore,
   });
 };
 
