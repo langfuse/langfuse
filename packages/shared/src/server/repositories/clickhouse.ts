@@ -1,5 +1,8 @@
 import { env } from "../../env";
-import { clickhouseClient } from "../clickhouse/client";
+import {
+  clickhouseClient,
+  convertDateToClickhouseDateTime,
+} from "../clickhouse/client";
 import { logger } from "../logger";
 import { instrumentAsync } from "../instrumentation";
 import { S3StorageService } from "../services/S3StorageService";
@@ -34,11 +37,6 @@ export async function upsertClickhouse(opts: {
     // Only applicable to scores (and eventually traces).
     const eventType = `${opts.table.slice(0, -1)}-create`;
 
-    const records: Record<string, unknown>[] = opts.records.map((record) => ({
-      ...record,
-      event_ts: new Date(),
-    }));
-
     // If event upload is enabled, we store all rows in S3 to have a backup
     if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
       if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
@@ -48,7 +46,7 @@ export async function upsertClickhouse(opts: {
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
       await Promise.all(
-        records.map((record) => {
+        opts.records.map((record) => {
           s3Client.uploadJson(
             `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
             [
@@ -66,7 +64,10 @@ export async function upsertClickhouse(opts: {
 
     const res = await clickhouseClient.insert({
       table: opts.table,
-      values: records,
+      values: opts.records.map((record) => ({
+        ...record,
+        event_ts: convertDateToClickhouseDateTime(new Date()),
+      })),
       format: "JSONEachRow",
     });
     // same logic as for prisma. we want to see queries in development
