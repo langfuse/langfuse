@@ -530,7 +530,6 @@ const getObservationsTableInternal = async <T>(
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-    console.log("tracesTimestampFilter", timeFilter);
     const res = await queryClickhouse<T>({
       query,
       params: {
