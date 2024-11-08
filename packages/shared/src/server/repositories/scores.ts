@@ -58,19 +58,28 @@ const convertToScore = (row: FetchScoresReturnType) => {
   };
 };
 
-export const getScoreByNameAndTraceId = async (
+export const searchExistingAnnotationScore = async (
   projectId: string,
-  scoreName: string,
   traceId: string,
-  source: ScoreSource,
+  observationId: string | undefined,
+  name: string | undefined,
+  configId: string | undefined,
 ) => {
+  if (!name && !configId) {
+    throw new Error("Either name or configId (or both) must be provided.");
+  }
   const query = `
     SELECT *
     FROM scores s FINAL
     WHERE s.project_id = {projectId: String}
-    AND s.name = {scoreName: String}
-    AND s.source = {source: String}
-    and s.trace_id = {traceId: String}
+    AND s.source = 'ANNOTATION'
+    AND s.trace_id = {traceId: String}
+    ${observationId ? `AND s.observation_id = {observationId: String}` : ""}
+    AND (
+      FALSE
+      ${name ? `OR s.name = {name: String}` : ""}
+      ${configId ? `OR s.config_id = {configId: String}` : ""}
+    )
     ORDER BY s.event_ts DESC
     LIMIT 1
   `;
@@ -79,9 +88,10 @@ export const getScoreByNameAndTraceId = async (
     query,
     params: {
       projectId,
-      scoreName,
+      name,
+      configId,
       traceId,
-      source,
+      observationId,
     },
   });
   return rows.map(convertToScore).shift();

@@ -43,6 +43,7 @@ import {
   getScoreById,
   getScoreByNameAndTraceId,
   convertDateToClickhouseDateTime,
+  searchExistingAnnotationScore,
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
@@ -368,11 +369,12 @@ export const scoresRouter = createTRPCRouter({
           );
         }
 
-        const clickhouseScore = await getScoreByNameAndTraceId(
+        const clickhouseScore = await searchExistingAnnotationScore(
           input.projectId,
-          input.name,
           input.traceId,
-          ScoreSource.ANNOTATION,
+          input.observationId,
+          input.name,
+          input.configId,
         );
 
         if (clickhouseScore) {
