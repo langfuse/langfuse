@@ -3,7 +3,29 @@
 
 import { UiColumnMapping } from "./types";
 
+export const observationsTableTraceUiColumnDefinitions: UiColumnMapping[] = [
+  {
+    uiTableName: "Trace Tags",
+    uiTableId: "traceTags",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "t.tags",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: 't."user_id"',
+  },
+  {
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 't."name"',
+  },
+];
+
 export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
+  ...observationsTableTraceUiColumnDefinitions,
   {
     uiTableName: "ID",
     uiTableId: "id",
@@ -28,18 +50,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."trace_id"',
   },
-  {
-    uiTableName: "Trace Name",
-    uiTableId: "traceName",
-    clickhouseTableName: "observations",
-    clickhouseSelect: 't."name"',
-  },
-  {
-    uiTableName: "User ID",
-    uiTableId: "userId",
-    clickhouseTableName: "traces",
-    clickhouseSelect: 't."user_id"',
-  },
+
   {
     uiTableName: "Start Time",
     uiTableId: "startTime",
@@ -169,11 +180,5 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "promptVersion",
     clickhouseTableName: "prompts",
     clickhouseSelect: "p.version",
-  },
-  {
-    uiTableName: "Trace Tags",
-    uiTableId: "traceTags",
-    clickhouseTableName: "traces",
-    clickhouseSelect: "t.tags",
   },
 ];
