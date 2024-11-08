@@ -240,6 +240,30 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   });
 };
 
+export const getTracesByIds = async (
+  traceIds: string[],
+  projectId: string,
+  timestamp?: Date,
+) => {
+  const query = `
+      SELECT * 
+      FROM traces
+      WHERE id IN ({traceIds: Array(String)})
+        AND project_id = {projectId: String}
+        ${timestamp ? `AND timestamp >= {timestamp: DateTime}` : ""} 
+      ORDER BY event_ts DESC LIMIT 1 by id, project_id;`;
+  const records = await queryClickhouse<TraceRecordReadType>({
+    query,
+    params: {
+      traceIds,
+      projectId,
+      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+    },
+  });
+
+  return records.map(convertClickhouseToDomain);
+};
+
 export const getTraceByIdOrThrow = async (
   traceId: string,
   projectId: string,
