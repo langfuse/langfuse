@@ -38,7 +38,7 @@ export default withMiddlewares({
         logger.error("Failed to create event", { result });
         throw new Error("Failed to create event");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
 });

@@ -44,7 +44,7 @@ export default withMiddlewares({
         logger.error("Failed to create generation", { result });
         throw new Error("Failed to create generation");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
   PATCH: createAuthedAPIRoute({
@@ -78,7 +78,7 @@ export default withMiddlewares({
         logger.error("Failed to update generation", { result });
         throw new Error("Failed to update generation");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
 });

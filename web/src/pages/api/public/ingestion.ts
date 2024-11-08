@@ -472,22 +472,6 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   return [...others, ...updates];
 };
 
-export const getBadRequestError = (
-  errors: Array<unknown>,
-): InvalidRequestError[] =>
-  errors.filter(
-    (error): error is InvalidRequestError =>
-      error instanceof InvalidRequestError,
-  );
-
-export const getLangfuseNotFoundError = (
-  errors: Array<unknown>,
-): LangfuseNotFoundError[] =>
-  errors.filter(
-    (error): error is LangfuseNotFoundError =>
-      error instanceof LangfuseNotFoundError,
-  );
-
 export const aggregateBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,

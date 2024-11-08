@@ -49,7 +49,7 @@ export default withMiddlewares({
         logger.error("Failed to create trace", { result });
         throw new Error("Failed to create trace");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
 

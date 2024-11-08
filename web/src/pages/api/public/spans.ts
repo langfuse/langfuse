@@ -40,7 +40,7 @@ export default withMiddlewares({
         logger.error("Failed to create span", { result });
         throw new Error("Failed to create span");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
   PATCH: createAuthedAPIRoute({
@@ -54,6 +54,7 @@ export default withMiddlewares({
         timestamp: new Date().toISOString(),
         body: {
           ...body,
+          id: body.spanId,
           type: "SPAN",
         },
       };
@@ -69,7 +70,7 @@ export default withMiddlewares({
         logger.error("Failed to update span", { result });
         throw new Error("Failed to update span");
       }
-      return result.successes[0];
+      return { id: event.body.id };
     },
   }),
 });
