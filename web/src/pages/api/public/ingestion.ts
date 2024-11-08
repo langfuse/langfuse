@@ -1,7 +1,7 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import { LangfuseNotFoundError, InternalServerError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   eventTypes,
   ingestionEvent,
@@ -472,22 +472,6 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
   return [...others, ...updates];
 };
 
-export const getBadRequestError = (
-  errors: Array<unknown>,
-): InvalidRequestError[] =>
-  errors.filter(
-    (error): error is InvalidRequestError =>
-      error instanceof InvalidRequestError,
-  );
-
-export const getLangfuseNotFoundError = (
-  errors: Array<unknown>,
-): LangfuseNotFoundError[] =>
-  errors.filter(
-    (error): error is LangfuseNotFoundError =>
-      error instanceof LangfuseNotFoundError,
-  );
-
 export const aggregateBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
@@ -548,48 +532,4 @@ export const aggregateBatchResult = (
   });
 
   return { successes, errors: returnedErrors };
-};
-
-/**
- * Parses the response from the ingestion batch API event processor and throws an error of `BaserError` if the response is not as expected.
- *
- * @param errors - Array of errors from `handleBatch()`
- * @param results - Array of results from `handleBatch()`
- * @param object - Zod object to parse the result, if not provided, the result is returned as is without parsing
- * @returns - Parsed result
- * @throws - Throws an error of type `BaseError` if there are errors in the arguments
- */
-export const parseSingleTypedIngestionApiResponse = <T extends z.ZodTypeAny>(
-  errors: Array<{ id: string; error: unknown }>,
-  results: Array<{ id: string; result: unknown }>,
-  object?: T,
-): T extends z.ZodTypeAny ? z.infer<T> : unknown => {
-  const unknownErrors = errors.map((error) => error.error);
-  const badRequestErrors = getBadRequestError(unknownErrors);
-  if (badRequestErrors.length > 0) {
-    throw new InvalidRequestError(badRequestErrors[0].message);
-  }
-  const langfuseNotFoundError = getLangfuseNotFoundError(unknownErrors);
-  if (langfuseNotFoundError.length > 0) {
-    throw langfuseNotFoundError[0];
-  }
-  if (errors.length > 0) {
-    throw new InternalServerError("Internal Server Error");
-  }
-
-  if (results.length === 0) {
-    throw new InternalServerError("No results returned");
-  }
-
-  if (object === undefined) {
-    return results[0].result as T extends z.ZodTypeAny ? z.infer<T> : unknown;
-  }
-
-  const parsedObj = object.safeParse(results[0].result);
-  if (!parsedObj.success) {
-    console.error("Error parsing response", parsedObj.error);
-    traceException(parsedObj.error);
-  }
-  // should not fail in prod but just log an exception, see above
-  return results[0].result as z.infer<T>;
 };
