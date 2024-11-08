@@ -45,7 +45,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100),
-  LANGFUSE_INGESTION_QEUEUE_PROCESSING_DELAY_MS: z.coerce
+  LANGFUSE_INGESTION_QUEUE_PROCESSING_DELAY_MS: z.coerce
     .number()
     .positive()
     .default(15_000),
