@@ -72,7 +72,7 @@ export const filterOptionsQuery = protectedProjectProcedure
             ]
           : [],
       );
-      return traces.map((i) => ({ traceName: i.count }));
+      return traces.map((i) => ({ traceName: i.name }));
     };
 
     const getClickhouseTraceTags = async (): Promise<
