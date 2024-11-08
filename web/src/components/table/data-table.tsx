@@ -110,7 +110,6 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [showMetadata, setShowMetadata] = useState(false);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
 
