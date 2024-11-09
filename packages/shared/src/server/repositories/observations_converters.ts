@@ -87,7 +87,9 @@ export const convertObservationAndModel = (
     version: record.version ?? null,
     input: jsonSchema.nullish().parse(record.input) ?? null,
     output: jsonSchema.nullish().parse(record.output) ?? null,
-    modelParameters: jsonSchema.nullable().parse(record.model_parameters),
+    modelParameters: record.model_parameters
+      ? JSON.parse(record.model_parameters)
+      : null,
     completionStartTime: record.completion_start_time
       ? parseClickhouseUTCDateTimeFormat(record.completion_start_time)
       : null,
