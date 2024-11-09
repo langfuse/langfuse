@@ -14,6 +14,7 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { convertToScore } from "./scores_converters";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -35,27 +36,6 @@ export type FetchScoresReturnType = {
   event_ts: string;
   is_deleted: number;
   projectId: string;
-};
-
-const convertToScore = (row: FetchScoresReturnType) => {
-  return {
-    id: row.id,
-    timestamp: new Date(row.timestamp),
-    projectId: row.project_id,
-    traceId: row.trace_id,
-    observationId: row.observation_id,
-    name: row.name,
-    value: row.value,
-    source: row.source as ScoreSource,
-    comment: row.comment,
-    authorUserId: row.author_user_id,
-    configId: row.config_id,
-    dataType: row.data_type as ScoreDataType,
-    stringValue: row.string_value,
-    queueId: row.queue_id,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-  };
 };
 
 export const searchExistingAnnotationScore = async (
