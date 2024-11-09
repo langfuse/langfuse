@@ -48,7 +48,7 @@ export const convertObservation = async (
         },
       })
     : undefined;
-  return await convertObservationAndModel(record, model ?? undefined);
+  return convertObservationAndModel(record, model ?? undefined);
 };
 
 export const convertObservationToView = async (
@@ -65,7 +65,7 @@ export const convertObservationToView = async (
       })
     : undefined;
   return {
-    ...(await convertObservationAndModel(record, model ?? undefined)),
+    ...convertObservationAndModel(record, model ?? undefined),
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
@@ -86,10 +86,11 @@ export const convertObservationToView = async (
   };
 };
 
-const convertObservationAndModel = async (
+const convertObservationAndModel = (
   record: ObservationRecordReadType,
   model?: Model & { Price: Price[] },
-): Promise<Observation> => {
+): Observation => {
+  console.log(record);
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -107,7 +108,9 @@ const convertObservationAndModel = async (
     version: record.version ?? null,
     input: jsonSchema.nullish().parse(record.input) ?? null,
     output: jsonSchema.nullish().parse(record.output) ?? null,
-    modelParameters: jsonSchema.nullable().parse(record.model_parameters),
+    modelParameters: record.model_parameters
+      ? JSON.parse(record.model_parameters)
+      : undefined,
     completionStartTime: record.completion_start_time
       ? parseClickhouseUTCDateTimeFormat(record.completion_start_time)
       : null,
@@ -236,6 +239,8 @@ export const getObservationById = async (
   const mapped = await Promise.all(
     records.map(async (r) => await convertObservation(r)),
   );
+
+  console.log("hehehe", mapped);
 
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
@@ -380,7 +385,9 @@ export const getObservationsTable = async (
       createdAt: parseClickhouseUTCDateTimeFormat(o.created_at),
       updatedAt: parseClickhouseUTCDateTimeFormat(o.updated_at),
       model: o.provided_model_name ?? null,
-      modelParameters: o.model_parameters ?? null,
+      modelParameters: o.model_parameters
+        ? JSON.stringify(o.model_parameters)
+        : null,
       promptTokens: o.usage_details?.input ? Number(o.usage_details?.input) : 0,
       completionTokens: o.usage_details?.output
         ? Number(o.usage_details?.output)
