@@ -90,7 +90,6 @@ const convertObservationAndModel = (
   record: ObservationRecordReadType,
   model?: Model & { Price: Price[] },
 ): Observation => {
-  console.log(record);
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
