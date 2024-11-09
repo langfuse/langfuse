@@ -103,7 +103,7 @@ export const prepareClickhouse = async (
         when number % 2 = 0 then 'cltr0w45b000008k1407o9qv1'
         else 'clrntkjgy000f08jx79v9g1xj'
       end as internal_model_id,
-      '{"temperature": 0.7, "max_tokens": 15d0}' AS model_parameters,
+      '{"temperature": 0.7, "max_tokens": 150}' AS model_parameters,
       map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))) AS provided_usage_details,
       map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))) AS usage_details,
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS provided_cost_details,
