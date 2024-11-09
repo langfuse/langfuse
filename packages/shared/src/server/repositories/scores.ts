@@ -5,15 +5,15 @@ import {
   queryClickhouse,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { FilterState } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
-} from "../queries/clickhouse-filter/factory";
+} from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
-import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { convertToScore } from "./scores_converters";
 
 export type FetchScoresReturnType = {

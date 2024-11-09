@@ -9,15 +9,15 @@ import {
   DateTimeFilter,
   FilterList,
   StringFilter,
-} from "../queries/clickhouse-filter/clickhouse-filter";
+} from "../queries/clickhouse-sql/clickhouse-filter";
 import { FullObservations } from "../queries/createGenerationsQuery";
-import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
+import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
 } from "../../tableDefinitions";
 import { TableCount } from "./types";
-import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
