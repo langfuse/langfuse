@@ -327,8 +327,8 @@ export const getObservationsTable = async (
         o.total_cost as "total_cost",
         internal_model_id as "internal_model_id",
         provided_model_name as "provided_model_name",
-        if(isNull(end_time), NULL, date_diff('seconds', start_time, end_time)) as latency,
-        if(isNull(completion_start_time), NULL,  date_diff('seconds', start_time, completion_start_time)) as "time_to_first_token"`,
+        if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`,
   });
 
   const uniqueModels: string[] = Array.from(
@@ -401,9 +401,9 @@ export const getObservationsTable = async (
       completionStartTime: o.completion_start_time
         ? parseClickhouseUTCDateTimeFormat(o.completion_start_time)
         : null,
-      latency: o.latency ? Number(o.latency) : null,
+      latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
-        ? Number(o.time_to_first_token)
+        ? Number(o.time_to_first_token) / 1000
         : null,
       promptId: o.prompt_id ?? null,
       promptName: o.prompt_name ?? null,
