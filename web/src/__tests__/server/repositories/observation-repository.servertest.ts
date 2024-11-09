@@ -42,7 +42,7 @@ describe("Clickhouse Observations Repository Test", () => {
       output: "sample_output",
       provided_model_name: "sample_model",
       internal_model_id: "sample_internal_model_id",
-      model_parameters: '{"something":"sample_prompt_id"}',
+      model_parameters: '{"something":"sample_param"}',
       total_cost: 300,
       prompt_id: "sample_prompt_id",
       prompt_name: "sample_prompt_name",
@@ -69,7 +69,7 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(result.input).toEqual(observation.input);
     expect(result.output).toEqual(observation.output);
     expect(result.internalModelId).toEqual(observation.internal_model_id);
-    expect(result.modelParameters).toEqual(observation.model_parameters);
+    expect(result.modelParameters).toEqual({ something: "sample_param" });
     expect(result.promptId).toEqual(observation.prompt_id);
     expect(result.endTime).toEqual(new Date(observation.end_time));
     expect(result.completionStartTime).toEqual(
