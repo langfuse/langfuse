@@ -135,6 +135,7 @@ export const traceRouter = createTRPCRouter({
         const res = await getTracesTable(
           ctx.session.projectId,
           input.filter ?? [],
+          input.searchQuery ?? undefined,
           input.orderBy,
           input.limit,
           input.page,
@@ -180,13 +181,13 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        const countQuery = await getTracesTableCount(
-          ctx.session.projectId,
-          input.filter ?? [],
-          null,
-          1,
-          0,
-        );
+        const countQuery = await getTracesTableCount({
+          projectId: ctx.session.projectId,
+          filter: input.filter ?? [],
+          searchQuery: input.searchQuery ?? undefined,
+          limit: 1,
+          offset: 0,
+        });
 
         return {
           totalCount: countQuery,
