@@ -15,7 +15,7 @@ describe("Clickhouse Observations Repository Test", () => {
     await expect(getObservationById(v4(), v4())).rejects.toThrow();
   });
 
-  it.only("should return an observation if exists", async () => {
+  it("should return an observation if exists", async () => {
     const observationId = v4();
     const traceId = v4();
 
