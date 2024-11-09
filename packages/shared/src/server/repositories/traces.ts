@@ -1,4 +1,5 @@
 import {
+  commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
@@ -629,4 +630,19 @@ export const getTracesForSession = async (
     name: row.name,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));
+};
+
+export const deleteTraces = async (projectId: string, traceIds: string[]) => {
+  const query = `
+    DELETE FROM traces
+    WHERE project_id = {projectId: String}
+    AND id IN ({traceIds: Array(String)});
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      traceIds,
+    },
+  });
 };
