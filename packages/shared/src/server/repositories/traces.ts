@@ -21,7 +21,10 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-fac
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertClickhouseToDomain } from "./convertClickhouseToDomain";
+import {
+  convertClickhouseToDomain,
+  convertToReturnType,
+} from "./traces_converters";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -103,7 +106,7 @@ export const getTracesTable = async (
     offset,
   });
 
-  return rows;
+  return rows.map(convertToReturnType);
 };
 
 type FetchTracesTableProps = {
@@ -208,7 +211,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
 
-  return await queryClickhouse<T>({
+  const res = await queryClickhouse<T>({
     query: query,
     params: {
       limit: limit,
@@ -218,6 +221,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...scoresFilterRes.params,
     },
   });
+
+  return res;
 };
 
 export const getTraceById = async (
