@@ -239,8 +239,6 @@ export const getObservationById = async (
     records.map(async (r) => await convertObservation(r)),
   );
 
-  console.log("hehehe", mapped);
-
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
   }
