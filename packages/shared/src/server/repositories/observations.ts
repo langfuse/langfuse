@@ -25,6 +25,7 @@ import {
   convertObservationToView,
   convertObservation,
 } from "./observations_converters";
+import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 
 export const getObservationsViewForTrace = async (
   traceId: string,
@@ -136,6 +137,7 @@ export type ObservationTableQuery = {
   projectId: string;
   filter: FilterState;
   orderBy?: OrderByState;
+  searchQuery?: string;
   limit?: number;
   offset?: number;
   selectIOAndMetadata?: boolean;
@@ -326,6 +328,8 @@ const getObservationsTableInternal = async <T>(
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
+  const search = clickhouseSearchCondition(opts.searchQuery);
+
   const scoresCte = `WITH scores_avg AS (
     SELECT
       trace_id,
@@ -367,6 +371,7 @@ const getObservationsTableInternal = async <T>(
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
         ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime64} - INTERVAL 2 DAY` : ""}
+        ${search.query}
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
@@ -382,6 +387,7 @@ const getObservationsTableInternal = async <T>(
               ),
             }
           : {}),
+        ...search.params,
       },
     });
 
