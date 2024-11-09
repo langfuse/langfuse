@@ -3,19 +3,11 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
-import {
-  Model,
-  Observation,
-  ObservationLevel,
-  ObservationType,
-  ObservationView,
-  Price,
-} from "@prisma/client";
+import { Observation, ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import Decimal from "decimal.js";
 import { prisma } from "../../db";
-import { jsonSchema } from "../../utils/zod";
 import { ObservationRecordReadType } from "./definitions";
 import { FilterState } from "../../types";
 import {
@@ -34,117 +26,11 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-fac
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-
-export const convertObservation = async (
-  record: ObservationRecordReadType,
-): Promise<Observation> => {
-  const model = record.internal_model_id
-    ? await prisma.model.findFirst({
-        where: {
-          id: record.internal_model_id,
-        },
-        include: {
-          Price: true,
-        },
-      })
-    : undefined;
-  return await convertObservationAndModel(record, model ?? undefined);
-};
-
-export const convertObservationToView = async (
-  record: ObservationRecordReadType,
-): Promise<ObservationView> => {
-  const model = record.internal_model_id
-    ? await prisma.model.findFirst({
-        where: {
-          id: record.internal_model_id,
-        },
-        include: {
-          Price: true,
-        },
-      })
-    : undefined;
-  return {
-    ...(await convertObservationAndModel(record, model ?? undefined)),
-    latency: record.end_time
-      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
-      : null,
-    timeToFirstToken: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
-      : null,
-    inputPrice:
-      model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-    outputPrice:
-      model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-    totalPrice:
-      model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
-    promptName: record.prompt_name ?? null,
-    promptVersion: record.prompt_version ?? null,
-    modelId: record.internal_model_id ?? null,
-  };
-};
-
-const convertObservationAndModel = async (
-  record: ObservationRecordReadType,
-  model?: Model & { Price: Price[] },
-): Promise<Observation> => {
-  return {
-    id: record.id,
-    traceId: record.trace_id ?? null,
-    projectId: record.project_id,
-    type: record.type as ObservationType,
-    parentObservationId: record.parent_observation_id ?? null,
-    startTime: parseClickhouseUTCDateTimeFormat(record.start_time),
-    endTime: record.end_time
-      ? parseClickhouseUTCDateTimeFormat(record.end_time)
-      : null,
-    name: record.name ?? null,
-    metadata: record.metadata,
-    level: record.level as ObservationLevel,
-    statusMessage: record.status_message ?? null,
-    version: record.version ?? null,
-    input: jsonSchema.nullish().parse(record.input) ?? null,
-    output: jsonSchema.nullish().parse(record.output) ?? null,
-    modelParameters: jsonSchema.nullable().parse(record.model_parameters),
-    completionStartTime: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(record.completion_start_time)
-      : null,
-    promptId: record.prompt_id ?? null,
-    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: record.usage_details?.input
-      ? Number(record.usage_details?.input)
-      : 0,
-    completionTokens: record.usage_details?.output
-      ? Number(record.usage_details?.output)
-      : 0,
-    totalTokens: record.usage_details?.total
-      ? Number(record.usage_details?.total)
-      : 0,
-    calculatedInputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details.input)
-      : null,
-    calculatedOutputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details.output)
-      : null,
-    calculatedTotalCost: record.cost_details?.total
-      ? new Decimal(record.cost_details.total)
-      : null,
-    inputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details?.input)
-      : null,
-    outputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details?.output)
-      : null,
-    totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
-    model: record.provided_model_name ?? null,
-    internalModelId: record.internal_model_id ?? null,
-    internalModel: model?.modelName ?? null, // to be removed
-    unit: "TOKENS", // to be removed.
-  };
-};
+import {
+  convertObservationToView,
+  convertObservation,
+  convertObservationAndModel,
+} from "./observations_converters";
 
 export const getObservationsViewForTrace = async (
   traceId: string,
@@ -296,7 +182,7 @@ export const getObservationsTable = async (
   const observationRecords = await getObservationsTableInternal<
     Omit<
       ObservationsTableQueryResult,
-      "trace_tags" | "trace_name" | "trace_user_id"
+      "trace_tags" | "trace_name" | "trace_user_id" | "type"
     >
   >({
     ...opts,
@@ -359,63 +245,25 @@ export const getObservationsTable = async (
     ),
   ]);
 
-  return observationRecords.map((o) => {
-    const model = models.find((p) => p.id === o.internal_model_id);
-    const trace = traces.find((t) => t.id === o.trace_id);
-    return {
-      id: o.id,
-      type: "GENERATION",
-      name: o.name ?? null,
-      level: o.level as ObservationLevel,
-      version: o.version ?? null,
-      input: o.input ?? null,
-      output: o.output ?? null,
-      metadata: o.metadata,
-      traceId: o.trace_id ?? null,
-      projectId: o.project_id,
-      startTime: parseClickhouseUTCDateTimeFormat(o.start_time),
-      endTime: o.end_time ? parseClickhouseUTCDateTimeFormat(o.end_time) : null,
-      parentObservationId: o.parent_observation_id ?? null,
-      statusMessage: o.status_message ?? null,
-      createdAt: parseClickhouseUTCDateTimeFormat(o.created_at),
-      updatedAt: parseClickhouseUTCDateTimeFormat(o.updated_at),
-      model: o.provided_model_name ?? null,
-      modelParameters: o.model_parameters ?? null,
-      promptTokens: o.usage_details?.input ? Number(o.usage_details?.input) : 0,
-      completionTokens: o.usage_details?.output
-        ? Number(o.usage_details?.output)
-        : 0,
-      totalTokens: o.usage_details?.total ? Number(o.usage_details?.total) : 0,
-      unit: "TOKENS",
-      calculatedInputCost: o.cost_details?.input
-        ? new Decimal(o.cost_details.input)
-        : null,
-      calculatedOutputCost: o.cost_details?.output
-        ? new Decimal(o.cost_details.output)
-        : null,
-      calculatedTotalCost: o.total_cost ? new Decimal(o.total_cost) : null,
-      completionStartTime: o.completion_start_time
-        ? parseClickhouseUTCDateTimeFormat(o.completion_start_time)
-        : null,
-      latency: o.latency ? Number(o.latency) / 1000 : null,
-      timeToFirstToken: o.time_to_first_token
-        ? Number(o.time_to_first_token) / 1000
-        : null,
-      promptId: o.prompt_id ?? null,
-      promptName: o.prompt_name ?? null,
-      promptVersion: o.prompt_version ?? null,
-      modelId: o.internal_model_id ?? null,
-      inputPrice:
-        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-      outputPrice:
-        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-      totalPrice:
-        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
-      traceName: trace?.name ?? null,
-      traceTags: trace?.tags ?? [],
-      userId: trace?.userId ?? null,
-    };
-  });
+  return await Promise.all(
+    observationRecords.map(async (o) => {
+      const model = models.find((p) => p.id === o.internal_model_id);
+      const trace = traces.find((t) => t.id === o.trace_id);
+      return {
+        ...(await convertObservationToView(
+          { ...o, type: "GENERATION" },
+          model,
+        )),
+        latency: o.latency ? Number(o.latency) / 1000 : null,
+        timeToFirstToken: o.time_to_first_token
+          ? Number(o.time_to_first_token) / 1000
+          : null,
+        traceName: trace?.name ?? null,
+        traceTags: trace?.tags ?? [],
+        userId: trace?.userId ?? null,
+      };
+    }),
+  );
 };
 
 const getObservationsTableInternal = async <T>(
