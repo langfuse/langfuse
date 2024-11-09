@@ -60,7 +60,7 @@ export type TracesTableReturnType = Pick<
 > & {
   level: ObservationLevel;
   observation_count: number | null;
-  latency: string | null;
+  latency_milliseconds: string | null;
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
@@ -108,7 +108,7 @@ export const getTracesTable = async (
     t.version, 
     t.user_id, 
     t.session_id,
-    os.latencyMs as latency,
+    os.latency_milliseconds,
     os.cost_details as cost_details,
     os.usage_details as usage_details,
     os.level as level,
@@ -184,7 +184,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     COUNT(*) AS observation_count,
       sumMap(usage_details) as usage_details,
       SUM(total_cost) AS total_cost,
-      date_diff('seconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latencyMs,
+      date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
       multiIf(
         arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
         arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
@@ -547,7 +547,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
             groupUniqArrayArray(t.tags) as trace_tags,
             -- Aggregate observations data at session level
             sum(o.obs_count) as total_observations,
-            date_diff('seconds', min(min_start_time), max(max_end_time)) as duration,
+            date_diff('milliseconds', min(min_start_time), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
             sumMap(o.sum_cost_details) as session_cost_details,
             sumMap(o.sum_cost_details)['input'] as session_input_cost,

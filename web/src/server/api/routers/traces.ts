@@ -38,11 +38,15 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsViewForTrace,
+  deleteTraces,
+  deleteScoresByTraceIds,
+  deleteObservationsByTraceIds,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { env } from "@/src/env.mjs";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -114,7 +118,9 @@ export const convertMetricsReturnType = (
     promptTokens: BigInt(row.usage_details?.input ?? 0),
     completionTokens: BigInt(row.usage_details?.output ?? 0),
     totalTokens: BigInt(row.usage_details?.total ?? 0),
-    latency: row.latency ? Number(row.latency) : null,
+    latency: row.latency_milliseconds
+      ? Number(row.latency_milliseconds) / 1000
+      : null,
     level: row.level,
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
@@ -655,7 +661,7 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.$transaction([
+      await ctx.prisma.$transaction([
         ctx.prisma.trace.deleteMany({
           where: {
             id: {
@@ -681,6 +687,14 @@ export const traceRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      if (env.CLICKHOUSE_URL) {
+        await Promise.all([
+          deleteTraces(input.projectId, input.traceIds),
+          deleteObservationsByTraceIds(input.projectId, input.traceIds),
+          deleteScoresByTraceIds(input.projectId, input.traceIds),
+        ]);
+      }
     }),
   bookmark: protectedProjectProcedure
     .input(
