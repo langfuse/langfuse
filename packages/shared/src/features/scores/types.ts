@@ -1,4 +1,4 @@
-import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
+import { ScoreDataType, ScoreSource } from "@prisma/client";
 
 export type CategoricalAggregate = {
   type: "CATEGORICAL";
