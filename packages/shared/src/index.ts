@@ -28,8 +28,7 @@ export * from "./features/batchExport/types";
 export * from "./features/annotation/types";
 
 // scores
-export * from "./features/scores/scoreConfigTypes";
-export * from "./features/scores/scoreTypes";
+export * from "./features/scores";
 
 // comments
 export * from "./features/comments/types";

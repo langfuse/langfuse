@@ -6,43 +6,25 @@ import {
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
-} from "../queries/clickhouse-filter/factory";
+} from "../queries/clickhouse-sql/factory";
 import { ObservationLevel, Trace } from "@prisma/client";
 import { FilterState } from "../../types";
 import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
-} from "../queries/clickhouse-filter/clickhouse-filter";
+} from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
 import { OrderByState } from "../../interfaces/orderBy";
-import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-
-const convertClickhouseToDomain = (record: TraceRecordReadType): Trace => {
-  return {
-    id: record.id,
-    projectId: record.project_id,
-    name: record.name ?? null,
-    timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
-    tags: record.tags,
-    bookmarked: record.bookmarked,
-    release: record.release ?? null,
-    version: record.version ?? null,
-    userId: record.user_id ?? null,
-    sessionId: record.session_id ?? null,
-    public: record.public,
-    input: record.input ?? null,
-    output: record.output ?? null,
-    metadata: record.metadata,
-    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    externalId: null,
-  };
-};
+import {
+  convertClickhouseToDomain,
+  convertToReturnType,
+} from "./traces_converters";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -229,7 +211,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
 
-  return await queryClickhouse<T>({
+  const res = await queryClickhouse<T>({
     query: query,
     params: {
       limit: limit,
@@ -239,6 +221,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...scoresFilterRes.params,
     },
   });
+
+  return res;
 };
 
 export const getTraceById = async (
