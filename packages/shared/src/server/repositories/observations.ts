@@ -1,4 +1,5 @@
 import {
+  commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
@@ -741,4 +742,22 @@ export const getCostForTraces = async (
     },
   });
   return res.length > 0 ? Number(res[0].total_cost) : undefined;
+};
+
+export const deleteObservationsByTraceIds = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  const query = `
+    DELETE FROM observations
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)});
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      traceIds,
+    },
+  });
 };
