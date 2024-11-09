@@ -473,3 +473,21 @@ export const deleteScore = async (projectId: string, scoreId: string) => {
     },
   });
 };
+
+export const deleteScoresByTraceIds = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)});
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      traceIds,
+    },
+  });
+};
