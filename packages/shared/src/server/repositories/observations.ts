@@ -1,12 +1,7 @@
-import {
-  commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
-  queryClickhouse,
-} from "./clickhouse";
+import { commandClickhouse, queryClickhouse } from "./clickhouse";
 import { Observation, ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
-import Decimal from "decimal.js";
 import { prisma } from "../../db";
 import { ObservationRecordReadType } from "./definitions";
 import { FilterState } from "../../types";
@@ -29,7 +24,6 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   convertObservationToView,
   convertObservation,
-  convertObservationAndModel,
 } from "./observations_converters";
 
 export const getObservationsViewForTrace = async (
@@ -186,9 +180,6 @@ export const getObservationsTable = async (
     >
   >({
     ...opts,
-    //t.name as "trace_name",
-    //t.user_id as "trace_user_id",
-    // t.tags as "trace_tags",
     select: `
         o.id as id,
         o.name as name,

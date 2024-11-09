@@ -106,7 +106,7 @@ export const getTracesTable = async (
     offset,
   });
 
-  return rows.map(convertToReturnType);
+  return rows;
 };
 
 type FetchTracesTableProps = {

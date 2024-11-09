@@ -42,6 +42,7 @@ import {
   convertMetricsReturnType,
   type TracesMetricsReturnType,
   type TracesAllReturnType,
+  convertToReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
@@ -140,7 +141,7 @@ export const traceRouter = createTRPCRouter({
         );
 
         return {
-          traces: res,
+          traces: res.map(convertToReturnType),
         };
       }
     }),
