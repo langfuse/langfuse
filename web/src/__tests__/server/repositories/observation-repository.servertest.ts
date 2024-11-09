@@ -44,7 +44,7 @@ describe("Clickhouse Observations Repository Test", () => {
       internal_model_id: "sample_internal_model_id",
       model_parameters: "sample_parameters",
       total_cost: 300,
-      prompt_id: "sample_prompt_id",
+      prompt_id: '{"something":"sample_prompt_id"}',
       prompt_name: "sample_prompt_name",
       prompt_version: 1,
       end_time: Date.now(),
