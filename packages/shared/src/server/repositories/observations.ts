@@ -25,7 +25,6 @@ import {
   convertObservationToView,
   convertObservation,
 } from "./observations_converters";
-import { cli } from "winston/lib/winston/config";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 
 export const getObservationsViewForTrace = async (
