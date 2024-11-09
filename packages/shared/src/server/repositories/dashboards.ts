@@ -1,8 +1,12 @@
 import { queryClickhouse } from "./clickhouse";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { FilterState } from "../../types";
-import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
+import {
+  DateTimeFilter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
 
@@ -81,7 +85,16 @@ export const getScoreAggregate = async (
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
-  ).apply();
+  );
+
+  const timeFilter = chFilter.find(
+    (f) =>
+      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+  const chFilterApplied = chFilter.apply();
+
+  const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
   const query = `
     SELECT 
@@ -90,9 +103,11 @@ export const getScoreAggregate = async (
       avg(s.value) as avg_value,
       s.source,
       s.data_type
-    FROM scores s FINAL JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id
+    FROM scores s FINAL 
+     ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
-    AND ${chFilter.query}
+    AND ${chFilterApplied.query}
+    ${timeFilter && hasTraceFilter ? "AND t.timestamp >= {tracesTimestamp: DateTime} - INTERVAL 1 HOUR" : ""}
     GROUP BY s.name, s.source, s.data_type
     ORDER BY count(*) DESC
     `;
@@ -107,7 +122,10 @@ export const getScoreAggregate = async (
     query,
     params: {
       projectId,
-      ...chFilter.params,
+      ...chFilterApplied.params,
+      ...(timeFilter
+        ? { tracesTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
