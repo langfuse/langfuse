@@ -10,12 +10,16 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import useLocalStorage from "./useLocalStorage";
 import Link from "next/link";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type SidebarNotification = {
   id: string; // Add unique ID for each notification
   title: string;
   description: React.ReactNode;
-  content: React.ReactNode;
+  link: string;
+  // defaults to "Learn more" if no linkContent and no linkTitle
+  linkTitle?: string;
+  linkContent?: React.ReactNode;
 };
 
 const notifications: SidebarNotification[] = [
@@ -24,14 +28,13 @@ const notifications: SidebarNotification[] = [
     title: "Star Langfuse",
     description:
       "See the latest releases and help grow the community on GitHub.",
-    content: (
-      <Link href="https://github.com/langfuse/langfuse" target="_blank">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          alt="Langfuse Github stars"
-          src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
-        />
-      </Link>
+    link: "https://github.com/langfuse/langfuse",
+    linkContent: (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt="Langfuse Github stars"
+        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
+      />
     ),
   },
 ];
@@ -39,6 +42,7 @@ const notifications: SidebarNotification[] = [
 const STORAGE_KEY = "dismissed-sidebar-notifications";
 
 export function SidebarNotifications() {
+  const capture = usePostHogClientCapture();
   const [currentNotificationIndex, setCurrentNotificationIndex] = useState<
     number | null
   >(null);
@@ -73,7 +77,12 @@ export function SidebarNotifications() {
         variant="ghost"
         size="sm"
         className="absolute right-2 top-2 h-6 w-6 p-0"
-        onClick={() => dismissNotification(currentNotification.id)}
+        onClick={() => {
+          capture("notification:dismiss_notification", {
+            notification_id: currentNotification.id,
+          });
+          dismissNotification(currentNotification.id);
+        }}
         title="Dismiss"
       >
         <X className="h-4 w-4" />
@@ -83,7 +92,33 @@ export function SidebarNotifications() {
         <CardDescription>{currentNotification.description}</CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-2">
-        {currentNotification.content}
+        {currentNotification.linkContent ? (
+          <Link
+            href={currentNotification.link}
+            target="_blank"
+            onClick={() => {
+              capture("notification:click_link", {
+                notification_id: currentNotification.id,
+              });
+            }}
+          >
+            {currentNotification.linkContent}
+          </Link>
+        ) : (
+          <Button variant="secondary" size="sm" asChild>
+            <Link
+              href={currentNotification.link}
+              target="_blank"
+              onClick={() => {
+                capture("notification:click_link", {
+                  notification_id: currentNotification.id,
+                });
+              }}
+            >
+              {currentNotification.linkTitle ?? "Learn more"}
+            </Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
