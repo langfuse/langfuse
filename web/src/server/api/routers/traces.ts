@@ -38,11 +38,15 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsViewForTrace,
+  deleteTraces,
+  deleteScoresByTraceIds,
+  deleteObservationsByTraceIds,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { env } from "@/src/env.mjs";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -655,7 +659,7 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.$transaction([
+      await ctx.prisma.$transaction([
         ctx.prisma.trace.deleteMany({
           where: {
             id: {
@@ -681,6 +685,14 @@ export const traceRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      if (env.CLICKHOUSE_URL) {
+        await Promise.all([
+          deleteTraces(input.projectId, input.traceIds),
+          deleteObservationsByTraceIds(input.projectId, input.traceIds),
+          deleteScoresByTraceIds(input.projectId, input.traceIds),
+        ]);
+      }
     }),
   bookmark: protectedProjectProcedure
     .input(
