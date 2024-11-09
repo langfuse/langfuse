@@ -12,9 +12,12 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
+import {
+  type ScoreSimplified,
+  filterAndValidateDbScoreList,
+  paginationZod,
+} from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
