@@ -21,10 +21,8 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  convertClickhouseToDomain,
-  convertToReturnType,
-} from "./traces_converters";
+import { convertClickhouseToDomain } from "./traces_converters";
+import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -49,20 +47,17 @@ export type TracesTableReturnType = Pick<
   scores_avg: Array<{ name: string; avg_value: number }>;
 };
 
-export const getTracesTableCount = async (
-  projectId: string,
-  filter: FilterState,
-  orderBy?: OrderByState,
-  limit?: number,
-  offset?: number,
-) => {
+export const getTracesTableCount = async (props: {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  offset?: number;
+}) => {
   const countRows = await getTracesTableGeneric<{ count: string }>({
     select: "count(*) as count",
-    projectId,
-    filter,
-    orderBy,
-    limit,
-    offset,
+    ...props,
   });
 
   const converted = countRows.map((row) => ({
@@ -75,6 +70,7 @@ export const getTracesTableCount = async (
 export const getTracesTable = async (
   projectId: string,
   filter: FilterState,
+  searchQuery?: string,
   orderBy?: OrderByState,
   limit?: number,
   offset?: number,
@@ -101,6 +97,7 @@ export const getTracesTable = async (
     t.public`,
     projectId,
     filter,
+    searchQuery,
     orderBy,
     limit,
     offset,
@@ -113,13 +110,15 @@ type FetchTracesTableProps = {
   select: string;
   projectId: string;
   filter: FilterState;
+  searchQuery?: string;
   orderBy?: OrderByState;
   limit?: number;
   offset?: number;
 };
 
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, offset } = props;
+  const { select, projectId, filter, orderBy, limit, offset, searchQuery } =
+    props;
   logger.info(`input filter ${JSON.stringify(filter)}`);
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
@@ -160,6 +159,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const tracesFilterRes = tracesFilter.apply();
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
+
+  const search = clickhouseSearchCondition(searchQuery);
 
   const query = `
   WITH observations_stats AS (
@@ -207,6 +208,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
               left join scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
 
       WHERE ${tracesFilterRes.query}
+      ${search.query}
       ${orderByToClickhouseSql(orderBy ?? null, tracesTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
@@ -219,6 +221,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...tracesFilterRes.params,
       ...observationFilterRes.params,
       ...scoresFilterRes.params,
+      ...search.params,
     },
   });
 
