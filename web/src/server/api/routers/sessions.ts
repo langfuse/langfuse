@@ -83,7 +83,7 @@ export const sessionRouter = createTRPCRouter({
               id: s.session_id,
               userIds: s.user_ids,
               countTraces: s.trace_ids.length,
-              sessionDuration: Number(s.duration),
+              sessionDuration: Number(s.duration) / 1000,
               inputCost: new Decimal(s.session_input_cost),
               outputCost: new Decimal(s.session_output_cost),
               totalCost: new Decimal(s.session_total_cost),
