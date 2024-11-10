@@ -49,6 +49,8 @@ export const measureAndReturnApi = async <T, Y>(args: {
 
   const durationDifference = Math.abs(pgDuration - chDuration);
   currentSpan?.setAttribute("execution-time-difference", durationDifference);
+  currentSpan?.setAttribute("pg-duration", pgDuration);
+  currentSpan?.setAttribute("ch-duration", chDuration);
 
   if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
     logger.info("Return data from clickhouse");
