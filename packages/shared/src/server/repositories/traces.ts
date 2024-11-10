@@ -350,6 +350,45 @@ export const getTracesGroupedByName = async (
   return rows;
 };
 
+export const getTracesGroupedByUsers = async (
+  projectId: string,
+  filter: FilterState,
+  columns?: UiColumnMapping[],
+) => {
+  const chFilter = createFilterFromFilterState(
+    filter,
+    columns ?? tracesTableUiColumnDefinitions,
+  );
+
+  const filterRes = new FilterList(chFilter).apply();
+
+  const query = `
+      select 
+        user_id as user,
+        count(*) as count
+      from traces t final
+      WHERE t.project_id = {projectId: String}
+      AND t.user_id IS NOT NULL
+      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
+      GROUP BY user
+      ORDER BY count desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    user: string;
+    count: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(filterRes ? filterRes.params : {}),
+    },
+  });
+
+  return rows;
+};
+
 export type GroupedTracesQueryProp = {
   projectId: string;
   filter: FilterState;

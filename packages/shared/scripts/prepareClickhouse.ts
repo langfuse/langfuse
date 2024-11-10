@@ -61,7 +61,7 @@ export const prepareClickhouse = async (
     SELECT toString(number) AS id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
       concat('name_', toString(rand() % 100)) AS name,
-      concat('user_id_', toString(randUniform(0, 100))) AS user_id,
+      concat('user_id_', toInt64(randExponential(1 / 100))) AS user_id,
       map('key', 'value') AS metadata,
       concat('release_', toString(randUniform(0, 100))) AS release,
       concat('version_', toString(randUniform(0, 100))) AS version,
