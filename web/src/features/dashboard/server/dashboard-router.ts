@@ -29,6 +29,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -64,7 +65,10 @@ export const dashboardRouter = createTRPCRouter({
         });
       }
 
-      if (!input.queryClickhouse) {
+      if (
+        !input.queryClickhouse &&
+        env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE === "true"
+      ) {
         return await executeQuery(ctx.prisma, input.projectId, input);
       }
 
