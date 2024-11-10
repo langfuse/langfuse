@@ -1,7 +1,7 @@
 import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
-import { isValidTableName } from "../../clickhouse/schema-utils";
+import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
 import {
@@ -13,6 +13,7 @@ import {
   ArrayOptionsFilter,
   BooleanFilter,
   NumberObjectFilter,
+  StringObjectFilter,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -79,6 +80,7 @@ export const createFilterFromFilterState = (
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           value: frontEndFilter.value,
+          operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
         });
       case "numberObject":
@@ -90,11 +92,19 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
+      case "stringObject":
+        return new StringObjectFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          operator: frontEndFilter.operator,
+          key: frontEndFilter.key,
+          value: frontEndFilter.value,
+          tablePrefix: column.queryPrefix,
+        });
 
       default:
-        throw new QueryBuilderError(
-          `Invalid filter type: ${frontEndFilter.type}`,
-        );
+        logger.error(`Invalid filter type: ${JSON.stringify(frontEndFilter)}`);
+        throw new QueryBuilderError(`Invalid filter type`);
     }
   });
 };
@@ -105,7 +115,6 @@ const matchAndVerifyTracesUiColumn = (
 ) => {
   // tries to match the column name to the clickhouse table name
   logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
-
   const uiTable = uiTableDefinitions.find(
     (col) =>
       col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.

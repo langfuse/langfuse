@@ -23,17 +23,30 @@ import {
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
+  ScoreSource,
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
   getScoresGroupedByNameSourceType,
+  getScoresUiCount,
+  getScoresUiTable,
   orderByToPrismaSql,
   tableColumnsToSqlFilterAndPrefix,
+  getScoreNames,
+  getTracesGroupedByTags,
+  deleteScore,
+  upsertScore,
+  logger,
+  getTraceById,
+  getScoreById,
+  convertDateToClickhouseDateTime,
+  searchExistingAnnotationScore,
 } from "@langfuse/shared/src/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -44,26 +57,89 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
+type AllScoresReturnType = Score & {
+  traceName: string | null;
+  traceUserId: string | null;
+  traceTags: Array<string> | null;
+  jobConfigurationId: string | null;
+  authorUserImage: string | null;
+  authorUserName: string | null;
+};
 
 export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(
+      ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
+    )
     .query(async ({ input, ctx }) => {
+      if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Clickhouse access is not enabled",
+        });
+      }
+
+      if (input.queryClickhouse) {
+        const clickhouseScoreData = await getScoresUiTable({
+          projectId: input.projectId,
+          filter: input.filter ?? [],
+          orderBy: input.orderBy,
+          limit: input.limit,
+          offset: input.page * input.limit,
+        });
+
+        const [jobExecutions, users] = await Promise.all([
+          ctx.prisma.jobExecution.findMany({
+            where: {
+              projectId: input.projectId,
+              jobOutputScoreId: {
+                in: clickhouseScoreData.map((score) => score.id),
+              },
+            },
+            select: {
+              id: true,
+              jobConfigurationId: true,
+              jobOutputScoreId: true,
+            },
+          }),
+          ctx.prisma.user.findMany({
+            where: {
+              id: {
+                in: clickhouseScoreData
+                  .map((score) => score.authorUserId)
+                  .filter((s): s is string => Boolean(s)),
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          }),
+        ]);
+
+        return {
+          scores: clickhouseScoreData.map<AllScoresReturnType>((score) => {
+            const jobExecution = jobExecutions.find(
+              (je) => je.jobOutputScoreId === score.id,
+            );
+
+            const user = users.find((u) => u.id === score.authorUserId);
+
+            return {
+              ...score,
+              jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
+              authorUserImage: user?.image ?? null,
+              authorUserName: user?.name ?? null,
+            };
+          }),
+        };
+      }
+
       const { filterCondition, orderByCondition } =
         parseScoresGetAllOptions(input);
 
-      const scores = await ctx.prisma.$queryRaw<
-        Array<
-          Score & {
-            traceName: string | null;
-            traceUserId: string | null;
-            traceTags: Array<string> | null;
-            jobConfigurationId: string | null;
-            authorUserImage: string | null;
-            authorUserName: string | null;
-          }
-        >
-      >(
+      const scores = await ctx.prisma.$queryRaw<Array<AllScoresReturnType>>(
         generateScoresQuery(
           Prisma.sql` 
           s.id,
@@ -98,8 +174,31 @@ export const scoresRouter = createTRPCRouter({
       };
     }),
   countAll: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(
+      ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
+    )
     .query(async ({ input, ctx }) => {
+      if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Clickhouse access is not enabled",
+        });
+      }
+
+      if (input.queryClickhouse) {
+        const clickhouseScoreData = await getScoresUiCount({
+          projectId: input.projectId,
+          filter: input.filter ?? [],
+          orderBy: input.orderBy,
+          limit: 1,
+          offset: 0,
+        });
+
+        return {
+          totalCount: clickhouseScoreData,
+        };
+      }
+
       const { filterCondition } = parseScoresGetAllOptions(input);
 
       const scoresCount = await ctx.prisma.$queryRaw<
@@ -126,10 +225,37 @@ export const scoresRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       const { timestampFilter } = input;
+
+      if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Clickhouse access is not enabled",
+        });
+      }
+
+      if (input.queryClickhouse) {
+        const [names, tags] = await Promise.all([
+          getScoreNames(
+            input.projectId,
+            timestampFilter ? [timestampFilter] : [],
+          ),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ? [timestampFilter] : [],
+          }),
+        ]);
+
+        const res: ScoreOptions = {
+          name: names.map((i) => ({ value: i.name, count: i.count })),
+          tags: tags,
+        };
+        return res;
+      }
       const prismaTimestampFilter = timestampFilter
         ? datetimeFilterToPrisma(timestampFilter)
         : {};
@@ -201,33 +327,15 @@ export const scoresRouter = createTRPCRouter({
           traceId: input.traceId,
           observationId: input.observationId ?? null,
           source: "ANNOTATION",
+          // configId functions as unique constraint for scores with source ANNOTATION
           configId: input.configId,
         },
       });
 
       if (existingScore) {
-        const updatedScore = await ctx.prisma.score.update({
-          where: {
-            id: existingScore.id,
-            projectId: input.projectId,
-          },
-          data: {
-            value: input.value,
-            stringValue: input.stringValue,
-            comment: input.comment,
-            authorUserId: ctx.session.user.id,
-            queueId: input.queueId,
-          },
-        });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "score",
-          resourceId: updatedScore.id,
-          action: "update",
-          before: existingScore,
-          after: updatedScore,
-        });
-        return validateDbScore(updatedScore);
+        throw new Error(
+          `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+        );
       }
 
       const score = await ctx.prisma.score.create({
@@ -254,6 +362,55 @@ export const scoresRouter = createTRPCRouter({
         action: "create",
         after: score,
       });
+
+      if (env.CLICKHOUSE_URL) {
+        const clickhouseTrace = await getTraceById(
+          input.traceId,
+          input.projectId,
+        );
+
+        if (!clickhouseTrace) {
+          // Fail silently while Postgres is in lead and return early.
+          logger.error(
+            `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+          );
+          return validateDbScore(score);
+        }
+
+        const clickhouseScore = await searchExistingAnnotationScore(
+          input.projectId,
+          input.traceId,
+          input.observationId ?? null,
+          input.name,
+          input.configId,
+        );
+
+        if (clickhouseScore) {
+          // Fail silently while Postgres is in lead and return early.
+          logger.error(
+            `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+          );
+          return validateDbScore(score);
+        }
+
+        await upsertScore({
+          id: score.id, // Reuse ID that was generated by Prisma
+          timestamp: convertDateToClickhouseDateTime(new Date()),
+          project_id: input.projectId,
+          trace_id: input.traceId,
+          observation_id: input.observationId,
+          name: input.name,
+          value: input.value !== null ? input.value : undefined,
+          source: ScoreSource.ANNOTATION,
+          comment: input.comment,
+          author_user_id: ctx.session.user.id,
+          config_id: input.configId,
+          data_type: input.dataType,
+          string_value: input.stringValue,
+          queue_id: input.queueId,
+        });
+      }
+
       return validateDbScore(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
@@ -264,6 +421,41 @@ export const scoresRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "scores:CUD",
       });
+
+      if (env.CLICKHOUSE_URL) {
+        // Fetch the current score from Clickhouse
+        const clickhouseScore = await getScoreById(
+          input.projectId,
+          input.id,
+          ScoreSource.ANNOTATION,
+        );
+        if (!clickhouseScore) {
+          // Continue processing the update in Postgres
+          logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+        } else {
+          await upsertScore({
+            id: input.id,
+            project_id: input.projectId,
+            timestamp: convertDateToClickhouseDateTime(
+              clickhouseScore.timestamp,
+            ),
+            value: input.value !== null ? input.value : undefined,
+            string_value: input.stringValue,
+            comment: input.comment,
+            author_user_id: ctx.session.user.id,
+            queue_id: input.queueId,
+            source: ScoreSource.ANNOTATION,
+            name: clickhouseScore.name,
+            data_type: clickhouseScore.dataType,
+            config_id: clickhouseScore.configId,
+            trace_id: clickhouseScore.traceId,
+            observation_id: clickhouseScore.observationId,
+          });
+        }
+      }
+
       const score = await ctx.prisma.score.findFirst({
         where: {
           id: input.id,
@@ -327,6 +519,12 @@ export const scoresRouter = createTRPCRouter({
         before: score,
       });
 
+      if (env.CLICKHOUSE_URL) {
+        // Delete the score from Clickhouse
+        await deleteScore(input.projectId, score.id);
+      }
+
+      // Delete the score from Postgres
       return await ctx.prisma.score.delete({
         where: {
           id: score.id,

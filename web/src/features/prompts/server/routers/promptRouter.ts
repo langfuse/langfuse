@@ -11,9 +11,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
-
 import { createPrompt } from "../actions/createPrompt";
-import { observationsTableCols } from "@langfuse/shared";
+import { observationsTableCols, type ScoreSimplified } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
@@ -26,7 +25,6 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -18,7 +19,6 @@ import {
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
 import {
-  type ObservationLevel,
   type ObservationView,
   Prisma,
   type Trace,
@@ -33,16 +33,24 @@ import {
   getTracesTableCount,
   getScoresForTraces,
   getTraceByIdOrThrow,
-  type TracesTableReturnType,
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsViewForTrace,
+  deleteTraces,
+  deleteScoresByTraceIds,
+  deleteObservationsByTraceIds,
+  convertMetricsReturnType,
+  type TracesMetricsReturnType,
+  type TracesAllReturnType,
+  convertToReturnType,
+  getTraceById,
+  logger,
+  upsertTrace,
+  convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -58,76 +66,6 @@ export type ObservationReturnType = Omit<
   "input" | "output"
 > & {
   traceId: string;
-};
-
-export type TracesAllReturnType = {
-  id: string;
-  timestamp: Date;
-  name: string | null;
-  projectId: string;
-  userId: string | null;
-  release: string | null;
-  version: string | null;
-  public: boolean;
-  bookmarked: boolean;
-  sessionId: string | null;
-  tags: string[];
-};
-
-export const convertToReturnType = (
-  row: TracesTableReturnType,
-): TracesAllReturnType => {
-  return {
-    id: row.id,
-    name: row.name ?? null,
-    timestamp: new Date(row.timestamp),
-    tags: row.tags,
-    bookmarked: row.bookmarked,
-    release: row.release ?? null,
-    version: row.version ?? null,
-    projectId: row.project_id,
-    userId: row.user_id ?? null,
-    sessionId: row.session_id ?? null,
-    public: row.public,
-  };
-};
-
-export type TracesMetricsReturnType = {
-  id: string;
-  promptTokens: bigint;
-  completionTokens: bigint;
-  totalTokens: bigint;
-  latency: number | null;
-  level: ObservationLevel;
-  observationCount: bigint;
-  calculatedTotalCost: Decimal | null;
-  calculatedInputCost: Decimal | null;
-  calculatedOutputCost: Decimal | null;
-  scores: ScoreAggregate;
-};
-
-export const convertMetricsReturnType = (
-  row: TracesTableReturnType & { scores: ScoreAggregate },
-): TracesMetricsReturnType => {
-  return {
-    id: row.id,
-    promptTokens: BigInt(row.usage_details?.input ?? 0),
-    completionTokens: BigInt(row.usage_details?.output ?? 0),
-    totalTokens: BigInt(row.usage_details?.total ?? 0),
-    latency: row.latency ? Number(row.latency) : null,
-    level: row.level,
-    observationCount: BigInt(row.observation_count ?? 0),
-    calculatedTotalCost: row.cost_details?.total
-      ? new Decimal(row.cost_details.total)
-      : null,
-    calculatedInputCost: row.cost_details?.input
-      ? new Decimal(row.cost_details.input)
-      : null,
-    calculatedOutputCost: row.cost_details?.output
-      ? new Decimal(row.cost_details.output)
-      : null,
-    scores: row.scores,
-  };
 };
 
 export const traceRouter = createTRPCRouter({
@@ -201,6 +139,7 @@ export const traceRouter = createTRPCRouter({
         const res = await getTracesTable(
           ctx.session.projectId,
           input.filter ?? [],
+          input.searchQuery ?? undefined,
           input.orderBy,
           input.limit,
           input.page,
@@ -246,16 +185,16 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        const countQuery = await getTracesTableCount(
-          ctx.session.projectId,
-          input.filter ?? [],
-          null,
-          input.limit,
-          input.page,
-        );
+        const countQuery = await getTracesTableCount({
+          projectId: ctx.session.projectId,
+          filter: input.filter ?? [],
+          searchQuery: input.searchQuery ?? undefined,
+          limit: 1,
+          offset: 0,
+        });
 
         return {
-          totalCount: countQuery.shift()?.count,
+          totalCount: countQuery,
         };
       }
     }),
@@ -438,10 +377,10 @@ export const traceRouter = createTRPCRouter({
             tracesTableUiColumnDefinitions,
             timestampFilter ? [timestampFilter] : [],
           ),
-          getTracesGroupedByTags(
-            input.projectId,
-            timestampFilter ? [timestampFilter] : [],
-          ),
+          getTracesGroupedByTags({
+            projectId: input.projectId,
+            filter: timestampFilter ? [timestampFilter] : [],
+          }),
         ]);
 
         const res: TraceOptions = {
@@ -457,6 +396,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         queryClickhouse: z.boolean().default(false),
       }),
     )
@@ -476,13 +416,18 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        return await getTraceByIdOrThrow(input.traceId, input.projectId);
+        return await getTraceByIdOrThrow(
+          input.traceId,
+          input.projectId,
+          input.timestamp ?? undefined,
+        );
       }
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
       z.object({
         traceId: z.string(), // used for security check
+        timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
         queryClickhouse: z.boolean().default(false),
       }),
@@ -581,7 +526,11 @@ export const traceRouter = createTRPCRouter({
       }
 
       const [trace, observations, scores] = await Promise.all([
-        getTraceByIdOrThrow(input.traceId, input.projectId),
+        getTraceByIdOrThrow(
+          input.traceId,
+          input.projectId,
+          input.timestamp ?? undefined,
+        ),
         getObservationsViewForTrace(input.traceId, input.projectId),
         getScoresForTraces(
           input.projectId,
@@ -645,7 +594,7 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.$transaction([
+      await ctx.prisma.$transaction([
         ctx.prisma.trace.deleteMany({
           where: {
             id: {
@@ -671,6 +620,14 @@ export const traceRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      if (env.CLICKHOUSE_URL) {
+        await Promise.all([
+          deleteTraces(input.projectId, input.traceIds),
+          deleteObservationsByTraceIds(input.projectId, input.traceIds),
+          deleteScoresByTraceIds(input.projectId, input.traceIds),
+        ]);
+      }
     }),
   bookmark: protectedProjectProcedure
     .input(
@@ -694,6 +651,7 @@ export const traceRouter = createTRPCRouter({
           action: "bookmark",
           after: input.bookmarked,
         });
+
         const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -703,6 +661,22 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
+
+        if (env.CLICKHOUSE_URL) {
+          const clickhouseTrace = await getTraceById(
+            input.traceId,
+            input.projectId,
+          );
+          if (!clickhouseTrace) {
+            logger.error(
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
+            );
+            return trace;
+          }
+          clickhouseTrace.bookmarked = input.bookmarked;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        }
+
         return trace;
       } catch (error) {
         console.error(error);
@@ -743,6 +717,7 @@ export const traceRouter = createTRPCRouter({
           action: "publish",
           after: input.public,
         });
+
         const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -752,6 +727,22 @@ export const traceRouter = createTRPCRouter({
             public: input.public,
           },
         });
+
+        if (env.CLICKHOUSE_URL) {
+          const clickhouseTrace = await getTraceById(
+            input.traceId,
+            input.projectId,
+          );
+          if (!clickhouseTrace) {
+            logger.error(
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
+            );
+            return trace;
+          }
+          clickhouseTrace.public = input.public;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        }
+
         return trace;
       } catch (error) {
         console.error(error);
@@ -785,6 +776,14 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:tag",
       });
       try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "trace",
+          resourceId: input.traceId,
+          action: "updateTags",
+          after: input.tags,
+        });
+
         await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -796,13 +795,21 @@ export const traceRouter = createTRPCRouter({
             },
           },
         });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "trace",
-          resourceId: input.traceId,
-          action: "updateTags",
-          after: input.tags,
-        });
+
+        if (env.CLICKHOUSE_URL) {
+          const clickhouseTrace = await getTraceById(
+            input.traceId,
+            input.projectId,
+          );
+          if (!clickhouseTrace) {
+            logger.error(
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping tag update.`,
+            );
+            return;
+          }
+          clickhouseTrace.tags = input.tags;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        }
       } catch (error) {
         console.error(error);
       }
