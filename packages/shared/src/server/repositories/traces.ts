@@ -189,8 +189,6 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   const search = clickhouseSearchCondition(searchQuery);
 
-  console.log("trace-table-filter", tracesFilterRes.query);
-
   const query = `
   WITH observations_stats AS (
   SELECT
