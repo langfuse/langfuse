@@ -22,7 +22,7 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertClickhouseToDomain, convertTraceDomainToClickhouse } from "./traces_converters";
+import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 
 export type TracesTableReturnType = Pick<
