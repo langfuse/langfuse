@@ -25,7 +25,7 @@ export const measureAndReturnApi = async <T, Y>(args: {
   const currentSpan = getCurrentSpan();
 
   if (!user) {
-    throw new Error("User not found");
+    throw new Error("User not found in API context");
   }
 
   if (input.queryClickhouse && !isClickhouseEligible(user)) {
