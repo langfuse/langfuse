@@ -18,10 +18,7 @@ import {
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
-import {
-  isClickhouseEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
 import {
   createSessionsAllQuery,
@@ -115,12 +112,13 @@ export const sessionRouter = createTRPCRouter({
                 completionTokens: Number(s.session_output_usage),
                 totalTokens: Number(s.session_total_usage),
                 traceTags: s.trace_tags,
-                createdAt: s.min_timestamp,
+                createdAt: new Date(s.min_timestamp),
                 bookmarked:
                   prismaSessionInfo.find((p) => p.id === s.session_id)
                     ?.bookmarked ?? false,
-                public: prismaSessionInfo.find((p) => p.id === s.session_id)
-                  ?.public,
+                public:
+                  prismaSessionInfo.find((p) => p.id === s.session_id)
+                    ?.public ?? false,
               })),
             };
           },
@@ -392,7 +390,7 @@ export const sessionRouter = createTRPCRouter({
         return await measureAndReturnApi({
           input,
           operation: "sessions.byId",
-          user: ctx.session.user,
+          user: ctx.session.user ?? undefined,
           pgExecution: async () => {
             const session = await ctx.prisma.traceSession.findFirst({
               where: {
@@ -506,7 +504,7 @@ export const sessionRouter = createTRPCRouter({
                 ...t,
                 scores: validatedScores.filter((s) => s.traceId === t.id),
               })),
-              totalCost: costData,
+              totalCost: costData ?? 0,
               users: [
                 ...new Set(
                   clickhouseTraces
