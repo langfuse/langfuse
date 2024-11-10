@@ -47,9 +47,15 @@ export const measureAndReturnApi = async <T, Y>(args: {
         });
       }
 
-      if (!input.queryClickhouse) {
-        return await pgExecution(input);
+      // if query clickhouse, return clickhouse only. Only possible for admin users
+      if (input.queryClickhouse) {
+        return await clickhouseExecution(input);
       }
+
+      // logic for regular users:
+      // if env.LANGFUSE_READ_FROM_POSTGRES_ONLY is true, return postgres only
+      // otherwise fetch both and compare timing
+      // if env.LANGFUSE_RETURN_FROM_CLICKHOUSE is true, return clickhouse data
 
       if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
         logger.info("Read from postgres only");
