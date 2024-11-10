@@ -25,6 +25,7 @@ import {
   getModelUsageByUser,
   getObservationLatencies,
   getTracesLatencies,
+  getModelLatenciesOverTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -50,6 +51,7 @@ export const dashboardRouter = createTRPCRouter({
             "traces-grouped-by-user",
             "observation-latencies-aggregated",
             "traces-latencies-aggregated",
+            "model-latencies-over-time",
           ])
           .nullish(),
       }),
@@ -207,6 +209,26 @@ export const dashboardRouter = createTRPCRouter({
           return traceLatencies.map((row) => ({
             traceName: row.name,
             percentile50Duration: row.p50,
+            percentile90Duration: row.p90,
+            percentile95Duration: row.p95,
+            percentile99Duration: row.p99,
+          })) as DatabaseRow[];
+        case "model-latencies-over-time":
+          const dateTruncModels = extractTimeSeries(input.groupBy);
+          if (!dateTruncModels) {
+            return [];
+          }
+          const modelLatencies = await getModelLatenciesOverTime(
+            input.projectId,
+            input.filter ?? [],
+            dateTruncModels,
+          );
+
+          return modelLatencies.map((row) => ({
+            model: row.model,
+            startTime: row.start_time,
+            percentile50Duration: row.p50,
+            percentile75Duration: row.p75,
             percentile90Duration: row.p90,
             percentile95Duration: row.p95,
             percentile99Duration: row.p99,

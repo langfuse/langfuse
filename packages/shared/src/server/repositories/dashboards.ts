@@ -447,6 +447,64 @@ export const getTracesLatencies = async (
   }));
 };
 
+export const getModelLatenciesOverTime = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
+  const query = `
+  SELECT 
+    ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
+    provided_model_name,
+    quantile(0.5)(date_diff('milliseconds', o.start_time, o.end_time)) as p50,
+    quantile(0.75)(date_diff('milliseconds', o.start_time, o.end_time)) as p75,
+    quantile(0.9)(date_diff('milliseconds', o.start_time, o.end_time)) as p90,
+    quantile(0.95)(date_diff('milliseconds', o.start_time, o.end_time)) as p95,
+    quantile(0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as p99
+  FROM observations o FINAL
+  ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+  WHERE project_id = {projectId: String}
+  AND ${appliedFilter.query}
+  GROUP BY provided_model_name, start_time_bucket
+  ${orderByTimeSeries(groupBy, "start_time_bucket")};
+`;
+  console.log(query);
+
+  const result = await queryClickhouse<{
+    start_time_bucket: string;
+    provided_model_name: string;
+    p50: string;
+    p75: string;
+    p90: string;
+    p95: string;
+    p99: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result.map((row) => ({
+    p50: Number(row.p50) / 1000,
+    p75: Number(row.p75) / 1000,
+    p90: Number(row.p90) / 1000,
+    p95: Number(row.p95) / 1000,
+    p99: Number(row.p99) / 1000,
+    model: row.provided_model_name,
+    start_time: new Date(row.start_time_bucket),
+  }));
+};
+
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
   let interval;
   switch (dateTrunc) {
