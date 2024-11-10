@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
-import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
+import { instrumentAsync, logger } from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
-import type * as opentelemetry from "@opentelemetry/api";
+import * as opentelemetry from "@opentelemetry/api";
 
 export const isClickhouseEligible = (user?: User | null) => {
   return (
@@ -18,45 +18,61 @@ export const isClickhouseEligible = (user?: User | null) => {
 export const measureAndReturnApi = async <T, Y>(args: {
   input: T & { queryClickhouse: boolean };
   user: User | undefined;
+  operation: string;
   pgExecution: (input: T) => Promise<Y>;
   clickhouseExecution: (input: T) => Promise<Y>;
 }) => {
-  const { input, user, pgExecution, clickhouseExecution } = args;
-  const currentSpan = getCurrentSpan();
+  return instrumentAsync(
+    {
+      name: "clickhouse-experiment",
+      spanKind: opentelemetry.SpanKind.INTERNAL,
+    },
+    async (currentSpan) => {
+      const { input, user, pgExecution, clickhouseExecution } = args;
 
-  if (!user) {
-    throw new Error("User not found in API context");
-  }
+      currentSpan?.setAttribute("operation", args.operation);
 
-  if (input.queryClickhouse && !isClickhouseEligible(user)) {
-    throw new Error("Not eligible to query clickhouse");
-  }
+      console.log("currentSpan", currentSpan);
 
-  if (!input.queryClickhouse) {
-    return await pgExecution(input);
-  }
+      if (!user) {
+        throw new Error("User not found in API context");
+      }
 
-  if (env.LANGFUSE_READ_FROM_CLICKHOUSE_AND_POSTGRES === "false") {
-    logger.info("Read from postgres only");
-    return await pgExecution(input);
-  }
+      if (input.queryClickhouse && !isClickhouseEligible(user)) {
+        throw new Error("Not eligible to query clickhouse");
+      }
 
-  logger.info("Read from postgres and clickhouse");
-  const [[pgResult, pgDuration], [chResult, chDuration]] = await Promise.all([
-    executionWrapper(input, pgExecution, currentSpan, "pg"),
-    executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
-  ]);
+      if (!input.queryClickhouse) {
+        return await pgExecution(input);
+      }
 
-  const durationDifference = Math.abs(pgDuration - chDuration);
-  currentSpan?.setAttribute("execution-time-difference", durationDifference);
-  currentSpan?.setAttribute("pg-duration", pgDuration);
-  currentSpan?.setAttribute("ch-duration", chDuration);
+      if (env.LANGFUSE_READ_FROM_CLICKHOUSE_AND_POSTGRES === "false") {
+        logger.info("Read from postgres only");
+        return await pgExecution(input);
+      }
 
-  if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-    logger.info("Return data from clickhouse");
-    return chResult;
-  }
-  return pgResult;
+      logger.info("Read from postgres and clickhouse");
+      const [[pgResult, pgDuration], [chResult, chDuration]] =
+        await Promise.all([
+          executionWrapper(input, pgExecution, currentSpan, "pg"),
+          executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
+        ]);
+
+      const durationDifference = Math.abs(pgDuration - chDuration);
+      currentSpan?.setAttribute(
+        "execution-time-difference",
+        durationDifference,
+      );
+      currentSpan?.setAttribute("pg-duration", pgDuration);
+      currentSpan?.setAttribute("ch-duration", chDuration);
+
+      if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
+        logger.info("Return data from clickhouse");
+        return chResult;
+      }
+      return pgResult;
+    },
+  );
 };
 
 const executionWrapper = async <T, Y>(
