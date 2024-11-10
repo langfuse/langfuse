@@ -256,6 +256,8 @@ export const getScoresAggregateOverTime = async (
 
   const appliedFilter = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
   SELECT 
     ${selectTimeseriesColumn(groupBy, "timestamp", "timestamp")},
@@ -264,6 +266,7 @@ export const getScoresAggregateOverTime = async (
     source,
     AVG(value) as avg_value
   FROM scores FINAL
+  ${traceFilter ? "JOIN traces t ON scores.trace_id = t.id AND scores.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
   AND ${appliedFilter.query}
   AND data_type IN ('NUMERIC', 'BOOLEAN')
