@@ -23,8 +23,6 @@ import {
   getScoresAggregateOverTime,
   getTracesGroupedByUsers,
   getModelUsageByUser,
-  getObservationLatencies,
-  getTracesLatencies,
   getModelLatenciesOverTime,
   getObservationLatencies,
   getTracesLatencies,
