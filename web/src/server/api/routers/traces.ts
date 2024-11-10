@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -43,10 +44,13 @@ import {
   type TracesMetricsReturnType,
   type TracesAllReturnType,
   convertToReturnType,
+  getTraceById,
+  logger,
+  upsertTrace,
+  convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { env } from "@/src/env.mjs";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -647,6 +651,7 @@ export const traceRouter = createTRPCRouter({
           action: "bookmark",
           after: input.bookmarked,
         });
+
         const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -656,6 +661,22 @@ export const traceRouter = createTRPCRouter({
             bookmarked: input.bookmarked,
           },
         });
+
+        if (env.CLICKHOUSE_URL) {
+          const clickhouseTrace = await getTraceById(
+            input.traceId,
+            input.projectId,
+          );
+          if (!clickhouseTrace) {
+            logger.error(
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
+            );
+            return trace;
+          }
+          clickhouseTrace.bookmarked = input.bookmarked;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        }
+
         return trace;
       } catch (error) {
         console.error(error);
@@ -696,6 +717,7 @@ export const traceRouter = createTRPCRouter({
           action: "publish",
           after: input.public,
         });
+
         const trace = await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -705,6 +727,22 @@ export const traceRouter = createTRPCRouter({
             public: input.public,
           },
         });
+
+        if (env.CLICKHOUSE_URL) {
+          const clickhouseTrace = await getTraceById(
+            input.traceId,
+            input.projectId,
+          );
+          if (!clickhouseTrace) {
+            logger.error(
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
+            );
+            return trace;
+          }
+          clickhouseTrace.public = input.public;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        }
+
         return trace;
       } catch (error) {
         console.error(error);
@@ -738,6 +776,14 @@ export const traceRouter = createTRPCRouter({
         scope: "objects:tag",
       });
       try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "trace",
+          resourceId: input.traceId,
+          action: "updateTags",
+          after: input.tags,
+        });
+
         await ctx.prisma.trace.update({
           where: {
             id: input.traceId,
@@ -749,13 +795,21 @@ export const traceRouter = createTRPCRouter({
             },
           },
         });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "trace",
-          resourceId: input.traceId,
-          action: "updateTags",
-          after: input.tags,
-        });
+
+        if (env.CLICKHOUSE_URL) {
+          const clickhouseTrace = await getTraceById(
+            input.traceId,
+            input.projectId,
+          );
+          if (!clickhouseTrace) {
+            logger.error(
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping tag update.`,
+            );
+            return;
+          }
+          clickhouseTrace.tags = input.tags;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        }
       } catch (error) {
         console.error(error);
       }
