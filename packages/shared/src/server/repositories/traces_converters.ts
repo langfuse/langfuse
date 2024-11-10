@@ -4,6 +4,32 @@ import { TraceRecordReadType } from "./definitions";
 import { TracesTableReturnType } from "./traces";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+
+export const convertTraceDomainToClickhouse = (
+  trace: Trace,
+): TraceRecordReadType => {
+  return {
+    id: trace.id,
+    timestamp: convertDateToClickhouseDateTime(trace.timestamp),
+    name: trace.name,
+    user_id: trace.userId,
+    metadata: trace.metadata as Record<string, string>,
+    release: trace.release,
+    version: trace.version,
+    project_id: trace.projectId,
+    public: trace.public,
+    bookmarked: trace.bookmarked,
+    tags: trace.tags,
+    input: trace.input as string,
+    output: trace.output as string,
+    session_id: trace.sessionId,
+    created_at: convertDateToClickhouseDateTime(trace.createdAt),
+    updated_at: convertDateToClickhouseDateTime(trace.updatedAt),
+    event_ts: convertDateToClickhouseDateTime(new Date()),
+    is_deleted: 0,
+  };
+};
 
 export const convertClickhouseToDomain = (
   record: TraceRecordReadType,
