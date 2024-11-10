@@ -163,6 +163,7 @@ export default function TracesTable({
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
+      filter: filterState,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
       queryClickhouse: useClickhouse(),
     },

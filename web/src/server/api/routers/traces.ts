@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -222,6 +221,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceIds: z.array(z.string()),
+        filter: z.array(singleFilter).nullable(),
         queryClickhouse: z.boolean().default(false),
       }),
     )
@@ -284,6 +284,7 @@ export const traceRouter = createTRPCRouter({
           }
 
           const res = await getTracesTable(ctx.session.projectId, [
+            ...(input.filter ?? []),
             {
               type: "stringOptions",
               operator: "any of",
