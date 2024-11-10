@@ -20,6 +20,8 @@ import {
   getObservationUsageByTime,
   groupTracesByTime,
   getDistinctModels,
+  getTracesGroupedByUsers,
+  getModelUsageByUser,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -40,6 +42,8 @@ export const dashboardRouter = createTRPCRouter({
             "traces-timeseries",
             "observations-usage-timeseries",
             "distinct-models",
+            "observations-usage-by-users",
+            "traces-grouped-by-user",
           ])
           .nullish(),
       }),
@@ -138,6 +142,30 @@ export const dashboardRouter = createTRPCRouter({
             input.filter ?? [],
           );
           return models as DatabaseRow[];
+
+        case "observations-usage-by-users":
+          const rowsUsers = await getModelUsageByUser(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          return rowsUsers.map((row) => ({
+            sumTotalTokens: row.sumUsageDetails,
+            sumCalculatedTotalCost: row.sumCostDetails,
+            user: row.userId,
+          })) as DatabaseRow[];
+
+        case "traces-grouped-by-user":
+          const traces = await getTracesGroupedByUsers(
+            input.projectId,
+            input.filter ?? [],
+            dashboardColumnDefinitions,
+          );
+
+          return traces.map((row) => ({
+            user: row.user,
+            countTraceId: Number(row.count),
+          })) as DatabaseRow[];
 
         default:
           throw new TRPCError({
