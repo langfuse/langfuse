@@ -141,7 +141,7 @@ export const sessionRouter = createTRPCRouter({
       try {
         return await measureAndReturnApi({
           input,
-          operation: "traces.countAll",
+          operation: "sessions.countAll",
           user: ctx.session.user,
           pgExecution: async () => {
             const inputForTotal: z.infer<typeof SessionFilterOptions> = {
