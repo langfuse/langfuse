@@ -38,7 +38,7 @@ export async function instrumentAsync<T>(
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
-      root: !Boolean(ctx.traceContext) && ctx.rootSpan,
+      root: !ctx.traceContext && ctx.rootSpan,
       kind: ctx.spanKind,
     },
     activeContext,
@@ -72,7 +72,7 @@ export function instrumentSync<T>(
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
     {
-      root: !Boolean(ctx.traceContext) && ctx.rootSpan,
+      root: !ctx.traceContext && ctx.rootSpan,
       kind: ctx.spanKind,
     },
     activeContext,
