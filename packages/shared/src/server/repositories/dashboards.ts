@@ -1,7 +1,7 @@
 import { queryClickhouse } from "./clickhouse";
-import { createFilterFromFilterState } from "../queries/clickhouse-filter/factory";
+import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { FilterState } from "../../types";
-import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 
 export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";

@@ -19,7 +19,6 @@ import {
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
 import {
-  type ObservationLevel,
   type ObservationView,
   Prisma,
   type Trace,
@@ -34,20 +33,25 @@ import {
   getTracesTableCount,
   getScoresForTraces,
   getTraceByIdOrThrow,
-  type TracesTableReturnType,
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsViewForTrace,
+  deleteTraces,
+  deleteScoresByTraceIds,
+  deleteObservationsByTraceIds,
+  convertMetricsReturnType,
+  type TracesMetricsReturnType,
+  type TracesAllReturnType,
+  convertToReturnType,
   getTraceById,
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import Decimal from "decimal.js";
 import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { env } from "@/src/env.mjs";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -63,76 +67,6 @@ export type ObservationReturnType = Omit<
   "input" | "output"
 > & {
   traceId: string;
-};
-
-export type TracesAllReturnType = {
-  id: string;
-  timestamp: Date;
-  name: string | null;
-  projectId: string;
-  userId: string | null;
-  release: string | null;
-  version: string | null;
-  public: boolean;
-  bookmarked: boolean;
-  sessionId: string | null;
-  tags: string[];
-};
-
-export const convertToReturnType = (
-  row: TracesTableReturnType,
-): TracesAllReturnType => {
-  return {
-    id: row.id,
-    name: row.name ?? null,
-    timestamp: new Date(row.timestamp),
-    tags: row.tags,
-    bookmarked: row.bookmarked,
-    release: row.release ?? null,
-    version: row.version ?? null,
-    projectId: row.project_id,
-    userId: row.user_id ?? null,
-    sessionId: row.session_id ?? null,
-    public: row.public,
-  };
-};
-
-export type TracesMetricsReturnType = {
-  id: string;
-  promptTokens: bigint;
-  completionTokens: bigint;
-  totalTokens: bigint;
-  latency: number | null;
-  level: ObservationLevel;
-  observationCount: bigint;
-  calculatedTotalCost: Decimal | null;
-  calculatedInputCost: Decimal | null;
-  calculatedOutputCost: Decimal | null;
-  scores: ScoreAggregate;
-};
-
-export const convertMetricsReturnType = (
-  row: TracesTableReturnType & { scores: ScoreAggregate },
-): TracesMetricsReturnType => {
-  return {
-    id: row.id,
-    promptTokens: BigInt(row.usage_details?.input ?? 0),
-    completionTokens: BigInt(row.usage_details?.output ?? 0),
-    totalTokens: BigInt(row.usage_details?.total ?? 0),
-    latency: row.latency ? Number(row.latency) : null,
-    level: row.level,
-    observationCount: BigInt(row.observation_count ?? 0),
-    calculatedTotalCost: row.cost_details?.total
-      ? new Decimal(row.cost_details.total)
-      : null,
-    calculatedInputCost: row.cost_details?.input
-      ? new Decimal(row.cost_details.input)
-      : null,
-    calculatedOutputCost: row.cost_details?.output
-      ? new Decimal(row.cost_details.output)
-      : null,
-    scores: row.scores,
-  };
 };
 
 export const traceRouter = createTRPCRouter({
@@ -206,6 +140,7 @@ export const traceRouter = createTRPCRouter({
         const res = await getTracesTable(
           ctx.session.projectId,
           input.filter ?? [],
+          input.searchQuery ?? undefined,
           input.orderBy,
           input.limit,
           input.page,
@@ -251,13 +186,13 @@ export const traceRouter = createTRPCRouter({
           });
         }
 
-        const countQuery = await getTracesTableCount(
-          ctx.session.projectId,
-          input.filter ?? [],
-          null,
-          1,
-          0,
-        );
+        const countQuery = await getTracesTableCount({
+          projectId: ctx.session.projectId,
+          filter: input.filter ?? [],
+          searchQuery: input.searchQuery ?? undefined,
+          limit: 1,
+          offset: 0,
+        });
 
         return {
           totalCount: countQuery,
@@ -660,7 +595,7 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      return ctx.prisma.$transaction([
+      await ctx.prisma.$transaction([
         ctx.prisma.trace.deleteMany({
           where: {
             id: {
@@ -686,6 +621,14 @@ export const traceRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      if (env.CLICKHOUSE_URL) {
+        await Promise.all([
+          deleteTraces(input.projectId, input.traceIds),
+          deleteObservationsByTraceIds(input.projectId, input.traceIds),
+          deleteScoresByTraceIds(input.projectId, input.traceIds),
+        ]);
+      }
     }),
   bookmark: protectedProjectProcedure
     .input(

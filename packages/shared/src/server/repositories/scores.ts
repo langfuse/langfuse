@@ -5,15 +5,16 @@ import {
   queryClickhouse,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList } from "../queries/clickhouse-filter/clickhouse-filter";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { FilterState } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
-} from "../queries/clickhouse-filter/factory";
+} from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
-import { orderByToClickhouseSql } from "../queries/clickhouse-filter/orderby-factory";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import { convertToScore } from "./scores_converters";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -35,27 +36,6 @@ export type FetchScoresReturnType = {
   event_ts: string;
   is_deleted: number;
   projectId: string;
-};
-
-const convertToScore = (row: FetchScoresReturnType) => {
-  return {
-    id: row.id,
-    timestamp: new Date(row.timestamp),
-    projectId: row.project_id,
-    traceId: row.trace_id,
-    observationId: row.observation_id,
-    name: row.name,
-    value: row.value,
-    source: row.source as ScoreSource,
-    comment: row.comment,
-    authorUserId: row.author_user_id,
-    configId: row.config_id,
-    dataType: row.data_type as ScoreDataType,
-    stringValue: row.string_value,
-    queueId: row.queue_id,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-  };
 };
 
 export const searchExistingAnnotationScore = async (
@@ -470,6 +450,24 @@ export const deleteScore = async (projectId: string, scoreId: string) => {
     params: {
       projectId,
       scoreId,
+    },
+  });
+};
+
+export const deleteScoresByTraceIds = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)});
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      traceIds,
     },
   });
 };
