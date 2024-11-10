@@ -20,6 +20,7 @@ import {
   getObservationUsageByTime,
   groupTracesByTime,
   getDistinctModels,
+  getScoresAggregateOverTime,
   getTracesGroupedByUsers,
   getModelUsageByUser,
 } from "@langfuse/shared/src/server";
@@ -42,6 +43,7 @@ export const dashboardRouter = createTRPCRouter({
             "traces-timeseries",
             "observations-usage-timeseries",
             "distinct-models",
+            "scores-aggregate-timeseries",
             "observations-usage-by-users",
             "traces-grouped-by-user",
           ])
@@ -142,6 +144,19 @@ export const dashboardRouter = createTRPCRouter({
             input.filter ?? [],
           );
           return models as DatabaseRow[];
+
+        case "scores-aggregate-timeseries":
+          const dateTruncScores = extractTimeSeries(input.groupBy);
+          if (!dateTruncScores) {
+            return [];
+          }
+          const aggregatedScores = await getScoresAggregateOverTime(
+            input.projectId,
+            input.filter ?? [],
+            dateTruncScores,
+          );
+
+          return aggregatedScores as DatabaseRow[];
 
         case "observations-usage-by-users":
           const rowsUsers = await getModelUsageByUser(
