@@ -42,6 +42,7 @@ import {
   getTraceById,
   logger,
   upsertTrace,
+  convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -731,7 +732,7 @@ export const traceRouter = createTRPCRouter({
             return trace;
           }
           clickhouseTrace.bookmarked = input.bookmarked;
-          await upsertTrace(clickhouseTrace);
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
 
         return trace;
@@ -797,7 +798,7 @@ export const traceRouter = createTRPCRouter({
             return trace;
           }
           clickhouseTrace.public = input.public;
-          await upsertTrace(clickhouseTrace);
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
 
         return trace;
@@ -864,11 +865,8 @@ export const traceRouter = createTRPCRouter({
             );
             return;
           }
-          clickhouseTrace.tags = [
-            ...(clickhouseTrace?.tags ?? []),
-            ...input.tags,
-          ];
-          await upsertTrace(clickhouseTrace);
+          clickhouseTrace.tags = input.tags;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
       } catch (error) {
         console.error(error);

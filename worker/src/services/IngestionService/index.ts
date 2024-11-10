@@ -783,7 +783,6 @@ export class IngestionService {
     return result.length === 0 ? null : recordParser[table](result[0]);
   }
 
-  // TODO: Move into definitions.ts to have a util from nodejs types to Clickhouse types.
   private mapTraceEventsToRecords(params: {
     traceEventList: TraceEventType[];
     projectId: string;
