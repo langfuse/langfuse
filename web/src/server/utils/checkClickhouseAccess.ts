@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { getCurrentSpan } from "@langfuse/shared/src/server";
+import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import type * as opentelemetry from "@opentelemetry/api";
 
@@ -15,12 +15,13 @@ export const isClickhouseEligible = (user?: User | null) => {
   );
 };
 
-export const measureAndReturnApi = async <T, Y>(
-  input: T & { queryClickhouse: boolean },
-  user: User | undefined,
-  pgExecution: (input: T) => Promise<Y>,
-  clickhouseExecution: (input: T) => Promise<Y>,
-) => {
+export const measureAndReturnApi = async <T, Y>(args: {
+  input: T & { queryClickhouse: boolean };
+  user: User | undefined;
+  pgExecution: (input: T) => Promise<Y>;
+  clickhouseExecution: (input: T) => Promise<Y>;
+}) => {
+  const { input, user, pgExecution, clickhouseExecution } = args;
   const currentSpan = getCurrentSpan();
 
   if (!user) {
@@ -36,9 +37,11 @@ export const measureAndReturnApi = async <T, Y>(
   }
 
   if (env.LANGFUSE_READ_FROM_CLICKHOUSE_AND_POSTGRES === "false") {
-    return pgExecution(input);
+    logger.info("Read from postgres only");
+    return await pgExecution(input);
   }
 
+  logger.info("Read from postgres and clickhouse");
   const [[pgResult, pgDuration], [chResult, chDuration]] = await Promise.all([
     executionWrapper(input, pgExecution, currentSpan, "pg"),
     executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
@@ -48,6 +51,7 @@ export const measureAndReturnApi = async <T, Y>(
   currentSpan?.setAttribute("execution-time-difference", durationDifference);
 
   if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
+    logger.info("Return data from clickhouse");
     return chResult;
   }
   return pgResult;

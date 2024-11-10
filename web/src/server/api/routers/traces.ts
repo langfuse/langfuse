@@ -50,7 +50,10 @@ import {
   convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import {
+  isClickhouseEligible,
+  measureAndReturnApi,
+} from "@/src/server/utils/checkClickhouseAccess";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -89,66 +92,71 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (!input.queryClickhouse) {
-        const {
-          filterCondition,
-          orderByCondition,
-          observationTimeseriesFilter,
-          searchCondition,
-        } = parseTraceAllFilters(input);
+      return await measureAndReturnApi({
+        input,
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const {
+            filterCondition,
+            orderByCondition,
+            observationTimeseriesFilter,
+            searchCondition,
+          } = parseTraceAllFilters(input);
 
-        const tracesQuery = createTracesQuery({
-          select: Prisma.sql`
-          t.*,
-          t."user_id" AS "userId",
-          t.session_id AS "sessionId"
-          `,
-          projectId: input.projectId,
-          observationTimeseriesFilter,
-          page: input.page,
-          limit: input.limit,
-          searchCondition,
-          filterCondition,
-          orderByCondition,
-        });
-
-        const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
-
-        return {
-          traces: traces.map<TracesAllReturnType>(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            ({ input, output, metadata, ...trace }) => ({
-              ...trace,
-              name: trace.name,
-              release: trace.release,
-              version: trace.version,
-              externalId: trace.externalId,
-              userId: trace.userId,
-              sessionId: trace.sessionId,
-            }),
-          ),
-        };
-      } else {
-        if (!isClickhouseEligible(ctx.session.user)) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "Not eligible to query clickhouse",
+          const tracesQuery = createTracesQuery({
+            select: Prisma.sql`
+            t.*,
+            t."user_id" AS "userId",
+            t.session_id AS "sessionId"
+            `,
+            projectId: input.projectId,
+            observationTimeseriesFilter,
+            page: input.page,
+            limit: input.limit,
+            searchCondition,
+            filterCondition,
+            orderByCondition,
           });
-        }
 
-        const res = await getTracesTable(
-          ctx.session.projectId,
-          input.filter ?? [],
-          input.searchQuery ?? undefined,
-          input.orderBy,
-          input.limit,
-          input.page,
-        );
+          const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
 
-        return {
-          traces: res.map(convertToReturnType),
-        };
-      }
+          return {
+            traces: traces.map<TracesAllReturnType>(
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              ({ input, output, metadata, ...trace }) => ({
+                ...trace,
+                name: trace.name,
+                release: trace.release,
+                version: trace.version,
+                externalId: trace.externalId,
+                userId: trace.userId,
+                sessionId: trace.sessionId,
+              }),
+            ),
+          };
+        },
+        clickhouseExecution: async () => {
+          if (!isClickhouseEligible(ctx.session.user)) {
+            throw new TRPCError({
+              code: "UNAUTHORIZED",
+              message: "Not eligible to query clickhouse",
+            });
+          }
+
+          const res = await getTracesTable(
+            ctx.session.projectId,
+            input.filter ?? [],
+            input.searchQuery ?? undefined,
+            input.orderBy,
+            input.limit,
+            input.page,
+          );
+
+          return {
+            traces: res.map(convertToReturnType),
+          };
+        },
+      });
     }),
   countAll: protectedProjectProcedure
     .input(
