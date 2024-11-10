@@ -235,7 +235,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
  */
 export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   if (!["id", "project_id", "timestamp"].every((key) => key in trace)) {
-    throw new Error("Identifier fields must be provided to upsert Score.");
+    throw new Error("Identifier fields must be provided to upsert Trace.");
   }
   await upsertClickhouse({
     table: "traces",
