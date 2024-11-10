@@ -131,7 +131,7 @@ export const prepareClickhouse = async (
         toString(floor(randUniform(0, ${observationsPerProject}))),
         NULL
       ) AS observation_id,
-      concat('name_', toString(rand() % 100)) AS name,
+      concat('name_', toString(rand() % 10)) AS name,
       randUniform(0, 100) as value,
       'API' as source,
       'comment' as comment,
