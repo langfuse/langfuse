@@ -532,7 +532,6 @@ export const getModelLatenciesOverTime = async (
   GROUP BY provided_model_name, start_time_bucket
   ${orderByTimeSeries(groupBy, "start_time_bucket")};
 `;
-  console.log(query);
 
   const result = await queryClickhouse<{
     start_time_bucket: string;
