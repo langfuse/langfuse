@@ -76,7 +76,7 @@ export class KyselySingleton {
               createQueryCompiler: () => new PostgresQueryCompiler(),
             },
           }),
-      })
+      }),
     );
 
     return KyselySingleton.instance;
@@ -103,7 +103,7 @@ if (process.env.NODE_ENV === "development") {
             createQueryCompiler: () => new PostgresQueryCompiler(),
           },
         }),
-    })
+    }),
   );
 }
 

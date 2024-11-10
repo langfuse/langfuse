@@ -131,6 +131,9 @@ export const cloudBillingRouter = createTRPCRouter({
         tax_id_collection: {
           enabled: true,
         },
+        automatic_tax: {
+          enabled: true,
+        },
         consent_collection: {
           terms_of_service: "required",
         },

@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
@@ -9,7 +10,7 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
+import { deleteScore, traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -61,6 +62,10 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError(
           "Score not found within authorized project",
         );
+      }
+
+      if (env.CLICKHOUSE_URL) {
+        await deleteScore(auth.scope.projectId, scoreId);
       }
 
       await prisma.score.delete({

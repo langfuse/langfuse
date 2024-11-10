@@ -1,14 +1,6 @@
 import { z } from "zod";
-import lodash from "lodash";
+import { merge } from "lodash";
 import { JsonNested, jsonSchema, jsonSchemaNullable } from "./zod";
-
-export const parseJson = (input: string) => {
-  try {
-    return JSON.parse(input) as unknown;
-  } catch {
-    return input;
-  }
-};
 
 /**
  * Deeply parses a JSON string or object for nested stringified JSON
@@ -37,7 +29,7 @@ export function deepParseJson(json: unknown): unknown {
         // Ensure we only iterate over the object's own properties
         if (Object.prototype.hasOwnProperty.call(json, key)) {
           (json as Record<string, unknown>)[key] = deepParseJson(
-            (json as Record<string, unknown>)[key]
+            (json as Record<string, unknown>)[key],
           );
         }
       }
@@ -50,16 +42,16 @@ export function deepParseJson(json: unknown): unknown {
 
 export const mergeJson = (
   json1?: z.infer<typeof jsonSchema>,
-  json2?: z.infer<typeof jsonSchema>
+  json2?: z.infer<typeof jsonSchema>,
 ) => {
   if (json1 === undefined) {
     return json2;
   }
-  return lodash.merge(json1, json2);
+  return merge(json1, json2);
 };
 
 export const parseJsonPrioritised = (
-  json: string
+  json: string,
 ): z.infer<typeof jsonSchema> | string | undefined => {
   try {
     const parsedJson = JSON.parse(json);
@@ -87,7 +79,7 @@ export const parseJsonPrioritised = (
 };
 
 export const convertRecordToJsonSchema = (
-  record: Record<string, string>
+  record: Record<string, string>,
 ): JsonNested | undefined => {
   const jsonSchema: JsonNested = {};
 

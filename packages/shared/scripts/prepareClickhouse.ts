@@ -1,3 +1,4 @@
+import { prisma } from "../src/db";
 import { clickhouseClient, logger } from "../src/server";
 
 function randn_bm(min: number, max: number, skew: number) {
@@ -60,7 +61,7 @@ export const prepareClickhouse = async (
     SELECT toString(number) AS id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
       concat('name_', toString(rand() % 100)) AS name,
-      concat('user_id_', toString(randUniform(0, 100))) AS user_id,
+      concat('user_id_', toInt64(randExponential(1 / 100))) AS user_id,
       map('key', 'value') AS metadata,
       concat('release_', toString(randUniform(0, 100))) AS release,
       concat('version_', toString(randUniform(0, 100))) AS version,
@@ -70,7 +71,7 @@ export const prepareClickhouse = async (
       array('tag1', 'tag2') as tags,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
       repeat('output', toInt64(randExponential(1 / 100))) AS output,
-      concat('session_', toString(rand() % 100)) AS session_id,
+      if(randUniform(0, 1) < 0.2, NULL, concat('session_', toString(rand() % 1000))) AS session_id,
       timestamp AS created_at,
       timestamp AS updated_at,
       timestamp AS event_ts,
@@ -83,13 +84,13 @@ export const prepareClickhouse = async (
     SELECT toString(number) AS id,
       toString(floor(randUniform(0, ${tracesPerProject}))) AS trace_id,
       '${projectId}' AS project_id,
-      if(rand() < 0.47, 'GENERATION', if(rand() < 0.94, 'SPAN', 'EVENT')) AS type,
+      if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
       toString(rand()) AS parent_observation_id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
       addSeconds(start_time, if(rand() < 0.6, floor(randUniform(0, 20)), floor(randUniform(0, 3600)))) AS end_time,
       concat('name', toString(rand() % 100)) AS name,
-      '{"key": "value"}' AS metadata,
-      if(rand() < 0.9, 'DEFAULT', if(rand() < 0.5, 'ERROR', if(rand() < 0.5, 'DEBUG', 'WARNING'))) AS level,
+      map('key', 'value') AS metadata,
+      if(randUniform(0, 1) < 0.9, 'DEFAULT', if(randUniform(0, 1) < 0.5, 'ERROR', if(randUniform(0, 1) < 0.5, 'DEBUG', 'WARNING'))) AS level,
       'status_message' AS status_message,
       'version' AS version,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
@@ -102,7 +103,7 @@ export const prepareClickhouse = async (
         when number % 2 = 0 then 'cltr0w45b000008k1407o9qv1'
         else 'clrntkjgy000f08jx79v9g1xj'
       end as internal_model_id,
-      '{"temperature": 0.7, "max_tokens": 15d0}' AS model_parameters,
+      '{"temperature": 0.7, "max_tokens": 150}' AS model_parameters,
       map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))) AS provided_usage_details,
       map('input', toUInt64(randUniform(0, 1000)), 'output', toUInt64(randUniform(0, 1000)), 'total', toUInt64(randUniform(0, 2000))) AS usage_details,
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS provided_cost_details,
@@ -130,14 +131,15 @@ export const prepareClickhouse = async (
         toString(floor(randUniform(0, ${observationsPerProject}))),
         NULL
       ) AS observation_id,
-      concat('name_', toString(rand() % 100)) AS name,
+      concat('name_', toString(rand() % 10)) AS name,
       randUniform(0, 100) as value,
       'API' as source,
       'comment' as comment,
       toString(rand() % 100) as author_user_id,
       toString(rand() % 100) as config_id,
-      toString(rand() % 100) as data_type,
+      if (rand() < 0.33, 'NUMERIC', if (rand() < 0.5, 'CATEGORICAL', 'BOOLEAN')) as data_type,
       toString(rand() % 100) as string_value,
+      NULL as queue_id,
       timestamp AS created_at,
       timestamp AS updated_at,
       timestamp AS event_ts,
@@ -156,6 +158,34 @@ export const prepareClickhouse = async (
         },
       });
     }
+    // we also need to upsert trace sessions in postgres
+
+    const sessionQuery = `
+      SELECT session_id, project_id
+      FROM traces 
+      WHERE session_id IS NOT NULL;
+    `;
+    const sessionResult = await clickhouseClient.query({
+      query: sessionQuery,
+      format: "JSONEachRow",
+    });
+
+    const sessionData = await sessionResult.json<{
+      session_id: string;
+      project_id: string;
+    }>();
+
+    const idProjectIdCombinations = sessionData.map((session) => ({
+      id: session.session_id,
+      projectId: session.project_id,
+      public: Math.random() < 0.1,
+      bookmarked: Math.random() < 0.1,
+    }));
+
+    await prisma.traceSession.createMany({
+      data: idProjectIdCombinations,
+      skipDuplicates: true,
+    });
   }
 
   const tables = ["traces", "scores", "observations"];

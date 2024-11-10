@@ -18,7 +18,6 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
@@ -33,6 +32,12 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const ObservationPreview = ({
   observations,
@@ -68,6 +73,7 @@ export const ObservationPreview = ({
     observationId: currentObservationId,
     traceId: traceId,
     projectId: projectId,
+    queryClickhouse: useClickhouse(),
   });
 
   const preloadedObservation = observations.find(
@@ -111,28 +117,14 @@ export const ObservationPreview = ({
     >
       {viewType === "detailed" && (
         <div className="flex flex-shrink-0 flex-row justify-end gap-2">
-          <Tabs
-            value={selectedTab}
-            onValueChange={setSelectedTab}
-            className="flex w-full justify-end border-b bg-background"
-          >
-            <TabsList className="bg-background py-0">
-              <TabsTrigger
-                value="preview"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Preview
-              </TabsTrigger>
+          <TabsBar value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsBarList>
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
-                <TabsTrigger
-                  value="scores"
-                  className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-                >
-                  Scores
-                </TabsTrigger>
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
-            </TabsList>
-          </Tabs>
+            </TabsBarList>
+          </TabsBar>
         </div>
       )}
       <div className="flex w-full flex-col overflow-y-auto">
@@ -297,6 +289,7 @@ export const ObservationPreview = ({
           {selectedTab === "scores" && (
             <ScoresTable
               projectId={projectId}
+              traceId={traceId}
               omittedFilter={["Observation ID"]}
               observationId={preloadedObservation.id}
               hiddenColumns={[

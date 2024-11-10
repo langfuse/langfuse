@@ -17,6 +17,8 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -31,6 +33,7 @@ export const SessionPage: React.FC<{
     {
       sessionId,
       projectId: projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       retry(failureCount, error) {
@@ -66,7 +69,7 @@ export const SessionPage: React.FC<{
     return <ErrorPage message="You do not have access to this session." />;
 
   return (
-    <div className="flex flex-col overflow-hidden xl:container">
+    <ScrollScreenPage>
       <Header
         title="Session"
         breadcrumb={[
@@ -172,7 +175,7 @@ export const SessionPage: React.FC<{
           </Button>
         )}
       </div>
-    </div>
+    </ScrollScreenPage>
   );
 };
 
@@ -184,7 +187,7 @@ const SessionIO = ({
   projectId: string;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId, projectId, queryClickhouse: useClickhouse() },
     {
       enabled: typeof traceId === "string",
       trpc: {

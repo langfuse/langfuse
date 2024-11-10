@@ -1,6 +1,7 @@
 import { type DateRange } from "react-day-picker";
 import { z } from "zod";
 import { addMinutes } from "date-fns";
+import { type DateTrunc } from "@langfuse/shared/src/server";
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "24 hours" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "Custom" as const;
@@ -57,7 +58,7 @@ export type TableDateRangeOptions = TableDateRangeAggregationOption;
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   {
-    date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
+    date_trunc: DateTrunc;
     minutes: number;
   }
 >;

@@ -47,6 +47,8 @@ export const env = createEnv({
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
+    // Telemetry
+    TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -185,10 +187,10 @@ export const env = createEnv({
           (creator) => emailSchema.safeParse(creator).success,
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
-    LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS: z.coerce
+    LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
       .number()
       .nonnegative()
-      .default(0),
+      .default(15_000),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -258,6 +260,7 @@ export const env = createEnv({
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
+    TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
     // Default org, project and role
     LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
     LANGFUSE_DEFAULT_ORG_ROLE: process.env.LANGFUSE_DEFAULT_ORG_ROLE,
@@ -390,8 +393,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
-    LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS:
-      process.env.LANGFUSE_INGESTION_QUEUE_DELAY_SECONDS,
+    LANGFUSE_INGESTION_QUEUE_DELAY_MS:
+      process.env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,

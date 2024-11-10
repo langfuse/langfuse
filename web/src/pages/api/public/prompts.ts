@@ -26,6 +26,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { telemetry } from "@/src/features/telemetry";
 
 export default async function handler(
   req: NextApiRequest,
@@ -45,6 +46,8 @@ export default async function handler(
       throw new ForbiddenError(
         `Access denied - need to use basic auth with secret key to ${req.method} prompts`,
       );
+
+    await telemetry();
 
     // Handle GET requests
     if (req.method === "GET") {

@@ -26,6 +26,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -42,6 +44,7 @@ export default function Dashboard() {
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -49,6 +52,10 @@ export default function Dashboard() {
           skipBatch: true,
         },
       },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
   const nameOptions = traceFilterOptions.data?.name || [];
@@ -98,7 +105,7 @@ export default function Dashboard() {
   const agg = useMemo(
     () =>
       dateRange
-        ? findClosestDashboardInterval(dateRange) ?? "7 days"
+        ? (findClosestDashboardInterval(dateRange) ?? "7 days")
         : "7 days",
     [dateRange],
   );
@@ -136,7 +143,7 @@ export default function Dashboard() {
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
   return (
-    <div className="md:container">
+    <ScrollScreenPage>
       <Header title="Dashboard" actionButtons={<SetupTracingButton />} />
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col gap-2 lg:flex-row">
@@ -244,6 +251,6 @@ export default function Dashboard() {
           />
         )}
       </div>
-    </div>
+    </ScrollScreenPage>
   );
 }

@@ -78,7 +78,12 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
-import { addUserToSpan, logger } from "@langfuse/shared/src/server";
+import {
+  addUserToSpan,
+  getTraceByIdOrThrow,
+  logger,
+} from "@langfuse/shared/src/server";
+import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
 
 setUpSuperjson();
 
@@ -136,6 +141,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
 const withOtelTracingProcedure = t.procedure.use(
   tracing({ collectInput: true, collectResult: true }),
 );
+
 /**
  * Public (unauthenticated) procedure
  *
@@ -313,28 +319,51 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
 const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
+  timestamp: z.date().nullish(),
+  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const result = inputTraceSchema.safeParse(rawInput);
-  if (!result.success)
+
+  if (!result.success) {
+    logger.error("Invalid input when parsing request body", result.error);
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Invalid input, traceId is required",
+      message: `Invalid input, ${result.error.message}`,
     });
+  }
 
   const traceId = result.data.traceId;
   const projectId = result.data.projectId;
+  const timestamp = result.data.timestamp;
 
-  const trace = await prisma.trace.findFirst({
-    where: {
-      id: traceId,
-      projectId: projectId,
-    },
-    select: {
-      public: true,
-    },
-  });
+  // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
+  let trace;
+
+  if (
+    result.data.queryClickhouse === true &&
+    isClickhouseEligible(ctx.session?.user)
+  ) {
+    logger.info(
+      `Querying Clickhouse for traceid: ${traceId} and project: ${projectId} `,
+    );
+    trace = await getTraceByIdOrThrow(
+      traceId,
+      projectId,
+      timestamp ?? undefined,
+    );
+  } else {
+    trace = await prisma.trace.findFirst({
+      where: {
+        id: traceId,
+        projectId: projectId,
+      },
+      select: {
+        public: true,
+      },
+    });
+  }
 
   if (!trace)
     throw new TRPCError({
@@ -377,6 +406,7 @@ export const protectedGetTraceProcedure = withOtelTracingProcedure
 const inputSessionSchema = z.object({
   sessionId: z.string(),
   projectId: z.string(),
+  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -389,6 +419,7 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
 
   const { sessionId, projectId } = result.data;
 
+  // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
   const session = await prisma.traceSession.findFirst({
     where: {
       id: sessionId,

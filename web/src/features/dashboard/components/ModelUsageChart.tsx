@@ -18,7 +18,7 @@ import {
   dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
-
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { env } from "@/src/env.mjs";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
@@ -62,6 +62,8 @@ export const ModelUsageChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "observations-usage-timeseries",
     },
     {
       trpc: {
@@ -72,7 +74,7 @@ export const ModelUsageChart = ({
     },
   );
 
-  const allModels = getAllModels(projectId, globalFilterState);
+  const allModels = getAllModels(projectId, globalFilterState, useClickhouse());
 
   const transformedTotalTokens =
     tokens.data && allModels.length > 0

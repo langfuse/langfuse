@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -70,7 +71,7 @@ export function SetupPage() {
   }, [hasAnyTrace, capture]);
 
   return (
-    <div className="mb-12 md:container">
+    <ScrollScreenPage>
       <Header
         title="Setup"
         help={{
@@ -78,134 +79,138 @@ export function SetupPage() {
             "Create a new organization. This will be used to manage your projects and teams.",
         }}
       />
-      <Breadcrumb className="mb-3">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 1
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              1. Create Organization
-              {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 2
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              2. Invite Members
-              {stepInt > 2 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 3
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              3. Create Project
-              {stepInt > 3 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage
-              className={cn(
-                stepInt !== 4
-                  ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
-              )}
-            >
-              4. Setup Tracing
-              {stepInt === 4 && <Check className="ml-1 inline-block h-3 w-3" />}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <Card className="p-3">
-        {
-          // 1. Create Org
-          stepInt === 1 && (
-            <NewOrganizationForm
-              onSuccess={(orgId) => {
-                router.push(inviteMembersRoute(orgId));
-              }}
-            />
-          )
-        }
-        {
-          // 2. Invite Members
-          stepInt === 2 && organization && (
-            <div className="flex flex-col gap-10">
-              <div>
-                <Header title="Organization Members" level="h3" />
-                <MembersTable orgId={organization.id} />
+      <div className="md:container md:mx-auto">
+        <Breadcrumb className="mb-3">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 1
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                1. Create Organization
+                {stepInt > 1 && <Check className="ml-1 inline-block h-3 w-3" />}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 2
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                2. Invite Members
+                {stepInt > 2 && <Check className="ml-1 inline-block h-3 w-3" />}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 3
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                3. Create Project
+                {stepInt > 3 && <Check className="ml-1 inline-block h-3 w-3" />}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage
+                className={cn(
+                  stepInt !== 4
+                    ? "text-muted-foreground"
+                    : "font-semibold text-foreground",
+                )}
+              >
+                4. Setup Tracing
+                {stepInt === 4 && (
+                  <Check className="ml-1 inline-block h-3 w-3" />
+                )}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <Card className="p-3">
+          {
+            // 1. Create Org
+            stepInt === 1 && (
+              <NewOrganizationForm
+                onSuccess={(orgId) => {
+                  router.push(inviteMembersRoute(orgId));
+                }}
+              />
+            )
+          }
+          {
+            // 2. Invite Members
+            stepInt === 2 && organization && (
+              <div className="flex flex-col gap-10">
+                <div>
+                  <Header title="Organization Members" level="h3" />
+                  <MembersTable orgId={organization.id} />
+                </div>
+                <div>
+                  <MembershipInvitesPage orgId={organization.id} />
+                </div>
               </div>
-              <div>
-                <MembershipInvitesPage orgId={organization.id} />
+            )
+          }
+          {
+            // 3. Create Project
+            stepInt === 3 && organization && (
+              <NewProjectForm
+                orgId={organization.id}
+                onSuccess={(projectId) =>
+                  router.push(setupTracingRoute(projectId))
+                }
+              />
+            )
+          }
+          {
+            // 4. Setup Tracing
+            stepInt === 4 && project && organization && (
+              <div className="space-y-8">
+                <div>
+                  <Header title="API Keys" level="h3" />
+                  <TracingSetup
+                    projectId={project.id}
+                    hasAnyTrace={hasAnyTrace ?? false}
+                  />
+                </div>
               </div>
-            </div>
-          )
-        }
-        {
-          // 3. Create Project
-          stepInt === 3 && organization && (
-            <NewProjectForm
-              orgId={organization.id}
-              onSuccess={(projectId) =>
-                router.push(setupTracingRoute(projectId))
-              }
-            />
-          )
-        }
-        {
-          // 4. Setup Tracing
-          stepInt === 4 && project && organization && (
-            <div className="space-y-8">
-              <div>
-                <Header title="API Keys" level="h3" />
-                <TracingSetup
-                  projectId={project.id}
-                  hasAnyTrace={hasAnyTrace ?? false}
-                />
-              </div>
-            </div>
-          )
-        }
-      </Card>
-      {stepInt === 2 && organization && (
-        <Button
-          className="mt-4"
-          data-testid="btn-skip-add-members"
-          onClick={() => router.push(createProjectRoute(organization.id))}
-        >
-          Next
-        </Button>
-      )}
-      {
-        // 4. Setup Tracing
-        stepInt === 4 && project && (
+            )
+          }
+        </Card>
+        {stepInt === 2 && organization && (
           <Button
             className="mt-4"
-            onClick={() => router.push(`/project/${project.id}`)}
-            variant={hasAnyTrace ? "default" : "secondary"}
+            data-testid="btn-skip-add-members"
+            onClick={() => router.push(createProjectRoute(organization.id))}
           >
-            {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
+            Next
           </Button>
-        )
-      }
-    </div>
+        )}
+        {
+          // 4. Setup Tracing
+          stepInt === 4 && project && (
+            <Button
+              className="mt-4"
+              onClick={() => router.push(`/project/${project.id}`)}
+              variant={hasAnyTrace ? "default" : "secondary"}
+            >
+              {hasAnyTrace ? "Open Dashboard" : "Skip for now"}
+            </Button>
+          )
+        }
+      </div>
+    </ScrollScreenPage>
   );
 }
 

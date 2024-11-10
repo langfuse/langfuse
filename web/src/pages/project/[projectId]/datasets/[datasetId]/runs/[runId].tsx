@@ -1,5 +1,6 @@
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
+import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
@@ -53,19 +54,44 @@ export default function Dataset() {
           </>
         }
       />
-      <div className="flex flex-col gap-2">
-        {!!run.data?.description && (
-          <JSONView json={run.data.description} title="Description" />
-        )}
-        {!!run.data?.metadata && (
-          <JSONView json={run.data.metadata} title="Metadata" />
-        )}
-      </div>
-      <DatasetRunItemsTable
-        projectId={projectId}
-        datasetId={datasetId}
-        datasetRunId={runId}
-      />
+      {run.data?.description || run.data?.metadata ? (
+        <TableWithMetadataWrapper
+          tableComponent={
+            <DatasetRunItemsTable
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetRunId={runId}
+            />
+          }
+          cardTitleChildren={
+            <span className="text-lg font-medium">Run details</span>
+          }
+          cardContentChildren={
+            <div className="grid h-full grid-cols-1 gap-2 overflow-hidden">
+              {!!run.data?.description && (
+                <JSONView
+                  json={run.data.description}
+                  title="Description"
+                  className="overflow-y-auto"
+                />
+              )}
+              {!!run.data?.metadata && (
+                <JSONView
+                  json={run.data.metadata}
+                  title="Metadata"
+                  className="overflow-y-auto"
+                />
+              )}
+            </div>
+          }
+        />
+      ) : (
+        <DatasetRunItemsTable
+          projectId={projectId}
+          datasetId={datasetId}
+          datasetRunId={runId}
+        />
+      )}
     </FullScreenPage>
   );
 }
