@@ -305,7 +305,7 @@ export default function TracesTable({
         return value && typeof value === "string" ? (
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(value)}/?timestamp=${encodeURIComponent(
-              timestamp,
+              new Date(timestamp).toISOString(),
             )}`}
             value={value}
           />
