@@ -13,6 +13,7 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  paginationZod,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -47,8 +48,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {

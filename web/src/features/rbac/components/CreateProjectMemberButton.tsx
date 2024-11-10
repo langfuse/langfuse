@@ -31,9 +31,13 @@ import { Input } from "@/src/components/ui/input";
 import { Role } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  useHasOrgEntitlement,
+  useOrgEntitlementLimit,
+} from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { ActionButton } from "@/src/components/ActionButton";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
@@ -55,6 +59,23 @@ export function CreateProjectMemberButton(props: {
     projectId: props.project?.id,
     scope: "projectMembers:CUD",
   });
+  const orgMemberLimit = useOrgEntitlementLimit("organization-member-count");
+  const orgMemberCount = api.members.allFromOrg.useQuery(
+    {
+      orgId: props.orgId,
+    },
+    {
+      enabled: hasOrgAccess,
+    },
+  ).data?.totalCount;
+  const inviteCount = api.members.allInvitesFromOrg.useQuery(
+    {
+      orgId: props.orgId,
+    },
+    {
+      enabled: hasOrgAccess,
+    },
+  ).data?.totalCount;
   const hasProjectRoleEntitlement = useHasOrgEntitlement("rbac-project-roles");
   const hasOnlySingleProjectAccess =
     !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
@@ -111,16 +132,18 @@ export function CreateProjectMemberButton(props: {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button
+          <ActionButton
             variant="secondary"
             loading={mutCreateProjectMember.isLoading}
-            disabled={!hasOrgAccess && !hasOnlySingleProjectAccess}
+            hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
+            limit={orgMemberLimit}
+            limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
+            icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
           >
-            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
             {hasOnlySingleProjectAccess
               ? "Add project member"
               : "Add new member"}
-          </Button>
+          </ActionButton>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
