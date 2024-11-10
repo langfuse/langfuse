@@ -370,7 +370,7 @@ const getObservationsTableInternal = async <T>(
         LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
-        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime64} - INTERVAL 2 DAY` : ""}
+        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime} - INTERVAL 2 DAY` : ""}
         ${search.query}
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
