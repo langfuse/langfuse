@@ -349,6 +349,101 @@ export const getModelUsageByUser = async (
   }));
 };
 
+export const getObservationLatencies = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const query = `
+    SELECT 
+      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
+      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
+      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
+      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
+      name
+    FROM observations o FINAL
+    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    WHERE project_id = {projectId: String}
+    AND ${appliedFilter.query}
+    GROUP BY name
+    ORDER BY p95 DESC
+    `;
+
+  const result = await queryClickhouse<{
+    p50: string;
+    p90: string;
+    p95: string;
+    p99: string;
+    name: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result.map((row) => ({
+    p50: Number(row.p50) / 1000,
+    p90: Number(row.p90) / 1000,
+    p95: Number(row.p95) / 1000,
+    p99: Number(row.p99) / 1000,
+    name: row.name,
+  }));
+};
+
+export const getTracesLatencies = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const query = `
+    SELECT 
+      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
+      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
+      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
+      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
+      t.name as name
+    FROM traces t FINAL JOIN observations o FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+    WHERE project_id = {projectId: String}
+    AND ${appliedFilter.query}
+    GROUP BY t.name
+    ORDER BY p95 DESC
+    `;
+
+  const result = await queryClickhouse<{
+    p50: string;
+    p90: string;
+    p95: string;
+    p99: string;
+    name: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result.map((row) => ({
+    p50: Number(row.p50) / 1000,
+    p90: Number(row.p90) / 1000,
+    p95: Number(row.p95) / 1000,
+    p99: Number(row.p99) / 1000,
+    name: row.name,
+  }));
+};
+
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
   let interval;
   switch (dateTrunc) {
