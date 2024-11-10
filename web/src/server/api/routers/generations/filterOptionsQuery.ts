@@ -17,11 +17,7 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
-import {
-  isClickhouseEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
-import { TRPCError } from "@trpc/server";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(
