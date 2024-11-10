@@ -94,6 +94,7 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return await measureAndReturnApi({
         input,
+        operation: "traces.all",
         user: ctx.session.user,
         pgExecution: async () => {
           const {
