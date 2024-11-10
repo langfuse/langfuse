@@ -300,9 +300,13 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const value: TracesTableRow["id"] = row.getValue("id");
+        const timestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}/?timestamp=${encodeURIComponent(
+              timestamp,
+            )}`}
             value={value}
           />
         ) : undefined;
