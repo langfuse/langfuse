@@ -14,6 +14,7 @@ import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
+  StringOptionsFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
@@ -120,13 +121,38 @@ type FetchTracesTableProps = {
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const { select, projectId, filter, orderBy, limit, offset, searchQuery } =
     props;
-  logger.info(`input filter ${JSON.stringify(filter)}`);
+
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
   tracesFilter.push(
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
   );
+
+  const traceIdFilter = tracesFilter.find(
+    (f) => f.clickhouseTable === "traces" && f.field === "id",
+  ) as StringOptionsFilter | undefined;
+
+  traceIdFilter
+    ? scoresFilter.push(
+        new StringOptionsFilter({
+          clickhouseTable: "scores",
+          field: "trace_id",
+          operator: "any of",
+          values: traceIdFilter.values,
+        }),
+      )
+    : null;
+  traceIdFilter
+    ? observationsFilter.push(
+        new StringOptionsFilter({
+          clickhouseTable: "observations",
+          field: "trace_id",
+          operator: "any of",
+          values: traceIdFilter.values,
+        }),
+      )
+    : null;
 
   // for query optimisation, we have to add the timeseries filter to observations + scores as well
   // stats show, that 98% of all observations have their start_time larger than trace.timestamp - 5 min
@@ -162,6 +188,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const observationFilterRes = observationsFilter.apply();
 
   const search = clickhouseSearchCondition(searchQuery);
+
+  console.log("trace-table-filter", tracesFilterRes.query);
 
   const query = `
   WITH observations_stats AS (
