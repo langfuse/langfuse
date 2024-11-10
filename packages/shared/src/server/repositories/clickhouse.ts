@@ -28,7 +28,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
-  table: "scores"; // TODO: Modify eventType logic to support more tables going forward
+  table: "scores" | "traces"; // TODO: Modify eventType logic to support more tables going forward
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
 }): Promise<void> {
@@ -37,7 +37,7 @@ export async function upsertClickhouse<
     span.setAttribute("ch.query.table", opts.table);
 
     // drop trailing s and pretend it's always a create.
-    // Only applicable to scores (and eventually traces).
+    // Only applicable to scores and traces.
     const eventType = `${opts.table.slice(0, -1)}-create`;
 
     // If event upload is enabled, we store all rows in S3 to have a backup
