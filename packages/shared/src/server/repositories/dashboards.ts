@@ -263,7 +263,7 @@ export const getScoresAggregateOverTime = async (
     data_type,
     source,
     AVG(value) as avg_value
-  FROM scores FINAl
+  FROM scores FINAL
   WHERE project_id = {projectId: String}
   AND ${appliedFilter.query}
   AND data_type IN ('NUMERIC', 'BOOLEAN')
