@@ -51,6 +51,10 @@ export const measureAndReturnApi = async <T, Y>(args: {
         return await pgExecution(input);
       }
 
+      if (input.queryClickhouse) {
+        return await clickhouseExecution(input);
+      }
+
       if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
         logger.info("Read from postgres only");
         return await pgExecution(input);
