@@ -245,6 +245,57 @@ export const getDistinctModels = async (
   return result;
 };
 
+export const getModelUsageByUser = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const timeFilter = chFilter.find(
+    (f) =>
+      f.clickhouseTable === "observations" &&
+      f.field === "start_time" &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+  const query = `
+    SELECT 
+      sumMap(usage_details)['total'] as sum_usage_details,
+      sumMap(cost_details)['total'] as sum_cost_details,
+      user_id
+    FROM observations o FINAL
+      JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id
+    WHERE project_id = {projectId: String}
+    AND t.user_id IS NOT NULL
+    AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - INTERVAL 1 HOUR` : ""}
+    GROUP BY user_id
+    `;
+
+  const result = await queryClickhouse<{
+    sum_usage_details: string;
+    sum_cost_details: number;
+    user_id: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+      ...(timeFilter ? { tractTimestamp: timeFilter.value } : {}),
+    },
+  });
+
+  return result.map((row) => ({
+    sumUsageDetails: Number(row.sum_usage_details),
+    sumCostDetails: Number(row.sum_cost_details),
+    userId: row.user_id,
+  }));
+};
+
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
   let interval;
   switch (dateTrunc) {
