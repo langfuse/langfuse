@@ -245,6 +245,59 @@ export const getDistinctModels = async (
   return result;
 };
 
+export const getScoresAggregateOverTime = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const query = `
+  SELECT 
+    ${selectTimeseriesColumn(groupBy, "timestamp", "timestamp")},
+    name,
+    data_type,
+    source,
+    AVG(value) as avg_value
+  FROM scores FINAl
+  WHERE project_id = {projectId: String}
+  AND ${appliedFilter.query}
+  AND data_type IN ('NUMERIC', 'BOOLEAN')
+  GROUP BY 
+    timestamp,
+    name,
+    data_type,
+    source
+  ${orderByTimeSeries(groupBy, "timestamp")};
+`;
+
+  const result = await queryClickhouse<{
+    timestamp: string;
+    name: string;
+    data_type: string;
+    source: string;
+    avg_value: number;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result.map((row) => ({
+    scoreTimestamp: new Date(row.timestamp),
+    scoreName: row.name,
+    scoreDataType: row.data_type,
+    scoreSource: row.source,
+    avgValue: Number(row.avg_value),
+  }));
+};
+
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
   let interval;
   switch (dateTrunc) {
