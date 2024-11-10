@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import { instrumentAsync, logger } from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
+import { TRPCError } from "@trpc/server";
 
 export const isClickhouseEligible = (user?: User | null) => {
   return (
@@ -32,21 +33,25 @@ export const measureAndReturnApi = async <T, Y>(args: {
 
       currentSpan?.setAttribute("operation", args.operation);
 
-      console.log("currentSpan", currentSpan);
-
       if (!user) {
-        throw new Error("User not found in API context");
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Did not find user in function context",
+        });
       }
 
       if (input.queryClickhouse && !isClickhouseEligible(user)) {
-        throw new Error("Not eligible to query clickhouse");
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Not eligible to query clickhouse",
+        });
       }
 
       if (!input.queryClickhouse) {
         return await pgExecution(input);
       }
 
-      if (env.LANGFUSE_READ_FROM_CLICKHOUSE_AND_POSTGRES === "false") {
+      if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
         logger.info("Read from postgres only");
         return await pgExecution(input);
       }

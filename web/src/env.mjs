@@ -191,9 +191,7 @@ export const env = createEnv({
       .number()
       .nonnegative()
       .default(15_000),
-    LANGFUSE_READ_FROM_CLICKHOUSE_AND_POSTGRES: z
-      .enum(["true", "false"])
-      .default("false"),
+    LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
     LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
