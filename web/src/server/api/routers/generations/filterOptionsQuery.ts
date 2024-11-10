@@ -17,8 +17,7 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { TRPCError } from "@trpc/server";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 export const filterOptionsQuery = protectedProjectProcedure
   .input(
@@ -29,13 +28,6 @@ export const filterOptionsQuery = protectedProjectProcedure
     }),
   )
   .query(async ({ input, ctx }) => {
-    if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
-      throw new TRPCError({
-        code: "UNAUTHORIZED",
-        message: "Not eligible to query clickhouse",
-      });
-    }
-
     const { startTimeFilter } = input;
     const prismaStartTimeFilter = startTimeFilter
       ? datetimeFilterToPrisma(startTimeFilter)
@@ -96,8 +88,12 @@ export const filterOptionsQuery = protectedProjectProcedure
 
     // Score names
     const [scores, model, name, promptNames, traceNames, tags] =
-      !input.queryClickhouse
-        ? await Promise.all([
+      await measureAndReturnApi({
+        input,
+        operation: "traces.all",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          return await Promise.all([
             // scores
             ctx.prisma.score.groupBy({
               where: {
@@ -179,8 +175,10 @@ export const filterOptionsQuery = protectedProjectProcedure
             ${rawStartTimeFilter}
           LIMIT 1000;
       `),
-          ])
-        : await Promise.all([
+          ]);
+        },
+        clickhouseExecution: async () => {
+          return await Promise.all([
             //scores
             getScoresGroupedByName(
               input.projectId,
@@ -215,6 +213,8 @@ export const filterOptionsQuery = protectedProjectProcedure
             // trace tags
             getClickhouseTraceTags(),
           ]);
+        },
+      });
 
     // typecheck filter options, needs to include all columns with options
     const res: ObservationOptions = {
