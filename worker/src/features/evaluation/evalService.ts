@@ -477,18 +477,12 @@ export const evaluate = async ({
     config.variable_mapping,
   );
 
-  if (!job.job_input_dataset_item_id) {
-    throw new ForbiddenError(
-      "Jobs can only be executed on traces and dataset runs for now.", // add option to link to generations
-    );
-  }
-
   // extract the variables which need to be inserted into the prompt
   const mappingResult = await extractVariables({
     projectId: event.projectId,
     variables: template.vars,
     traceId: job.job_input_trace_id,
-    datasetItemId: job.job_input_dataset_item_id,
+    datasetItemId: job.job_input_dataset_item_id ?? undefined,
     variableMapping: parsedVariableMapping,
   });
 
