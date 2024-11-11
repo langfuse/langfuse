@@ -417,7 +417,6 @@ export const getTracesLatencies = async (
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  console.log("allFilter", JSON.stringify(chFilter));
 
   const query = `
 
