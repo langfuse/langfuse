@@ -411,38 +411,37 @@ export const getTracesLatencies = async (
   const appliedFilter = chFilter.apply();
 
   const query = `
-    SELECT 
-      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
-      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
-      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
-      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
-      t.name as name
-    FROM traces t FINAL JOIN observations o FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
-    WHERE project_id = {projectId: String}
-    AND ${appliedFilter.query}
-    GROUP BY t.name
-    ORDER BY p95 DESC
-    `;
+    WITH trace_latencies as (
+      select o.trace_id,
+             t.name,
+             o.project_id,
+             date_diff('milliseconds', min(o.start_time), coalesce(max(o.end_time), max(o.start_time))) as duration
+      FROM traces t FINAL 
+      JOIN observations o FINAL
+      ON o.trace_id = t.id AND o.project_id = t.project_id
+      WHERE project_id = {projectId: String}
+      AND ${appliedFilter.query}
+      GROUP BY o.project_id, o.trace_id, t.name
+    )
 
-  const result = await queryClickhouse<{
-    p50: string;
-    p90: string;
-    p95: string;
-    p99: string;
-    name: string;
-  }>({
+    SELECT
+      quantilesExact(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
+      name
+    FROM trace_latencies
+    GROUP BY name
+    ORDER BY p95 DESC
+  `;
+
+  const result = await queryClickhouse<{ quantiles: string[]; name: string }>({
     query,
-    params: {
-      projectId,
-      ...appliedFilter.params,
-    },
+    params: { projectId, ...appliedFilter.params },
   });
 
   return result.map((row) => ({
-    p50: Number(row.p50) / 1000,
-    p90: Number(row.p90) / 1000,
-    p95: Number(row.p95) / 1000,
-    p99: Number(row.p99) / 1000,
+    p50: Number(row.quantiles[0]) / 1000,
+    p90: Number(row.quantiles[1]) / 1000,
+    p95: Number(row.quantiles[2]) / 1000,
+    p99: Number(row.quantiles[3]) / 1000,
     name: row.name,
   }));
 };
