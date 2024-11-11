@@ -324,12 +324,13 @@ export const getModelUsageByUser = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       user_id
     FROM observations o FINAL
-      JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id
+      JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
     ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - INTERVAL 1 HOUR` : ""}
     GROUP BY user_id
+    ORDER BY sum_cost_details DESC
     `;
 
   const result = await queryClickhouse<{
@@ -416,7 +417,6 @@ export const getTracesLatencies = async (
       f.field === 't."timestamp"' &&
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
-
 
   const query = `
 
