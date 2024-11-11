@@ -407,7 +407,7 @@ async function main() {
               : undefined;
           const datasetItem = await prisma.datasetItem.create({
             data: {
-              projectId,
+              projectId: project2.id,
               datasetId: dataset.id,
               sourceTraceId: sourceObservation?.traceId,
               sourceObservationId:

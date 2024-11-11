@@ -8,7 +8,6 @@ import {
   withDefault,
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
@@ -21,12 +20,11 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, type LastUserScore } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type LastUserScore } from "@/src/features/scores/lib/types";
 
 export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
 

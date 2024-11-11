@@ -10,7 +10,7 @@ export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./clickhouse/client";
-export * from "./clickhouse/schema-utils";
+export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
