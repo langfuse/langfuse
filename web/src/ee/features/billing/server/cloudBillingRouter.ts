@@ -276,7 +276,15 @@ export const cloudBillingRouter = createTRPCRouter({
             usdAmount: stripeInvoice.amount_due / 100,
             date: new Date(stripeInvoice.period_end * 1000),
           };
-          const usage = stripeInvoice.lines.data.reduce((acc, line) => {
+
+          const usageLines = stripeInvoice.lines.data.filter((line) =>
+            Boolean(line.plan?.meter),
+          );
+          const seatsLine = stripeInvoice.lines.data.find(
+            (line) => !Boolean(line.plan?.meter),
+          );
+
+          const usage = usageLines.reduce((acc, line) => {
             if (line.quantity) {
               return acc + line.quantity;
             }
@@ -284,14 +292,10 @@ export const cloudBillingRouter = createTRPCRouter({
           }, 0);
 
           // get number of seats
-          const countUsers = stripeInvoice.lines.data.find((line) =>
-            Boolean(line.quantity),
-          )?.quantity;
+          const countUsers = seatsLine?.quantity;
 
           // get meter for usage type (events or observations)
-          const meterId = stripeInvoice.lines.data.find((line) =>
-            Boolean(line.plan?.meter),
-          )?.plan?.meter;
+          const meterId = usageLines[0]?.plan?.meter;
           const meter = meterId
             ? await stripeClient.billing.meters.retrieve(meterId)
             : undefined;
