@@ -324,12 +324,13 @@ export const getModelUsageByUser = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       user_id
     FROM observations o FINAL
-      JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id
+      JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
     ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - INTERVAL 1 HOUR` : ""}
     GROUP BY user_id
+    ORDER BY sum_cost_details DESC
     `;
 
   const result = await queryClickhouse<{
@@ -410,6 +411,13 @@ export const getTracesLatencies = async (
 
   const appliedFilter = chFilter.apply();
 
+  const timestampFilter = chFilter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field === 't."timestamp"' &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
   const query = `
     WITH trace_latencies as (
       select o.trace_id,
@@ -421,6 +429,7 @@ export const getTracesLatencies = async (
       ON o.trace_id = t.id AND o.project_id = t.project_id
       WHERE project_id = {projectId: String}
       AND ${appliedFilter.query}
+      ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
       GROUP BY o.project_id, o.trace_id, t.name
     )
 
@@ -434,7 +443,13 @@ export const getTracesLatencies = async (
 
   const result = await queryClickhouse<{ quantiles: string[]; name: string }>({
     query,
-    params: { projectId, ...appliedFilter.params },
+      params: {
+          projectId,
+          ...appliedFilter.params,
+          ...(timestampFilter
+              ? { dateTimeFilterObservations: timestampFilter.value }
+              : {}),
+      },
   });
 
   return result.map((row) => ({
