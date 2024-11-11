@@ -156,34 +156,38 @@ export const datasetRouter = createTRPCRouter({
       const scoresByRunId = await ctx.prisma.$queryRaw<
         Array<{ scores: Array<ScoreSimplified>; runId: string }>
       >(Prisma.sql`
+        WITH paginated_runs AS (
+          SELECT id
+          FROM dataset_runs
+          WHERE dataset_id = ${input.datasetId}
+            AND project_id = ${input.projectId}
+          ORDER BY created_at DESC
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
+        )    
         SELECT
           runs.id "runId",
-          array_agg(s.score) AS "scores"
+          array_remove(array_agg(s.score), NULL) AS "scores"
         FROM
-          dataset_runs runs
+          paginated_runs
+          JOIN dataset_runs runs ON runs.id = paginated_runs.id
           JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
           LEFT JOIN LATERAL (
               SELECT
               jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
               FROM
                 dataset_run_items ri
-                JOIN scores s 
+                LEFT JOIN scores s 
                   ON s.trace_id = ri.trace_id 
                   AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
                   AND s.project_id = ${input.projectId}
-                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
+                LEFT JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
               WHERE 
                 ri.project_id = ${input.projectId}
                 AND ri.dataset_run_id = runs.id
           ) s ON true
-        WHERE 
-          runs.dataset_id = ${input.datasetId}
-          AND runs.project_id = ${input.projectId}
-          AND s.score IS NOT NULL
         GROUP BY
           runs.id
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
       `);
 
       const runs = await ctx.prisma.$queryRaw<
