@@ -17,18 +17,29 @@ import {
   type DashboardDateRange,
   TABLE_AGGREGATION_OPTIONS,
   getDateFromOption,
+  isTableDataRangeOptionAvailable,
 } from "@/src/utils/date-range-utils";
 import { Clock } from "lucide-react";
+import { useOrgEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useMemo } from "react";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { HoverCardPortal } from "@radix-ui/react-hover-card";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;
   options: readonly T[];
+  limitedOptions?: readonly T[];
   onSelectionChange: (value: T) => void;
 };
 
 const BaseDateRangeDropdown = <T extends string>({
   selectedOption,
   options,
+  limitedOptions,
   onSelectionChange,
 }: BaseDateRangeDropdownProps<T>) => {
   return (
@@ -38,11 +49,33 @@ const BaseDateRangeDropdown = <T extends string>({
         <SelectValue placeholder="Select" />
       </SelectTrigger>
       <SelectContent position="popper" defaultValue={60}>
-        {options.map((item) => (
-          <SelectItem key={item} value={item}>
-            {item}
-          </SelectItem>
-        ))}
+        {options.map((item) => {
+          const itemObj = (
+            <SelectItem
+              key={item}
+              value={item}
+              disabled={limitedOptions?.includes(item)}
+            >
+              {item}
+            </SelectItem>
+          );
+          const isLimited = limitedOptions?.includes(item);
+
+          return isLimited ? (
+            <HoverCard openDelay={200}>
+              <HoverCardTrigger asChild>
+                <span>{itemObj}</span>
+              </HoverCardTrigger>
+              <HoverCardPortal>
+                <HoverCardContent className="w-80 text-sm" side="right">
+                  This time range is not available in your current plan.
+                </HoverCardContent>
+              </HoverCardPortal>
+            </HoverCard>
+          ) : (
+            itemObj
+          );
+        })}
       </SelectContent>
     </Select>
   );
@@ -99,6 +132,14 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
   selectedOption,
   setDateRangeAndOption,
 }) => {
+  const lookbackLimit = useOrgEntitlementLimit("data-access-days");
+  const disabledOptions = useMemo(() => {
+    return TABLE_AGGREGATION_OPTIONS.filter(
+      (option) =>
+        !isTableDataRangeOptionAvailable({ option, limitDays: lookbackLimit }),
+    );
+  }, [lookbackLimit]);
+
   const onDropDownSelection = (value: TableDateRangeOptions) => {
     const dateFromOption = getDateFromOption({
       filterSource: "TABLE",
@@ -116,6 +157,7 @@ export const TableDateRangeDropdown: React.FC<TableDateRangeDropdownProps> = ({
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
       options={TABLE_AGGREGATION_OPTIONS}
+      limitedOptions={disabledOptions}
       onSelectionChange={onDropDownSelection}
     />
   );
