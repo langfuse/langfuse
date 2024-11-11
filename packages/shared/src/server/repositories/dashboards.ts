@@ -364,39 +364,27 @@ export const getObservationLatencies = async (
   const appliedFilter = chFilter.apply();
 
   const query = `
-    SELECT 
-      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
-      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
-      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
-      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
+    SELECT
+      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
       name
     FROM observations o FINAL
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
     GROUP BY name
-    ORDER BY p95 DESC
+    ORDER BY quantiles[2] DESC
     `;
 
-  const result = await queryClickhouse<{
-    p50: string;
-    p90: string;
-    p95: string;
-    p99: string;
-    name: string;
-  }>({
+  const result = await queryClickhouse<{ quantiles: string[]; name: string }>({
     query,
-    params: {
-      projectId,
-      ...appliedFilter.params,
-    },
+    params: { projectId, ...appliedFilter.params },
   });
 
   return result.map((row) => ({
-    p50: Number(row.p50) / 1000,
-    p90: Number(row.p90) / 1000,
-    p95: Number(row.p95) / 1000,
-    p99: Number(row.p99) / 1000,
+    p50: Number(row.quantiles[0]) / 1000,
+    p90: Number(row.quantiles[1]) / 1000,
+    p95: Number(row.quantiles[2]) / 1000,
+    p99: Number(row.quantiles[3]) / 1000,
     name: row.name,
   }));
 };
@@ -419,28 +407,29 @@ export const getTracesLatencies = async (
   ) as DateTimeFilter | undefined;
 
   const query = `
+    WITH trace_latencies as (
+      select o.trace_id,
+             t.name,
+             o.project_id,
+             date_diff('milliseconds', min(o.start_time), coalesce(max(o.end_time), max(o.start_time))) as duration
+      FROM traces t FINAL 
+      JOIN observations o FINAL
+      ON o.trace_id = t.id AND o.project_id = t.project_id
+      WHERE project_id = {projectId: String}
+      AND ${appliedFilter.query}
+      ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
+      GROUP BY o.project_id, o.trace_id, t.name
+    )
 
-    SELECT 
-      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
-      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
-      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
-      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
-      t.name as name
-    FROM observations o FINAL JOIN  traces t FINAL  ON o.trace_id = t.id AND o.project_id = t.project_id
-    WHERE project_id = {projectId: String}
-    AND ${appliedFilter.query}
-    ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
-    GROUP BY t.name
-    ORDER BY p95 DESC
-    `;
+    SELECT
+      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
+      name
+    FROM trace_latencies
+    GROUP BY name
+    ORDER BY quantiles[2] DESC
+  `;
 
-  const result = await queryClickhouse<{
-    p50: string;
-    p90: string;
-    p95: string;
-    p99: string;
-    name: string;
-  }>({
+  const result = await queryClickhouse<{ quantiles: string[]; name: string }>({
     query,
     params: {
       projectId,
@@ -452,10 +441,10 @@ export const getTracesLatencies = async (
   });
 
   return result.map((row) => ({
-    p50: Number(row.p50) / 1000,
-    p90: Number(row.p90) / 1000,
-    p95: Number(row.p95) / 1000,
-    p99: Number(row.p99) / 1000,
+    p50: Number(row.quantiles[0]) / 1000,
+    p90: Number(row.quantiles[1]) / 1000,
+    p95: Number(row.quantiles[2]) / 1000,
+    p99: Number(row.quantiles[3]) / 1000,
     name: row.name,
   }));
 };
@@ -477,11 +466,7 @@ export const getModelLatenciesOverTime = async (
   SELECT 
     ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
     provided_model_name,
-    quantile(0.5)(date_diff('milliseconds', o.start_time, o.end_time)) as p50,
-    quantile(0.75)(date_diff('milliseconds', o.start_time, o.end_time)) as p75,
-    quantile(0.9)(date_diff('milliseconds', o.start_time, o.end_time)) as p90,
-    quantile(0.95)(date_diff('milliseconds', o.start_time, o.end_time)) as p95,
-    quantile(0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as p99
+    quantilesExactLow(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
   FROM observations o FINAL
   ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
@@ -493,25 +478,15 @@ export const getModelLatenciesOverTime = async (
   const result = await queryClickhouse<{
     start_time_bucket: string;
     provided_model_name: string;
-    p50: string;
-    p75: string;
-    p90: string;
-    p95: string;
-    p99: string;
-  }>({
-    query,
-    params: {
-      projectId,
-      ...appliedFilter.params,
-    },
-  });
+    quantiles: string[];
+  }>({ query, params: { projectId, ...appliedFilter.params } });
 
   return result.map((row) => ({
-    p50: Number(row.p50) / 1000,
-    p75: Number(row.p75) / 1000,
-    p90: Number(row.p90) / 1000,
-    p95: Number(row.p95) / 1000,
-    p99: Number(row.p99) / 1000,
+    p50: Number(row.quantiles[0]) / 1000,
+    p75: Number(row.quantiles[1]) / 1000,
+    p90: Number(row.quantiles[2]) / 1000,
+    p95: Number(row.quantiles[3]) / 1000,
+    p99: Number(row.quantiles[4]) / 1000,
     model: row.provided_model_name,
     start_time: new Date(row.start_time_bucket),
   }));
