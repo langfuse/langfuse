@@ -256,6 +256,8 @@ export const getScoresAggregateOverTime = async (
 
   const appliedFilter = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
   SELECT 
     ${selectTimeseriesColumn(groupBy, "timestamp", "timestamp")},
@@ -264,6 +266,7 @@ export const getScoresAggregateOverTime = async (
     source,
     AVG(value) as avg_value
   FROM scores FINAL
+  ${traceFilter ? "JOIN traces t ON scores.trace_id = t.id AND scores.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
   AND ${appliedFilter.query}
   AND data_type IN ('NUMERIC', 'BOOLEAN')
@@ -321,12 +324,13 @@ export const getModelUsageByUser = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       user_id
     FROM observations o FINAL
-      JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id
+      JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
     ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - INTERVAL 1 HOUR` : ""}
     GROUP BY user_id
+    ORDER BY sum_cost_details DESC
     `;
 
   const result = await queryClickhouse<{
@@ -346,6 +350,170 @@ export const getModelUsageByUser = async (
     sumUsageDetails: Number(row.sum_usage_details),
     sumCostDetails: Number(row.sum_cost_details),
     userId: row.user_id,
+  }));
+};
+
+export const getObservationLatencies = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const query = `
+    SELECT 
+      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
+      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
+      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
+      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
+      name
+    FROM observations o FINAL
+    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    WHERE project_id = {projectId: String}
+    AND ${appliedFilter.query}
+    GROUP BY name
+    ORDER BY p95 DESC
+    `;
+
+  const result = await queryClickhouse<{
+    p50: string;
+    p90: string;
+    p95: string;
+    p99: string;
+    name: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result.map((row) => ({
+    p50: Number(row.p50) / 1000,
+    p90: Number(row.p90) / 1000,
+    p95: Number(row.p95) / 1000,
+    p99: Number(row.p99) / 1000,
+    name: row.name,
+  }));
+};
+
+export const getTracesLatencies = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const timestampFilter = chFilter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field === 't."timestamp"' &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+  const query = `
+
+    SELECT 
+      quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
+      quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
+      quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
+      quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
+      t.name as name
+    FROM observations o FINAL JOIN  traces t FINAL  ON o.trace_id = t.id AND o.project_id = t.project_id
+    WHERE project_id = {projectId: String}
+    AND ${appliedFilter.query}
+    ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
+    GROUP BY t.name
+    ORDER BY p95 DESC
+    `;
+
+  const result = await queryClickhouse<{
+    p50: string;
+    p90: string;
+    p95: string;
+    p99: string;
+    name: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+      ...(timestampFilter
+        ? { dateTimeFilterObservations: timestampFilter.value }
+        : {}),
+    },
+  });
+
+  return result.map((row) => ({
+    p50: Number(row.p50) / 1000,
+    p90: Number(row.p90) / 1000,
+    p95: Number(row.p95) / 1000,
+    p99: Number(row.p99) / 1000,
+    name: row.name,
+  }));
+};
+
+export const getModelLatenciesOverTime = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+
+  const appliedFilter = chFilter.apply();
+
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
+  const query = `
+  SELECT 
+    ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
+    provided_model_name,
+    quantile(0.5)(date_diff('milliseconds', o.start_time, o.end_time)) as p50,
+    quantile(0.75)(date_diff('milliseconds', o.start_time, o.end_time)) as p75,
+    quantile(0.9)(date_diff('milliseconds', o.start_time, o.end_time)) as p90,
+    quantile(0.95)(date_diff('milliseconds', o.start_time, o.end_time)) as p95,
+    quantile(0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as p99
+  FROM observations o FINAL
+  ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+  WHERE project_id = {projectId: String}
+  AND ${appliedFilter.query}
+  GROUP BY provided_model_name, start_time_bucket
+  ${orderByTimeSeries(groupBy, "start_time_bucket")};
+`;
+
+  const result = await queryClickhouse<{
+    start_time_bucket: string;
+    provided_model_name: string;
+    p50: string;
+    p75: string;
+    p90: string;
+    p95: string;
+    p99: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...appliedFilter.params,
+    },
+  });
+
+  return result.map((row) => ({
+    p50: Number(row.p50) / 1000,
+    p75: Number(row.p75) / 1000,
+    p90: Number(row.p90) / 1000,
+    p95: Number(row.p95) / 1000,
+    p99: Number(row.p99) / 1000,
+    model: row.provided_model_name,
+    start_time: new Date(row.start_time_bucket),
   }));
 };
 
