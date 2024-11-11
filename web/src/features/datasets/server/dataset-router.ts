@@ -170,7 +170,7 @@ export const datasetRouter = createTRPCRouter({
           array_agg(s.score) AS "scores"
         FROM
           paginated_runs
-          JOIN dataset_runs runs ON runs.id = paginated_runs.id
+          JOIN dataset_runs runs ON runs.id = paginated_runs.id AND runs.project_id = ${input.projectId}
           JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
           LEFT JOIN LATERAL (
               SELECT
