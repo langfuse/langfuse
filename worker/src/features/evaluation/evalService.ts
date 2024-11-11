@@ -321,18 +321,6 @@ const datasetEval = async ({
         `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
-      // fk violation on traceId, unsure why
-
-      // Foreign key constraint violated: `job_executions_job_input_trace_id_fkey (index)`
-      // worker:dev:     at Mn.handleRequestError (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:121:7753)
-      // worker:dev:     at Mn.handleAndLogRequestError (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:121:7061)
-      // worker:dev:     at Mn.request (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:121:6745)
-      // worker:dev:     at async l (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:130:9633)
-      // worker:dev: 2024-11-11T10:24:52.909Z error      Queue Job dataset-run-item-upsert with id 10 in dataset-run-item-upsert-queue failed
-      // worker:dev: Invalid `prisma.jobExecution.create()` invocation in
-      // worker:dev: /Users/marliesmayerhofer/Documents/Code/langfuse/worker/src/features/evaluation/evalService.ts:296:33
-
-      // Foreign key constraint violated: `job_executions_job_input_trace_id_fkey (index)
       await prisma.jobExecution.create({
         data: {
           id: jobExecutionId,

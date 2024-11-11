@@ -10,7 +10,7 @@ import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { DatasetRunItemUpsertQueue } from "../../../../../packages/shared/dist/src/server/redis/datasetRunItemUpsert";
 import { randomUUID } from "crypto";
-import { QueueJobs } from "@langfuse/shared/src/server";
+import { QueueJobs, redis } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
