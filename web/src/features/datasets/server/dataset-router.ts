@@ -167,7 +167,7 @@ export const datasetRouter = createTRPCRouter({
         )    
         SELECT
           runs.id "runId",
-          array_remove(array_agg(s.score), NULL) AS "scores"
+          array_agg(s.score) AS "scores"
         FROM
           paginated_runs
           JOIN dataset_runs runs ON runs.id = paginated_runs.id
@@ -185,6 +185,7 @@ export const datasetRouter = createTRPCRouter({
               WHERE 
                 ri.project_id = ${input.projectId}
                 AND ri.dataset_run_id = runs.id
+                AND s.name IS NOT NULL
           ) s ON true
         GROUP BY
           runs.id
