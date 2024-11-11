@@ -191,6 +191,11 @@ export const env = createEnv({
       .number()
       .nonnegative()
       .default(15_000),
+    LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
+    LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
+      .enum(["true", "false"])
+      .default("false"),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -395,6 +400,12 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_INGESTION_QUEUE_DELAY_MS:
       process.env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
+    LANGFUSE_READ_FROM_POSTGRES_ONLY:
+      process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
+    LANGFUSE_RETURN_FROM_CLICKHOUSE:
+      process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
+    LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE:
+      process.env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,

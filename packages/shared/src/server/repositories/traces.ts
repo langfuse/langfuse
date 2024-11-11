@@ -14,6 +14,7 @@ import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
+  StringOptionsFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
@@ -120,13 +121,38 @@ type FetchTracesTableProps = {
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const { select, projectId, filter, orderBy, limit, offset, searchQuery } =
     props;
-  logger.info(`input filter ${JSON.stringify(filter)}`);
+
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
   tracesFilter.push(
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
   );
+
+  const traceIdFilter = tracesFilter.find(
+    (f) => f.clickhouseTable === "traces" && f.field === "id",
+  ) as StringOptionsFilter | undefined;
+
+  traceIdFilter
+    ? scoresFilter.push(
+        new StringOptionsFilter({
+          clickhouseTable: "scores",
+          field: "trace_id",
+          operator: "any of",
+          values: traceIdFilter.values,
+        }),
+      )
+    : null;
+  traceIdFilter
+    ? observationsFilter.push(
+        new StringOptionsFilter({
+          clickhouseTable: "observations",
+          field: "trace_id",
+          operator: "any of",
+          values: traceIdFilter.values,
+        }),
+      )
+    : null;
 
   // for query optimisation, we have to add the timeseries filter to observations + scores as well
   // stats show, that 98% of all observations have their start_time larger than trace.timestamp - 5 min
@@ -350,6 +376,45 @@ export const getTracesGroupedByName = async (
   return rows;
 };
 
+export const getTracesGroupedByUsers = async (
+  projectId: string,
+  filter: FilterState,
+  columns?: UiColumnMapping[],
+) => {
+  const chFilter = createFilterFromFilterState(
+    filter,
+    columns ?? tracesTableUiColumnDefinitions,
+  );
+
+  const filterRes = new FilterList(chFilter).apply();
+
+  const query = `
+      select 
+        user_id as user,
+        count(*) as count
+      from traces t final
+      WHERE t.project_id = {projectId: String}
+      AND t.user_id IS NOT NULL
+      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
+      GROUP BY user
+      ORDER BY count desc
+      LIMIT 1000;
+    `;
+
+  const rows = await queryClickhouse<{
+    user: string;
+    count: string;
+  }>({
+    query: query,
+    params: {
+      projectId: projectId,
+      ...(filterRes ? filterRes.params : {}),
+    },
+  });
+
+  return rows;
+};
+
 export type GroupedTracesQueryProp = {
   projectId: string;
   filter: FilterState;
@@ -525,6 +590,17 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  const singleTraceFilter = traceTimestampFilter
+    ? new FilterList([
+        new DateTimeFilter({
+          clickhouseTable: "traces",
+          field: "timestamp",
+          operator: traceTimestampFilter.operator,
+          value: traceTimestampFilter.value,
+        }),
+      ]).apply()
+    : undefined;
+
   const query = `
       WITH observations_agg AS (
         SELECT o.trace_id,
@@ -564,6 +640,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
         LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
+            AND ${singleTraceFilter?.query ? singleTraceFilter.query : ""}
         GROUP BY t.session_id
     )
     SELECT ${select}
@@ -586,6 +663,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
+      ...singleTraceFilter?.params,
       ...(obsStartTimeValue
         ? { observationsStartTime: obsStartTimeValue }
         : {}),
