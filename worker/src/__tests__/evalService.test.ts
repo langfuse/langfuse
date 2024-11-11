@@ -35,7 +35,7 @@ afterEach(openAIServer.reset);
 afterAll(openAIServer.teardown);
 
 describe("create eval jobs", () => {
-  test("creates new eval job", async () => {
+  test("creates new 'trace' eval job", async () => {
     await pruneDatabase();
     const traceId = randomUUID();
 
@@ -78,6 +78,88 @@ describe("create eval jobs", () => {
     expect(jobs.length).toBe(1);
     expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     expect(jobs[0].job_input_trace_id).toBe(traceId);
+    expect(jobs[0].status.toString()).toBe("PENDING");
+    expect(jobs[0].start_time).not.toBeNull();
+  }, 10_000);
+
+  test("creates new 'dataset' eval job", async () => {
+    await pruneDatabase();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const datasetId = randomUUID();
+    const datasetItemId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: observationId,
+        trace_id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: sql`'GENERATION'::"ObservationType"`,
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("datasets")
+      .values({
+        id: datasetId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        name: "test-dataset",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("dataset_items")
+      .values({
+        id: datasetItemId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        dataset_id: datasetId,
+      })
+      .execute();
+
+    await prisma.jobConfiguration.create({
+      data: {
+        id: randomUUID(),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        filter: JSON.parse("[]"),
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: "dataset",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+      },
+    });
+
+    const payload = {
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      traceId: traceId,
+      datasetItemId: datasetItemId,
+      observationId: observationId,
+      type: "dataset" as const,
+    };
+
+    await createEvalJobs({ event: payload });
+
+    const jobs = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .selectAll()
+      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+      .execute();
+
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(jobs[0].job_input_trace_id).toBe(traceId);
+    expect(jobs[0].job_input_observation_id).toBe(observationId);
+    expect(jobs[0].job_input_dataset_item_id).toBe(datasetItemId);
     expect(jobs[0].status.toString()).toBe("PENDING");
     expect(jobs[0].start_time).not.toBeNull();
   }, 10_000);
@@ -390,7 +472,7 @@ describe("create eval jobs", () => {
 });
 
 describe("execute evals", () => {
-  test("evals a valid event", async () => {
+  test("evals a valid 'trace' event", async () => {
     await pruneDatabase();
     openAIServer.respondWithDefault();
     const traceId = randomUUID();
@@ -688,7 +770,7 @@ describe("execute evals", () => {
     expect(jobs.length).toBe(0);
   }, 10_000);
 
-  test("evals a valid event and inserts score to ingestion pipeline", async () => {
+  test("evals a valid 'trace' event and inserts score to ingestion pipeline", async () => {
     await pruneDatabase();
     openAIServer.respondWithDefault();
     const traceId = randomUUID();
@@ -822,9 +904,244 @@ describe("execute evals", () => {
       );
     });
   }, 10_000);
+
+  test("evals a valid 'dataset' event and inserts score to ingestion pipeline", async () => {
+    await pruneDatabase();
+    openAIServer.respondWithDefault();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const datasetId = randomUUID();
+    const datasetItemId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("observations")
+      .values({
+        id: observationId,
+        trace_id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: sql`'GENERATION'::"ObservationType"`,
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("datasets")
+      .values({
+        id: datasetId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        name: "test-dataset",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("dataset_items")
+      .values({
+        id: datasetItemId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        dataset_id: datasetId,
+      })
+      .execute();
+
+    const templateId = randomUUID();
+    await kyselyPrisma.$kysely
+      .insertInto("eval_templates")
+      .values({
+        id: templateId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        name: "test-template",
+        version: 1,
+        prompt: "Please evaluate toxicity {{input}} {{output}}",
+        model: "gpt-3.5-turbo",
+        provider: "openai",
+        model_params: {},
+        output_schema: {
+          reasoning: "Please explain your reasoning",
+          score: "Please provide a score between 0 and 1",
+        },
+      })
+      .executeTakeFirst();
+
+    const jobConfiguration = await prisma.jobConfiguration.create({
+      data: {
+        id: randomUUID(),
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        filter: [
+          {
+            type: "string",
+            value: "a",
+            column: "User ID",
+            operator: "contains",
+          },
+        ],
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: "dataset",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+        evalTemplateId: templateId,
+      },
+    });
+
+    const jobExecutionId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("job_executions")
+      .values({
+        id: jobExecutionId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        job_configuration_id: jobConfiguration.id,
+        job_input_dataset_item_id: datasetItemId,
+        status: sql`'PENDING'::"JobExecutionStatus"`,
+        start_time: new Date(),
+        job_input_trace_id: traceId,
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("llm_api_keys")
+      .values({
+        id: randomUUID(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        secret_key: encrypt(String(OPENAI_API_KEY)),
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        custom_models: [],
+        display_secret_key: "123456",
+      })
+      .execute();
+
+    const payload = {
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      jobExecutionId: jobExecutionId,
+      delay: 1000,
+    };
+
+    await evaluate({ event: payload });
+
+    const jobs = await kyselyPrisma.$kysely
+      .selectFrom("job_executions")
+      .selectAll()
+      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+      .execute();
+
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(jobs[0].job_input_trace_id).toBe(traceId);
+    expect(jobs[0].job_input_dataset_item_id).toBe(datasetItemId);
+    expect(jobs[0].status.toString()).toBe("COMPLETED");
+    expect(jobs[0].start_time).not.toBeNull();
+    expect(jobs[0].end_time).not.toBeNull();
+
+    const scores = await kyselyPrisma.$kysely
+      .selectFrom("scores")
+      .selectAll()
+      .where("trace_id", "=", traceId)
+      .execute();
+
+    expect(scores.length).toBe(1);
+    expect(scores[0].trace_id).toBe(traceId);
+    expect(scores[0].comment).not.toBeNull();
+    expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+
+    await new Promise<void>((resolve, reject) => {
+      new Worker(
+        QueueName.IngestionQueue,
+        async (job: Job) => {
+          try {
+            expect(job.name).toBe("ingestion-job");
+            expect(job.data.payload.data.type).toBe("score-create");
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        },
+        {
+          connection: redis as ConnectionOptions,
+        },
+      );
+    });
+  }, 10_000);
 });
 
 describe("test variable extraction", () => {
+  test("extracts variables from a dataset item", async () => {
+    await pruneDatabase();
+    const datasetId = randomUUID();
+    const datasetItemId = randomUUID();
+    const traceId = randomUUID();
+
+    await kyselyPrisma.$kysely
+      .insertInto("traces")
+      .values({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: { input: "This is a great prompt" },
+        output: { output: "This is a great response" },
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("datasets")
+      .values({
+        id: datasetId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        name: "test-dataset",
+      })
+      .execute();
+
+    await kyselyPrisma.$kysely
+      .insertInto("dataset_items")
+      .values({
+        id: datasetItemId,
+        input: { input: "This is a great prompt" },
+        expected_output: { expected_output: "This is a great response" },
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        dataset_id: datasetId,
+      })
+      .execute();
+
+    const variableMapping = variableMappingList.parse([
+      {
+        langfuseObject: "dataset_item",
+        selectedColumnId: "input",
+        templateVariable: "input",
+      },
+      {
+        langfuseObject: "dataset_item",
+        selectedColumnId: "expected_output",
+        templateVariable: "output",
+      },
+    ]);
+
+    const result = await extractVariables({
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      variables: ["input", "output"],
+      traceId: traceId,
+      datasetItemId: datasetItemId,
+      variableMapping: variableMapping,
+    });
+
+    expect(result).toEqual([
+      {
+        value: '{"input":"This is a great prompt"}',
+        var: "input",
+      },
+      {
+        value: '{"expected_output":"This is a great response"}',
+        var: "output",
+      },
+    ]);
+  }, 10_000);
+
   test("extracts variables from a trace", async () => {
     await pruneDatabase();
     const traceId = randomUUID();
