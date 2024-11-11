@@ -269,6 +269,14 @@ export const cloudBillingRouter = createTRPCRouter({
             start: new Date(subscription.current_period_start * 1000),
             end: new Date(subscription.current_period_end * 1000),
           };
+
+          // Get number of seats from subscription
+          const seatsSubscriptionItem = subscription.items.data.find(
+            (item) => !Boolean(item.plan?.meter),
+          );
+          const countUsers = seatsSubscriptionItem?.quantity;
+
+          // Get metered usage information from next invoice
           const stripeInvoice = await stripeClient.invoices.retrieveUpcoming({
             subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
           });
@@ -276,29 +284,21 @@ export const cloudBillingRouter = createTRPCRouter({
             usdAmount: stripeInvoice.amount_due / 100,
             date: new Date(stripeInvoice.period_end * 1000),
           };
-
-          const usageLines = stripeInvoice.lines.data.filter((line) =>
+          const usageInvoiceLines = stripeInvoice.lines.data.filter((line) =>
             Boolean(line.plan?.meter),
           );
-          const seatsLine = stripeInvoice.lines.data.find(
-            (line) => !Boolean(line.plan?.meter),
-          );
-
-          const usage = usageLines.reduce((acc, line) => {
+          const usage = usageInvoiceLines.reduce((acc, line) => {
             if (line.quantity) {
               return acc + line.quantity;
             }
             return acc;
           }, 0);
-
-          // get number of seats
-          const countUsers = seatsLine?.quantity;
-
           // get meter for usage type (events or observations)
-          const meterId = usageLines[0]?.plan?.meter;
+          const meterId = usageInvoiceLines[0]?.plan?.meter;
           const meter = meterId
             ? await stripeClient.billing.meters.retrieve(meterId)
             : undefined;
+
           return {
             usageCount: usage,
             usageType: meter?.display_name.toLowerCase() ?? "events",
