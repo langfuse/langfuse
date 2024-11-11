@@ -112,18 +112,31 @@ export default withMiddlewares({
       if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
         const queue = DatasetRunItemUpsertQueue.getInstance();
         if (queue) {
-          await queue.add(QueueJobs.DatasetRunItemUpsert, {
-            payload: {
-              projectId: auth.scope.projectId,
-              type: "dataset" as const,
-              datasetItemId: datasetItemId,
-              traceId: finalTraceId,
-              observationId: observationId ?? undefined,
+          await queue.add(
+            QueueJobs.DatasetRunItemUpsert,
+            {
+              payload: {
+                projectId: auth.scope.projectId,
+                type: "dataset" as const,
+                datasetItemId: datasetItemId,
+                traceId: finalTraceId,
+                observationId: observationId ?? undefined,
+              },
+              id: randomUUID(),
+              timestamp: new Date(),
+              name: QueueJobs.DatasetRunItemUpsert as const,
             },
-            id: randomUUID(),
-            timestamp: new Date(),
-            name: QueueJobs.DatasetRunItemUpsert as const,
-          });
+            {
+              attempts: 3, // retry 3 times
+              backoff: {
+                type: "exponential",
+                delay: 1000,
+              },
+              delay: 60000, // 60 seconds
+              removeOnComplete: true,
+              removeOnFail: 1_000,
+            },
+          );
         }
       }
 

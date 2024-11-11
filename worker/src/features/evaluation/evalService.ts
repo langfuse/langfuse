@@ -261,6 +261,36 @@ const datasetEval = async ({
 
     // if we matched a dataset item, we might want to create a job
     if (datasetItems.length > 0) {
+      // check if trace and observation exist, otherwise retry
+      // Verify trace exists before proceeding
+      const traceExists = await kyselyPrisma.$kysely
+        .selectFrom("traces")
+        .select("id")
+        .where("id", "=", event.traceId)
+        .executeTakeFirst();
+
+      if (!traceExists) {
+        logger.info(
+          `Trace ${event.traceId} not found, retrying dataset eval later`,
+        );
+        throw new Error("Trace not found - initiate retry");
+      }
+
+      if (event.observationId) {
+        const observationExists = await kyselyPrisma.$kysely
+          .selectFrom("observations")
+          .select("id")
+          .where("id", "=", event.observationId)
+          .executeTakeFirst();
+
+        if (!observationExists) {
+          logger.info(
+            `Observation ${event.observationId} not found, retrying dataset eval later`,
+          );
+          throw new Error("Observation not found - initiate retry");
+        }
+      }
+
       logger.info(
         `Eval job for config ${config.id} matched dataset run item ids ${JSON.stringify(datasetItems.map((d) => d.id))}`,
       );
@@ -292,6 +322,16 @@ const datasetEval = async ({
       );
 
       // fk violation on traceId, unsure why
+
+      // Foreign key constraint violated: `job_executions_job_input_trace_id_fkey (index)`
+      // worker:dev:     at Mn.handleRequestError (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:121:7753)
+      // worker:dev:     at Mn.handleAndLogRequestError (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:121:7061)
+      // worker:dev:     at Mn.request (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:121:6745)
+      // worker:dev:     at async l (/Users/marliesmayerhofer/Documents/Code/langfuse/node_modules/.pnpm/@prisma+client@5.20.0_prisma@5.20.0/node_modules/@prisma/client/runtime/library.js:130:9633)
+      // worker:dev: 2024-11-11T10:24:52.909Z error      Queue Job dataset-run-item-upsert with id 10 in dataset-run-item-upsert-queue failed
+      // worker:dev: Invalid `prisma.jobExecution.create()` invocation in
+      // worker:dev: /Users/marliesmayerhofer/Documents/Code/langfuse/worker/src/features/evaluation/evalService.ts:296:33
+
       // Foreign key constraint violated: `job_executions_job_input_trace_id_fkey (index)
       await prisma.jobExecution.create({
         data: {
