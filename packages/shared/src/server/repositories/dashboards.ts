@@ -410,16 +410,26 @@ export const getTracesLatencies = async (
 
   const appliedFilter = chFilter.apply();
 
+  const timestampFilter = chFilter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field === 't."timestamp"' &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+
   const query = `
+
     SELECT 
       quantile(0.5)(date_diff('milliseconds',o.start_time, o.end_time )) as p50,
       quantile(0.9)(date_diff('milliseconds',o.start_time, o.end_time )) as p90,
       quantile(0.95)(date_diff('milliseconds',o.start_time, o.end_time )) as p95,
       quantile(0.99)(date_diff('milliseconds',o.start_time, o.end_time )) as p99,
       t.name as name
-    FROM traces t FINAL JOIN observations o FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+    FROM observations o FINAL JOIN  traces t FINAL  ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
     GROUP BY t.name
     ORDER BY p95 DESC
     `;
@@ -435,6 +445,9 @@ export const getTracesLatencies = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timestampFilter
+        ? { dateTimeFilterObservations: timestampFilter.value }
+        : {}),
     },
   });
 
