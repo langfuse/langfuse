@@ -28,6 +28,7 @@ export const UsageTracker = () => {
       refetchOnMount: false,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
+      staleTime: 60 * 60 * 1000,
     },
   );
 
