@@ -2,7 +2,7 @@ import { expect, test, describe, afterAll, beforeAll, vi } from "vitest";
 import {
   createEvalJobs,
   evaluate,
-  extractVariablesFromTrace,
+  extractVariables,
 } from "../features/evaluation/evalService";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -18,7 +18,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 import { QueueName } from "@langfuse/shared/src/server";
-import { Worker, Job } from "bullmq";
+import { Worker, Job, ConnectionOptions } from "bullmq";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
@@ -64,6 +64,7 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
+      type: "trace" as const,
     };
 
     await createEvalJobs({ event: payload });
@@ -111,6 +112,7 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
+      type: "trace" as const,
     };
 
     await createEvalJobs({ event: payload });
@@ -166,6 +168,7 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
+      type: "trace" as const,
     };
 
     await createEvalJobs({ event: payload });
@@ -215,6 +218,7 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
+      type: "trace" as const,
     };
 
     await createEvalJobs({ event: payload });
@@ -270,6 +274,7 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
+      type: "trace" as const,
     };
 
     await createEvalJobs({ event: payload });
@@ -353,6 +358,7 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
+      type: "trace" as const,
     };
 
     await createEvalJobs({ event: payload });
@@ -811,7 +817,7 @@ describe("execute evals", () => {
           }
         },
         {
-          connection: redis,
+          connection: redis as ConnectionOptions,
         },
       );
     });
@@ -847,12 +853,12 @@ describe("test variable extraction", () => {
       },
     ]);
 
-    const result = await extractVariablesFromTrace(
-      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      ["input", "output"],
-      traceId,
-      variableMapping,
-    );
+    const result = await extractVariables({
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      variables: ["input", "output"],
+      traceId: traceId,
+      variableMapping: variableMapping,
+    });
 
     expect(result).toEqual([
       {
@@ -909,12 +915,12 @@ describe("test variable extraction", () => {
       },
     ]);
 
-    const result = await extractVariablesFromTrace(
-      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      ["input", "output"],
-      traceId,
-      variableMapping,
-    );
+    const result = await extractVariables({
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      variables: ["input", "output"],
+      traceId: traceId,
+      variableMapping: variableMapping,
+    });
 
     expect(result).toEqual([
       {
@@ -959,12 +965,12 @@ describe("test variable extraction", () => {
     ]);
 
     await expect(
-      extractVariablesFromTrace(
-        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        ["input", "output"],
-        traceId,
-        variableMapping,
-      ),
+      extractVariables({
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        variables: ["input", "output"],
+        traceId: traceId,
+        variableMapping: variableMapping,
+      }),
     ).rejects.toThrowError(
       new LangfuseNotFoundError(
         `Observation great-llm-name for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
@@ -1014,12 +1020,12 @@ describe("test variable extraction", () => {
       },
     ]);
 
-    const result = await extractVariablesFromTrace(
-      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      ["input", "output"],
-      traceId,
-      variableMapping,
-    );
+    const result = await extractVariables({
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      variables: ["input", "output"],
+      traceId: traceId,
+      variableMapping: variableMapping,
+    });
 
     expect(result).toEqual([
       {
@@ -1090,12 +1096,12 @@ describe("test variable extraction", () => {
       },
     ]);
 
-    const result = await extractVariablesFromTrace(
-      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      ["input", "output"],
-      traceId,
-      variableMapping,
-    );
+    const result = await extractVariables({
+      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      variables: ["input", "output"],
+      traceId: traceId,
+      variableMapping: variableMapping,
+    });
 
     expect(result).toEqual([
       {
