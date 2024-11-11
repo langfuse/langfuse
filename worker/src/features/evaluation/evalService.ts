@@ -291,7 +291,7 @@ const datasetEval = async ({
         `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
-      // fk violoation on traceId, unsure why
+      // fk violation on traceId, unsure why
       // Foreign key constraint violated: `job_executions_job_input_trace_id_fkey (index)
       await prisma.jobExecution.create({
         data: {
