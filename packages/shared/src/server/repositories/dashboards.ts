@@ -364,8 +364,8 @@ export const getObservationLatencies = async (
   const appliedFilter = chFilter.apply();
 
   const query = `
-    SELECT 
-      quantilesExact(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
+    SELECT
+      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
       name
     FROM observations o FINAL
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -422,7 +422,7 @@ export const getTracesLatencies = async (
     )
 
     SELECT
-      quantilesExact(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
+      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
       name
     FROM trace_latencies
     GROUP BY name
@@ -466,7 +466,7 @@ export const getModelLatenciesOverTime = async (
   SELECT 
     ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
     provided_model_name,
-    quantilesExact(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
+    quantilesExactLow(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
   FROM observations o FINAL
   ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
