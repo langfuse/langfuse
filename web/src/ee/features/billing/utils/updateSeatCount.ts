@@ -54,14 +54,6 @@ export async function updateStripeSeatCount(orgId: string) {
     await stripeClient.subscriptionItems.update(stripeSeatSubscriptionItem.id, {
       quantity: seatCount,
     });
-
-    // print all relevant ids
-    console.log("[Stripe Seat Update] Stripe seat item updated", {
-      stripeSeatSubscriptionItemId: stripeSeatSubscriptionItem.id,
-      stripeSubscriptionId,
-      stripeSeatProductId,
-      seatCount,
-    });
   } catch (e) {
     traceException(e);
   }
