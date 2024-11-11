@@ -76,11 +76,11 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
     },
     "3 months": {
       date_trunc: "week",
-      minutes: 3 * 28 * 24 * 60,
+      minutes: 3 * 30 * 24 * 60,
     },
     "1 month": {
       date_trunc: "day",
-      minutes: 28 * 24 * 60,
+      minutes: 30 * 24 * 60,
     },
     "7 days": {
       date_trunc: "day",
@@ -120,6 +120,19 @@ export const SelectedTimeOptionSchema = z
     }),
   ])
   .optional();
+
+export const isDashboardDateRangeOptionAvailable = ({
+  option,
+  limitDays,
+}: {
+  option: DashboardDateRangeAggregationOption;
+  limitDays: number | false;
+}) => {
+  if (limitDays === false) return true;
+
+  const { minutes } = dashboardDateRangeAggregationSettings[option];
+  return limitDays >= minutes / (24 * 60);
+};
 
 type SelectedTimeOption = z.infer<typeof SelectedTimeOptionSchema>;
 

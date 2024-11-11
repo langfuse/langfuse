@@ -18,6 +18,7 @@ import {
   TABLE_AGGREGATION_OPTIONS,
   getDateFromOption,
   isTableDataRangeOptionAvailable,
+  isDashboardDateRangeOptionAvailable,
 } from "@/src/utils/date-range-utils";
 import { Clock } from "lucide-react";
 import { useOrgEntitlementLimit } from "@/src/features/entitlements/hooks";
@@ -67,7 +68,7 @@ const BaseDateRangeDropdown = <T extends string>({
                 <span>{itemObj}</span>
               </HoverCardTrigger>
               <HoverCardPortal>
-                <HoverCardContent className="w-80 text-sm" side="right">
+                <HoverCardContent className="w-60 text-sm" side="right">
                   This time range is not available in your current plan.
                 </HoverCardContent>
               </HoverCardPortal>
@@ -92,6 +93,17 @@ type DashboardDateRangeDropdownProps = {
 export const DashboardDateRangeDropdown: React.FC<
   DashboardDateRangeDropdownProps
 > = ({ selectedOption, setDateRangeAndOption }) => {
+  const lookbackLimit = useOrgEntitlementLimit("data-access-days");
+  const disabledOptions = useMemo(() => {
+    return DASHBOARD_AGGREGATION_OPTIONS.filter(
+      (option) =>
+        !isDashboardDateRangeOptionAvailable({
+          option,
+          limitDays: lookbackLimit,
+        }),
+    );
+  }, [lookbackLimit]);
+
   const onDropDownSelection = (value: DashboardDateRangeOptions) => {
     if (value === DASHBOARD_AGGREGATION_PLACEHOLDER) {
       setDateRangeAndOption(DASHBOARD_AGGREGATION_PLACEHOLDER, undefined);
@@ -115,6 +127,7 @@ export const DashboardDateRangeDropdown: React.FC<
     <BaseDateRangeDropdown
       selectedOption={selectedOption}
       options={options}
+      limitedOptions={disabledOptions}
       onSelectionChange={onDropDownSelection}
     />
   );
