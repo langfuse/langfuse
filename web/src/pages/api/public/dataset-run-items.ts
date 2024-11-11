@@ -71,7 +71,7 @@ export default withMiddlewares({
       }
 
       /********************
-       * SYNC PROCESSING *
+       * RUN ITEM CREATION *
        ********************/
 
       const run = await prisma.datasetRuns.upsert({
@@ -106,7 +106,7 @@ export default withMiddlewares({
       });
 
       /********************
-       * ASYNC PROCESSING *
+       * ASYNC RUN ITEM EVAL *
        ********************/
 
       if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
