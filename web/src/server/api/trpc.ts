@@ -218,8 +218,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
           },
         });
         if (!dbProject) {
+          logger.error(`Project with ${projectId} id not found`);
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "NOT_FOUND",
             message: "Project not found",
           });
         }
@@ -238,6 +239,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         });
       }
       // not a member
+      logger.error(`User is not a member of this project with id ${projectId}`);
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",
@@ -287,6 +289,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
   );
 
   if (!sessionOrg && ctx.session.user.admin !== true) {
+    logger.error(`User ${ctx.session.user.id} is not a member of org ${orgId}`);
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
@@ -365,23 +368,28 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     });
   }
 
-  if (!trace)
+  if (!trace) {
+    logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Trace not found",
     });
+  }
 
   const sessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
-  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
+  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true) {
+    logger.error(
+      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+    );
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
         "User is not a member of this project and this trace is not public",
     });
-
+  }
   return next({
     ctx: {
       session: {
@@ -430,11 +438,15 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     },
   });
 
-  if (!session)
+  if (!session) {
+    logger.error(
+      `Session with id ${sessionId} not found for project ${projectId}`,
+    );
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Session not found",
     });
+  }
 
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
@@ -444,12 +456,16 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     !session.public &&
     !userSessionProject &&
     ctx.session?.user?.admin !== true
-  )
+  ) {
+    logger.error(
+      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+    );
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
         "User is not a member of this project and this session is not public",
     });
+  }
 
   return next({
     ctx: {

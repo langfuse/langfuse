@@ -77,7 +77,7 @@ export function tokenCount(p: {
 
         return undefined;
       }
-    }
+    },
   );
 }
 
@@ -92,8 +92,8 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   if (!config.success) {
     logger.error(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
-        p.model.tokenizerConfig
-      )}, ${JSON.stringify(config.error)}`
+        p.model.tokenizerConfig,
+      )}, ${JSON.stringify(config.error)}`,
     );
     return undefined;
   }
@@ -108,13 +108,13 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
   ) {
     // check if the tokenizerConfig is a valid chat config
     const parsedConfig = OpenAiChatTokenConfig.safeParse(
-      p.model.tokenizerConfig
+      p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
       logger.error(
         `Invalid tokenizer config for chat model ${
           p.model.id
-        }: ${JSON.stringify(p.model.tokenizerConfig)}`
+        }: ${JSON.stringify(p.model.tokenizerConfig)}`,
       );
       return undefined;
     }
@@ -127,7 +127,7 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       ? getTokensByModel(config.data.tokenizerModel, parsedText)
       : getTokensByModel(
           config.data.tokenizerModel,
-          JSON.stringify(parsedText)
+          JSON.stringify(parsedText),
         );
   }
   return result;
@@ -193,7 +193,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   }
   const cleandedText = unicodeToBytesInString(text);
 
-  logger.info(`Tokenized data for model: ${model}`);
+  logger.debug(`Tokenized data for model: ${model}`);
 
   return encoding?.encode(cleandedText).length;
 };
@@ -226,7 +226,7 @@ function isChatMessageArray(value: unknown): value is ChatMessage[] {
       typeof item.role === "string" &&
       "content" in item &&
       typeof item.content === "string" &&
-      (!("name" in item) || typeof item.name === "string")
+      (!("name" in item) || typeof item.name === "string"),
   );
 }
 
