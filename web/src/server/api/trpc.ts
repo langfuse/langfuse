@@ -83,7 +83,8 @@ import {
   getTraceByIdOrThrow,
   logger,
 } from "@langfuse/shared/src/server";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
 
@@ -341,22 +342,20 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
 
-  // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
   let trace;
 
+  // first check clickhoue for admin use case if sent via the API accordingly
   if (
     result.data.queryClickhouse === true &&
-    isClickhouseEligible(ctx.session?.user)
+    isClickhouseAdminEligible(ctx.session?.user) // basically checks if user exists and admin
   ) {
-    logger.info(
-      `Querying Clickhouse for traceid: ${traceId} and project: ${projectId} `,
-    );
     trace = await getTraceByIdOrThrow(
       traceId,
       projectId,
       timestamp ?? undefined,
     );
-  } else {
+    // check from postgres for non admins when env is set accordingly
+  } else if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
     trace = await prisma.trace.findFirst({
       where: {
         id: traceId,
@@ -366,6 +365,13 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
         public: true,
       },
     });
+    // check clickhouse otherwise
+  } else {
+    trace = await getTraceByIdOrThrow(
+      traceId,
+      projectId,
+      timestamp ?? undefined,
+    );
   }
 
   if (!trace) {

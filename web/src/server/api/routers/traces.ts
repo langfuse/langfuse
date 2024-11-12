@@ -50,7 +50,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import {
-  isClickhouseEligible,
+  isClickhouseAdminEligible,
   measureAndReturnApi,
 } from "@/src/server/utils/checkClickhouseAccess";
 
@@ -136,7 +136,7 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -195,7 +195,7 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -276,7 +276,7 @@ export const traceRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -388,7 +388,7 @@ export const traceRouter = createTRPCRouter({
           return res;
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -445,7 +445,7 @@ export const traceRouter = createTRPCRouter({
           });
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
