@@ -367,7 +367,7 @@ export class ObservationProcessor implements EventProcessor {
           text: body.input,
         });
       } else {
-        logger.info(
+        logger.debug(
           `No input provided, trying to calculate for id: ${existingObservation?.id}`,
         );
         const observationInput = await prisma.observation.findFirst({
@@ -393,7 +393,7 @@ export class ObservationProcessor implements EventProcessor {
           text: body.output,
         });
       } else {
-        logger.info(
+        logger.debug(
           `No output provided, trying to calculate for id: ${existingObservation?.id}`,
         );
         const observationOutput = await prisma.observation.findFirst({
