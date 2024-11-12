@@ -376,7 +376,6 @@ const getObservationsTableInternal = async <T>(
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-    console.log("generations-all", query);
     const res = await queryClickhouse<T>({
       query,
       params: {
