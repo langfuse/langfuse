@@ -68,7 +68,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "timeToFirstToken",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(isNull(completion_start_time), NULL,  date_diff('seconds', start_time, completion_start_time))}",
+      "if(isNull(completion_start_time), NULL,  date_diff('seconds', start_time, completion_start_time))",
   },
   {
     uiTableName: "Latency (s)",
@@ -82,7 +82,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "tokensPerSecond",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      " if(isNull(end_time) && mapExists((k, v) -> (k = 'input'), usage_details) != 1, NULL, usage_details['input'] / date_diff('seconds', start_time, end_time)",
+      "usage_details['input'] / date_diff('seconds', start_time, end_time)",
   },
   {
     uiTableName: "Input Cost ($)",
@@ -121,7 +121,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Model",
     uiTableId: "model",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."model"',
+    clickhouseSelect: 'o."provided_model_name"',
   },
   {
     uiTableName: "Input Tokens",
@@ -172,13 +172,13 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
-    clickhouseTableName: "prompts",
-    clickhouseSelect: "p.name",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "o.prompt_name",
   },
   {
     uiTableName: "Prompt Version",
     uiTableId: "promptVersion",
-    clickhouseTableName: "prompts",
-    clickhouseSelect: "p.version",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "o.prompt_version",
   },
 ];
