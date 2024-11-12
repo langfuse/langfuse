@@ -2,7 +2,7 @@ import { UiColumnMapping } from "./types";
 
 export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
-    uiTableName: "bookmarked",
+    uiTableName: "⭐️",
     uiTableId: "bookmarked",
     clickhouseTableName: "traces",
     clickhouseSelect: "bookmarked",
@@ -88,6 +88,19 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "traces",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+  },
+  {
+    uiTableName: "Usage",
+    uiTableId: "totalTokens",
+    clickhouseTableName: "traces",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+  },
+  {
+    uiTableName: "Scores",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Latency (s)",
