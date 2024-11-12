@@ -9,6 +9,7 @@ import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 const tabs = ["Overview", "Sessions", "Traces", "Scores"] as const;
 
@@ -120,7 +121,11 @@ type TabProps = {
 };
 
 function OverviewTab({ userId, projectId }: TabProps) {
-  const user = api.users.byId.useQuery({ projectId: projectId, userId });
+  const user = api.users.byId.useQuery({
+    projectId: projectId,
+    userId,
+    queryClickhouse: useClickhouse(),
+  });
 
   const userData: { value: string; label: string }[] = user.data
     ? [
