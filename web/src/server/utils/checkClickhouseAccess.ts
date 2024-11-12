@@ -62,7 +62,7 @@ export const measureAndReturnApi = async <T, Y>(args: {
         return await pgExecution(input);
       }
 
-      logger.info("Read from postgres and clickhouse");
+      logger.debug("Read from postgres and clickhouse");
       const [[pgResult, pgDuration], [chResult, chDuration]] =
         await Promise.all([
           executionWrapper(input, pgExecution, currentSpan, "pg"),
@@ -78,7 +78,7 @@ export const measureAndReturnApi = async <T, Y>(args: {
       currentSpan?.setAttribute("ch-duration", chDuration);
 
       if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-        logger.info("Return data from clickhouse");
+        logger.debug("Return data from clickhouse");
         return chResult;
       }
       return pgResult;
