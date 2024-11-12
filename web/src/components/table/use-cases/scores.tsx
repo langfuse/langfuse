@@ -336,7 +336,7 @@ export default function ScoresTable({
         href: "https://langfuse.com/docs/scores/model-based-evals",
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting: false,
       size: 150,
       cell: ({ row }) => {
         const value = row.getValue("jobConfigurationId");
