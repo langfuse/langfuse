@@ -649,7 +649,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
         LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
-            AND ${singleTraceFilter?.query ? singleTraceFilter.query : ""}
+            ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
         GROUP BY t.session_id
     )
     SELECT ${select}
