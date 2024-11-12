@@ -99,7 +99,6 @@ export const getTracesTable = async (
     os.level as level,
     os.observation_count as observation_count,
     s.scores_avg as scores_avg,
-    t.metadata,
     t.public`,
     projectId,
     filter,
