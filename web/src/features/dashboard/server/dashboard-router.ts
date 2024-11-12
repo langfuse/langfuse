@@ -298,7 +298,10 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+      if (
+        input.queryClickhouse &&
+        !isClickhouseAdminEligible(ctx.session.user)
+      ) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Not eligible to query clickhouse",
