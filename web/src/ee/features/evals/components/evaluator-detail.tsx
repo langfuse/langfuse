@@ -65,7 +65,7 @@ export const EvaluatorDetail = () => {
     <FullScreenPage>
       <>
         <Header
-          title={`${evaluator.data?.id}` ?? "Loading..."}
+          title={evaluator.data?.id ?? "Loading..."}
           breadcrumb={[
             {
               name: "Evaluators",
@@ -84,8 +84,8 @@ export const EvaluatorDetail = () => {
                 <DetailPageNav
                   key="nav"
                   currentId={encodeURIComponent(evaluator.data.id)}
-                  path={(id) =>
-                    `/project/${projectId}/evals/${encodeURIComponent(id)}`
+                  path={(entry) =>
+                    `/project/${projectId}/evals/${encodeURIComponent(entry.id)}`
                   }
                   listKey="evals"
                 />
@@ -117,10 +117,7 @@ export const EvaluatorDetail = () => {
                   <span className="text-sm font-medium">Eval Template</span>
                   <TableLink
                     path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
-                    value={
-                      `${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})` ??
-                      ""
-                    }
+                    value={`${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})`}
                     className="flex min-h-6 items-center"
                   />
                 </CardDescription>
