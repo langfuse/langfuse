@@ -3,7 +3,7 @@
 ### Guarantees for relating data within Langfuse
 
 - Finding a Trace based on an observation [Linear](https://linear.app/langfuse/issue/LFE-2745/improve-generations-table-query-performance)
-  - Traces can occurr earlier than an observation.
+  - Traces can occur earlier than an observation.
   - 96% of observations.start_time ocurr 2 mins later than the trace.timestamp
   - There is a very large long-tail. Hence we will use a 2-day (2880 min) look back for now.
 - Finding an Observation based on a Trace [Linear](https://linear.app/langfuse/issue/LFE-2409/table-queries)
