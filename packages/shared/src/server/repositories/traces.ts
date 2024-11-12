@@ -247,6 +247,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
 
+  console.log("tracesallquery", query);
+
   const res = await queryClickhouse<T>({
     query: query,
     params: {
