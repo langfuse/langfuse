@@ -654,7 +654,10 @@ const getPublicSessions = async (
   const additionalBookmarkFilter: z.infer<typeof stringOptionsFilter>[] =
     sessionsBookmarkedFilter &&
     typeof sessionsBookmarkedFilter.value === "boolean" &&
-    sessionsBookmarkedFilter.value === true
+    ((sessionsBookmarkedFilter.value === true &&
+      sessionsBookmarkedFilter.operator === "=") ||
+      (sessionsBookmarkedFilter.value === false &&
+        sessionsBookmarkedFilter.operator === "<>"))
       ? [
           {
             column: "sessionId",
@@ -665,7 +668,9 @@ const getPublicSessions = async (
         ]
       : sessionsBookmarkedFilter &&
           typeof sessionsBookmarkedFilter.value === "boolean" &&
-          sessionsBookmarkedFilter.value === false
+          (sessionsBookmarkedFilter.value === false ||
+            (sessionsBookmarkedFilter.value === true &&
+              sessionsBookmarkedFilter.operator === "<>"))
         ? [
             {
               column: "sessionId",
