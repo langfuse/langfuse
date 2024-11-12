@@ -121,7 +121,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Model",
     uiTableId: "model",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."model"',
+    clickhouseSelect: 'o."provided_model_name"',
   },
   {
     uiTableName: "Input Tokens",
@@ -173,12 +173,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Prompt Name",
     uiTableId: "promptName",
     clickhouseTableName: "observations",
-    clickhouseSelect: "p.name",
+    clickhouseSelect: "o.prompt_name",
   },
   {
     uiTableName: "Prompt Version",
     uiTableId: "promptVersion",
     clickhouseTableName: "observations",
-    clickhouseSelect: "p.version",
+    clickhouseSelect: "o.prompt_version",
   },
 ];
