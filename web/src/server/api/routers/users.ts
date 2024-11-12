@@ -115,7 +115,7 @@ export const userRouter = createTRPCRouter({
           ]);
 
           return {
-            totalUsers: totalUsers[0].totalCount,
+            totalUsers: totalUsers.shift()?.totalCount ?? 0,
             users,
           };
         },
@@ -147,8 +147,6 @@ export const userRouter = createTRPCRouter({
               totalPromptTokens: bigint;
               totalCompletionTokens: bigint;
               totalTokens: bigint;
-              firstObservation: Date | null;
-              lastObservation: Date | null;
               totalObservations: bigint;
               totalTraces: bigint;
               sumCalculatedTotalCost: number;
@@ -160,8 +158,6 @@ export const userRouter = createTRPCRouter({
                    COALESCE(SUM(o.prompt_tokens), 0)::bigint     AS "totalPromptTokens",
                    COALESCE(SUM(o.completion_tokens), 0)::bigint AS "totalCompletionTokens",
                    COALESCE(SUM(o.total_tokens), 0)::bigint      AS "totalTokens",
-                   MIN(o."firstObservation")                     AS "firstObservation",
-                   MAX(o."lastObservation")                      AS "lastObservation",
                    COUNT(o."totalObservations")::bigint          AS "totalObservations",
                    (COUNT(*) OVER ())::bigint                    AS "totalTraces",
                    SUM(COALESCE(ov.calculated_total_cost, 0))    AS "sumCalculatedTotalCost"
@@ -170,8 +166,6 @@ export const userRouter = createTRPCRouter({
               SELECT COALESCE(SUM(o.prompt_tokens), 0)::bigint     AS "prompt_tokens",
                      COALESCE(SUM(o.completion_tokens), 0)::bigint AS "completion_tokens",
                      COALESCE(SUM(o.total_tokens), 0)::bigint      AS "total_tokens",
-                     MIN(o.start_time)                             AS "firstObservation",
-                     MAX(o.start_time)                             AS "lastObservation",
                      COUNT(DISTINCT o.id)::bigint                  AS "totalObservations"
               FROM observations o
               WHERE o.trace_id = t.id
@@ -211,7 +205,7 @@ export const userRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return measureAndReturnApi({
         input,
-        operation: "users.metrics",
+        operation: "users.byId",
         user: ctx.session.user,
         pgExecution: async () => {
           const result = await ctx.prisma.$queryRaw<
@@ -223,8 +217,6 @@ export const userRouter = createTRPCRouter({
               totalPromptTokens: bigint;
               totalCompletionTokens: bigint;
               totalTokens: bigint;
-              firstObservation: Date;
-              lastObservation: Date;
               totalObservations: bigint;
               sumCalculatedTotalCost: number;
             }[]
@@ -236,8 +228,6 @@ export const userRouter = createTRPCRouter({
                    COALESCE(SUM(o.prompt_tokens), 0)::bigint     "totalPromptTokens",
                    COALESCE(SUM(o.completion_tokens), 0)::bigint "totalCompletionTokens",
                    COALESCE(SUM(o.total_tokens), 0)::bigint      "totalTokens",
-                   MIN(o.start_time)                             "firstObservation",
-                   MAX(o.start_time)                             "lastObservation",
                    COUNT(distinct o.id)::bigint                  "totalObservations",
                    SUM(COALESCE(o.calculated_total_cost, 0)) AS  "sumCalculatedTotalCost"
             FROM traces t
@@ -259,8 +249,6 @@ export const userRouter = createTRPCRouter({
             totalPromptTokens: result[0]?.totalPromptTokens ?? 0,
             totalCompletionTokens: result[0]?.totalCompletionTokens ?? 0,
             totalTokens: result[0]?.totalTokens ?? 0,
-            firstObservation: result[0]?.firstObservation,
-            lastObservation: result[0]?.lastObservation,
             totalObservations: result[0]?.totalObservations ?? 0,
             sumCalculatedTotalCost: result[0]?.sumCalculatedTotalCost ?? 0,
           };
