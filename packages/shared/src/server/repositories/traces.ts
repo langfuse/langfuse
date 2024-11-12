@@ -26,6 +26,7 @@ import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
+import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -620,7 +621,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
               anyLast(project_id) as project_id
         FROM observations o FINAL
         WHERE o.project_id = {projectId: String}
-        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime} - INTERVAL 1 DAY` : ""}
+        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
         GROUP BY o.trace_id
     ),
     session_data AS (

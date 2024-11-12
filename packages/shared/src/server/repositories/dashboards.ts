@@ -7,6 +7,10 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  TRACE_TO_OBSERVATIONS_INTERVAL,
+} from "./constants";
 
 export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
 
@@ -107,7 +111,7 @@ export const getScoreAggregate = async (
      ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     AND ${chFilterApplied.query}
-    ${timeFilter && hasTraceFilter ? "AND t.timestamp >= {tracesTimestamp: DateTime} - INTERVAL 1 HOUR" : ""}
+    ${timeFilter && hasTraceFilter ? `AND t.timestamp >= {tracesTimestamp: DateTime} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY s.name, s.source, s.data_type
     ORDER BY count(*) DESC
     `;
@@ -328,7 +332,7 @@ export const getModelUsageByUser = async (
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
-    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - INTERVAL 1 HOUR` : ""}
+    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY user_id
     ORDER BY sum_cost_details DESC
     `;
@@ -417,7 +421,7 @@ export const getTracesLatencies = async (
       ON o.trace_id = t.id AND o.project_id = t.project_id
       WHERE project_id = {projectId: String}
       AND ${appliedFilter.query}
-      ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
+      ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       GROUP BY o.project_id, o.trace_id, t.name
     )
 
