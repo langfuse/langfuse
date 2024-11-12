@@ -246,7 +246,13 @@ export function Trace(props: {
   );
 }
 
-export function TracePage({ traceId }: { traceId: string }) {
+export function TracePage({
+  traceId,
+  timestamp,
+}: {
+  traceId: string;
+  timestamp?: Date;
+}) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
@@ -256,6 +262,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
+      timestamp,
       projectId: router.query.projectId as string,
       queryClickhouse: useClickhouse(),
     },
