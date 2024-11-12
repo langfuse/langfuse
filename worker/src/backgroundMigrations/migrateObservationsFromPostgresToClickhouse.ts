@@ -37,7 +37,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
 
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
     const batchSize = Number(args.batchSize ?? 5000);
-    let idIterator = "a369b915-6326-468e-9692-be9244844d62";
+    let idIterator = "c87bb562-0dd7-4d80-9b27-4c38eea3c951";
 
     let processedRows = 0;
     while (
