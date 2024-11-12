@@ -5,8 +5,9 @@ import * as opentelemetry from "@opentelemetry/api";
 import { TRPCError } from "@trpc/server";
 
 export const isClickhouseEligible = (user?: User | null) => {
+  if (!user) return true; // public API access
+
   return (
-    user &&
     user.admin &&
     user.admin === true &&
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
@@ -32,13 +33,6 @@ export const measureAndReturnApi = async <T, Y>(args: {
       const { input, user, pgExecution, clickhouseExecution } = args;
 
       currentSpan?.setAttribute("operation", args.operation);
-
-      if (!user) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Did not find user in function context",
-        });
-      }
 
       if (input.queryClickhouse && !isClickhouseEligible(user)) {
         throw new TRPCError({
