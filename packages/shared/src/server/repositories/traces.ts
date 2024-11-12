@@ -662,8 +662,6 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
     : null;
 
-  console.log("sessions-query", query);
-
   const res = await queryClickhouse<T>({
     query: query,
     params: {
