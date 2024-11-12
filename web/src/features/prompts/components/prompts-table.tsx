@@ -132,7 +132,7 @@ export function PromptTable() {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.prompts.map((t) => t.name),
+        prompts.data.prompts.map((t) => ({ id: t.name })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

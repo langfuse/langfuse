@@ -41,7 +41,7 @@ export default function Dataset() {
           <>
             <DetailPageNav
               currentId={datasetId}
-              path={(id) => `/project/${projectId}/datasets/${id}`}
+              path={(entry) => `/project/${projectId}/datasets/${entry.id}`}
               listKey="datasets"
             />
             <DatasetActionButton

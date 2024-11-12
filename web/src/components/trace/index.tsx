@@ -328,7 +328,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             />
             <DetailPageNav
               currentId={traceId}
-              path={(id) => {
+              path={(entry) => {
                 const { view, display, projectId } = router.query;
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
@@ -337,7 +337,7 @@ export function TracePage({ traceId }: { traceId: string }) {
                 const queryParamString = Boolean(queryParams.size)
                   ? `?${queryParams.toString()}`
                   : "";
-                return `/project/${projectId as string}/traces/${id}${queryParamString}`;
+                return `/project/${projectId as string}/traces/${entry.id}${queryParamString}`;
               }}
               listKey="traces"
             />

@@ -5,7 +5,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  type ListEntry,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
@@ -13,18 +16,23 @@ import { useEffect } from "react";
 
 export const DetailPageNav = (props: {
   currentId: string;
-  path: (id: string) => string;
+  path: (entry: ListEntry) => string;
   listKey: string;
 }) => {
   const { detailPagelists } = useDetailPageLists();
-  const ids = detailPagelists[props.listKey] ?? [];
+  const entries = detailPagelists[props.listKey] ?? [];
 
   const capture = usePostHogClientCapture();
   const router = useRouter();
-  const currentIndex = ids.findIndex((id) => id === props.currentId);
-  const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
+  const currentIndex = entries.findIndex(
+    (entry) => entry.id === props.currentId,
+  );
+  const previousPageId =
+    currentIndex > 0 ? entries[currentIndex - 1].id : undefined;
   const nextPageId =
-    currentIndex < ids.length - 1 ? ids[currentIndex + 1] : undefined;
+    currentIndex < entries.length - 1
+      ? entries[currentIndex + 1].id
+      : undefined;
 
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
@@ -49,7 +57,7 @@ export const DetailPageNav = (props: {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [previousPageId, nextPageId, router, props]);
 
-  if (ids.length > 1)
+  if (entries.length > 1)
     return (
       <div className="flex flex-row gap-2">
         <Tooltip>
