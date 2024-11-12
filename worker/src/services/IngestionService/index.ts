@@ -85,7 +85,7 @@ export class IngestionService {
     eventBodyId: string,
     events: IngestionEventType[],
   ): Promise<void> {
-    logger.info(
+    logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
     );
 
