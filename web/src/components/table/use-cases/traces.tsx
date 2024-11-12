@@ -188,6 +188,7 @@ export default function TracesTable({
         "traces",
         traces.data.traces.map((t) => ({
           id: t.id,
+          params: { timestamp: t.timestamp.toISOString() },
         })),
       );
     }

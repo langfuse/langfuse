@@ -344,7 +344,13 @@ export function TracePage({
                 const queryParamString = Boolean(queryParams.size)
                   ? `?${queryParams.toString()}`
                   : "";
-                return `/project/${projectId as string}/traces/${entry.id}${queryParamString}`;
+
+                const timestamp =
+                  entry.params && entry.params.timestamp
+                    ? encodeURIComponent(entry.params.timestamp)
+                    : undefined;
+
+                return `/project/${projectId as string}/traces/${entry.id}${queryParamString}${timestamp ? `?timestamp=${timestamp}` : ""}`;
               }}
               listKey="traces"
             />

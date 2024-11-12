@@ -132,7 +132,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   const traceIdFilter = tracesFilter.find(
     (f) => f.clickhouseTable === "traces" && f.field === "id",
-  ) as StringFilter | undefined;
+  ) as StringFilter | StringOptionsFilter | undefined;
 
   traceIdFilter
     ? scoresFilter.push(
@@ -140,7 +140,10 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
           clickhouseTable: "scores",
           field: "trace_id",
           operator: "any of",
-          values: [traceIdFilter.value],
+          values:
+            traceIdFilter instanceof StringFilter
+              ? [traceIdFilter.value]
+              : traceIdFilter.values,
         }),
       )
     : null;
@@ -150,7 +153,10 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
           clickhouseTable: "observations",
           field: "trace_id",
           operator: "any of",
-          values: [traceIdFilter.value],
+          values:
+            traceIdFilter instanceof StringFilter
+              ? [traceIdFilter.value]
+              : traceIdFilter.values,
         }),
       )
     : null;
