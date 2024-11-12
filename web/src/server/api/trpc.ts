@@ -220,7 +220,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         if (!dbProject) {
           logger.error(`Project with ${projectId} id not found`);
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "NOT_FOUND",
             message: "Project not found",
           });
         }
