@@ -4,10 +4,9 @@ import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
 import { TRPCError } from "@trpc/server";
 
-export const isClickhouseEligible = (user?: User | null) => {
-  if (!user) return true; // public API access
-
+export const isClickhouseAdminEligible = (user?: User | null) => {
   return (
+    user &&
     user.admin &&
     user.admin === true &&
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
@@ -34,7 +33,7 @@ export const measureAndReturnApi = async <T, Y>(args: {
 
       currentSpan?.setAttribute("operation", args.operation);
 
-      if (input.queryClickhouse && !isClickhouseEligible(user)) {
+      if (input.queryClickhouse && !isClickhouseAdminEligible(user)) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Not eligible to query clickhouse",

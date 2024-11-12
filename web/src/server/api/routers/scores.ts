@@ -45,7 +45,7 @@ import {
   searchExistingAnnotationScore,
 } from "@langfuse/shared/src/server";
 import {
-  isClickhouseEligible,
+  isClickhouseAdminEligible,
   measureAndReturnApi,
 } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
@@ -571,7 +571,7 @@ export const scoresRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
