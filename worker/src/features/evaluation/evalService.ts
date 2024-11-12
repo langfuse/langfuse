@@ -71,7 +71,7 @@ export const createEvalJobs = async ({
     logger.debug("No evaluation jobs found for project", event.projectId);
     return;
   }
-  logger.info(
+  logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
@@ -81,7 +81,7 @@ export const createEvalJobs = async ({
       continue;
     }
 
-    logger.info("Creating eval job for config", config.id);
+    logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     const condition = tableColumnsToSqlFilterAndPrefix(
