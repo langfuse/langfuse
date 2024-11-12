@@ -10,7 +10,11 @@ import {
 } from "@/src/features/media/validation";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { ForbiddenError, InternalServerError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InternalServerError,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
 export default withMiddlewares({
@@ -32,6 +36,11 @@ export default withMiddlewares({
         field,
       } = body;
 
+      if (contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH)
+        throw new InvalidRequestError(
+          `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
+        );
+
       const { mediaId, uploadUrl } = await prisma.$transaction(async (tx) => {
         const existingMedia = await tx.media.findUnique({
           where: {
@@ -42,7 +51,11 @@ export default withMiddlewares({
           },
         });
 
-        if (existingMedia && existingMedia.uploadHttpStatus === 200) {
+        if (
+          existingMedia &&
+          existingMedia.uploadHttpStatus === 200 &&
+          existingMedia.contentType === contentType
+        ) {
           if (observationId) {
             await tx.observationMedia.upsert({
               where: {

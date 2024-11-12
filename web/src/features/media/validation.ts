@@ -1,10 +1,9 @@
 import { z } from "zod";
-import { env } from "@/src/env.mjs";
 
 export enum MediaEnabledFields {
   Input = "input",
   Output = "output",
-  Total = "total",
+  Metadata = "metadata",
 }
 
 export enum MediaContentType {
@@ -15,9 +14,6 @@ export enum MediaContentType {
   MP3 = "audio/mpeg",
   MP3_LEGACY = "audio/mp3",
   WAV = "audio/wav",
-  MP4 = "video/mp4",
-  MP4_LEGACY = "video/mpeg",
-  MP4_ALT = "video/mpeg4",
   TXT = "text/plain",
   PDF = "application/pdf",
 }
@@ -42,14 +38,7 @@ export const GetMediaUploadUrlQuerySchema = z.object({
       MediaContentType,
     ).join(", ")}`,
   }),
-  contentLength: z
-    .number()
-    .positive()
-    .int()
-    .max(
-      env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
-      `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
-    ),
+  contentLength: z.number().positive().int(),
   sha256Hash: z
     .string()
     .regex(

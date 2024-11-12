@@ -580,6 +580,106 @@ describe("Media Upload API", () => {
       expect(responseHash).toEqual(validPNG.sha256Hash);
     }, 10_000);
 
+    it("should allow reuploading with different content type", async () => {
+      const traceId = "test";
+      const field = "input";
+
+      const firstResult = await runMediaUploadEndToEndTest({
+        ...validPNG,
+        traceId,
+        field,
+        contentType: "image/jpeg",
+      });
+
+      expect(firstResult.getUploadUrlResponse?.status).toBe(201);
+      expect(firstResult.updateMediaResponse?.status).toBe(200);
+      expect(firstResult.getDownloadUrlResponse?.status).toBe(200);
+      expect(firstResult.uploadFileResponse?.status).toBe(200);
+      expect(firstResult.mediaRecord).not.toBeNull();
+      expect(firstResult.mediaRecord).toMatchObject({
+        sha256Hash: validPNG.sha256Hash,
+        contentType: "image/jpeg",
+        contentLength: BigInt(validPNG.contentLength),
+        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketPath: expect.any(String),
+        uploadHttpStatus: 200,
+        uploadHttpError: null,
+      });
+      expect(firstResult.traceMediaRecord).not.toBeNull();
+      expect(firstResult.traceMediaRecord).toMatchObject({
+        projectId,
+        traceId,
+        mediaId: firstResult.mediaRecord?.id,
+        field,
+      });
+      expect(firstResult.observationMediaRecord).toBeNull();
+      expect(firstResult.fetchMediaAssetResponse?.status).toBe(200);
+      expect(
+        firstResult.fetchMediaAssetResponse?.headers.get("content-type"),
+      ).toBe("image/jpeg");
+      expect(
+        firstResult.fetchMediaAssetResponse?.headers.get("content-length"),
+      ).toBe(validPNG.contentLength.toString());
+
+      const firstResponseBuffer =
+        await firstResult.fetchMediaAssetResponse?.arrayBuffer();
+      if (!firstResponseBuffer) {
+        throw new Error("Response buffer is undefined");
+      }
+      const firstResponseHash = crypto
+        .createHash("sha256")
+        .update(Buffer.from(firstResponseBuffer))
+        .digest("base64");
+      expect(firstResponseHash).toEqual(validPNG.sha256Hash);
+
+      const secondResult = await runMediaUploadEndToEndTest({
+        ...validPNG,
+        traceId,
+        field,
+      });
+
+      expect(secondResult.getUploadUrlResponse?.status).toBe(201);
+      expect(secondResult.updateMediaResponse?.status).toBe(200);
+      expect(secondResult.getDownloadUrlResponse?.status).toBe(200);
+      expect(secondResult.uploadFileResponse?.status).toBe(200);
+      expect(secondResult.mediaRecord).not.toBeNull();
+      expect(secondResult.mediaRecord).toMatchObject({
+        sha256Hash: validPNG.sha256Hash,
+        contentType: validPNG.contentType,
+        contentLength: BigInt(validPNG.contentLength),
+        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        bucketPath: expect.any(String),
+        uploadHttpStatus: 200,
+        uploadHttpError: null,
+      });
+      expect(secondResult.traceMediaRecord).not.toBeNull();
+      expect(secondResult.traceMediaRecord).toMatchObject({
+        projectId,
+        traceId,
+        mediaId: secondResult.mediaRecord?.id,
+        field,
+      });
+      expect(secondResult.observationMediaRecord).toBeNull();
+      expect(secondResult.fetchMediaAssetResponse?.status).toBe(200);
+      expect(
+        secondResult.fetchMediaAssetResponse?.headers.get("content-type"),
+      ).toBe(validPNG.contentType);
+      expect(
+        secondResult.fetchMediaAssetResponse?.headers.get("content-length"),
+      ).toBe(validPNG.contentLength.toString());
+
+      const responseBuffer =
+        await secondResult.fetchMediaAssetResponse?.arrayBuffer();
+      if (!responseBuffer) {
+        throw new Error("Response buffer is undefined");
+      }
+      const responseHash = crypto
+        .createHash("sha256")
+        .update(Buffer.from(responseBuffer))
+        .digest("base64");
+      expect(responseHash).toEqual(validPNG.sha256Hash);
+    }, 10_000);
+
     it("should return mediaId without upload URL if media file is already uploaded", async () => {
       const traceId = "test";
       const field = "input";
