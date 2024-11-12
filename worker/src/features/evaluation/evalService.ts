@@ -266,6 +266,7 @@ const datasetEval = async ({
       const traceExists = await kyselyPrisma.$kysely
         .selectFrom("traces")
         .select("id")
+        .where("project_id", "=", event.projectId)
         .where("id", "=", event.traceId)
         .executeTakeFirst();
 
@@ -280,6 +281,7 @@ const datasetEval = async ({
         const observationExists = await kyselyPrisma.$kysely
           .selectFrom("observations")
           .select("id")
+          .where("project_id", "=", event.projectId)
           .where("id", "=", event.observationId)
           .executeTakeFirst();
 
