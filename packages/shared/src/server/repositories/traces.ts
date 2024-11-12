@@ -812,3 +812,56 @@ export const getTotalUserCount = async (
     },
   });
 };
+
+export const getUserMetrics = async (projectId: string, userIds: string[]) => {
+  const query = `
+    WITH observations_agg AS (
+      SELECT o.trace_id,
+             count(*) as obs_count,
+             sumMap(usage_details) as sum_usage_details,
+             sum(total_cost) as sum_total_cost,
+             anyLast(project_id) as project_id
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+      GROUP BY o.trace_id
+    ),
+    user_metric_data AS (
+      SELECT t.user_id,
+             max(t.timestamp) as max_timestamp,
+             min(t.timestamp) as min_timestamp,
+             count(*) as trace_count,
+             sum(o.obs_count) as total_observations,
+             sum(o.sum_total_cost) as session_total_cost,
+             sumMap(o.sum_usage_details)['input'] as session_input_usage,
+             sumMap(o.sum_usage_details)['output'] as session_output_usage,
+             sumMap(o.sum_usage_details)['total'] as session_total_usage
+      FROM traces t FINAL
+      LEFT JOIN observations_agg o
+      ON t.id = o.trace_id 
+      AND t.project_id = o.project_id
+      WHERE t.user_id IS NOT NULL
+      AND t.user_id != ''
+      AND t.user_id IN ({userIds: Array(String)})
+      AND t.project_id = {projectId: String}
+      GROUP BY t.user_id
+    )
+    SELECT user_id AS userId,
+           min_timestamp as firstTrace,
+           max_timestamp as lastTrace,
+           trace_count as totalTraces,
+           total_observations as totalObservations,
+           session_input_usage as totalPromptTokens,
+           session_output_usage as totalCompletionTokens,
+           session_total_usage as totalTokens,
+           session_total_cost as sumCalculatedTotalCost
+    FROM user_metric_data umd
+  `;
+
+  return queryClickhouse({
+    query,
+    params: {
+      projectId,
+      userIds,
+    },
+  });
+};

@@ -4,15 +4,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  paginationZod,
-  singleFilter,
-  type LastUserScore,
-} from "@langfuse/shared";
+import { paginationZod, singleFilter } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import {
   getTotalUserCount,
+  getUserMetrics,
   getUsersAndTraceCount,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
@@ -142,7 +139,7 @@ export const userRouter = createTRPCRouter({
           if (input.userIds.length === 0) {
             return [];
           }
-          const users = await ctx.prisma.$queryRaw<
+          return ctx.prisma.$queryRaw<
             Array<{
               userId: string;
               firstTrace: Date | null;
@@ -153,7 +150,7 @@ export const userRouter = createTRPCRouter({
               firstObservation: Date | null;
               lastObservation: Date | null;
               totalObservations: bigint;
-              totalCount: bigint;
+              totalTraces: bigint;
               sumCalculatedTotalCost: number;
             }>
           >`
@@ -166,7 +163,7 @@ export const userRouter = createTRPCRouter({
                    MIN(o."firstObservation")                     AS "firstObservation",
                    MAX(o."lastObservation")                      AS "lastObservation",
                    COUNT(o."totalObservations")::bigint          AS "totalObservations",
-                   (COUNT(*) OVER ())::bigint                    AS "totalCount",
+                   (COUNT(*) OVER ())::bigint                    AS "totalTraces",
                    SUM(COALESCE(ov.calculated_total_cost, 0))    AS "sumCalculatedTotalCost"
             FROM traces t
             LEFT JOIN LATERAL (
@@ -193,51 +190,12 @@ export const userRouter = createTRPCRouter({
             AND t.project_id = ${input.projectId}
             GROUP BY 1;
           `;
-
-          if (users.length === 0) {
-            return [];
-          }
-
-          const lastScoresOfUsers = await ctx.prisma.$queryRaw<
-            Array<LastUserScore>
-          >`
-            WITH ranked_scores AS (
-              SELECT t.user_id,
-                     s.*,
-                     ROW_NUMBER() OVER (PARTITION BY t.user_id ORDER BY s."timestamp" DESC) AS rn
-              FROM scores s
-              JOIN traces t ON t.id = s.trace_id
-              WHERE s.trace_id IS NOT NULL
-                AND s.project_id = ${input.projectId}
-                AND t.project_id = ${input.projectId}
-                AND t.user_id IN (${Prisma.join(users.map((user) => user.userId))})
-                AND t.user_id IS NOT NULL)
-              
-              SELECT user_id        "userId",
-                     "id",
-                     "timestamp",
-                     "name",
-                     "value",
-                     observation_id "observationId",
-                     trace_id       "traceId",
-                     "comment",
-                     "source",
-                     data_type      "dataType",
-                     "string_value" "stringValue"
-              FROM ranked_scores
-              WHERE rn = 1
-            `;
-          return users.map((user) => {
-            return {
-              ...user,
-              lastScore: lastScoresOfUsers.find(
-                (score) => score.userId === user.userId,
-              ),
-            };
-          });
         },
         clickhouseExecution: async () => {
-          return []; // TODO: Adjust
+          if (input.userIds.length === 0) {
+            return [];
+          }
+          return getUserMetrics(input.projectId, input.userIds);
         },
       });
     }),
@@ -256,89 +214,63 @@ export const userRouter = createTRPCRouter({
         operation: "users.metrics",
         user: ctx.session.user,
         pgExecution: async () => {
-          const [agg, lastScoresOfUsers] = await Promise.all([
-            // agg
-            ctx.prisma.$queryRaw<
-              {
-                userId: string;
-                firstTrace: Date;
-                lastTrace: Date;
-                totalTraces: bigint;
-                totalPromptTokens: bigint;
-                totalCompletionTokens: bigint;
-                totalTokens: bigint;
-                firstObservation: Date;
-                lastObservation: Date;
-                totalObservations: bigint;
-                sumCalculatedTotalCost: number;
-              }[]
-            >`
-                        SELECT t.user_id                                     "userId",
-                               min(t."timestamp")                            "firstTrace",
-                               max(t."timestamp")                            "lastTrace",
-                               COUNT(distinct t.id)::bigint                  "totalTraces",
-                               COALESCE(SUM(o.prompt_tokens), 0)::bigint     "totalPromptTokens",
-                               COALESCE(SUM(o.completion_tokens), 0)::bigint "totalCompletionTokens",
-                               COALESCE(SUM(o.total_tokens), 0)::bigint      "totalTokens",
-                               MIN(o.start_time)                             "firstObservation",
-                               MAX(o.start_time)                             "lastObservation",
-                               COUNT(distinct o.id)::bigint                  "totalObservations",
-                               SUM(COALESCE(o.calculated_total_cost, 0)) AS  "sumCalculatedTotalCost"
-                        FROM traces t
-                                 LEFT JOIN observations_view o on o.trace_id = t.id
-                        WHERE t.user_id is not null
-                          AND t.project_id = ${input.projectId}
-                          AND o.project_id = ${input.projectId}
-                          AND t.user_id = ${input.userId}
-                        GROUP BY 1
-                        ORDER BY "totalTokens" DESC
-                        LIMIT 50
-                    `,
-            // lastScoresOfUsers
-            ctx.prisma.$queryRaw<Array<LastUserScore>>`
-                        WITH ranked_scores AS (SELECT t.user_id,
-                                                      s.*,
-                                                      ROW_NUMBER() OVER (PARTITION BY t.user_id ORDER BY s."timestamp" DESC) AS rn
-                                               FROM scores s
-                                                        JOIN traces t ON t.id = s.trace_id
-                                               WHERE s.trace_id IS NOT NULL
-                                                 AND s.project_id = ${input.projectId}
-                                                 AND t.project_id = ${input.projectId}
-                                                 AND t.user_id = ${input.userId}
-                                                 AND t.user_id IS NOT NULL)
-                        SELECT user_id        "userId",
-                               "id",
-                               "timestamp",
-                               "name",
-                               "value",
-                               observation_id "observationId",
-                               trace_id       "traceId",
-                               "comment",
-                               "source",
-                               data_type      "dataType",
-                               "string_value" "stringValue"
-                        FROM ranked_scores
-                        WHERE rn = 1
-                    `,
-          ]);
+          const result = await ctx.prisma.$queryRaw<
+            {
+              userId: string;
+              firstTrace: Date;
+              lastTrace: Date;
+              totalTraces: bigint;
+              totalPromptTokens: bigint;
+              totalCompletionTokens: bigint;
+              totalTokens: bigint;
+              firstObservation: Date;
+              lastObservation: Date;
+              totalObservations: bigint;
+              sumCalculatedTotalCost: number;
+            }[]
+          >`
+            SELECT t.user_id                                     "userId",
+                   min(t."timestamp")                            "firstTrace",
+                   max(t."timestamp")                            "lastTrace",
+                   COUNT(distinct t.id)::bigint                  "totalTraces",
+                   COALESCE(SUM(o.prompt_tokens), 0)::bigint     "totalPromptTokens",
+                   COALESCE(SUM(o.completion_tokens), 0)::bigint "totalCompletionTokens",
+                   COALESCE(SUM(o.total_tokens), 0)::bigint      "totalTokens",
+                   MIN(o.start_time)                             "firstObservation",
+                   MAX(o.start_time)                             "lastObservation",
+                   COUNT(distinct o.id)::bigint                  "totalObservations",
+                   SUM(COALESCE(o.calculated_total_cost, 0)) AS  "sumCalculatedTotalCost"
+            FROM traces t
+            LEFT JOIN observations_view o on o.trace_id = t.id
+            WHERE t.user_id is not null
+            AND t.project_id = ${input.projectId}
+            AND o.project_id = ${input.projectId}
+            AND t.user_id = ${input.userId}
+            GROUP BY 1
+            ORDER BY "totalTokens" DESC
+            LIMIT 50
+          `;
 
           return {
             userId: input.userId,
-            firstTrace: agg[0]?.firstTrace,
-            lastTrace: agg[0]?.lastTrace,
-            totalTraces: agg[0]?.totalTraces ?? 0,
-            totalPromptTokens: agg[0]?.totalPromptTokens ?? 0,
-            totalCompletionTokens: agg[0]?.totalCompletionTokens ?? 0,
-            totalTokens: agg[0]?.totalTokens ?? 0,
-            firstObservation: agg[0]?.firstObservation,
-            lastObservation: agg[0]?.lastObservation,
-            totalObservations: agg[0]?.totalObservations ?? 0,
-            lastScore: lastScoresOfUsers[0],
-            sumCalculatedTotalCost: agg[0]?.sumCalculatedTotalCost ?? 0,
+            firstTrace: result[0]?.firstTrace,
+            lastTrace: result[0]?.lastTrace,
+            totalTraces: result[0]?.totalTraces ?? 0,
+            totalPromptTokens: result[0]?.totalPromptTokens ?? 0,
+            totalCompletionTokens: result[0]?.totalCompletionTokens ?? 0,
+            totalTokens: result[0]?.totalTokens ?? 0,
+            firstObservation: result[0]?.firstObservation,
+            lastObservation: result[0]?.lastObservation,
+            totalObservations: result[0]?.totalObservations ?? 0,
+            sumCalculatedTotalCost: result[0]?.sumCalculatedTotalCost ?? 0,
           };
         },
         clickhouseExecution: async () => {
-          return undefined; // TODO: Adjust
+          return (
+            (await getUserMetrics(input.projectId, [input.userId])).shift() ?? {
+              userId: input.userId,
+            }
+          );
         },
       });
     }),
