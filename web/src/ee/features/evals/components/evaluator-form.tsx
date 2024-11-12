@@ -646,27 +646,16 @@ export const InnerEvalConfigForm = (props: {
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {isTraceTarget(form.watch("target"))
-                                          ? availableTraceEvalVariables.map(
-                                              (evalObject) => (
-                                                <SelectItem
-                                                  value={evalObject.id}
-                                                  key={evalObject.id}
-                                                >
-                                                  {evalObject.display}
-                                                </SelectItem>
-                                              ),
-                                            )
-                                          : availableDatasetEvalVariables.map(
-                                              (evalObject) => (
-                                                <SelectItem
-                                                  value={evalObject.id}
-                                                  key={evalObject.id}
-                                                >
-                                                  {evalObject.display}
-                                                </SelectItem>
-                                              ),
-                                            )}
+                                        {availableVariables.map(
+                                          (evalObject) => (
+                                            <SelectItem
+                                              value={evalObject.id}
+                                              key={evalObject.id}
+                                            >
+                                              {evalObject.display}
+                                            </SelectItem>
+                                          ),
+                                        )}
                                       </SelectContent>
                                     </Select>
                                   </FormControl>

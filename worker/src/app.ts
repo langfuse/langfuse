@@ -53,8 +53,7 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-// replace env variable
-if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
+if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.DatasetRunItemUpsert,
     evalJobCreatorQueueProcessor,

@@ -138,6 +138,7 @@ export const tracesTableCols: ColumnDefinition[] = [
   },
 ];
 
+// Used only for dataset evaluator, not on dataset table
 export const datasetOnlyCols: ColumnDefinition[] = [
   {
     name: "Dataset",
@@ -159,6 +160,7 @@ export type DatasetOptions = {
   datasetId: Array<OptionsDefinition>;
 };
 
+// Used only for dataset evaluator, not on dataset table
 export function datasetTableColsWithOptions(
   options?: DatasetOptions,
   cols: ColumnDefinition[] = evalDatasetTableCols,

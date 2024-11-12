@@ -132,7 +132,7 @@ export default withMiddlewares({
                 type: "exponential",
                 delay: 1000,
               },
-              delay: 60000, // 60 seconds
+              delay: 180_000, // 180 seconds
               removeOnComplete: true,
               removeOnFail: 1_000,
             },
