@@ -349,14 +349,15 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     result.data.queryClickhouse === true &&
     isClickhouseAdminEligible(ctx.session?.user) // basically checks if user exists and admin
   ) {
-    const chTrace = await getTraceByIdOrThrow(
+    console.log("querying clickhouse for admin");
+    trace = await getTraceByIdOrThrow(
       traceId,
       projectId,
       timestamp ?? undefined,
     );
-    if (chTrace.public) trace = chTrace;
     // check from postgres for non admins when env is set accordingly
   } else if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
+    console.log("querying clickhouse LANGFUSE_READ_FROM_POSTGRES_ONLY");
     trace = await prisma.trace.findFirst({
       where: {
         id: traceId,
@@ -368,13 +369,15 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     });
     // check clickhouse otherwise
   } else {
-    const chTrace = await getTraceByIdOrThrow(
+    console.log("query clickhouse default");
+    trace = await getTraceByIdOrThrow(
       traceId,
       projectId,
       timestamp ?? undefined,
     );
-    if (chTrace.public) trace = chTrace;
   }
+
+  console.log("fonud trace", trace);
 
   if (!trace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
