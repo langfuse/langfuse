@@ -49,7 +49,9 @@ export default function DatasetItems() {
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <DetailPageNav
               currentId={datasetId}
-              path={(id) => `/project/${projectId}/datasets/${id}/items/`}
+              path={(entry) =>
+                `/project/${projectId}/datasets/${entry.id}/items/`
+              }
               listKey="datasets"
             />
             <DatasetActionButton

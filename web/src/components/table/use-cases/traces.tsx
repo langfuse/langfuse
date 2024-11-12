@@ -186,7 +186,9 @@ export default function TracesTable({
     if (traces.isSuccess) {
       setDetailPageList(
         "traces",
-        traces.data.traces.map((t) => t.id),
+        traces.data.traces.map((t) => ({
+          id: t.id,
+        })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

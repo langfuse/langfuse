@@ -126,7 +126,7 @@ export default function UsersPage() {
     if (users.isSuccess) {
       setDetailPageList(
         "users",
-        users.data.users.map((u) => encodeURIComponent(u.userId)),
+        users.data.users.map((u) => ({ id: encodeURIComponent(u.userId) })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

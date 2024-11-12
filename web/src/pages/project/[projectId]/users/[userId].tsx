@@ -62,8 +62,8 @@ export default function UserPage() {
         actionButtons={
           <DetailPageNav
             currentId={encodeURIComponent(userId)}
-            path={(id) =>
-              `/project/${projectId}/users/${encodeURIComponent(id)}`
+            path={(entry) =>
+              `/project/${projectId}/users/${encodeURIComponent(entry.id)}`
             }
             listKey="users"
           />
