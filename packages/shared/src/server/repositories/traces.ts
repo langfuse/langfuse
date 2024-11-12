@@ -24,7 +24,10 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertClickhouseToDomain } from "./traces_converters";
+import {
+  convertClickhouseToDomain,
+  convertToDomain,
+} from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 
@@ -40,7 +43,6 @@ export type TracesTableReturnType = Pick<
   | "user_id"
   | "session_id"
   | "tags"
-  | "metadata"
   | "public"
 > & {
   level: ObservationLevel;
@@ -82,7 +84,7 @@ export const getTracesTable = async (
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: `
     t.id, 
-    t.project_id, 
+    t.project_id as project_id, 
     t.timestamp, 
     t.tags, 
     t.bookmarked, 
@@ -107,7 +109,7 @@ export const getTracesTable = async (
     offset,
   });
 
-  return rows;
+  return rows.map(convertToDomain);
 };
 
 type FetchTracesTableProps = {
