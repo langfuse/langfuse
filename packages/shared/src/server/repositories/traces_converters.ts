@@ -75,7 +75,7 @@ export const convertToReturnType = (
   return {
     id: row.id,
     name: row.name ?? null,
-    timestamp: new Date(row.timestamp),
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     tags: row.tags,
     bookmarked: row.bookmarked,
     release: row.release ?? null,

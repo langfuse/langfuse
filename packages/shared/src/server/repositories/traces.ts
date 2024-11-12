@@ -14,6 +14,7 @@ import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
+  StringFilter,
   StringOptionsFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
@@ -131,7 +132,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   const traceIdFilter = tracesFilter.find(
     (f) => f.clickhouseTable === "traces" && f.field === "id",
-  ) as StringOptionsFilter | undefined;
+  ) as StringFilter | undefined;
 
   traceIdFilter
     ? scoresFilter.push(
@@ -139,7 +140,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
           clickhouseTable: "scores",
           field: "trace_id",
           operator: "any of",
-          values: traceIdFilter.values,
+          values: [traceIdFilter.value],
         }),
       )
     : null;
@@ -149,7 +150,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
           clickhouseTable: "observations",
           field: "trace_id",
           operator: "any of",
-          values: traceIdFilter.values,
+          values: [traceIdFilter.value],
         }),
       )
     : null;
@@ -315,14 +316,15 @@ export const getTraceByIdOrThrow = async (
       FROM traces
       WHERE id = {traceId: String} 
         AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp >= {timestamp: DateTime}` : ""} 
+        ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
       ORDER BY event_ts DESC LIMIT 1 by id, project_id`;
+
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
     params: {
       traceId,
       projectId,
-      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+      timestamp: timestamp ? timestamp.getTime() : null,
     },
   });
 
