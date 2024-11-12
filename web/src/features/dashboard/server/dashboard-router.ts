@@ -258,7 +258,7 @@ export const dashboardRouter = createTRPCRouter({
               scoreTimestamp: row.score_timestamp,
               scoreName: row.score_name,
               avgValue: row.avg_value,
-            }));
+            })) as DatabaseRow[];
           case "categorical-score-chart":
             const dateTruncCategoricalScoreTimeSeries = extractTimeSeries(
               input.groupBy,
@@ -278,7 +278,7 @@ export const dashboardRouter = createTRPCRouter({
               scoreSource: row.score_source || null,
               stringValue: row.score_value || null,
               countStringValue: Number(row.count) || 0,
-            }));
+            })) as DatabaseRow[];
 
           default:
             throw new TRPCError({
