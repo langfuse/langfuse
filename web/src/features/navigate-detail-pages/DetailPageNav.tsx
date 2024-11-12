@@ -105,7 +105,6 @@ export const DetailPageNav = (props: {
               disabled={!nextPageEntry}
               onClick={() => {
                 if (nextPageEntry) {
-                  console.log("on click", nextPageEntry);
                   capture("navigate_detail_pages:button_click_prev_or_next");
                   void router.push(
                     props.path({
