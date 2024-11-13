@@ -302,6 +302,15 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
+  const orderByTraces = opts.orderBy
+    ? observationsTableTraceUiColumnDefinitions
+        .map((c) => c.uiTableId)
+        .includes(opts.orderBy.column) ||
+      observationsTableTraceUiColumnDefinitions
+        .map((c) => c.uiTableName)
+        .includes(opts.orderBy.column)
+    : undefined;
+
   timeFilter
     ? scoresFilter.push(
         new DateTimeFilter({
@@ -363,7 +372,7 @@ const getObservationsTableInternal = async <T>(
       observation_id
   )`;
 
-  if (traceTableFilter.length > 0) {
+  if (traceTableFilter.length > 0 || orderByTraces) {
     // joins with traces are very expensive. We need to filter by time as well.
     // We assume that a trace has to have been within the last 2 days to be relevant.
 
