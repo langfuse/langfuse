@@ -130,11 +130,11 @@ function OverviewTab({ userId, projectId }: TabProps) {
         { label: "User Id", value: user.data.userId },
         {
           label: "First Trace",
-          value: user.data.firstTrace?.toLocaleString(),
+          value: user.data.firstTrace?.toLocaleString() ?? "No event yet",
         },
         {
           label: "Last Trace",
-          value: user.data.lastTrace?.toLocaleString(),
+          value: user.data.lastTrace?.toLocaleString() ?? "No event yet",
         },
         {
           label: "Total Observations",
