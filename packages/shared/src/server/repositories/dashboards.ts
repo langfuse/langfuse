@@ -510,12 +510,15 @@ export const getNumericScoreTimeSeries = async (
   );
   const chFilterRes = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
     SELECT
     ${selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp")},
     s.name as score_name,
     AVG(s.value) as avg_value
     FROM scores s final
+    ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_timestamp
@@ -545,6 +548,8 @@ export const getCategoricalScoreTimeSeries = async (
   );
   const chFilterRes = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
     SELECT
     ${groupBy ? selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp") + ", " : ""}
@@ -554,6 +559,7 @@ export const getCategoricalScoreTimeSeries = async (
     s.string_value as score_value,
     count(s.string_value) as count
     FROM scores s final
+    ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_data_type, score_source, score_value ${groupBy ? ", score_timestamp" : ""}
