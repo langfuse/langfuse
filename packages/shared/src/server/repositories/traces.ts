@@ -326,7 +326,7 @@ export const getTraceByIdOrThrow = async (
     WHERE id = {traceId: String} 
     AND project_id = {projectId: String}
     ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
-    ORDER BY event_ts DESC LIMIT 1 by id, project_id
+    ORDER BY event_ts DESC LIMIT 1
   `;
 
   const records = await queryClickhouse<TraceRecordReadType>({
