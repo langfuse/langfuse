@@ -301,7 +301,7 @@ export const getTracesByIds = async (
       FROM traces
       WHERE id IN ({traceIds: Array(String)})
         AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp >= {timestamp: DateTime}` : ""} 
+        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
       ORDER BY event_ts DESC LIMIT 1 by id, project_id;`;
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
@@ -320,19 +320,23 @@ export const getTraceByIdOrThrow = async (
   projectId: string,
   timestamp?: Date,
 ) => {
-  const query = `SELECT * 
-      FROM traces
-      WHERE id = {traceId: String} 
-        AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
-      ORDER BY event_ts DESC LIMIT 1 by id, project_id`;
+  const query = `
+    SELECT * 
+    FROM traces
+    WHERE id = {traceId: String} 
+    AND project_id = {projectId: String}
+    ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
+    ORDER BY event_ts DESC LIMIT 1 by id, project_id
+  `;
 
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
     params: {
       traceId,
       projectId,
-      timestamp: timestamp ? timestamp.getTime() : null,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 
@@ -622,7 +626,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
               anyLast(project_id) as project_id
         FROM observations o FINAL
         WHERE o.project_id = {projectId: String}
-        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
         GROUP BY o.trace_id
     ),
     session_data AS (

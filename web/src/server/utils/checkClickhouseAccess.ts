@@ -56,25 +56,33 @@ export const measureAndReturnApi = async <T, Y>(args: {
       }
 
       logger.debug("Read from postgres and clickhouse");
-      const [[pgResult, pgDuration], [chResult, chDuration]] =
-        await Promise.all([
-          executionWrapper(input, pgExecution, currentSpan, "pg"),
-          executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
-        ]);
+      try {
+        const [[pgResult, pgDuration], [chResult, chDuration]] =
+          await Promise.all([
+            executionWrapper(input, pgExecution, currentSpan, "pg"),
+            executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
+          ]);
+        // Positive duration difference means clickhouse is faster
+        const durationDifference = pgDuration - chDuration;
+        currentSpan?.setAttribute(
+          "execution-time-difference",
+          durationDifference,
+        );
+        currentSpan?.setAttribute("pg-duration", pgDuration);
+        currentSpan?.setAttribute("ch-duration", chDuration);
 
-      const durationDifference = Math.abs(pgDuration - chDuration);
-      currentSpan?.setAttribute(
-        "execution-time-difference",
-        durationDifference,
-      );
-      currentSpan?.setAttribute("pg-duration", pgDuration);
-      currentSpan?.setAttribute("ch-duration", chDuration);
-
-      if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-        logger.debug("Return data from clickhouse");
-        return chResult;
+        return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? chResult
+          : pgResult;
+      } catch (e) {
+        logger.error(
+          "Error in clickhouse experiment wrapper. Retrying leading store.",
+          e,
+        );
+        return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? clickhouseExecution(input)
+          : pgExecution(input);
       }
-      return pgResult;
     },
   );
 };
