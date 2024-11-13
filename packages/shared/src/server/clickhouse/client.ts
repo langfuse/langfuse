@@ -19,6 +19,6 @@ export const clickhouseClient = createClient({
  */
 
 export const convertDateToClickhouseDateTime = (date: Date): string => {
-  // 2024-11-06T20:37:00.000Z -> 2024-11-06 21:37:00
-  return date.toISOString().slice(0, 19).replace("T", " ");
+  // 2024-11-06T20:37:00.123Z -> 2024-11-06 21:37:00.123
+  return date.toISOString().replace("T", " ").replace("Z", "");
 };
