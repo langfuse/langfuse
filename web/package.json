@@ -104,7 +104,7 @@
     "core-js": "^3.38.1",
     "cors": "^2.8.5",
     "date-fns": "^3.3.1",
-    "dd-trace": "^5.23.1",
+    "dd-trace": "^5.25.0",
     "decimal.js": "^10.4.3",
     "dompurify": "^3.1.5",
     "graphql": "^16.9.0",
@@ -188,10 +188,5 @@
   },
   "optionalDependencies": {
     "crisp-sdk-web": "^1.0.25"
-  },
-  "pnpm": {
-    "overrides": {
-      "jsonpath-plus": "10.0.0"
-    }
   }
 }
