@@ -69,20 +69,24 @@ export type TracesAllReturnType = {
   tags: string[];
 };
 
-export const convertToReturnType = (
-  row: TracesTableReturnType,
-): TracesAllReturnType => {
+export const convertToDomain = (row: TracesTableReturnType) => {
   return {
     id: row.id,
-    name: row.name ?? null,
+    projectId: row.project_id,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     tags: row.tags,
     bookmarked: row.bookmarked,
+    name: row.name ?? null,
     release: row.release ?? null,
     version: row.version ?? null,
-    projectId: row.project_id,
     userId: row.user_id ?? null,
     sessionId: row.session_id ?? null,
+    latencyMilliseconds: Number(row.latency_milliseconds),
+    usageDetails: row.usage_details,
+    costDetails: row.cost_details,
+    level: row.level,
+    observationCount: Number(row.observation_count),
+    scoresAvg: row.scores_avg,
     public: row.public,
   };
 };
@@ -99,30 +103,4 @@ export type TracesMetricsReturnType = {
   calculatedInputCost: Decimal | null;
   calculatedOutputCost: Decimal | null;
   scores: ScoreAggregate;
-};
-
-export const convertMetricsReturnType = (
-  row: TracesTableReturnType & { scores: ScoreAggregate },
-): TracesMetricsReturnType => {
-  return {
-    id: row.id,
-    promptTokens: BigInt(row.usage_details?.input ?? 0),
-    completionTokens: BigInt(row.usage_details?.output ?? 0),
-    totalTokens: BigInt(row.usage_details?.total ?? 0),
-    latency: row.latency_milliseconds
-      ? Number(row.latency_milliseconds) / 1000
-      : null,
-    level: row.level,
-    observationCount: BigInt(row.observation_count ?? 0),
-    calculatedTotalCost: row.cost_details?.total
-      ? new Decimal(row.cost_details.total)
-      : null,
-    calculatedInputCost: row.cost_details?.input
-      ? new Decimal(row.cost_details.input)
-      : null,
-    calculatedOutputCost: row.cost_details?.output
-      ? new Decimal(row.cost_details.output)
-      : null,
-    scores: row.scores,
-  };
 };
