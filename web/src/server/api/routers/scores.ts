@@ -44,11 +44,7 @@ import {
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
 } from "@langfuse/shared/src/server";
-import {
-  isClickhouseAdminEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
-import { TRPCError } from "@trpc/server";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { env } from "@/src/env.mjs";
 
 const ScoreFilterOptions = z.object({
@@ -571,13 +567,6 @@ export const scoresRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseAdminEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const res = await getScoresGroupedByNameSourceType(input.projectId);
 
           return res.map(({ name, source, dataType }) => ({
