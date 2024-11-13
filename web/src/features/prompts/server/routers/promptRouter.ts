@@ -24,6 +24,7 @@ import {
   logger,
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
+  getObservationMetricsForPrompts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -673,6 +674,7 @@ export const promptRouter = createTRPCRouter({
         projectId: z.string(),
         promptIds: z.array(z.string()),
         filter: z.array(singleFilter).nullish(),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -681,6 +683,12 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+
+      return await measureAndReturnApi({
+        input,
+        operation: "prompts.versionMetrics",
+        user: ctx.session.user,
+        pgExecution: async () => {
 
       if (input.promptIds.length === 0) return [];
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
@@ -812,8 +820,19 @@ export const promptRouter = createTRPCRouter({
             [],
         ),
       }));
-    }),
-});
+    }, 
+    clickhouseExecution: async () => {
+      const res = await getObservationMetricsForPrompts(
+        input.projectId,
+        input.promptIds,
+      );
+      return res.map(({ promptId, count }) => ({
+        promptId,
+        observationCount: count,
+      }));
+    },
+  })
+})
 
 const generatePromptQuery = (
   select: Prisma.Sql,

@@ -1,3 +1,4 @@
+import { createSeedPrompts } from "../prisma/seed";
 import { prisma } from "../src/db";
 import { clickhouseClient, logger } from "../src/server";
 
@@ -110,15 +111,25 @@ export const prepareClickhouse = async (
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS cost_details,
       toDecimal64(randUniform(0, 2000), 12) AS total_cost,
       start_time AS completion_start_time,
-      toString(rand()) AS prompt_id,
-      toString(rand()) AS prompt_name,
-      1000 AS prompt_version,
+      array(${createSeedPrompts()
+        .map((p) => `'${p.id}'`)
+        .join(",")})[${createSeedPrompts.length} % (number+1)] AS prompt_id,
+      array(${createSeedPrompts()
+        .map((p) => `'${p.name}'`)
+        .join(",")})[${createSeedPrompts.length} % (number+1)] AS prompt_name,
+      array(${createSeedPrompts()
+        .map((p) => `'${p.version}'`)
+        .join(
+          ",",
+        )})[${createSeedPrompts.length} % (number+1)] AS prompt_version,
       start_time AS created_at,
       start_time AS updated_at,
       start_time AS event_ts,
       0 AS is_deleted
     FROM numbers(${observationsPerProject});
   `;
+
+    console.log(observationsQuery);
 
     const scoresQuery = `
     INSERT INTO scores
