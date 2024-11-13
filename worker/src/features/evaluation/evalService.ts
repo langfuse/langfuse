@@ -16,6 +16,7 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
+  ChatMessageRole,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -538,12 +539,20 @@ export const evaluate = async ({
     );
   }
 
+  const messages = [
+    {
+      role: ChatMessageRole.System,
+      content: "You are an expert at evaluating LLM outputs.",
+    },
+    { role: ChatMessageRole.User, content: prompt },
+  ];
+
   const parsedLLMOutput = await backOff(
     () =>
       callLLM(
         event.jobExecutionId,
         parsedKey.data,
-        prompt,
+        messages,
         modelParams,
         template.provider,
         template.model,

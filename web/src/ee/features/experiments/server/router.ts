@@ -84,13 +84,6 @@ export const experimentsRouter = createTRPCRouter({
         },
       });
 
-      if (prompt?.type !== PromptType.Text) {
-        return {
-          isValid: false,
-          message: "Only text prompts are supported for in-app experiments.",
-        };
-      }
-
       if (!prompt) {
         return {
           isValid: false,
@@ -171,7 +164,9 @@ export const experimentsRouter = createTRPCRouter({
       // TODO: must only pass the items that are valid. can either pass in data or validate here again?
 
       const metadata = {
-        promptId: input.promptId,
+        prompt_id: input.promptId,
+        provider: "OpenAI",
+        model: "gpt-3.5-turbo",
       };
       const name = `${input.promptId}-${new Date().toISOString()}`; // TODO: promptname-promptversion-timestamp
 

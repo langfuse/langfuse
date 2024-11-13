@@ -1,17 +1,16 @@
-import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import {
-  ApiError,
-  ChatMessageRole,
-  LLMApiKeySchema,
-  ZodModelConfig,
-} from "@langfuse/shared";
+  ChatMessage,
+  fetchLLMCompletion,
+  logger,
+} from "@langfuse/shared/src/server";
+import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
 import { z, ZodSchema } from "zod";
 import { decrypt } from "@langfuse/shared/encryption";
 
 export async function callLLM<T extends ZodSchema>(
   jeId: string,
   llmApiKey: z.infer<typeof LLMApiKeySchema>,
-  prompt: string,
+  messages: ChatMessage[],
   modelParams: z.infer<typeof ZodModelConfig>,
   provider: string,
   model: string,
@@ -22,13 +21,7 @@ export async function callLLM<T extends ZodSchema>(
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
       baseURL: llmApiKey.baseURL || undefined,
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          content: "You are an expert at evaluating LLM outputs.",
-        },
-        { role: ChatMessageRole.User, content: prompt },
-      ],
+      messages,
       modelParams: {
         provider,
         model,

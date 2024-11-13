@@ -16,6 +16,7 @@ export function getIsCharOrUnderscore(value: string): boolean {
   return charOrUnderscore.test(value);
 }
 
+// TODO: move to shared
 export function extractVariables(mustacheString: string): string[] {
   const mustacheRegex = /\{\{(.*?)\}\}/g;
   const uniqueVariables = new Set<string>();
