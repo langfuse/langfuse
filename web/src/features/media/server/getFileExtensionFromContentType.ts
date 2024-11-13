@@ -1,4 +1,4 @@
-import { MediaFileExtension, MediaContentType } from "../validation";
+import { MediaContentType, MediaFileExtension } from "../validation";
 
 export const getFileExtensionFromContentType = (
   contentType: MediaContentType,
@@ -11,9 +11,6 @@ export const getFileExtensionFromContentType = (
     [MediaContentType.MP3]: MediaFileExtension.MP3,
     [MediaContentType.MP3_LEGACY]: MediaFileExtension.MP3,
     [MediaContentType.WAV]: MediaFileExtension.WAV,
-    [MediaContentType.MP4]: MediaFileExtension.MP4,
-    [MediaContentType.MP4_LEGACY]: MediaFileExtension.MP4,
-    [MediaContentType.MP4_ALT]: MediaFileExtension.MP4,
     [MediaContentType.TXT]: MediaFileExtension.TXT,
     [MediaContentType.PDF]: MediaFileExtension.PDF,
   };

@@ -194,11 +194,6 @@ export default withMiddlewares({
                 },
               }),
         ]);
-
-        return {
-          mediaId,
-          uploadUrl,
-        };
       });
 
       return {
