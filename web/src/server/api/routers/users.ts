@@ -13,10 +13,7 @@ import {
   getUsersAndTraceCount,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
-import {
-  isClickhouseEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { TRPCError } from "@trpc/server";
 
 const UserFilterOptions = z.object({
@@ -92,13 +89,6 @@ export const userRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const [users, totalUsers] = await Promise.all([
             getUsersAndTraceCount(
               ctx.session.projectId,
