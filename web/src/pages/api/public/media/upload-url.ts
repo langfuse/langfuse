@@ -6,7 +6,7 @@ import { getMediaStorageServiceClient } from "@/src/features/media/server/getMed
 import {
   GetMediaUploadUrlQuerySchema,
   GetMediaUploadUrlResponseSchema,
-  MediaContentType,
+  type MediaContentType,
 } from "@/src/features/media/validation";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
