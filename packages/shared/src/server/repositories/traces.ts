@@ -815,6 +815,9 @@ export const getTotalUserCount = async (
 };
 
 export const getUserMetrics = async (projectId: string, userIds: string[]) => {
+  if (userIds.length === 0) {
+    return [];
+  }
   const query = `
     WITH observations_agg AS (
       SELECT o.trace_id,
