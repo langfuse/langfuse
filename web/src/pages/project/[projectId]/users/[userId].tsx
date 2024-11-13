@@ -4,11 +4,10 @@ import { api } from "@/src/utils/api";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import TableLink from "@/src/components/table/table-link";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 const tabs = ["Overview", "Sessions", "Traces", "Scores"] as const;
 
@@ -120,18 +119,22 @@ type TabProps = {
 };
 
 function OverviewTab({ userId, projectId }: TabProps) {
-  const user = api.users.byId.useQuery({ projectId: projectId, userId });
+  const user = api.users.byId.useQuery({
+    projectId: projectId,
+    userId,
+    queryClickhouse: useClickhouse(),
+  });
 
   const userData: { value: string; label: string }[] = user.data
     ? [
         { label: "User Id", value: user.data.userId },
         {
-          label: "First Observation",
-          value: user.data.firstObservation?.toLocaleString(),
+          label: "First Trace",
+          value: user.data.firstTrace?.toLocaleString() ?? "No event yet",
         },
         {
-          label: "Last Observation",
-          value: user.data.lastObservation?.toLocaleString(),
+          label: "Last Trace",
+          value: user.data.lastTrace?.toLocaleString() ?? "No event yet",
         },
         {
           label: "Total Observations",
@@ -176,29 +179,6 @@ function OverviewTab({ userId, projectId }: TabProps) {
             </dd>
           </div>
         ))}
-        {user.data?.lastScore ? (
-          <div
-            key="score"
-            className="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
-          >
-            <dt className="text-sm font-medium leading-6 text-primary">
-              Last Score
-            </dt>
-            <dd className="mt-1 text-xs leading-6 text-primary sm:col-span-2 sm:mt-0">
-              <div className="flex items-center gap-4">
-                <TableLink
-                  path={
-                    user.data.lastScore.observationId
-                      ? `/project/${projectId}/traces/${encodeURIComponent(user.data.lastScore.traceId)}?observation=${encodeURIComponent(user.data.lastScore.observationId)}`
-                      : `/project/${projectId}/traces/${encodeURIComponent(user.data.lastScore.traceId)}`
-                  }
-                  value={user.data.lastScore.traceId}
-                />
-                <GroupedScoreBadges scores={[user.data.lastScore]} />
-              </div>
-            </dd>
-          </div>
-        ) : undefined}
       </dl>
     </div>
   );
