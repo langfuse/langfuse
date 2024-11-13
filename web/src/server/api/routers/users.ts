@@ -254,11 +254,20 @@ export const userRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          return (
-            (await getUserMetrics(input.projectId, [input.userId])).shift() ?? {
-              userId: input.userId,
-            }
-          );
+          const result = (
+            await getUserMetrics(input.projectId, [input.userId])
+          ).shift();
+          return {
+            userId: input.userId,
+            firstTrace: result?.firstTrace,
+            lastTrace: result?.lastTrace,
+            totalTraces: result?.totalTraces ?? 0,
+            totalPromptTokens: result?.totalPromptTokens ?? 0,
+            totalCompletionTokens: result?.totalCompletionTokens ?? 0,
+            totalTokens: result?.totalTokens ?? 0,
+            totalObservations: result?.totalObservations ?? 0,
+            sumCalculatedTotalCost: result?.sumCalculatedTotalCost ?? 0,
+          };
         },
       });
     }),

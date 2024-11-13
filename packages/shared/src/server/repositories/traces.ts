@@ -858,7 +858,17 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     FROM user_metric_data umd
   `;
 
-  return queryClickhouse({
+  return queryClickhouse<{
+    userId: string;
+    firstTrace: Date | null;
+    lastTrace: Date | null;
+    totalPromptTokens: bigint;
+    totalCompletionTokens: bigint;
+    totalTokens: bigint;
+    totalObservations: bigint;
+    totalTraces: bigint;
+    sumCalculatedTotalCost: number;
+  }>({
     query,
     params: {
       projectId,
