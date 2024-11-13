@@ -91,7 +91,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   },
   {
     uiTableName: "Usage",
-    uiTableId: "totalTokens",
+    uiTableId: "usage",
     clickhouseTableName: "traces",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
@@ -106,7 +106,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Latency (s)",
     uiTableId: "latency",
     clickhouseTableName: "traces",
-    clickhouseSelect: "latency",
+    clickhouseSelect: "latency_milliseconds",
   },
   {
     uiTableName: "Input Cost ($)",
