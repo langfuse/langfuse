@@ -25,11 +25,21 @@ import {
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { CommentList } from "@/src/features/comments/CommentList";
-import { Lock, Plus } from "lucide-react";
+import { Lock, Plus, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { useState } from "react";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -39,6 +49,8 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
+  const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
+    useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
@@ -123,21 +135,46 @@ export const PromptDetail = () => {
         actionButtons={
           <>
             {hasAccess ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  capture("prompts:update_form_open");
-                }}
-              >
-                <Link
-                  href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+              <>
+                <Dialog
+                  open={isCreateExperimentDialogOpen}
+                  onOpenChange={setIsCreateExperimentDialogOpen}
                 >
-                  <div className="flex flex-row items-center">
-                    <Plus className="h-4 w-4" />
-                    <span className="ml-2">New version</span>
-                  </div>
-                </Link>
-              </Button>
+                  <DialogTrigger asChild>
+                    <Button
+                      onClick={() => setIsCreateExperimentDialogOpen(true)}
+                    >
+                      <FlaskConical className="h-4 w-4" />
+                      <span className="ml-2">New experiment</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Set up experiment</DialogTitle>
+                      <DialogDescription>
+                        Create an experiment to test a prompt version.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <CreateExperimentsForm projectId={projectId as string} />
+                  </DialogContent>
+                </Dialog>
+
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    capture("prompts:update_form_open");
+                  }}
+                >
+                  <Link
+                    href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
+                  >
+                    <div className="flex flex-row items-center">
+                      <Plus className="h-4 w-4" />
+                      <span className="ml-2">New version</span>
+                    </div>
+                  </Link>
+                </Button>
+              </>
             ) : (
               <Button variant="secondary" disabled>
                 <div className="flex flex-row items-center">
