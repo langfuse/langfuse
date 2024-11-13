@@ -2,7 +2,7 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
 import {
   type jsonSchema,
   type ObservationLevel,
@@ -68,7 +68,7 @@ export const observationsRouter = createTRPCRouter({
           },
         });
       } else {
-        if (!isClickhouseEligible(ctx.session.user)) {
+        if (!isClickhouseAdminEligible(ctx.session.user)) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Not eligible to query clickhouse",

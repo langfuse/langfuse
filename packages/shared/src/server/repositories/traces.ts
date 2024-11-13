@@ -24,7 +24,10 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertClickhouseToDomain } from "./traces_converters";
+import {
+  convertClickhouseToDomain,
+  convertToDomain,
+} from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 
@@ -40,7 +43,6 @@ export type TracesTableReturnType = Pick<
   | "user_id"
   | "session_id"
   | "tags"
-  | "metadata"
   | "public"
 > & {
   level: ObservationLevel;
@@ -82,7 +84,7 @@ export const getTracesTable = async (
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: `
     t.id, 
-    t.project_id, 
+    t.project_id as project_id, 
     t.timestamp, 
     t.tags, 
     t.bookmarked, 
@@ -97,7 +99,6 @@ export const getTracesTable = async (
     os.level as level,
     os.observation_count as observation_count,
     s.scores_avg as scores_avg,
-    t.metadata,
     t.public`,
     projectId,
     filter,
@@ -107,7 +108,7 @@ export const getTracesTable = async (
     offset,
   });
 
-  return rows;
+  return rows.map(convertToDomain);
 };
 
 type FetchTracesTableProps = {
@@ -649,7 +650,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
         LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
-            AND ${singleTraceFilter?.query ? singleTraceFilter.query : ""}
+            ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
         GROUP BY t.session_id
     )
     SELECT ${select}

@@ -39,10 +39,8 @@ import {
   deleteTraces,
   deleteScoresByTraceIds,
   deleteObservationsByTraceIds,
-  convertMetricsReturnType,
   type TracesMetricsReturnType,
   type TracesAllReturnType,
-  convertToReturnType,
   getTraceById,
   logger,
   upsertTrace,
@@ -50,9 +48,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import {
-  isClickhouseEligible,
+  isClickhouseAdminEligible,
   measureAndReturnApi,
 } from "@/src/server/utils/checkClickhouseAccess";
+import Decimal from "decimal.js";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -136,7 +135,7 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -153,7 +152,7 @@ export const traceRouter = createTRPCRouter({
           );
 
           return {
-            traces: res.map(convertToReturnType),
+            traces: res,
           };
         },
       });
@@ -195,7 +194,7 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -276,7 +275,7 @@ export const traceRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -305,14 +304,29 @@ export const traceRouter = createTRPCRouter({
             traceException,
           );
 
-          return res.map((r) =>
-            convertMetricsReturnType({
-              ...r,
-              scores: aggregateScores(
-                validatedScores.filter((s) => s.traceId === r.id),
-              ),
-            }),
-          );
+          return res.map((row) => ({
+            id: row.id,
+            promptTokens: BigInt(row.usageDetails?.input ?? 0),
+            completionTokens: BigInt(row.usageDetails?.output ?? 0),
+            totalTokens: BigInt(row.usageDetails?.total ?? 0),
+            latency: row.latencyMilliseconds
+              ? row.latencyMilliseconds / 1000
+              : null,
+            level: row.level,
+            observationCount: BigInt(row.observationCount ?? 0),
+            calculatedTotalCost: row.costDetails?.total
+              ? new Decimal(row.costDetails.total)
+              : null,
+            calculatedInputCost: row.costDetails?.input
+              ? new Decimal(row.costDetails.input)
+              : null,
+            calculatedOutputCost: row.costDetails?.output
+              ? new Decimal(row.costDetails.output)
+              : null,
+            scores: aggregateScores(
+              validatedScores.filter((s) => s.traceId === row.id),
+            ),
+          }));
         },
       });
     }),
@@ -388,7 +402,7 @@ export const traceRouter = createTRPCRouter({
           return res;
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
@@ -445,7 +459,7 @@ export const traceRouter = createTRPCRouter({
           });
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
+          if (!isClickhouseAdminEligible(ctx.session.user)) {
             throw new TRPCError({
               code: "UNAUTHORIZED",
               message: "Not eligible to query clickhouse",
