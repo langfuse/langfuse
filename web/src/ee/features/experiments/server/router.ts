@@ -1,5 +1,7 @@
 import { z } from "zod";
-
+import { randomUUID } from "crypto";
+import { QueueJobs, QueueName, redis } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -7,6 +9,7 @@ import {
 import { extractVariables } from "@/src/utils/string";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { type DatasetItem } from "@langfuse/shared";
+import { ExperimentCreateQueue } from "../../../../../../packages/shared/dist/src/server/redis/experimentQueue";
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -36,6 +39,7 @@ const validateDatasetItems = (
         return { ...acc, missing: acc.missing + 1 };
       }
 
+      // keys not sufficent, need to ensure that the values assocaited to the keys are strings
       const inputKeys = Object.keys(input);
       const hasAllVariables = variables.every((v) => inputKeys.includes(v));
       const hasSomeVariables = variables.some((v) => inputKeys.includes(v));
@@ -72,13 +76,20 @@ export const experimentsRouter = createTRPCRouter({
       //   projectId: input.projectId,
       //   scope: "evalJob:read",
       // });
-      // load prompt to get the variables and schema
+
       const prompt = await ctx.prisma.prompt.findFirst({
         where: {
           id: input.promptId,
           projectId: input.projectId,
         },
       });
+
+      if (prompt?.type !== PromptType.Text) {
+        return {
+          isValid: false,
+          message: "Only text prompts are supported for in-app experiments.",
+        };
+      }
 
       if (!prompt) {
         return {
@@ -133,5 +144,74 @@ export const experimentsRouter = createTRPCRouter({
         includesSome,
         missing,
       };
+    }),
+
+  createExperiment: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptId: z.string().min(1, "Please select a prompt"),
+        datasetId: z.string().min(1, "Please select a dataset"),
+        description: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // throwIfNoEntitlement({
+      //   entitlement: "model-based-evaluations",
+      //   projectId: input.projectId,
+      //   sessionUser: ctx.session.user,
+      // });
+      // throwIfNoProjectAccess({
+      //   session: ctx.session,
+      //   projectId: input.projectId,
+      //   scope: "evalJob:read",
+      // });
+
+      // validate all dataset items exist??
+      // TODO: must only pass the items that are valid. can either pass in data or validate here again?
+
+      const metadata = {
+        promptId: input.promptId,
+      };
+      const name = `${input.promptId}-${new Date().toISOString()}`; // TODO: promptname-promptversion-timestamp
+
+      const datasetRun = await ctx.prisma.datasetRuns.create({
+        data: {
+          name: name,
+          description: input.description,
+          datasetId: input.datasetId,
+          metadata: metadata,
+          projectId: input.projectId,
+        },
+      });
+
+      if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+        const queue = ExperimentCreateQueue.getInstance();
+        if (queue) {
+          await queue.add(
+            QueueName.ExperimentCreate,
+            {
+              name: QueueJobs.ExperimentCreateJob,
+              id: randomUUID(),
+              timestamp: new Date(),
+              payload: {
+                projectId: input.projectId,
+                datasetId: input.datasetId,
+                runId: datasetRun.id,
+                description: input.description,
+              },
+            },
+            {
+              attempts: 3,
+              backoff: {
+                type: "exponential",
+                delay: 1000,
+              },
+            },
+          );
+        }
+      }
+
+      return { success: true, datasetId: input.datasetId };
     }),
 });

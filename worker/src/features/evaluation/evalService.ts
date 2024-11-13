@@ -18,9 +18,7 @@ import {
   IngestionQueue,
 } from "@langfuse/shared/src/server";
 import {
-  ApiError,
   availableTraceEvalVariables,
-  ChatMessageRole,
   evalTraceTableCols,
   ForbiddenError,
   LangfuseNotFoundError,
@@ -30,17 +28,17 @@ import {
   InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
-  EvalTemplate,
   evalDatasetTableCols,
   availableDatasetEvalVariables,
 } from "@langfuse/shared";
-import { decrypt } from "@langfuse/shared/encryption";
+
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { partition } from "lodash";
 import { env } from "../../env";
+import { callLLM } from "../utilities";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -547,7 +545,8 @@ export const evaluate = async ({
         parsedKey.data,
         prompt,
         modelParams,
-        template,
+        template.provider,
+        template.model,
         evalScoreSchema,
       ),
     {
@@ -651,44 +650,7 @@ export const evaluate = async ({
   );
 };
 
-async function callLLM(
-  jeId: string,
-  llmApiKey: z.infer<typeof LLMApiKeySchema>,
-  prompt: string,
-  modelParams: z.infer<typeof ZodModelConfig>,
-  template: EvalTemplate,
-  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
-): Promise<z.infer<typeof evalScoreSchema>> {
-  try {
-    const completion = await fetchLLMCompletion({
-      streaming: false,
-      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
-      baseURL: llmApiKey.baseURL || undefined,
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          content: "You are an expert at evaluating LLM outputs.",
-        },
-        { role: ChatMessageRole.User, content: prompt },
-      ],
-      modelParams: {
-        provider: template.provider,
-        model: template.model,
-        adapter: llmApiKey.adapter,
-        ...modelParams,
-      },
-      structuredOutputSchema: evalScoreSchema,
-      config: llmApiKey.config,
-    });
-    return evalScoreSchema.parse(completion);
-  } catch (e) {
-    logger.error(
-      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`,
-    );
-    throw new ApiError(`Failed to call LLM: ${e}`);
-  }
-}
-
+// possibly export this to utilities
 export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>,

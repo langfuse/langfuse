@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   FormControl,
@@ -47,6 +47,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 const CreateExperimentData = z.object({
   promptId: z.string().min(1, "Please select a prompt"),
@@ -56,8 +58,13 @@ const CreateExperimentData = z.object({
 
 export type CreateExperiment = z.infer<typeof CreateExperimentData>;
 
-export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
-  // Only track what we need for UI state
+export const CreateExperimentsForm = ({
+  projectId,
+  setFormOpen,
+}: {
+  projectId: string;
+  setFormOpen: (open: boolean) => void;
+}) => {
   const [open, setOpen] = React.useState(false);
   const [selectedPromptName, setSelectedPromptName] = React.useState<string>();
   const [selectedPromptVersion, setSelectedPromptVersion] =
@@ -71,11 +78,7 @@ export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
     },
   });
 
-  const onSubmit = (data: CreateExperiment) => {
-    // TODO: implement
-    console.log(data);
-  };
-
+  // only support text prompts for now -- reuse method???
   const promptNamesAndVersions = api.prompts.allNamesAndVersions.useQuery({
     projectId,
   });
@@ -118,19 +121,48 @@ export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
     }
   }, [validationResult.data]);
 
+  const experimentMutation = api.experiments.createExperiment.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: "Experiment run triggered successfully",
+        description: "Your experiment run will be available soon.",
+        link: {
+          href: `/project/${projectId}/datasets/${data.datasetId}`,
+          text: `View experiment "${data.datasetId}"`,
+        },
+      });
+    },
+    onError: (error) => {
+      showErrorToast(
+        error.message || "Failed to trigger experiment run",
+        "Please try again.",
+      );
+    },
+  });
+
+  const onSubmit = async (data: CreateExperiment) => {
+    await experimentMutation.mutateAsync({ ...data, projectId });
+    form.reset();
+    setFormOpen(false);
+  };
+
+  const promptsByName = useMemo(
+    () =>
+      promptNamesAndVersions.data?.reduce<
+        Record<string, Array<{ version: number; id: string }>>
+      >((acc, prompt) => {
+        if (!acc[prompt.name]) {
+          acc[prompt.name] = [];
+        }
+        acc[prompt.name].push({ version: prompt.version, id: prompt.id });
+        return acc;
+      }, {}),
+    [promptNamesAndVersions.data],
+  );
+
   if (!promptNamesAndVersions.data || !datasets.data) {
     return null;
   }
-
-  const promptsByName = promptNamesAndVersions.data.reduce<
-    Record<string, Array<{ version: number; id: string }>>
-  >((acc, prompt) => {
-    if (!acc[prompt.name]) {
-      acc[prompt.name] = [];
-    }
-    acc[prompt.name].push({ version: prompt.version, id: prompt.id });
-    return acc;
-  }, {});
 
   return (
     <Form {...form}>
@@ -184,32 +216,33 @@ export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
                       <CommandList>
                         <CommandEmpty>No prompt found.</CommandEmpty>
                         <CommandGroup>
-                          {Object.entries(promptsByName).map(
-                            ([name, promptData]) => (
-                              <CommandItem
-                                key={name}
-                                onSelect={() => {
-                                  setSelectedPromptName(name);
-                                  const latestVersion = promptData[0];
-                                  setSelectedPromptVersion(
-                                    latestVersion.version,
-                                  );
-                                  form.setValue("promptId", latestVersion.id);
-                                  form.clearErrors("promptId");
-                                }}
-                              >
-                                {name}
-                                <CheckIcon
-                                  className={cn(
-                                    "ml-auto h-4 w-4",
-                                    name === selectedPromptName
-                                      ? "opacity-100"
-                                      : "opacity-0",
-                                  )}
-                                />
-                              </CommandItem>
-                            ),
-                          )}
+                          {promptsByName &&
+                            Object.entries(promptsByName).map(
+                              ([name, promptData]) => (
+                                <CommandItem
+                                  key={name}
+                                  onSelect={() => {
+                                    setSelectedPromptName(name);
+                                    const latestVersion = promptData[0];
+                                    setSelectedPromptVersion(
+                                      latestVersion.version,
+                                    );
+                                    form.setValue("promptId", latestVersion.id);
+                                    form.clearErrors("promptId");
+                                  }}
+                                >
+                                  {name}
+                                  <CheckIcon
+                                    className={cn(
+                                      "ml-auto h-4 w-4",
+                                      name === selectedPromptName
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                </CommandItem>
+                              ),
+                            )}
                         </CommandGroup>
                       </CommandList>
                     </Command>
@@ -238,7 +271,8 @@ export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
                       <CommandList>
                         <CommandEmpty>No version found.</CommandEmpty>
                         <CommandGroup className="overflow-y-auto">
-                          {selectedPromptName &&
+                          {promptsByName &&
+                          selectedPromptName &&
                           promptsByName[selectedPromptName] ? (
                             promptsByName[selectedPromptName].map((prompt) => (
                               <CommandItem
@@ -335,7 +369,7 @@ export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
                   <span>Valid configuration</span>
                   <CircleCheck className="h-4 w-4" />
                 </CardTitle>
-                <CardDescription className="text-foreground">
+                <div className="text-sm">
                   Matches between dataset items and prompt variables
                   <ul className="ml-2 list-inside list-disc">
                     {validationResult.data?.includesAll > 0 && (
@@ -359,7 +393,7 @@ export const CreateExperimentsForm = ({ projectId }: { projectId: string }) => {
                   </ul>
                   {validationResult.data?.missing > 0 &&
                     "Items missing all prompt variables will be excluded from the experiment."}
-                </CardDescription>
+                </div>
               </CardHeader>
             </Card>
           )}

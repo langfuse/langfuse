@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { EvalExecutionQueue } from "./evalQueue";
+import { ExperimentCreateQueue } from "./experimentQueue";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -32,6 +33,8 @@ export class WorkerManager {
         return DatasetRunItemUpsertQueue.getInstance();
       case QueueName.EvaluationExecution:
         return EvalExecutionQueue.getInstance();
+      case QueueName.ExperimentCreate:
+        return ExperimentCreateQueue.getInstance();
       case QueueName.TraceUpsert:
         return TraceUpsertQueue.getInstance();
       case QueueName.IngestionQueue:

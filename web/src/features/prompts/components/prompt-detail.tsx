@@ -155,7 +155,10 @@ export const PromptDetail = () => {
                         Create an experiment to test a prompt version.
                       </DialogDescription>
                     </DialogHeader>
-                    <CreateExperimentsForm projectId={projectId as string} />
+                    <CreateExperimentsForm
+                      projectId={projectId as string}
+                      setFormOpen={setIsCreateExperimentDialogOpen}
+                    />
                   </DialogContent>
                 </Dialog>
 
