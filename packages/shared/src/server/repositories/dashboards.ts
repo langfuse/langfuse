@@ -8,6 +8,7 @@ import {
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
@@ -333,7 +334,7 @@ export const getModelUsageByUser = async (
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
-    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY user_id
     ORDER BY sum_cost_details DESC
     `;
