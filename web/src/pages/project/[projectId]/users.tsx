@@ -8,7 +8,6 @@ import {
   withDefault,
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { DataTable } from "@/src/components/table/data-table";
@@ -19,21 +18,19 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type FilterState, type LastUserScore } from "@langfuse/shared";
+import { type RouterOutput } from "@/src/utils/types";
+import { type FilterState } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-
-export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 type RowData = {
   userId: string;
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
-  lastScore: LastUserScore | undefined;
   totalTokens: string;
   totalCost: string;
 };
@@ -82,14 +79,16 @@ export default function UsersPage() {
     limit: paginationState.pageSize,
     projectId,
     searchQuery: searchQuery ?? undefined,
+    queryClickhouse: useClickhouse(),
   });
 
   // this API call will return an empty array if there are no users.
-  // Hence this adds one fast unnecessary API call if there are no users.
+  // Hence, this adds one fast unnecessary API call if there are no users.
   const userMetrics = api.users.metrics.useQuery(
     {
       projectId,
       userIds: users.data?.users.map((u) => u.userId) ?? [],
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: users.isSuccess,
@@ -220,35 +219,6 @@ export default function UsersPage() {
         }
       },
     },
-    {
-      accessorKey: "lastScore",
-      header: "Last Score",
-      size: 200,
-      cell: ({ row }) => {
-        const value: RowData["lastScore"] = row.getValue("lastScore");
-        if (!userMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        return (
-          <>
-            {value ? (
-              <div className="grid grid-cols-[1fr,auto] items-center gap-4">
-                <TableLink
-                  path={
-                    value.observationId
-                      ? `/project/${projectId}/traces/${encodeURIComponent(value.traceId)}?observation=${encodeURIComponent(value.observationId)}`
-                      : `/project/${projectId}/traces/${encodeURIComponent(value.traceId)}`
-                  }
-                  value={value.traceId}
-                />
-                <GroupedScoreBadges scores={[value]} />
-              </div>
-            ) : undefined}
-          </>
-        );
-      },
-    },
   ];
 
   return (
@@ -294,15 +264,12 @@ export default function UsersPage() {
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
-                        t.lastObservation?.toLocaleString() ??
-                        t.lastTrace?.toLocaleString() ??
-                        "No event yet",
+                        t.lastTrace?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
                         Number(t.totalTraces ?? 0) +
                           Number(t.totalObservations ?? 0),
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
-                      lastScore: t.lastScore,
                       totalCost: usdFormatter(
                         t.sumCalculatedTotalCost ?? 0,
                         2,
