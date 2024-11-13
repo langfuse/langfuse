@@ -38,7 +38,7 @@
     "backoff": "^2.5.0",
     "bullmq": "^5.12.10",
     "cors": "^2.8.5",
-    "dd-trace": "^5.25.0",
+    "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
     "exponential-backoff": "^3.1.1",
@@ -79,5 +79,10 @@
     "tsx": "^4.19.1",
     "typescript": "^5.4.5",
     "vitest": "^2.1.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.0"
+    }
   }
 }
