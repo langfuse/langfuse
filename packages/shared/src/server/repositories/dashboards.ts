@@ -8,6 +8,7 @@ import {
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
@@ -318,7 +319,7 @@ export const getModelUsageByUser = async (
   const timeFilter = chFilter.find(
     (f) =>
       f.clickhouseTable === "observations" &&
-      f.field === "start_time" &&
+      f.field.includes("start_time") &&
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
@@ -328,11 +329,12 @@ export const getModelUsageByUser = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       user_id
     FROM observations o FINAL
-      JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+    JOIN traces t FINAL
+    ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
-    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY user_id
     ORDER BY sum_cost_details DESC
     `;
@@ -346,7 +348,9 @@ export const getModelUsageByUser = async (
     params: {
       projectId,
       ...appliedFilter.params,
-      ...(timeFilter ? { tractTimestamp: timeFilter.value } : {}),
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
