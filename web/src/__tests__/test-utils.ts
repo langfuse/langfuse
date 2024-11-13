@@ -118,7 +118,7 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
 ): Promise<{ body: z.infer<T>; status: number }> {
   const { body: resBody, status } = await makeAPICall(method, url, body, auth);
 
-  if (status === 2000) {
+  if (status === 200) {
     const typeCheckResult = responseZodSchema.safeParse(resBody);
     if (!typeCheckResult.success) {
       console.error(typeCheckResult.error);
