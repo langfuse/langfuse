@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   FormControl,
@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
+import { ModelParameters } from "@/src/components/ModelParameters";
 import {
   CommandEmpty,
   CommandGroup,
@@ -49,6 +50,13 @@ import {
 } from "@/src/components/ui/card";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionContent,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
 
 const CreateExperimentData = z.object({
   promptId: z.string().min(1, "Please select a prompt"),
@@ -65,10 +73,16 @@ export const CreateExperimentsForm = ({
   projectId: string;
   setFormOpen: (open: boolean) => void;
 }) => {
-  const [open, setOpen] = React.useState(false);
-  const [selectedPromptName, setSelectedPromptName] = React.useState<string>();
-  const [selectedPromptVersion, setSelectedPromptVersion] =
-    React.useState<number>();
+  const [open, setOpen] = useState(false);
+  const [selectedPromptName, setSelectedPromptName] = useState<string>();
+  const [selectedPromptVersion, setSelectedPromptVersion] = useState<number>();
+  const {
+    modelParams,
+    updateModelParamValue,
+    setModelParamEnabled,
+    availableModels,
+    availableProviders,
+  } = useModelParams();
 
   const form = useForm<CreateExperiment>({
     resolver: zodResolver(CreateExperimentData),
@@ -309,6 +323,32 @@ export const CreateExperimentsForm = ({
             </FormItem>
           )}
         />
+
+        <Accordion type="single" collapsible>
+          <AccordionItem value="item-1" className="border-none">
+            <div className="sticky top-0 z-10 border-b bg-background">
+              <AccordionTrigger>
+                <span className="text-sm">Model config</span>
+              </AccordionTrigger>
+            </div>
+            <AccordionContent className="mt-4">
+              <Card className="p-4">
+                <ModelParameters
+                  {...{
+                    modelParams,
+                    availableModels,
+                    availableProviders,
+                    updateModelParamValue: updateModelParamValue,
+                    setModelParamEnabled,
+                    modelParamsDescription:
+                      "Select a model which supports function calling.",
+                  }}
+                  evalModelsOnly
+                />
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
 
         <FormField
           control={form.control}
