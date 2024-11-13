@@ -31,7 +31,8 @@ type MultiSelectOptions = {
 export function MultiSelectKeyValues<
   T extends { key: string; value: string } | string,
 >({
-  title,
+  title = "Select",
+  placeholder,
   values,
   onValueChange,
   options,
@@ -42,6 +43,7 @@ export function MultiSelectKeyValues<
   controlButtons,
 }: {
   title?: string;
+  placeholder?: string;
   values: T[];
   onValueChange: (
     values: T[],
@@ -84,7 +86,7 @@ export function MultiSelectKeyValues<
           )}
           disabled={disabled}
         >
-          Select
+          {title}
           <ChevronDown className="h-4 w-4 opacity-50" />
           {selectedValueKeys.size > 0 && (
             <>
@@ -125,7 +127,7 @@ export function MultiSelectKeyValues<
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align={align}>
         <Command>
-          <CommandInput placeholder={title} />
+          <CommandInput placeholder={placeholder} />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>

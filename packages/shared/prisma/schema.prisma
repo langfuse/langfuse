@@ -169,7 +169,7 @@ model BackgroundMigration {
   name         String    @unique
   script       String    @map("script")
   args         Json      @map("args")
-  state        Json      @map("state")
+  state        Json      @default("{}") @map("state")
   finishedAt   DateTime? @map("finished_at")
   failedAt     DateTime? @map("failed_at")
   failedReason String?   @map("failed_reason")

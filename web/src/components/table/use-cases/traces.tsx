@@ -43,7 +43,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -54,7 +54,7 @@ import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 export type TracesTableRow = {
   bookmarked: boolean;
   id: string;
-  timestamp: string;
+  timestamp: Date;
   name: string;
   userId: string;
   level?: ObservationLevel;
@@ -163,6 +163,7 @@ export default function TracesTable({
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
+      filter: filterState,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
       queryClickhouse: useClickhouse(),
     },
@@ -185,7 +186,10 @@ export default function TracesTable({
     if (traces.isSuccess) {
       setDetailPageList(
         "traces",
-        traces.data.traces.map((t) => t.id),
+        traces.data.traces.map((t) => ({
+          id: t.id,
+          params: { timestamp: t.timestamp.toISOString() },
+        })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -300,9 +304,12 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const value: TracesTableRow["id"] = row.getValue("id");
+        const timestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
+
         return value && typeof value === "string" ? (
           <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(value)}?timestamp=${encodeURIComponent(timestamp.toISOString())}`}
             value={value}
           />
         ) : undefined;
@@ -316,6 +323,10 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
+        return value ? new Date(value).toLocaleString() : undefined;
+      },
     },
     {
       accessorKey: "name",
@@ -520,10 +531,13 @@ export default function TracesTable({
       size: 400,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return (
           <TracesDynamicCell
             traceId={traceId}
             projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -539,10 +553,13 @@ export default function TracesTable({
       size: 400,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return (
           <TracesDynamicCell
             traceId={traceId}
             projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -561,10 +578,13 @@ export default function TracesTable({
       },
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
+        const traceTimestamp: TracesTableRow["timestamp"] =
+          row.getValue("timestamp");
         return (
           <TracesDynamicCell
             traceId={traceId}
             projectId={projectId}
+            timestamp={new Date(traceTimestamp)}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -707,7 +727,7 @@ export default function TracesTable({
           return {
             bookmarked: trace.bookmarked,
             id: trace.id,
-            timestamp: trace.timestamp.toLocaleString(),
+            timestamp: trace.timestamp,
             name: trace.name ?? "",
             level: trace.level,
             observationCount: trace.observationCount,
@@ -817,16 +837,18 @@ export default function TracesTable({
 const TracesDynamicCell = ({
   traceId,
   projectId,
+  timestamp,
   col,
   singleLine = false,
 }: {
   traceId: string;
   projectId: string;
+  timestamp: Date;
   col: "input" | "output" | "metadata";
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, queryClickhouse: useClickhouse() },
+    { traceId, projectId, queryClickhouse: useClickhouse(), timestamp },
     {
       enabled: typeof traceId === "string",
       trpc: {

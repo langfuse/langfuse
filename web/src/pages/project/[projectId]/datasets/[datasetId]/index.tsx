@@ -41,7 +41,7 @@ export default function Dataset() {
           <>
             <DetailPageNav
               currentId={datasetId}
-              path={(id) => `/project/${projectId}/datasets/${id}`}
+              path={(entry) => `/project/${projectId}/datasets/${entry.id}`}
               listKey="datasets"
             />
             <DatasetActionButton
@@ -70,7 +70,11 @@ export default function Dataset() {
         }
       />
       {!!dataset.data?.metadata && (
-        <JSONView json={dataset?.data.metadata} title="Metadata" />
+        <JSONView
+          json={dataset?.data.metadata}
+          title="Metadata"
+          className="max-h-[25vh] overflow-y-auto"
+        />
       )}
 
       <DatasetRunsTable

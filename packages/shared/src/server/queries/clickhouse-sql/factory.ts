@@ -1,7 +1,7 @@
 import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
-import { isValidTableName } from "../../clickhouse/schema-utils";
+import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
 import {
@@ -80,6 +80,7 @@ export const createFilterFromFilterState = (
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
           value: frontEndFilter.value,
+          operator: frontEndFilter.operator,
           tablePrefix: column.queryPrefix,
         });
       case "numberObject":
@@ -114,7 +115,6 @@ const matchAndVerifyTracesUiColumn = (
 ) => {
   // tries to match the column name to the clickhouse table name
   logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
-
   const uiTable = uiTableDefinitions.find(
     (col) =>
       col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.

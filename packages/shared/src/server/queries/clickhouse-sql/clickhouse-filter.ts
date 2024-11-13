@@ -14,6 +14,8 @@ function randomCharacters() {
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
+  operator: (typeof filterOperators)[keyof typeof filterOperators][number];
+  field: string;
 }
 type ClickhouseFilter = {
   query: string;
@@ -22,9 +24,9 @@ type ClickhouseFilter = {
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected value: string;
-  protected operator: (typeof filterOperators)["string"][number];
+  public field: string;
+  public value: string;
+  public operator: (typeof filterOperators)["string"][number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -75,9 +77,9 @@ export class StringFilter implements Filter {
 
 export class NumberFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected value: number;
-  protected operator: (typeof filterOperators)["number"][number];
+  public field: string;
+  public value: number;
+  public operator: (typeof filterOperators)["number"][number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -106,9 +108,9 @@ export class NumberFilter implements Filter {
 
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected value: Date;
-  protected operator: (typeof filterOperators)["datetime"][number];
+  public field: string;
+  public value: Date;
+  public operator: (typeof filterOperators)["datetime"][number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -137,9 +139,9 @@ export class DateTimeFilter implements Filter {
 
 export class StringOptionsFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected values: string[];
-  protected operator: (typeof filterOperators.stringOptions)[number];
+  public field: string;
+  public values: string[];
+  public operator: (typeof filterOperators.stringOptions)[number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -173,10 +175,10 @@ export class StringOptionsFilter implements Filter {
 // As we use the MAP form clickhouse, we can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected key: string;
-  protected value: string;
-  protected operator: (typeof filterOperators)["stringObject"][number];
+  public field: string;
+  public key: string;
+  public value: string;
+  public operator: (typeof filterOperators)["stringObject"][number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -232,9 +234,9 @@ export class StringObjectFilter implements Filter {
 // this is used when we want to filter multiple values on a clickhouse column which is also an array
 export class ArrayOptionsFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected values: string[];
-  protected operator: (typeof filterOperators.arrayOptions)[number];
+  public field: string;
+  public values: string[];
+  public operator: (typeof filterOperators.arrayOptions)[number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -279,10 +281,10 @@ export class ArrayOptionsFilter implements Filter {
 
 export class NumberObjectFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected key: string;
-  protected value: number;
-  protected operator: (typeof filterOperators)["numberObject"][number];
+  public field: string;
+  public key: string;
+  public value: number;
+  public operator: (typeof filterOperators)["numberObject"][number];
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -314,13 +316,15 @@ export class NumberObjectFilter implements Filter {
 
 export class BooleanFilter implements Filter {
   public clickhouseTable: string;
-  protected field: string;
-  protected value: boolean;
+  public field: string;
+  public operator: (typeof filterOperators)["boolean"][number];
+  public value: boolean;
   protected tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
+    operator: (typeof filterOperators)["boolean"][number];
     value: boolean;
     tablePrefix?: string;
   }) {
@@ -328,13 +332,14 @@ export class BooleanFilter implements Filter {
     this.field = opts.field;
     this.value = opts.value;
     this.tablePrefix = opts.tablePrefix;
+    this.operator = opts.operator;
   }
 
   apply(): ClickhouseFilter {
     const uid = randomCharacters();
     const varName = `booleanFilter${uid}`;
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} = {${varName}: Boolean}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Boolean}`,
       params: { [varName]: this.value },
     };
   }

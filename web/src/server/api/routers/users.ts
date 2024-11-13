@@ -4,10 +4,13 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, singleFilter } from "@langfuse/shared";
+import {
+  paginationZod,
+  singleFilter,
+  type LastUserScore,
+} from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
-import { type LastUserScore } from "@/src/features/scores/lib/types";
 import { tableColumnsToSqlFilterAndPrefix } from "@langfuse/shared/src/server";
 
 const UserFilterOptions = z.object({

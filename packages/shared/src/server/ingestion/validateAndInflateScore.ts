@@ -76,7 +76,7 @@ function inflateScoreBody(
   const { body, projectId, scoreId, config } = params;
 
   const relevantDataType = config?.dataType ?? body.dataType;
-  const scoreProps = { ...body, id: scoreId, projectId, source: "API" };
+  const scoreProps = { source: "API", ...body, id: scoreId, projectId };
 
   if (typeof body.value === "number") {
     if (relevantDataType && relevantDataType === ScoreDataType.BOOLEAN) {

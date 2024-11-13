@@ -7,10 +7,6 @@ import { env } from "@/src/env.mjs";
 import { Spinner } from "@/src/components/layouts/spinner";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Toaster } from "@/src/components/ui/sonner";
-import {
-  NOTIFICATIONS,
-  useCheckNotification,
-} from "@/src/features/notifications/checkNotifications";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -105,8 +101,6 @@ export default function Layout(props: PropsWithChildren) {
     | string
     | undefined;
   const session = useSessionWithRetryOnUnauthenticated();
-
-  useCheckNotification(NOTIFICATIONS, session.status === "authenticated");
 
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;

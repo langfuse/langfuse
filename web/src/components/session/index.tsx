@@ -18,6 +18,7 @@ import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -32,6 +33,7 @@ export const SessionPage: React.FC<{
     {
       sessionId,
       projectId: projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       retry(failureCount, error) {
@@ -44,7 +46,7 @@ export const SessionPage: React.FC<{
     if (session.isSuccess) {
       setDetailPageList(
         "traces",
-        session.data.traces.map((t) => t.id),
+        session.data.traces.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,8 +95,8 @@ export const SessionPage: React.FC<{
           <DetailPageNav
             key="nav"
             currentId={encodeURIComponent(sessionId)}
-            path={(id) =>
-              `/project/${projectId}/sessions/${encodeURIComponent(id)}`
+            path={(entry) =>
+              `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
             }
             listKey="sessions"
           />,
@@ -185,7 +187,7 @@ const SessionIO = ({
   projectId: string;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId, projectId, queryClickhouse: useClickhouse() },
     {
       enabled: typeof traceId === "string",
       trpc: {

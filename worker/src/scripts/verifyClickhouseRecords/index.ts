@@ -7,8 +7,6 @@ import {
   clickhouseStringDateSchema,
   logger,
 } from "@langfuse/shared/src/server";
-// @ts-ignore
-import { diff } from "rus-diff";
 
 const getErrorMessage = (params: {
   type: "observation" | "trace" | "score";
@@ -18,14 +16,14 @@ const getErrorMessage = (params: {
   pgValue: any;
   chValue: any;
 }) => {
-  const delta = `[${params.projectId}-${params.type}-${params.id}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify(params, null, 2)}\n${JSON.stringify(diff(params.pgValue, params.chValue), null, 2)}`;
+  const delta = `[${params.projectId}-${params.type}-${params.id}] Mismatch between Postgres and Clickhouse:\n${JSON.stringify(params, null, 2)}`;
   return delta;
 };
 
 // Constants
 const LIMIT = 100;
 const ITERATIONS = 10;
-const DATE_START = new Date("2024-10-17T00:00:00.000Z");
+const DATE_START = new Date("2024-11-02T00:00:00.000Z");
 const DATE_END = new Date(Date.now() - 1000 * 60 * 15); // 15 minutes ago
 
 const TABLE_SAMPLE_RATE = 0.05;
@@ -304,9 +302,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
     );
   }
 
-  logger.info(
-    `Comparing delta for observation ${projectId}-${observationId}, ${JSON.stringify(diff(postgresObservation, clickhouseRecord), null, 2)}`,
-  );
+  logger.info(`Comparing delta for observation ${projectId}-${observationId}`);
 
   for (const key in postgresObservation) {
     const pgValue = postgresObservation[key];
@@ -333,8 +329,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "level":
       case "status_message":
       case "version":
-      case "internal_model_id":
-      case "unit": {
+      case "internal_model_id": {
         if (pgValue && pgValue !== chValue) {
           throw new Error(
             getErrorMessage({
@@ -350,6 +345,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
 
         break;
       }
+
+      case "unit":
+        break;
 
       // Start_time cannot be overwritten in CH, so they are allowed to be different
       case "start_time": {
@@ -404,10 +402,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
           "metadata" in chValue && Object.keys(chValue).length === 1
             ? parseJsonPrioritised(chValue.metadata)
             : Object.fromEntries(
-                Object.entries(chValue).map(([k, v]) => [
-                  k,
-                  v ? JSON.parse(v as any) : null,
-                ]),
+                Object.entries(chValue).map(([k, v]) => [k, v]),
               );
 
         if (
@@ -507,7 +502,8 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "completion_tokens": {
         if (
           pgValue !== 0 &&
-          pgValue !== (clickhouseRecord as any)["output_usage_units"]
+          pgValue.toString() !==
+            (clickhouseRecord as any)["usage_details"]["output"]
         ) {
           throw new Error(
             getErrorMessage({
@@ -516,7 +512,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["output_usage_units"],
+              chValue: (clickhouseRecord as any)["usage_details"]["output"],
             }),
           );
         }
@@ -527,7 +523,8 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "prompt_tokens": {
         if (
           pgValue !== 0 &&
-          pgValue !== (clickhouseRecord as any)["input_usage_units"]
+          pgValue.toString() !==
+            (clickhouseRecord as any)["usage_details"]["input"]
         ) {
           throw new Error(
             getErrorMessage({
@@ -536,7 +533,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["input_usage_units"],
+              chValue: (clickhouseRecord as any)["usage_details"]["input"],
             }),
           );
         }
@@ -547,7 +544,8 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "total_tokens": {
         if (
           pgValue !== 0 &&
-          pgValue !== (clickhouseRecord as any)["total_usage_units"]
+          pgValue.toString() !==
+            (clickhouseRecord as any)["usage_details"]["total"]
         ) {
           throw new Error(
             getErrorMessage({
@@ -556,7 +554,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["total_usage_units"],
+              chValue: (clickhouseRecord as any)["usage_details"]["total"],
             }),
           );
         }
@@ -567,8 +565,10 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "calculated_input_cost": {
         if (
           pgValue !== null &&
-          Math.abs(Number(pgValue) - (clickhouseRecord as any)["input_cost"]) >
-            1e-9
+          Math.abs(
+            Number(pgValue) -
+              (clickhouseRecord as any)["cost_details"]["input"],
+          ) > 1e-9
         ) {
           throw new Error(
             getErrorMessage({
@@ -577,7 +577,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["input_cost"],
+              chValue: (clickhouseRecord as any)["cost_details"]["input"],
             }),
           );
         }
@@ -588,8 +588,10 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "calculated_output_cost": {
         if (
           pgValue !== null &&
-          Math.abs(Number(pgValue) - (clickhouseRecord as any)["output_cost"]) >
-            1e-9
+          Math.abs(
+            Number(pgValue) -
+              (clickhouseRecord as any)["cost_details"]["output"],
+          ) > 1e-9
         ) {
           throw new Error(
             getErrorMessage({
@@ -598,7 +600,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["output_cost"],
+              chValue: (clickhouseRecord as any)["cost_details"]["output"],
             }),
           );
         }
@@ -609,8 +611,10 @@ async function verifyClickhouseObservation(postgresObservation: any) {
       case "calculated_total_cost": {
         if (
           pgValue !== null &&
-          Math.abs(Number(pgValue) - (clickhouseRecord as any)["total_cost"]) >
-            1e-9
+          Math.abs(
+            Number(pgValue) -
+              (clickhouseRecord as any)["cost_details"]["total"],
+          ) > 1e-9
         ) {
           throw new Error(
             getErrorMessage({
@@ -619,7 +623,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["total_cost"],
+              chValue: (clickhouseRecord as any)["cost_details"]["total"],
             }),
           );
         }
@@ -631,7 +635,8 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         if (
           pgValue !== null &&
           Math.abs(
-            Number(pgValue) - (clickhouseRecord as any)["provided_input_cost"],
+            Number(pgValue) -
+              (clickhouseRecord as any)["provided_cost_details"]["input"],
           ) > 1e-9
         ) {
           throw new Error(
@@ -641,7 +646,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["provided_input_cost"],
+              chValue: (clickhouseRecord as any)["provided_cost_details"][
+                "input"
+              ],
             }),
           );
         }
@@ -653,7 +660,8 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         if (
           pgValue !== null &&
           Math.abs(
-            Number(pgValue) - (clickhouseRecord as any)["provided_output_cost"],
+            Number(pgValue) -
+              (clickhouseRecord as any)["provided_cost_details"]["output"],
           ) > 1e-9
         ) {
           throw new Error(
@@ -663,7 +671,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue,
-              chValue: (clickhouseRecord as any)["provided_output_cost"],
+              chValue: (clickhouseRecord as any)["provided_cost_details"][
+                "output"
+              ],
             }),
           );
         }
@@ -675,7 +685,8 @@ async function verifyClickhouseObservation(postgresObservation: any) {
         if (
           pgValue !== null &&
           Math.abs(
-            Number(pgValue) - (clickhouseRecord as any)["provided_total_cost"],
+            Number(pgValue) -
+              (clickhouseRecord as any)["provided_cost_details"]["total"],
           ) > 1e-9
         ) {
           throw new Error(
@@ -685,7 +696,9 @@ async function verifyClickhouseObservation(postgresObservation: any) {
               type: "observation",
               key,
               pgValue: Number(pgValue),
-              chValue: (clickhouseRecord as any)["provided_total_cost"],
+              chValue: (clickhouseRecord as any)["provided_cost_details"][
+                "total"
+              ],
             }),
           );
         }
@@ -784,10 +797,7 @@ async function verifyClickhouseTrace(postgresTrace: any) {
           "metadata" in chValue && Object.keys(chValue).length === 1
             ? parseJsonPrioritised(chValue.metadata)
             : Object.fromEntries(
-                Object.entries(chValue).map(([k, v]) => [
-                  k,
-                  JSON.parse(v as any),
-                ]),
+                Object.entries(chValue).map(([k, v]) => [k, v]),
               );
 
         if (

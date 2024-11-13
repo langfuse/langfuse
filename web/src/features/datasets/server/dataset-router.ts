@@ -12,9 +12,12 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { filterAndValidateDbScoreList, paginationZod } from "@langfuse/shared";
+import {
+  type ScoreSimplified,
+  filterAndValidateDbScoreList,
+  paginationZod,
+} from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { type ScoreSimplified } from "@/src/features/scores/lib/types";
 import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
@@ -131,6 +134,14 @@ export const datasetRouter = createTRPCRouter({
           },
           datasetId: input.datasetId,
         },
+      });
+    }),
+  baseRunDataByDatasetId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.datasetRuns.findMany({
+        where: { datasetId: input.datasetId, projectId: input.projectId },
+        select: { name: true, id: true, metadata: true, description: true },
       });
     }),
   runsByDatasetId: protectedProjectProcedure
@@ -349,6 +360,28 @@ export const datasetRouter = createTRPCRouter({
         totalDatasetItems,
         datasetItems,
       };
+    }),
+  baseDatasetItemByDatasetId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        ...paginationZod,
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return ctx.prisma.datasetItem.findMany({
+        where: { datasetId: input.datasetId, projectId: input.projectId },
+        select: {
+          id: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+        },
+        orderBy: { id: "asc" },
+        take: input.limit,
+        skip: input.page * input.limit,
+      });
     }),
   updateDatasetItem: protectedProjectProcedure
     .input(
@@ -698,7 +731,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: input.datasetItemId,
         },
         orderBy: {
-          createdAt: "desc",
+          datasetItemId: "asc", // Order by dataset item ID instead of createdAt
         },
         take: input.limit,
         skip: input.page * input.limit,
@@ -804,7 +837,9 @@ export const datasetRouter = createTRPCRouter({
           observation: observations.find((o) => o.id === ri.observationId),
           trace: traces.find((t) => t.id === ri.traceId),
           scores: aggregateScores([
-            ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+            ...validatedTraceScores.filter(
+              (s) => s.traceId === ri.traceId && ri.observationId === null,
+            ),
             ...validatedObservationScores.filter(
               (s) =>
                 s.observationId === ri.observationId &&

@@ -77,7 +77,7 @@ export const handleBatch = async (
       // Decide how to handle the error: rethrow, continue, or push an error object to results
       // For example, push an error object:
       errors.push({
-        error: error,
+        error,
         id: singleEvent.id,
         type: singleEvent.type,
       });
@@ -122,7 +122,7 @@ const handleSingleEvent = async (
     restEvent = rest;
   }
 
-  logger.info(
+  logger.debug(
     `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
@@ -188,7 +188,7 @@ export const addTracesToTraceUpsertQueue = async (
 
   try {
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
-      logger.info(`Sending ${traceEvents.length} events to worker via Redis`);
+      logger.debug(`Sending ${traceEvents.length} events to worker via Redis`);
 
       const queue = TraceUpsertQueue.getInstance();
       if (!queue) {
