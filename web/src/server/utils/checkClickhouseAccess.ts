@@ -1,5 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { instrumentAsync, logger } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  logger,
+  recordGauge,
+} from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
 import { TRPCError } from "@trpc/server";
@@ -70,6 +74,13 @@ export const measureAndReturnApi = async <T, Y>(args: {
         );
         currentSpan?.setAttribute("pg-duration", pgDuration);
         currentSpan?.setAttribute("ch-duration", chDuration);
+
+        recordGauge("langfuse.clickhouse_execution_time", chDuration, {
+          operation: args.operation,
+        });
+        recordGauge("langfuse.postgres_execution_time", pgDuration, {
+          operation: args.operation,
+        });
 
         return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
           ? chResult
