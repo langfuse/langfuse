@@ -102,6 +102,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptNames: z.array(z.string()),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
