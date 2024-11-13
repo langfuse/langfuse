@@ -21,6 +21,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type PromptVersionTableRow = {
   version: number;

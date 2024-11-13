@@ -1,4 +1,8 @@
-import { commandClickhouse, queryClickhouse } from "./clickhouse";
+import {
+  commandClickhouse,
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import { Observation, ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
@@ -647,5 +651,74 @@ export const getObservationsWithPromptName = async (
   return rows.map((r) => ({
     count: Number(r.count),
     promptName: r.prompt_name,
+  }));
+};
+
+export const getObservationMetricsForPrompts = async (
+  projectId: string,
+  promptIds: string[],
+) => {
+  const query = `
+      WITH latencies AS
+          (
+              SELECT
+                  prompt_id,
+                  prompt_version,
+                  start_time,
+                  end_time,
+                  usage_details,
+                  cost_details,
+                  dateDiff('milliseconds', start_time, end_time) AS latency_ms
+              FROM observations
+              FINAL
+              WHERE (type = 'GENERATION') 
+              AND (prompt_name IS NOT NULL) 
+              AND project_id={projectId: String} 
+              AND prompt_id IN ({promptIds: Array(String)})
+          )
+      SELECT
+          count(*) AS count,
+          prompt_id,
+          prompt_version,
+          min(start_time) AS first_observation,
+          max(start_time) AS last_observation,
+          medianExact(usage_details['input']) AS median_input_usage,
+          medianExact(usage_details['output']) AS median_output_usage,
+          medianExact(cost_details['total']) AS median_total_cost,
+          medianExact(latency_ms) AS median_latency_ms
+      FROM latencies
+      GROUP BY
+          prompt_id,
+          prompt_version
+      ORDER BY prompt_version DESC
+`;
+  const rows = await queryClickhouse<{
+    count: string;
+    prompt_id: string;
+    prompt_version: number;
+    first_observation: string;
+    last_observation: string;
+    median_input_usage: string;
+    median_output_usage: string;
+    median_total_cost: string;
+    median_latency_ms: string;
+  }>({
+    query: query,
+    params: {
+      projectId,
+      promptIds,
+    },
+  });
+
+  return rows.map((r) => ({
+    count: Number(r.count),
+    promptId: r.prompt_id,
+    promptVersion: r.prompt_version,
+    firstObservation: parseClickhouseUTCDateTimeFormat(r.first_observation),
+    lastObservation: parseClickhouseUTCDateTimeFormat(r.last_observation),
+    medianInputUsage: Number(r.median_input_usage),
+    medianOutputUsage: Number(r.median_output_usage),
+    medianTotalCost: Number(r.median_total_cost),
+    medianLatencyMs: Number(r.median_latency_ms),
   }));
 };
