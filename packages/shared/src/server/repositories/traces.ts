@@ -320,19 +320,23 @@ export const getTraceByIdOrThrow = async (
   projectId: string,
   timestamp?: Date,
 ) => {
-  const query = `SELECT * 
-      FROM traces
-      WHERE id = {traceId: String} 
-        AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
-      ORDER BY event_ts DESC LIMIT 1 by id, project_id`;
+  const query = `
+    SELECT * 
+    FROM traces
+    WHERE id = {traceId: String} 
+    AND project_id = {projectId: String}
+    ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
+    ORDER BY event_ts DESC LIMIT 1 by id, project_id
+  `;
 
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
     params: {
       traceId,
       projectId,
-      timestamp: timestamp ? timestamp.getTime() : null,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 
