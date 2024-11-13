@@ -44,10 +44,5 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.4.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "jsonpath-plus": "10.0.0"
-    }
   }
 }
