@@ -7,12 +7,10 @@ import {
   ChatMessageRole,
   ChatMessageDefaultRoleSchema,
   type ChatMessageWithId,
+  ChatMessageListSchema,
 } from "@langfuse/shared";
 
-import {
-  ChatMessageListSchema,
-  type NewPromptFormSchemaType,
-} from "./validation";
+import { type NewPromptFormSchemaType } from "./validation";
 
 import type { ControllerRenderProps } from "react-hook-form";
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
