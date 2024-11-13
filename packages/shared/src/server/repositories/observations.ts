@@ -614,3 +614,24 @@ export const deleteObservationsByTraceIds = async (
     },
   });
 };
+
+export const getObservationsWithPromptName = async (
+  projectId: string,
+  promptName: string,
+) => {
+  const query = `
+  SELECT count(*) as count
+  FROM observations FINAL
+  WHERE project_id = {projectId: String}
+  AND prompt_name = {promptName: String};
+`;
+  const rows = await queryClickhouse<{ count: string }>({
+    query: query,
+    params: {
+      projectId,
+      promptName,
+    },
+  });
+
+  return rows.map((r) => Number(r.count)).shift() ?? undefined;
+};
