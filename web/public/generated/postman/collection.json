@@ -656,7 +656,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"uploadedAt\": \"1994-11-05T13:15:30Z\",\n    \"uploadHttpStatus\": 0,\n    \"uploadHttpError\": \"example\"\n}",
+              "raw": "{\n    \"uploadedAt\": \"1994-11-05T13:15:30Z\",\n    \"uploadHttpStatus\": 0,\n    \"uploadHttpError\": \"example\",\n    \"uploadTimeMs\": 0\n}",
               "options": {
                 "raw": {
                   "language": "json"

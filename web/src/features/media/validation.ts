@@ -69,6 +69,7 @@ export const PatchMediaBodySchema = z.object({
   uploadedAt: z.coerce.date(),
   uploadHttpStatus: z.number().positive().int(),
   uploadHttpError: z.string().nullish(),
+  uploadTimeMs: z.number().nullish(),
 });
 
 export type PatchMediaBody = z.infer<typeof PatchMediaBodySchema>;

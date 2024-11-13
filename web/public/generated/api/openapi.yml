@@ -4000,6 +4000,10 @@ components:
           type: string
           nullable: true
           description: The HTTP error message of the upload
+        uploadTimeMs:
+          type: integer
+          nullable: true
+          description: The time in milliseconds it took to upload the media record
       required:
         - uploadedAt
         - uploadHttpStatus

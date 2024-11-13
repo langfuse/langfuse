@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
+import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
 import {
   GetMediaQuerySchema,
   GetMediaResponseSchema,
@@ -14,7 +15,7 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import { recordIncrement, recordHistogram } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -72,7 +73,8 @@ export default withMiddlewares({
 
       const { projectId } = auth.scope;
       const { mediaId } = query;
-      const { uploadedAt, uploadHttpStatus, uploadHttpError } = body;
+      const { uploadedAt, uploadHttpStatus, uploadHttpError, uploadTimeMs } =
+        body;
 
       try {
         await prisma.media.update({
@@ -86,6 +88,16 @@ export default withMiddlewares({
             uploadHttpError: uploadHttpStatus === 200 ? null : uploadHttpError,
           },
         });
+
+        recordIncrement("media.upload_http_status", 1, {
+          status_code: uploadHttpStatus,
+        });
+
+        if (uploadTimeMs) {
+          recordHistogram("media.upload_time_ms", uploadTimeMs, {
+            status_code: uploadHttpStatus,
+          });
+        }
       } catch (e) {
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&

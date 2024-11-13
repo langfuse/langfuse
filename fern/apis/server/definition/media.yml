@@ -66,6 +66,9 @@ types:
       uploadHttpError:
         type: optional<string>
         docs: The HTTP error message of the upload
+      uploadTimeMs:
+        type: optional<integer>
+        docs: The time in milliseconds it took to upload the media record
 
   GetMediaUploadUrlRequest:
     properties:
