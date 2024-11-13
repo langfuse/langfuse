@@ -130,9 +130,11 @@ export const getScoresForTraces = async (
   const query = `
       select 
         *
-      from scores s final
+      from scores s
       WHERE s.project_id = {projectId: String}
       AND s.trace_id IN ({traceIds: Array(String)})
+      ORDER BY event_ts DESC
+      LIMIT 1 BY id, project_id
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
