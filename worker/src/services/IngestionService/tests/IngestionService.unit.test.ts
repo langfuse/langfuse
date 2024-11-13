@@ -19,10 +19,10 @@ describe("IngestionService unit tests", () => {
   });
 
   it("correctly convert Date to Clickhouse DateTime", async () => {
-    const date = new Date("2024-10-12T12:13:14.000Z");
+    const date = new Date("2024-10-12T12:13:14.123Z");
 
     const clickhouseDateTime = convertDateToClickhouseDateTime(date);
 
-    expect(clickhouseDateTime).toEqual("2024-10-12 12:13:14");
+    expect(clickhouseDateTime).toEqual("2024-10-12 12:13:14.123");
   });
 });

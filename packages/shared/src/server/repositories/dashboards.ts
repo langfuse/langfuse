@@ -111,7 +111,7 @@ export const getScoreAggregate = async (
      ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     AND ${chFilterApplied.query}
-    ${timeFilter && hasTraceFilter ? `AND t.timestamp >= {tracesTimestamp: DateTime} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+    ${timeFilter && hasTraceFilter ? `AND t.timestamp >= {tracesTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY s.name, s.source, s.data_type
     ORDER BY count(*) DESC
     `;
@@ -332,7 +332,7 @@ export const getModelUsageByUser = async (
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
-    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY user_id
     ORDER BY sum_cost_details DESC
     `;
