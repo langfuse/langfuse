@@ -23,8 +23,10 @@ import {
   redis,
   logger,
   tableColumnsToSqlFilterAndPrefix,
+  getObservationsWithPromptName,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -104,13 +106,19 @@ export const promptRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       if (input.promptNames.length === 0) return [];
-      const promptCounts = await ctx.prisma.$queryRaw<
-        {
-          promptName: string;
-          observationCount: bigint;
-        }[]
-      >(
-        Prisma.sql`
+
+      return await measureAndReturnApi({
+        input,
+        operation: "prompts.metrics",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const promptCounts = await ctx.prisma.$queryRaw<
+            {
+              promptName: string;
+              observationCount: bigint;
+            }[]
+          >(
+            Prisma.sql`
               WITH prompt_ids AS (
                 SELECT
                   p.id,
@@ -136,11 +144,23 @@ export const promptRouter = createTRPCRouter({
               GROUP BY
                 p.name
         `,
-      );
-      return promptCounts.map(({ promptName, observationCount }) => ({
-        promptName,
-        observationCount: Number(observationCount),
-      }));
+          );
+          return promptCounts.map(({ promptName, observationCount }) => ({
+            promptName,
+            observationCount: Number(observationCount),
+          }));
+        },
+        clickhouseExecution: async () => {
+          const res = await getObservationsWithPromptName(
+            input.projectId,
+            input.promptNames,
+          );
+          return res.map(({ promptName, count }) => ({
+            promptName,
+            observationCount: count,
+          }));
+        },
+      });
     }),
   byId: protectedProjectProcedure
     .input(

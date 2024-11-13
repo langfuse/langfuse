@@ -66,11 +66,22 @@ describe("UI Prompts Table", () => {
       thirdObservation,
     ]);
 
-    const result = await getObservationsWithPromptName(
-      projectId,
+    const result = await getObservationsWithPromptName(projectId, [
       "Test Prompt",
-    );
+      "Test Prompt 2",
+    ]);
 
-    expect(result).toEqual(1);
+    expect(result).toEqual(
+      expect.arrayContaining([
+        {
+          promptName: "Test Prompt",
+          count: 1,
+        },
+        {
+          promptName: "Test Prompt 2",
+          count: 1,
+        },
+      ]),
+    );
   });
 });
