@@ -177,7 +177,7 @@ importers:
         specifier: ^5.12.10
         version: 5.12.10
       dd-trace:
-        specifier: ^5.25.0
+        specifier: ^5.24.0
         version: 5.25.0
       decimal.js:
         specifier: ^10.4.3
@@ -544,7 +544,7 @@ importers:
         specifier: ^3.3.1
         version: 3.6.0
       dd-trace:
-        specifier: ^5.25.0
+        specifier: ^5.24.0
         version: 5.25.0
       decimal.js:
         specifier: ^10.4.3
@@ -840,7 +840,7 @@ importers:
         specifier: ^2.8.5
         version: 2.8.5
       dd-trace:
-        specifier: ^5.25.0
+        specifier: ^5.24.0
         version: 5.25.0
       decimal.js:
         specifier: ^10.4.3
