@@ -496,6 +496,82 @@ export const getModelLatenciesOverTime = async (
   }));
 };
 
+export const getNumericScoreTimeSeries = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const query = `
+    SELECT
+    ${selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp")},
+    s.name as score_name,
+    AVG(s.value) as avg_value
+    FROM scores s final
+    WHERE s.project_id = {projectId: String}
+    ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
+    GROUP BY score_name, score_timestamp
+    ${orderByTimeSeries(groupBy, "score_timestamp")}
+  `;
+
+  return queryClickhouse<{
+    score_timestamp: Date;
+    score_name: string;
+    avg_value: number;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...(chFilterRes ? chFilterRes.params : {}),
+    },
+  });
+};
+
+export const getCategoricalScoreTimeSeries = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc | undefined,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const query = `
+    SELECT
+    ${groupBy ? selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp") + ", " : ""}
+    s.name as score_name,
+    s.data_type as score_data_type,
+    s.source as score_source,
+    s.string_value as score_value,
+    count(s.string_value) as count
+    FROM scores s final
+    WHERE s.project_id = {projectId: String}
+    ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
+    GROUP BY score_name, score_data_type, score_source, score_value ${groupBy ? ", score_timestamp" : ""}
+    ${groupBy ? orderByTimeSeries(groupBy, "score_timestamp") : ""}
+  `;
+
+  return queryClickhouse<{
+    score_timestamp?: Date;
+    score_name: string;
+    score_data_type: string;
+    score_source: string;
+    score_value: string;
+    count: number;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...(chFilterRes ? chFilterRes.params : {}),
+    },
+  });
+};
+
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
   let interval;
   switch (dateTrunc) {

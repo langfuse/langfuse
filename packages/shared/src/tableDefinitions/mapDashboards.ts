@@ -21,9 +21,21 @@ export const dashboardColumnDefinitions: UiColumnMapping[] = [
   },
   {
     clickhouseTableName: "scores",
+    clickhouseSelect: "name",
+    uiTableId: "scoreName",
+    uiTableName: "Score Name",
+  },
+  {
+    clickhouseTableName: "scores",
     clickhouseSelect: "timestamp",
     uiTableId: "scoreTimestamp",
     uiTableName: "Score Timestamp",
+  },
+  {
+    clickhouseTableName: "scores",
+    clickhouseSelect: "source",
+    uiTableId: "scoreSource",
+    uiTableName: "Score Source",
   },
   {
     clickhouseTableName: "scores",

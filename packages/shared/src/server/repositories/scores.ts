@@ -12,7 +12,10 @@ import {
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
-import { scoresTableUiColumnDefinitions } from "../../tableDefinitions";
+import {
+  dashboardColumnDefinitions,
+  scoresTableUiColumnDefinitions,
+} from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { convertToScore } from "./scores_converters";
 
@@ -382,7 +385,6 @@ export const getScoresUiGeneric = async <T>(props: {
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-
     `;
 
   const rows = await queryClickhouse<T>({
@@ -468,6 +470,34 @@ export const deleteScoresByTraceIds = async (
     params: {
       projectId,
       traceIds,
+    },
+  });
+};
+
+export const getNumericScoreHistogram = async (
+  projectId: string,
+  filter: FilterState,
+  limit: number,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const query = `
+    select s.value
+    from scores s final
+    WHERE s.project_id = {projectId: String}
+    ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
+    ${limit !== undefined ? `limit {limit: Int32}` : ""}
+  `;
+
+  return queryClickhouse<{ value: number }>({
+    query,
+    params: {
+      projectId,
+      limit,
+      ...(chFilterRes ? chFilterRes.params : {}),
     },
   });
 };
