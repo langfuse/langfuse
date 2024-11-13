@@ -26,6 +26,7 @@ import {
   convertObservation,
 } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
+import { OBSERVATIONS_TO_TRACE_INTERVAL } from "./constants";
 
 export const getObservationsViewForTrace = async (
   traceId: string,
@@ -62,7 +63,11 @@ export const getObservationsViewForTrace = async (
     created_at,
     updated_at,
     event_ts
-  FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
+  FROM observations 
+  WHERE trace_id = {traceId: String}
+  AND project_id = {projectId: String}
+  ORDER BY event_ts DESC
+  LIMIT 1 BY id, project_id`;
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { traceId, projectId },
@@ -371,7 +376,7 @@ const getObservationsTableInternal = async <T>(
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
         AND o.type = 'GENERATION'
-        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime} - INTERVAL 2 DAY` : ""}
+        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;

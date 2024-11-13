@@ -7,6 +7,11 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  TRACE_TO_OBSERVATIONS_INTERVAL,
+} from "./constants";
 
 export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
 
@@ -107,7 +112,7 @@ export const getScoreAggregate = async (
      ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     AND ${chFilterApplied.query}
-    ${timeFilter && hasTraceFilter ? "AND t.timestamp >= {tracesTimestamp: DateTime} - INTERVAL 1 HOUR" : ""}
+    ${timeFilter && hasTraceFilter ? `AND t.timestamp >= {tracesTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY s.name, s.source, s.data_type
     ORDER BY count(*) DESC
     `;
@@ -314,7 +319,7 @@ export const getModelUsageByUser = async (
   const timeFilter = chFilter.find(
     (f) =>
       f.clickhouseTable === "observations" &&
-      f.field === "start_time" &&
+      f.field.includes("start_time") &&
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
@@ -324,11 +329,12 @@ export const getModelUsageByUser = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       user_id
     FROM observations o FINAL
-      JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+    JOIN traces t FINAL
+    ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
-    ${timeFilter ? `AND t.timestamp >= {tractTimestamp: DateTime} - INTERVAL 1 HOUR` : ""}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY user_id
     ORDER BY sum_cost_details DESC
     `;
@@ -342,7 +348,9 @@ export const getModelUsageByUser = async (
     params: {
       projectId,
       ...appliedFilter.params,
-      ...(timeFilter ? { tractTimestamp: timeFilter.value } : {}),
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
@@ -417,7 +425,7 @@ export const getTracesLatencies = async (
       ON o.trace_id = t.id AND o.project_id = t.project_id
       WHERE project_id = {projectId: String}
       AND ${appliedFilter.query}
-      ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - interval 5 minute` : ""}
+      ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       GROUP BY o.project_id, o.trace_id, t.name
     )
 
@@ -490,6 +498,82 @@ export const getModelLatenciesOverTime = async (
     model: row.provided_model_name,
     start_time: new Date(row.start_time_bucket),
   }));
+};
+
+export const getNumericScoreTimeSeries = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const query = `
+    SELECT
+    ${selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp")},
+    s.name as score_name,
+    AVG(s.value) as avg_value
+    FROM scores s final
+    WHERE s.project_id = {projectId: String}
+    ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
+    GROUP BY score_name, score_timestamp
+    ${orderByTimeSeries(groupBy, "score_timestamp")}
+  `;
+
+  return queryClickhouse<{
+    score_timestamp: Date;
+    score_name: string;
+    avg_value: number;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...(chFilterRes ? chFilterRes.params : {}),
+    },
+  });
+};
+
+export const getCategoricalScoreTimeSeries = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc | undefined,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const query = `
+    SELECT
+    ${groupBy ? selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp") + ", " : ""}
+    s.name as score_name,
+    s.data_type as score_data_type,
+    s.source as score_source,
+    s.string_value as score_value,
+    count(s.string_value) as count
+    FROM scores s final
+    WHERE s.project_id = {projectId: String}
+    ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
+    GROUP BY score_name, score_data_type, score_source, score_value ${groupBy ? ", score_timestamp" : ""}
+    ${groupBy ? orderByTimeSeries(groupBy, "score_timestamp") : ""}
+  `;
+
+  return queryClickhouse<{
+    score_timestamp?: Date;
+    score_name: string;
+    score_data_type: string;
+    score_source: string;
+    score_value: string;
+    count: number;
+  }>({
+    query,
+    params: {
+      projectId,
+      ...(chFilterRes ? chFilterRes.params : {}),
+    },
+  });
 };
 
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {

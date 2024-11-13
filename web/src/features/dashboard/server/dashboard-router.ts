@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -26,6 +26,9 @@ import {
   getModelLatenciesOverTime,
   getObservationLatencies,
   getTracesLatencies,
+  getNumericScoreHistogram,
+  getNumericScoreTimeSeries,
+  getCategoricalScoreTimeSeries,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -53,12 +56,17 @@ export const dashboardRouter = createTRPCRouter({
             "observation-latencies-aggregated",
             "traces-latencies-aggregated",
             "model-latencies-over-time",
+            "numeric-score-time-series",
+            "categorical-score-chart",
           ])
           .nullish(),
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (input.queryClickhouse && !isClickhouseEligible(ctx.session.user)) {
+      if (
+        input.queryClickhouse &&
+        !isClickhouseAdminEligible(ctx.session.user)
+      ) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Not eligible to query clickhouse",
@@ -234,6 +242,43 @@ export const dashboardRouter = createTRPCRouter({
               percentile95Duration: row.p95,
               percentile99Duration: row.p99,
             })) as DatabaseRow[];
+          case "numeric-score-time-series":
+            const dateTruncNumericScoreTimeSeries = extractTimeSeries(
+              input.groupBy,
+            );
+            if (!dateTruncNumericScoreTimeSeries) {
+              return [];
+            }
+            const numericScoreTimeSeries = await getNumericScoreTimeSeries(
+              input.projectId,
+              input.filter ?? [],
+              dateTruncNumericScoreTimeSeries,
+            );
+            return numericScoreTimeSeries.map((row) => ({
+              scoreTimestamp: row.score_timestamp,
+              scoreName: row.score_name,
+              avgValue: row.avg_value,
+            })) as DatabaseRow[];
+          case "categorical-score-chart":
+            const dateTruncCategoricalScoreTimeSeries = extractTimeSeries(
+              input.groupBy,
+            );
+            const categoricalScoreTimeSeries =
+              await getCategoricalScoreTimeSeries(
+                input.projectId,
+                input.filter ?? [],
+                dateTruncCategoricalScoreTimeSeries,
+              );
+            return categoricalScoreTimeSeries.map((row) => ({
+              ...(row.score_timestamp
+                ? { scoreTimestamp: row.score_timestamp }
+                : {}),
+              scoreName: row.score_name || null,
+              scoreDataType: row.score_data_type || null,
+              scoreSource: row.score_source || null,
+              stringValue: row.score_value || null,
+              countStringValue: Number(row.count) || 0,
+            })) as DatabaseRow[];
 
           default:
             throw new TRPCError({
@@ -249,9 +294,32 @@ export const dashboardRouter = createTRPCRouter({
       sqlInterface.extend({
         projectId: z.string(),
         filter: filterInterface.optional(),
+        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
+      if (
+        input.queryClickhouse &&
+        !isClickhouseAdminEligible(ctx.session.user)
+      ) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Not eligible to query clickhouse",
+        });
+      }
+
+      if (
+        input.queryClickhouse ||
+        env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE === "true"
+      ) {
+        const data = await getNumericScoreHistogram(
+          input.projectId,
+          input.filter ?? [],
+          input.limit ?? 10000,
+        );
+        return createHistogramData(data);
+      }
+
       const data = await executeQuery(ctx.prisma, input.projectId, input);
       return createHistogramData(data);
     }),

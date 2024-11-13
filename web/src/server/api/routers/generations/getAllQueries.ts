@@ -8,11 +8,7 @@ import {
   getObservationsTableCount,
   parseGetAllGenerationsInput,
 } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
-import {
-  isClickhouseEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -112,13 +108,6 @@ export const getAllQueries = {
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const countQuery = await getObservationsTableCount({
             projectId: ctx.session.projectId,
             filter: input.filter ?? [],

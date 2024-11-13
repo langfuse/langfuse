@@ -24,8 +24,12 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { convertClickhouseToDomain } from "./traces_converters";
+import {
+  convertClickhouseToDomain,
+  convertToDomain,
+} from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
+import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -39,7 +43,6 @@ export type TracesTableReturnType = Pick<
   | "user_id"
   | "session_id"
   | "tags"
-  | "metadata"
   | "public"
 > & {
   level: ObservationLevel;
@@ -81,7 +84,7 @@ export const getTracesTable = async (
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: `
     t.id, 
-    t.project_id, 
+    t.project_id as project_id, 
     t.timestamp, 
     t.tags, 
     t.bookmarked, 
@@ -96,7 +99,6 @@ export const getTracesTable = async (
     os.level as level,
     os.observation_count as observation_count,
     s.scores_avg as scores_avg,
-    t.metadata,
     t.public`,
     projectId,
     filter,
@@ -106,7 +108,7 @@ export const getTracesTable = async (
     offset,
   });
 
-  return rows;
+  return rows.map(convertToDomain);
 };
 
 type FetchTracesTableProps = {
@@ -299,7 +301,7 @@ export const getTracesByIds = async (
       FROM traces
       WHERE id IN ({traceIds: Array(String)})
         AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp >= {timestamp: DateTime}` : ""} 
+        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
       ORDER BY event_ts DESC LIMIT 1 by id, project_id;`;
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
@@ -318,19 +320,23 @@ export const getTraceByIdOrThrow = async (
   projectId: string,
   timestamp?: Date,
 ) => {
-  const query = `SELECT * 
-      FROM traces
-      WHERE id = {traceId: String} 
-        AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
-      ORDER BY event_ts DESC LIMIT 1 by id, project_id`;
+  const query = `
+    SELECT * 
+    FROM traces
+    WHERE id = {traceId: String} 
+    AND project_id = {projectId: String}
+    ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
+    ORDER BY event_ts DESC LIMIT 1
+  `;
 
   const records = await queryClickhouse<TraceRecordReadType>({
     query,
     params: {
       traceId,
       projectId,
-      timestamp: timestamp ? timestamp.getTime() : null,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 
@@ -620,7 +626,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
               anyLast(project_id) as project_id
         FROM observations o FINAL
         WHERE o.project_id = {projectId: String}
-        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime} - INTERVAL 1 DAY` : ""}
+        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
         GROUP BY o.trace_id
     ),
     session_data AS (
@@ -648,7 +654,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
         LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
-            AND ${singleTraceFilter?.query ? singleTraceFilter.query : ""}
+            ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
         GROUP BY t.session_id
     )
     SELECT ${select}
@@ -732,6 +738,149 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
     params: {
       projectId,
       traceIds,
+    },
+  });
+};
+
+export const getUsersAndTraceCount = async (
+  projectId: string,
+  filter: FilterState,
+  searchQuery?: string,
+  limit?: number,
+  offset?: number,
+): Promise<{ userId: string; totalTraces: bigint }[]> => {
+  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
+  });
+
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+  );
+
+  const tracesFilterRes = tracesFilter.apply();
+  const search = clickhouseSearchCondition(searchQuery);
+
+  const query = `
+    SELECT
+      t.user_id AS userId,
+      COUNT(t.id) AS totalTraces
+    FROM traces t FINAL
+    WHERE ${tracesFilterRes.query}
+    ${search.query}
+    AND t.user_id IS NOT NULL
+    AND t.user_id != ''
+    GROUP BY t.user_id
+    ORDER BY totalTraces DESC 
+    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+  `;
+
+  return queryClickhouse({
+    query,
+    params: {
+      limit,
+      offset,
+      ...tracesFilterRes.params,
+      ...search.params,
+    },
+  });
+};
+
+export const getTotalUserCount = async (
+  projectId: string,
+  filter: FilterState,
+  searchQuery?: string,
+): Promise<{ totalCount: bigint }[]> => {
+  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
+  });
+
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+  );
+
+  const tracesFilterRes = tracesFilter.apply();
+  const search = clickhouseSearchCondition(searchQuery);
+
+  const query = `
+    SELECT COUNT(DISTINCT t.user_id) AS totalCount
+    FROM traces t FINAL
+    WHERE ${tracesFilterRes.query}
+    ${search.query}
+    AND t.user_id IS NOT NULL
+    AND t.user_id != ''
+  `;
+
+  return queryClickhouse({
+    query,
+    params: {
+      ...tracesFilterRes.params,
+      ...search.params,
+    },
+  });
+};
+
+export const getUserMetrics = async (projectId: string, userIds: string[]) => {
+  if (userIds.length === 0) {
+    return [];
+  }
+  const query = `
+    WITH observations_agg AS (
+      SELECT o.trace_id,
+             count(*) as obs_count,
+             sumMap(usage_details) as sum_usage_details,
+             sum(total_cost) as sum_total_cost,
+             anyLast(project_id) as project_id
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+      GROUP BY o.trace_id
+    ),
+    user_metric_data AS (
+      SELECT t.user_id,
+             max(t.timestamp) as max_timestamp,
+             min(t.timestamp) as min_timestamp,
+             count(*) as trace_count,
+             sum(o.obs_count) as total_observations,
+             sum(o.sum_total_cost) as session_total_cost,
+             sumMap(o.sum_usage_details)['input'] as session_input_usage,
+             sumMap(o.sum_usage_details)['output'] as session_output_usage,
+             sumMap(o.sum_usage_details)['total'] as session_total_usage
+      FROM traces t FINAL
+      LEFT JOIN observations_agg o
+      ON t.id = o.trace_id 
+      AND t.project_id = o.project_id
+      WHERE t.user_id IS NOT NULL
+      AND t.user_id != ''
+      AND t.user_id IN ({userIds: Array(String)})
+      AND t.project_id = {projectId: String}
+      GROUP BY t.user_id
+    )
+    SELECT user_id AS userId,
+           min_timestamp as firstTrace,
+           max_timestamp as lastTrace,
+           trace_count as totalTraces,
+           total_observations as totalObservations,
+           session_input_usage as totalPromptTokens,
+           session_output_usage as totalCompletionTokens,
+           session_total_usage as totalTokens,
+           session_total_cost as sumCalculatedTotalCost
+    FROM user_metric_data umd
+  `;
+
+  return queryClickhouse<{
+    userId: string;
+    firstTrace: Date | null;
+    lastTrace: Date | null;
+    totalPromptTokens: bigint;
+    totalCompletionTokens: bigint;
+    totalTokens: bigint;
+    totalObservations: bigint;
+    totalTraces: bigint;
+    sumCalculatedTotalCost: number;
+  }>({
+    query,
+    params: {
+      projectId,
+      userIds,
     },
   });
 };
