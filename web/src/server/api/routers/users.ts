@@ -14,7 +14,6 @@ import {
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import { TRPCError } from "@trpc/server";
 
 const UserFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
