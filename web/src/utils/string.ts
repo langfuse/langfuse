@@ -16,10 +16,6 @@ export function getIsCharOrUnderscore(value: string): boolean {
   return charOrUnderscore.test(value);
 }
 
-export function validateVariables(content: string): boolean {
-  return extractVariables(content).every(getIsCharOrUnderscore);
-}
-
 export function extractVariables(mustacheString: string): string[] {
   const mustacheRegex = /\{\{(.*?)\}\}/g;
   const uniqueVariables = new Set<string>();
