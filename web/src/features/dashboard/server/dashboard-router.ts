@@ -189,6 +189,9 @@ export const dashboardRouter = createTRPCRouter({
             const traces = await getTracesGroupedByUsers(
               input.projectId,
               input.filter ?? [],
+              undefined,
+              1000,
+              0,
               dashboardColumnDefinitions,
             );
 

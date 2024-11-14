@@ -56,6 +56,7 @@ export const getObservationsCostGroupedByName = async (
   const appliedFilter = chFilter.apply();
 
   const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
     SELECT 
@@ -100,6 +101,7 @@ export const getScoreAggregate = async (
   const chFilterApplied = chFilter.apply();
 
   const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
     SELECT 
@@ -185,6 +187,16 @@ export const getObservationUsageByTime = async (
 
   const appliedFilter = chFilter.apply();
 
+  const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const timeFilter = tracesFilter
+    ? (chFilter.find(
+        (f) =>
+          f.clickhouseTable === "observations" &&
+          f.field.includes("start_time") &&
+          (f.operator === ">=" || f.operator === ">"),
+      ) as DateTimeFilter | undefined)
+    : undefined;
+
   const query = `
     SELECT 
       ${selectTimeseriesColumn(groupBy, "start_time", "start_time")},
@@ -192,9 +204,10 @@ export const getObservationUsageByTime = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       provided_model_name
     FROM observations o FINAL
-    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY start_time, provided_model_name
     ${orderByTimeSeries(groupBy, "start_time")}
     `;
@@ -209,6 +222,9 @@ export const getObservationUsageByTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
@@ -230,13 +246,24 @@ export const getDistinctModels = async (
 
   const appliedFilter = chFilter.apply();
 
-  const query = `
-    SELECT 
-      distinct(provided_model_name) as model
-    FROM observations o FINAL
-    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+  const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const timeFilter = tracesFilter
+    ? (chFilter.find(
+        (f) =>
+          f.clickhouseTable === "observations" &&
+          f.field.includes("start_time") &&
+          (f.operator === ">=" || f.operator === ">"),
+      ) as DateTimeFilter | undefined)
+    : undefined;
+
+    // No need for final as duplicates are caught by distinct anyway.
+    const query = `
+    SELECT distinct(provided_model_name) as model
+    FROM observations o
+    ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     `;
 
   const result = await queryClickhouse<{ model: string }>({
@@ -244,6 +271,9 @@ export const getDistinctModels = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
@@ -262,6 +292,7 @@ export const getScoresAggregateOverTime = async (
   const appliedFilter = chFilter.apply();
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
   SELECT 
@@ -371,11 +402,12 @@ export const getObservationLatencies = async (
 
   const appliedFilter = chFilter.apply();
 
+  // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
     SELECT
-      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
+      quantiles(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
       name
-    FROM observations o FINAL
+    FROM observations o
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
@@ -414,14 +446,15 @@ export const getTracesLatencies = async (
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
     WITH trace_latencies as (
       select o.trace_id,
              t.name,
              o.project_id,
              date_diff('milliseconds', min(o.start_time), coalesce(max(o.end_time), max(o.start_time))) as duration
-      FROM traces t FINAL 
-      JOIN observations o FINAL
+      FROM traces t 
+      JOIN observations o
       ON o.trace_id = t.id AND o.project_id = t.project_id
       WHERE project_id = {projectId: String}
       AND ${appliedFilter.query}
@@ -430,7 +463,7 @@ export const getTracesLatencies = async (
     )
 
     SELECT
-      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
+      quantiles(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
       name
     FROM trace_latencies
     GROUP BY name
@@ -470,12 +503,13 @@ export const getModelLatenciesOverTime = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
+  // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
   SELECT 
     ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
     provided_model_name,
-    quantilesExactLow(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
-  FROM observations o FINAL
+    quantiles(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
+  FROM observations o
   ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
   AND ${appliedFilter.query}
@@ -510,12 +544,15 @@ export const getNumericScoreTimeSeries = async (
   );
   const chFilterRes = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
     SELECT
     ${selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp")},
     s.name as score_name,
     AVG(s.value) as avg_value
     FROM scores s final
+    ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_timestamp
@@ -545,6 +582,8 @@ export const getCategoricalScoreTimeSeries = async (
   );
   const chFilterRes = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
     SELECT
     ${groupBy ? selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp") + ", " : ""}
@@ -554,6 +593,7 @@ export const getCategoricalScoreTimeSeries = async (
     s.string_value as score_value,
     count(s.string_value) as count
     FROM scores s final
+    ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_data_type, score_source, score_value ${groupBy ? ", score_timestamp" : ""}

@@ -1,10 +1,10 @@
-import * as opentelemetry from "@opentelemetry/api";
-import * as dd from "dd-trace";
-import { env } from "../../env";
 import {
   CloudWatchClient,
   PutMetricDataCommand,
 } from "@aws-sdk/client-cloudwatch";
+import * as opentelemetry from "@opentelemetry/api";
+import * as dd from "dd-trace";
+import { env } from "../../env";
 import { logger } from "../logger";
 
 // type CallbackFn<T> = () => T;

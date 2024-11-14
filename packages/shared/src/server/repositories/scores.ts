@@ -18,6 +18,8 @@ import {
 } from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { convertToScore } from "./scores_converters";
+import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 export type FetchScoresReturnType = {
   id: string;
@@ -53,7 +55,7 @@ export const searchExistingAnnotationScore = async (
   }
   const query = `
     SELECT *
-    FROM scores s FINAL
+    FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.source = 'ANNOTATION'
     AND s.trace_id = {traceId: String}
@@ -64,6 +66,7 @@ export const searchExistingAnnotationScore = async (
       ${configId ? `OR s.config_id = {configId: String}` : ""}
     )
     ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
     LIMIT 1
   `;
 
@@ -87,11 +90,12 @@ export const getScoreById = async (
 ) => {
   const query = `
     SELECT *
-    FROM scores s FINAL
+    FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.id = {scoreId: String}
     AND s.source = {source: String}
     ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
     LIMIT 1
   `;
 
@@ -124,6 +128,7 @@ export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
 export const getScoresForTraces = async (
   projectId: string,
   traceIds: string[],
+  timestamp?: Date,
   limit?: number,
   offset?: number,
 ) => {
@@ -132,19 +137,23 @@ export const getScoresForTraces = async (
         *
       from scores s
       WHERE s.project_id = {projectId: String}
-      AND s.trace_id IN ({traceIds: Array(String)})
-      ORDER BY event_ts DESC
-      LIMIT 1 BY id, project_id
+      AND s.trace_id IN ({traceIds: Array(String)}) 
+      ${timestamp ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+      ORDER BY s.event_ts DESC
+      LIMIT 1 BY s.id, s.project_id
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<FetchScoresReturnType>({
     query: query,
     params: {
-      projectId: projectId,
-      traceIds: traceIds,
-      limit: limit,
-      offset: offset,
+      projectId,
+      traceIds,
+      limit,
+      offset,
+      ...(timestamp
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 
@@ -160,9 +169,11 @@ export const getScoresForObservations = async (
   const query = `
       select 
         *
-      from scores s final
+      from scores s
       WHERE s.project_id = {projectId: String}
       AND s.observation_id IN ({observationIds: Array(String)})
+      ORDER BY s.event_ts DESC
+      LIMIT 1 BY s.id, s.project_id
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
@@ -180,12 +191,14 @@ export const getScoresForObservations = async (
 };
 
 export const getScoresGroupedByNameSourceType = async (projectId: string) => {
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
       select 
         name,
         source,
         data_type
-      from scores s final
+      from scores s
       WHERE s.project_id = {projectId: String}
       GROUP BY name, source, data_type
       ORDER BY count() desc
@@ -229,10 +242,12 @@ export const getScoresGroupedByName = async (
     ? new FilterList(chFilter).apply()
     : undefined;
 
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
       select 
         name as name
-      from scores s final
+      from scores s
       WHERE s.project_id = {projectId: String}
       AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
@@ -378,11 +393,14 @@ export const getScoresUiGeneric = async <T>(props: {
 
   const scoresFilterRes = scoresFilter.apply();
 
+  // TODO: Can we realistically apply a traces time filter here? Is an order by event_ts a risk?
   const query = `
       SELECT 
           ${select}
       FROM scores s final
-      LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id
+      LEFT JOIN traces t
+      ON s.trace_id = t.id 
+      AND t.project_id = s.project_id
       WHERE s.project_id = {projectId: String}
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
@@ -414,11 +432,13 @@ export const getScoreNames = async (
   );
   const timestampFilterRes = chFilter.apply();
 
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
       select 
         name,
         count(*) as count
-      from scores s final
+      from scores s
       WHERE s.project_id = {projectId: String}
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
       GROUP BY name
@@ -488,9 +508,11 @@ export const getNumericScoreHistogram = async (
 
   const query = `
     select s.value
-    from scores s final
+    from scores s
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
     ${limit !== undefined ? `limit {limit: Int32}` : ""}
   `;
 

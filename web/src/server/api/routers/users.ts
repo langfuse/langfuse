@@ -9,8 +9,8 @@ import { Prisma } from "@langfuse/shared/src/db";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import {
   getTotalUserCount,
+  getTracesGroupedByUsers,
   getUserMetrics,
-  getUsersAndTraceCount,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -89,12 +89,13 @@ export const userRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           const [users, totalUsers] = await Promise.all([
-            getUsersAndTraceCount(
+            getTracesGroupedByUsers(
               ctx.session.projectId,
               input.filter ?? [],
               input.searchQuery ?? undefined,
               input.limit,
               input.page,
+              undefined,
             ),
             getTotalUserCount(
               ctx.session.projectId,
@@ -105,7 +106,10 @@ export const userRouter = createTRPCRouter({
 
           return {
             totalUsers: totalUsers.shift()?.totalCount ?? 0,
-            users,
+            users: users.map((user) => ({
+              userId: user.user,
+              totalTraces: BigInt(user.count),
+            })),
           };
         },
       });
