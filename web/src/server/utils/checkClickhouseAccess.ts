@@ -2,7 +2,6 @@ import { env } from "@/src/env.mjs";
 import {
   instrumentAsync,
   logger,
-  recordGauge,
   recordHistogram,
 } from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
