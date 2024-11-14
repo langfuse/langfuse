@@ -3,6 +3,7 @@ import {
   instrumentAsync,
   logger,
   recordGauge,
+  recordHistogram,
 } from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
@@ -75,11 +76,13 @@ export const measureAndReturnApi = async <T, Y>(args: {
         currentSpan?.setAttribute("pg-duration", pgDuration);
         currentSpan?.setAttribute("ch-duration", chDuration);
 
-        recordGauge("langfuse.clickhouse_execution_time", chDuration, {
+        recordHistogram("langfuse.clickhouse_experiment", chDuration, {
           operation: args.operation,
+          database: "clickhouse",
         });
-        recordGauge("langfuse.postgres_execution_time", pgDuration, {
+        recordHistogram("langfuse.clickhouse_experiment", pgDuration, {
           operation: args.operation,
+          database: "postgres",
         });
 
         return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
