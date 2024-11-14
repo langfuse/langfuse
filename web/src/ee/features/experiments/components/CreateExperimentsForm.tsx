@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -27,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { z } from "zod";
+import { z, type ZodSchema } from "zod";
 import { cn } from "@/src/utils/tailwind";
 import {
   Popover,
@@ -58,7 +59,16 @@ import {
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
-import { ZodModelConfig } from "@langfuse/shared";
+import {
+  type ColumnDefinition,
+  datasetCol,
+  type FilterCondition,
+  stringOptionsFilter,
+  ZodModelConfig,
+} from "@langfuse/shared";
+import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 const CreateExperimentData = z.object({
   promptId: z.string().min(1, "Please select a prompt"),
@@ -73,6 +83,25 @@ const CreateExperimentData = z.object({
 
 export type CreateExperiment = z.infer<typeof CreateExperimentData>;
 
+const isDatasetTarget = <T extends ZodSchema>(
+  filters: FilterCondition[] | null,
+  condition: {
+    column: ColumnDefinition;
+    schema: T;
+    isValid: (filter: z.infer<T>) => boolean;
+  },
+): boolean => {
+  if (!filters) return true;
+
+  const { column, schema, isValid } = condition;
+  const datasetFilters = filters.filter(
+    (filter) =>
+      (filter.column === column.id || column.name) &&
+      schema.safeParse(filter).success,
+  );
+  return datasetFilters.every((filter): boolean => isValid(filter));
+};
+
 export const CreateExperimentsForm = ({
   projectId,
   setFormOpen,
@@ -81,6 +110,12 @@ export const CreateExperimentsForm = ({
   setFormOpen: (open: boolean) => void;
 }) => {
   const [open, setOpen] = useState(false);
+  const [evaluatorOptions, setEvaluatorOptions] = useState<
+    { key: string; value: string }[]
+  >([]);
+  const [selectedEvaluators, setSelectedEvaluators] = useState<
+    { key: string; value: string }[]
+  >([]);
   const [selectedPromptName, setSelectedPromptName] = useState<string>();
   const [selectedPromptVersion, setSelectedPromptVersion] = useState<number>();
   const {
@@ -98,6 +133,16 @@ export const CreateExperimentsForm = ({
       datasetId: "",
       modelConfig: {},
     },
+  });
+
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:read",
+  });
+
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJob:CUD",
   });
 
   const promptNamesAndVersions = api.prompts.allNamesAndVersions.useQuery({
@@ -121,6 +166,55 @@ export const CreateExperimentsForm = ({
 
   const promptId = form.watch("promptId");
   const datasetId = form.watch("datasetId");
+
+  const evaluators = api.evals.evaluatorsByTarget.useQuery(
+    { projectId, targetObject: "dataset" },
+    {
+      enabled: hasReadAccess && !!datasetId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+
+  useEffect(() => {
+    if (evaluators.data) {
+      const isValidFilter = (filter: z.infer<typeof stringOptionsFilter>) => {
+        const filterIncludesId = filter.value.includes(datasetId);
+        if (filter.operator === "any of") {
+          return filterIncludesId;
+        } else {
+          return !filterIncludesId;
+        }
+      };
+
+      const initialEvaluators = evaluators.data.reduce<
+        { key: string; value: string }[]
+      >((acc, evaluator) => {
+        if (
+          isDatasetTarget(evaluator.filter, {
+            column: datasetCol,
+            schema: stringOptionsFilter,
+            isValid: isValidFilter,
+          })
+        ) {
+          acc.push({
+            key: evaluator.id,
+            value: evaluator.scoreName,
+          });
+        }
+        return acc;
+      }, []);
+
+      setEvaluatorOptions(initialEvaluators);
+      setSelectedEvaluators(initialEvaluators);
+    }
+  }, [evaluators.data, datasetId]);
 
   const validationResult = api.experiments.validateConfig.useQuery(
     {
@@ -162,6 +256,8 @@ export const CreateExperimentsForm = ({
   }, [modelParams, form]);
 
   const onSubmit = async (data: CreateExperiment) => {
+    // TODO: MUST re-attach evaluators in the form, show warning that this edit will happen on dataset level
+
     const experiment = {
       ...data,
       projectId,
@@ -169,6 +265,10 @@ export const CreateExperimentsForm = ({
     await experimentMutation.mutateAsync(experiment);
     form.reset();
     setFormOpen(false);
+  };
+
+  const handleOnValueChange = (values: { key: string; value: string }[]) => {
+    setSelectedEvaluators(values);
   };
 
   const promptsByName = useMemo(
@@ -185,8 +285,12 @@ export const CreateExperimentsForm = ({
     [promptNamesAndVersions.data],
   );
 
-  if (!promptNamesAndVersions.data || !datasets.data) {
-    return null;
+  if (
+    !promptNamesAndVersions.data ||
+    !datasets.data ||
+    (hasReadAccess && !!datasetId && !evaluators.data)
+  ) {
+    return <Skeleton className="min-h-10 w-full" />;
   }
 
   return (
@@ -404,6 +508,54 @@ export const CreateExperimentsForm = ({
             </FormItem>
           )}
         />
+
+        {evaluators.data && !!datasetId ? (
+          <FormItem>
+            <FormLabel>Evaluators</FormLabel>
+            <FormDescription>
+              Select evaluators to run against your experiment results.
+            </FormDescription>
+            <MultiSelectKeyValues
+              key={datasetId}
+              placeholder="Value"
+              align="end"
+              className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
+              disabled={!hasWriteAccess}
+              onValueChange={handleOnValueChange}
+              options={evaluatorOptions}
+              values={
+                selectedEvaluators as {
+                  value: string;
+                  key: string;
+                }[]
+              }
+              controlButtons={
+                <CommandItem
+                  onSelect={() => {
+                    window.open(`/project/${projectId}/evals`, "_blank");
+                  }}
+                >
+                  Manage evaluators
+                </CommandItem>
+              }
+            />
+          </FormItem>
+        ) : (
+          <FormItem>
+            <FormLabel>Evaluators</FormLabel>
+            {hasReadAccess ? (
+              <FormDescription>
+                Select a dataset first to set up evaluators.
+              </FormDescription>
+            ) : (
+              <FormDescription>
+                ⓘ You don't have access to view evaluators. Please contact your
+                admin to upgrade your role.
+              </FormDescription>
+            )}
+          </FormItem>
+        )}
+
         <div className="mt-4 flex flex-col gap-4">
           {validationResult.isLoading && Boolean(promptId && datasetId) && (
             <Card className="relative overflow-hidden rounded-md shadow-none group-data-[collapsible=icon]:hidden">

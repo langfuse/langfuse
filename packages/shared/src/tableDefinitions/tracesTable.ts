@@ -138,16 +138,16 @@ export const tracesTableCols: ColumnDefinition[] = [
   },
 ];
 
+export const datasetCol: ColumnDefinition = {
+  name: "Dataset",
+  id: "datasetId",
+  type: "stringOptions",
+  internal: 'di."dataset_id"',
+  options: [], // to be filled in at runtime
+};
+
 // Used only for dataset evaluator, not on dataset table
-export const datasetOnlyCols: ColumnDefinition[] = [
-  {
-    name: "Dataset",
-    id: "datasetId",
-    type: "stringOptions",
-    internal: 'di."dataset_id"',
-    options: [], // to be filled in at runtime
-  },
-];
+export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
 export const evalDatasetTableCols: ColumnDefinition[] = datasetOnlyCols;
