@@ -356,7 +356,7 @@ export const sessionRouter = createTRPCRouter({
             ];
             const filter: FilterState = [
               {
-                column: "t.session_id",
+                column: "sessionId",
                 operator: "is not null",
                 type: "null",
                 value: "",
