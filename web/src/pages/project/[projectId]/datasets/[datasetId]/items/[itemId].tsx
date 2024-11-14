@@ -65,8 +65,8 @@ export default function Dataset() {
             )}
             <DetailPageNav
               currentId={itemId}
-              path={(id) =>
-                `/project/${projectId}/datasets/${datasetId}/items/${id}`
+              path={(entry) =>
+                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
               }
               listKey="datasetItems"
             />

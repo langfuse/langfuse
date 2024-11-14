@@ -53,7 +53,7 @@ export default function EvaluatorTable({
     if (evaluators.isSuccess) {
       setDetailPageList(
         "evals",
-        evaluators.data.configs.map((evaluator) => evaluator.id),
+        evaluators.data.configs.map((evaluator) => ({ id: evaluator.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

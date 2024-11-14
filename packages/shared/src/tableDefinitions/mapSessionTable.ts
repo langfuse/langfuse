@@ -2,6 +2,13 @@ import { UiColumnMapping } from ".";
 
 export const sessionCols: UiColumnMapping[] = [
   // we do not access the traces scores in clichouse. We default back to the trace timestamps.
+
+  {
+    uiTableName: "⭐️",
+    uiTableId: "bookmarked",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "bookmarked",
+  },
   {
     uiTableName: "Created At",
     uiTableId: "createdAt",
@@ -109,5 +116,11 @@ export const sessionCols: UiColumnMapping[] = [
     uiTableId: "traceTags",
     clickhouseTableName: "traces",
     clickhouseSelect: "trace_tags",
+  },
+  {
+    uiTableName: "ID",
+    uiTableId: "id",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "session_id",
   },
 ];

@@ -169,7 +169,7 @@ export default function SessionsTable({
     if (sessions.isSuccess) {
       setDetailPageList(
         "sessions",
-        sessions.data.sessions.map((t) => t.id),
+        sessions.data.sessions.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

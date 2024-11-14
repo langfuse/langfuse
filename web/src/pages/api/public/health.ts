@@ -13,6 +13,21 @@ export default async function handler(
     await runMiddleware(req, res, cors);
     await telemetry();
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
+    const failIfDatabaseUnavailable =
+      req.query.failIfDatabaseUnavailable === "true";
+
+    try {
+      if (failIfDatabaseUnavailable) {
+        await prisma.$queryRaw`SELECT 1;`;
+      }
+    } catch (e) {
+      logger.error("Couldn't connect to database", e);
+      traceException(e);
+      return res.status(503).json({
+        status: "Database not available",
+        version: VERSION.replace("v", ""),
+      });
+    }
 
     try {
       if (failIfNoRecentEvents) {
@@ -53,10 +68,10 @@ export default async function handler(
         }
       }
     } catch (e) {
-      logger.error("Couldn't fetch recent events: db not available", e);
+      logger.error("Couldn't fetch recent events", e);
       traceException(e);
       return res.status(503).json({
-        status: "Database not available",
+        status: "Couldn't fetch recent events",
         version: VERSION.replace("v", ""),
       });
     }

@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get a media record
+      method: GET
+      path: /media/{mediaId}
+      path-parameters:
+        mediaId:
+          type: string
+          docs: The unique langfuse identifier of a media record
+      response: GetMediaResponse
+
+    patch:
+      docs: Patch a media record
+      method: PATCH
+      path: /media/{mediaId}
+      path-parameters:
+        mediaId:
+          type: string
+          docs: The unique langfuse identifier of a media record
+      request: PatchMediaBody
+
+    getUploadUrl:
+      docs: Get a presigned upload URL for a media record
+      method: POST
+      path: /media
+      request: GetMediaUploadUrlRequest
+      response: GetMediaUploadUrlResponse
+
+types:
+  GetMediaResponse:
+    properties:
+      mediaId:
+        type: string
+        docs: The unique langfuse identifier of a media record
+      contentType:
+        type: string
+        docs: The MIME type of the media record
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      uploadedAt:
+        type: datetime
+        docs: The date and time when the media record was uploaded
+      url:
+        type: string
+        docs: The download URL of the media record
+      urlExpiry:
+        type: string
+        docs: The expiry date and time of the media record download URL
+
+  PatchMediaBody:
+    properties:
+      uploadedAt:
+        type: datetime
+        docs: The date and time when the media record was uploaded
+      uploadHttpStatus:
+        type: integer
+        docs: The HTTP status code of the upload
+      uploadHttpError:
+        type: optional<string>
+        docs: The HTTP error message of the upload
+      uploadTimeMs:
+        type: optional<integer>
+        docs: The time in milliseconds it took to upload the media record
+
+  GetMediaUploadUrlRequest:
+    properties:
+      traceId:
+        type: string
+        docs: The trace ID associated with the media record
+      observationId:
+        type: optional<string>
+        docs: The observation ID associated with the media record. If the media record is associated directly with a trace, this will be null.
+      contentType:
+        type: string
+        docs: The MIME type of the media record
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      sha256Hash:
+        type: string
+        docs: The SHA-256 hash of the media record
+      field:
+        type: string
+        docs: The trace / observation field the media record is associated with. This can be one of `input`, `output`, `metadata`
+
+  GetMediaUploadUrlResponse:
+    properties:
+      uploadUrl:
+        type: optional<string>
+        docs: The presigned upload URL. If the asset is already uploaded, this will be null
+      mediaId:
+        type: string
+        docs: The unique langfuse identifier of a media record
