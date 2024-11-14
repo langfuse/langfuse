@@ -108,8 +108,6 @@ export const getTracesTable = async (
     offset,
   });
 
-  console.log("getTracesTable", rows);
-
   return rows.map(convertToDomain);
 };
 
