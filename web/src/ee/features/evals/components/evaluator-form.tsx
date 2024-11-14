@@ -366,6 +366,7 @@ export const InnerEvalConfigForm = (props: {
     return {
       datasetId: datasets.data?.map((d) => ({
         value: d.id,
+        displayValue: d.name,
       })),
     };
   }, [datasets.data]);
