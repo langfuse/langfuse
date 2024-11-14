@@ -279,6 +279,32 @@ export class ArrayOptionsFilter implements Filter {
   }
 }
 
+export class NullFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public operator: (typeof filterOperators)["null"][number];
+  protected tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["null"][number];
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+  }
+
+  apply(): ClickhouseFilter {
+    return {
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator}`,
+      params: {},
+    };
+  }
+}
+
 export class NumberObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;

@@ -404,7 +404,10 @@ export const getTracesGroupedByUsers = async (
   });
 
   tracesFilter.push(
-    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+    ...createFilterFromFilterState(
+      filter,
+      columns ?? tracesTableUiColumnDefinitions,
+    ),
   );
 
   const tracesFilterRes = tracesFilter.apply();
