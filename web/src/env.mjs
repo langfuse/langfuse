@@ -225,6 +225,7 @@ export const env = createEnv({
       .default(15_000),
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
     LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
       .enum(["true", "false"])
       .default("false"),
@@ -458,6 +459,8 @@ export const env = createEnv({
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
     LANGFUSE_RETURN_FROM_CLICKHOUSE:
       process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
+    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS:
+      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS,
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE:
       process.env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
