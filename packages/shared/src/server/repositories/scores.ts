@@ -503,3 +503,58 @@ export const getNumericScoreHistogram = async (
     },
   });
 };
+
+export const getAggregatedScoresForPrompts = async (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+) => {
+  const query = `
+    SELECT 
+      prompt_id,
+      s.id,
+      s.name,
+      s.string_value,
+      s.value,
+      s.source,
+      s.data_type,
+      s.comment
+    FROM scores s FINAL LEFT JOIN observations o FINAL 
+      ON o.trace_id = s.trace_id 
+      AND o.project_id = s.project_id 
+      ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
+    WHERE o.project_id = {projectId: String}
+    AND o.prompt_id IN ({promptIds: Array(String)})
+    AND o.type = 'GENERATION'
+    AND s.name IS NOT NULL
+    ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
+  `;
+
+  const rows = await queryClickhouse<{
+    prompt_id: string;
+    id: string;
+    name: string;
+    string_value: string | null;
+    value: string;
+    source: string;
+    data_type: string;
+    comment: string | null;
+  }>({
+    query,
+    params: {
+      projectId,
+      promptIds,
+    },
+  });
+
+  return rows.map((row) => ({
+    promptId: row.prompt_id,
+    id: row.id,
+    name: row.name,
+    stringValue: row.string_value,
+    value: Number(row.value),
+    source: row.source as ScoreSource,
+    dataType: row.data_type as ScoreDataType,
+    comment: row.comment,
+  }));
+};

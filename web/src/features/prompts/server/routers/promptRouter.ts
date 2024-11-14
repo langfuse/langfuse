@@ -25,6 +25,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
+  getAggregatedScoresForPrompts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -822,29 +823,64 @@ export const promptRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           console.log("clickhouseExecution", input.promptIds);
-          const res = await getObservationMetricsForPrompts(
-            input.projectId,
-            input.promptIds,
-          );
-          // return res.map(({ promptId, count }) => ({
-          //   promptId,
-          //   observationCount: count,
-          // }));
+          const [observations, observationScores, traceScores] =
+            await Promise.all([
+              getObservationMetricsForPrompts(input.projectId, input.promptIds),
+              getScoresForPromptIds(
+                input.projectId,
+                input.promptIds,
+                "observation",
+              ),
+              getScoresForPromptIds(input.projectId, input.promptIds, "trace"),
+            ]);
 
-          console.log("clickhouseExecution", res);
-          return res.map((r) => ({
-            observationCount: r.count,
-            firstUsed: r.firstObservation,
-            lastUsed: r.lastObservation,
-            medianOutputTokens: r.medianOutputUsage,
-            medianInputTokens: r.medianInputUsage,
-            medianTotalCost: r.medianTotalCost,
-            medianLatency: r.medianLatencyMs,
-          }));
+          return observations.map((r) => {
+            const promptObservationScores = observationScores.find(
+              (score) => score.promptId === r.promptId,
+            );
+            const promptTraceScores = traceScores.find(
+              (score) => score.promptId === r.promptId,
+            );
+
+            return {
+              id: r.promptId,
+              observationCount: BigInt(r.count),
+              firstUsed: r.firstObservation,
+              lastUsed: r.lastObservation,
+              medianOutputTokens: r.medianOutputUsage,
+              medianInputTokens: r.medianInputUsage,
+              medianTotalCost: r.medianTotalCost,
+              medianLatency: r.medianLatencyMs,
+              observationScores: aggregateScores(
+                promptObservationScores?.scores ?? [],
+              ),
+              traceScores: aggregateScores(promptTraceScores?.scores ?? []),
+            };
+          });
         },
       });
     }),
 });
+
+const getScoresForPromptIds = async (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+) => {
+  const scores = await getAggregatedScoresForPrompts(
+    projectId,
+    promptIds,
+    fetchScoreRelation,
+  );
+
+  return promptIds.map((promptId) => {
+    const promptScores = scores.filter((score) => score.promptId === promptId);
+    return {
+      promptId,
+      scores: promptScores,
+    };
+  });
+};
 
 const generatePromptQuery = (
   select: Prisma.Sql,
