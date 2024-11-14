@@ -1012,9 +1012,9 @@ async function generatePromptsForProject(projects: Project[]) {
   return promptIds;
 }
 
-export const createSeedPrompts = () => [
+export const SEED_PROMPTS = [
   {
-    id: `prompt-${v4()}`,
+    id: `prompt-123`,
     createdBy: "user-1",
     prompt: "Prompt 1 content",
     name: "Prompt 1",
@@ -1022,7 +1022,7 @@ export const createSeedPrompts = () => [
     labels: ["production", "latest"],
   },
   {
-    id: `prompt-${v4()}`,
+    id: `prompt-456`,
     createdBy: "user-1",
     prompt: "Prompt 2 content",
     name: "Prompt 2",
@@ -1030,7 +1030,7 @@ export const createSeedPrompts = () => [
     labels: ["production", "latest"],
   },
   {
-    id: `prompt-${v4()}`,
+    id: `prompt-789`,
     createdBy: "API",
     prompt: "Prompt 3 content",
     name: "Prompt 3 by API",
@@ -1038,7 +1038,7 @@ export const createSeedPrompts = () => [
     labels: ["production", "latest"],
   },
   {
-    id: `prompt-${v4()}`,
+    id: `prompt-abc`,
     createdBy: "user-1",
     prompt: "Prompt 4 content",
     name: "Prompt 4",
@@ -1052,17 +1052,17 @@ export const PROMPT_IDS: string[] = [];
 
 async function generatePrompts(project: Project) {
   const promptIds = [];
-  for (const prompt of createSeedPrompts()) {
+  for (const prompt of SEED_PROMPTS) {
     await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
-          projectId: project.id,
+          projectId: prompt.id + project.id,
           name: prompt.name,
           version: prompt.version,
         },
       },
       create: {
-        id: prompt.id,
+        id: prompt.id + project.id,
         projectId: project.id,
         createdBy: prompt.createdBy,
         prompt: prompt.prompt,

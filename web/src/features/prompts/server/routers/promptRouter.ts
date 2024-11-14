@@ -689,28 +689,27 @@ export const promptRouter = createTRPCRouter({
         operation: "prompts.versionMetrics",
         user: ctx.session.user,
         pgExecution: async () => {
-
-      if (input.promptIds.length === 0) return [];
-      const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter ?? [],
-        observationsTableCols,
-        "prompts",
-      );
-      const [metrics, generationScores, traceScores] = await Promise.all([
-        // metrics
-        ctx.prisma.$queryRaw<
-          Array<{
-            id: string;
-            observationCount: bigint;
-            firstUsed: Date | null;
-            lastUsed: Date | null;
-            medianOutputTokens: number | null;
-            medianInputTokens: number | null;
-            medianTotalCost: number | null;
-            medianLatency: number | null;
-          }>
-        >(
-          Prisma.sql`
+          if (input.promptIds.length === 0) return [];
+          const filterCondition = tableColumnsToSqlFilterAndPrefix(
+            input.filter ?? [],
+            observationsTableCols,
+            "prompts",
+          );
+          const [metrics, generationScores, traceScores] = await Promise.all([
+            // metrics
+            ctx.prisma.$queryRaw<
+              Array<{
+                id: string;
+                observationCount: bigint;
+                firstUsed: Date | null;
+                lastUsed: Date | null;
+                medianOutputTokens: number | null;
+                medianInputTokens: number | null;
+                medianTotalCost: number | null;
+                medianLatency: number | null;
+              }>
+            >(
+              Prisma.sql`
             select p.id, p.version, observation_metrics.* from prompts p
             LEFT JOIN LATERAL (
               SELECT
@@ -733,14 +732,14 @@ export const promptRouter = createTRPCRouter({
             AND p.id in (${Prisma.join(input.promptIds)})
             ORDER BY version DESC
           `,
-        ),
-        // generationScores
-        ctx.prisma.$queryRaw<
-          Array<{
-            promptId: string;
-            scores: Array<ScoreSimplified>;
-          }>
-        >(Prisma.sql`
+            ),
+            // generationScores
+            ctx.prisma.$queryRaw<
+              Array<{
+                promptId: string;
+                scores: Array<ScoreSimplified>;
+              }>
+            >(Prisma.sql`
           SELECT
             p.id AS "promptId",
             array_agg(s.score) AS "scores"
@@ -769,13 +768,13 @@ export const promptRouter = createTRPCRouter({
             GROUP BY
               p.id
           `),
-        // traceScores
-        ctx.prisma.$queryRaw<
-          Array<{
-            promptId: string;
-            scores: Array<ScoreSimplified>;
-          }>
-        >(Prisma.sql`
+            // traceScores
+            ctx.prisma.$queryRaw<
+              Array<{
+                promptId: string;
+                scores: Array<ScoreSimplified>;
+              }>
+            >(Prisma.sql`
           SELECT
             p.id AS "promptId",
             array_agg(s.score) AS "scores"
@@ -807,32 +806,45 @@ export const promptRouter = createTRPCRouter({
           GROUP BY
               p.id
           `),
-      ]);
+          ]);
 
-      return metrics.map((metric) => ({
-        ...metric,
-        observationScores: aggregateScores(
-          generationScores.find((score) => score.promptId === metric.id)
-            ?.scores ?? [],
-        ),
-        traceScores: aggregateScores(
-          traceScores.find((score) => score.promptId === metric.id)?.scores ??
-            [],
-        ),
-      }));
-    }, 
-    clickhouseExecution: async () => {
-      const res = await getObservationMetricsForPrompts(
-        input.projectId,
-        input.promptIds,
-      );
-      return res.map(({ promptId, count }) => ({
-        promptId,
-        observationCount: count,
-      }));
-    },
-  })
-})
+          return metrics.map((metric) => ({
+            ...metric,
+            observationScores: aggregateScores(
+              generationScores.find((score) => score.promptId === metric.id)
+                ?.scores ?? [],
+            ),
+            traceScores: aggregateScores(
+              traceScores.find((score) => score.promptId === metric.id)
+                ?.scores ?? [],
+            ),
+          }));
+        },
+        clickhouseExecution: async () => {
+          console.log("clickhouseExecution", input.promptIds);
+          const res = await getObservationMetricsForPrompts(
+            input.projectId,
+            input.promptIds,
+          );
+          // return res.map(({ promptId, count }) => ({
+          //   promptId,
+          //   observationCount: count,
+          // }));
+
+          console.log("clickhouseExecution", res);
+          return res.map((r) => ({
+            observationCount: r.count,
+            firstUsed: r.firstObservation,
+            lastUsed: r.lastObservation,
+            medianOutputTokens: r.medianOutputUsage,
+            medianInputTokens: r.medianInputUsage,
+            medianTotalCost: r.medianTotalCost,
+            medianLatency: r.medianLatencyMs,
+          }));
+        },
+      });
+    }),
+});
 
 const generatePromptQuery = (
   select: Prisma.Sql,
