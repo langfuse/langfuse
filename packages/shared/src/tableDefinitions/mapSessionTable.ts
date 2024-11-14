@@ -119,7 +119,7 @@ export const sessionCols: UiColumnMapping[] = [
   },
   {
     uiTableName: "ID",
-    uiTableId: "sessionId",
+    uiTableId: "id",
     clickhouseTableName: "traces",
     clickhouseSelect: "session_id",
   },

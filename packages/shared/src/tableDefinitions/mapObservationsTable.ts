@@ -19,7 +19,7 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
-    clickhouseTableName: "observations",
+    clickhouseTableName: "traces",
     clickhouseSelect: 't."name"',
   },
 ];
