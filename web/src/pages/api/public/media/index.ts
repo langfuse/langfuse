@@ -41,21 +41,24 @@ export default withMiddlewares({
           `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
         );
 
-      const { mediaId, uploadUrl } = await prisma.$transaction(async (tx) => {
-        const existingMedia = await tx.media.findUnique({
-          where: {
-            projectId_sha256Hash: {
-              projectId,
-              sha256Hash,
-            },
+      const existingMedia = await prisma.media.findUnique({
+        where: {
+          projectId_sha256Hash: {
+            projectId,
+            sha256Hash,
           },
-        });
+        },
+      });
 
-        if (
-          existingMedia &&
-          existingMedia.uploadHttpStatus === 200 &&
-          existingMedia.contentType === contentType
-        ) {
+      if (
+        existingMedia &&
+        existingMedia.uploadHttpStatus === 200 &&
+        existingMedia.contentType === contentType
+      ) {
+        return await prisma.$transaction<{
+          mediaId: string;
+          uploadUrl: null;
+        }>(async (tx) => {
           if (observationId) {
             await tx.observationMedia.upsert({
               where: {
@@ -100,37 +103,46 @@ export default withMiddlewares({
             mediaId: existingMedia.id,
             uploadUrl: null,
           };
-        }
+        });
+      }
+      const mediaId = existingMedia?.id ?? randomUUID();
 
-        const mediaId = existingMedia?.id ?? randomUUID();
-
-        if (
-          !(
-            env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED &&
-            env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
-          )
+      if (
+        !(
+          env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED &&
+          env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
         )
-          throw new InternalServerError(
-            "Media upload to blob storage not enabled or no bucket configured",
-          );
-
-        const s3Client = getMediaStorageServiceClient(
-          env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      )
+        throw new InternalServerError(
+          "Media upload to blob storage not enabled or no bucket configured",
         );
 
-        const bucketPath = getBucketPath({
-          projectId,
-          mediaId,
-          contentType,
-        });
+      const s3Client = getMediaStorageServiceClient(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      );
 
-        const uploadUrl = await s3Client.getSignedUploadUrl({
-          path: bucketPath,
-          ttlSeconds: 60 * 60, // 1 hour
-          sha256Hash,
-          contentType,
-          contentLength,
-        });
+      const bucketPath = getBucketPath({
+        projectId,
+        mediaId,
+        contentType,
+      });
+
+      const uploadUrl = await s3Client.getSignedUploadUrl({
+        path: bucketPath,
+        ttlSeconds: 60 * 60, // 1 hour
+        sha256Hash,
+        contentType,
+        contentLength,
+      });
+
+      return await prisma.$transaction<{
+        mediaId: string;
+        uploadUrl: string;
+      }>(async (tx) => {
+        if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
+          throw new InternalServerError(
+            "Media upload to bucket not configured",
+          );
 
         await Promise.all([
           tx.media.upsert({
@@ -200,11 +212,6 @@ export default withMiddlewares({
           uploadUrl,
         };
       });
-
-      return {
-        uploadUrl,
-        mediaId,
-      };
     },
   }),
 });
