@@ -64,7 +64,7 @@ const OrganizationUsageChart = () => {
       },
     },
   );
-  const planLimit =
+  const hobbyPlanLimit =
     organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
   const planLabel = planLabels[plan];
@@ -87,12 +87,14 @@ const OrganizationUsageChart = () => {
             {plan === "cloud:hobby" && (
               <>
                 <Flex className="mt-4">
-                  <Text>{`${numberFormatter((usage.data.usageCount / planLimit) * 100)}%`}</Text>
-                  <Text>Plan limit: {compactNumberFormatter(planLimit)}</Text>
+                  <Text>{`${numberFormatter((usage.data.usageCount / hobbyPlanLimit) * 100)}%`}</Text>
+                  <Text>
+                    Plan limit: {compactNumberFormatter(hobbyPlanLimit)}
+                  </Text>
                 </Flex>
                 <MarkerBar
                   value={Math.min(
-                    (usage.data.usageCount / planLimit) * 100,
+                    (usage.data.usageCount / hobbyPlanLimit) * 100,
                     100,
                   )}
                   className="mt-3"

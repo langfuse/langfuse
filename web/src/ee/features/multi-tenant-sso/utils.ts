@@ -6,6 +6,7 @@ import OktaProvider from "next-auth/providers/okta";
 import CognitoProvider from "next-auth/providers/cognito";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
@@ -14,7 +15,6 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
-import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {

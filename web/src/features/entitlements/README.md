@@ -21,4 +21,4 @@ This feature allows to control for availability of features. Entitlements are ma
     - Server side: `getOrganizationPlanServerSide` based on cloudConfig, or `getSelfHostedInstancePlanServerSide` for instance-level plan
 - Use of Entitlements
   - Client side: react hooks in `hooks.ts` make entitlements of current organization available to the components.
-  - Server side: `get-entitlement.ts` and `get-entitlement-limit.ts` allow to check for entitlements and entitlement limits given a session user object.
+  - Server side: `hasEntitlement.ts` and `hasEntitlementLimit.ts` allow to check for entitlements and entitlement limits given a session user object.
