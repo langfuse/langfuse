@@ -106,9 +106,11 @@ export function tableColumnsToSqlFilter(
           ", ",
         )}] `;
         break;
-
       case "boolean":
         valuePrisma = Prisma.sql`${filter.value}`;
+        break;
+      case "null":
+        valuePrisma = Prisma.sql``;
         break;
     }
     const jsonKeyPrisma =
