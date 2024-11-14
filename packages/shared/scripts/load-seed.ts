@@ -105,10 +105,6 @@ async function main() {
     numberOfDays = 3;
   }
 
-  logger.info(
-    `Preparing Clickhouse for ${numOfProjects} projects and ${numberOfDays} days with max Observations ${totalObservations}.`,
-  );
-
   try {
     const projectIds = [
       "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
