@@ -5,9 +5,14 @@ import React, {
   useState,
 } from "react";
 
+export type ListEntry = {
+  id: string;
+  params?: Record<string, string>;
+};
+
 interface ListContextType {
-  detailPagelists: Record<string, Array<string>>;
-  setDetailPageList: (key: string, list: Array<string>) => void;
+  detailPagelists: Record<string, Array<ListEntry>>;
+  setDetailPageList: (key: string, list: Array<ListEntry>) => void;
 }
 
 const DetailPageLists = createContext<ListContextType | undefined>(undefined);
@@ -23,11 +28,11 @@ export function useDetailPageLists(): ListContextType {
 }
 
 export function DetailPageListsProvider(props: PropsWithChildren) {
-  const [detailPagelists, setLists] = useState<Record<string, Array<string>>>(
-    {},
-  );
+  const [detailPagelists, setLists] = useState<
+    Record<string, Array<ListEntry>>
+  >({});
 
-  const setDetailPageList = (key: string, list: Array<string>) => {
+  const setDetailPageList = (key: string, list: Array<ListEntry>) => {
     setLists((prevLists) => ({ ...prevLists, [key]: list }));
   };
 

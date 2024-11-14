@@ -120,13 +120,26 @@ const parseGeneration = (generation: Observation): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
 
   const modelParams = parseModelParams(generation);
-  const input = generation.input?.valueOf();
+  let input = generation.input?.valueOf();
 
   if (typeof input === "string") {
-    return {
-      messages: [createEmptyMessage(ChatMessageRole.System, input)],
-      modelParams,
-    };
+    try {
+      input = JSON.parse(input);
+
+      if (typeof input === "string") {
+        return {
+          messages: [createEmptyMessage(ChatMessageRole.System, input)],
+          modelParams,
+        };
+      }
+    } catch (err) {
+      return {
+        messages: [
+          createEmptyMessage(ChatMessageRole.System, input?.toString()),
+        ],
+        modelParams,
+      };
+    }
   }
 
   if (typeof input === "object") {

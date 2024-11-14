@@ -26,10 +26,15 @@ import {
   convertObservation,
 } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  TRACE_TO_OBSERVATIONS_INTERVAL,
+} from "./constants";
 
 export const getObservationsViewForTrace = async (
   traceId: string,
   projectId: string,
+  timestamp?: Date,
   fetchWithInputOutput: boolean = false,
 ) => {
   const query = `
@@ -62,10 +67,21 @@ export const getObservationsViewForTrace = async (
     created_at,
     updated_at,
     event_ts
-  FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
+  FROM observations 
+  WHERE trace_id = {traceId: String}
+  AND project_id = {projectId: String}
+   ${timestamp ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+  ORDER BY event_ts DESC
+  LIMIT 1 BY id, project_id`;
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
-    params: { traceId, projectId },
+    params: {
+      traceId,
+      projectId,
+      ...(timestamp
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
   });
 
   return await Promise.all(
@@ -108,7 +124,11 @@ export const getObservationById = async (
     created_at,
     updated_at,
     event_ts
-  FROM observations WHERE id = {id: String} AND project_id = {projectId: String} ORDER BY event_ts desc LIMIT 1 by id, project_id`;
+  FROM observations
+  WHERE id = {id: String}
+  AND project_id = {projectId: String}
+  ORDER BY event_ts desc
+  LIMIT 1 by id, project_id`;
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { id, projectId },
@@ -297,6 +317,15 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
+  const orderByTraces = opts.orderBy
+    ? observationsTableTraceUiColumnDefinitions
+        .map((c) => c.uiTableId)
+        .includes(opts.orderBy.column) ||
+      observationsTableTraceUiColumnDefinitions
+        .map((c) => c.uiTableName)
+        .includes(opts.orderBy.column)
+    : undefined;
+
   timeFilter
     ? scoresFilter.push(
         new DateTimeFilter({
@@ -358,7 +387,7 @@ const getObservationsTableInternal = async <T>(
       observation_id
   )`;
 
-  if (traceTableFilter.length > 0) {
+  if (traceTableFilter.length > 0 || orderByTraces) {
     // joins with traces are very expensive. We need to filter by time as well.
     // We assume that a trace has to have been within the last 2 days to be relevant.
 
@@ -370,7 +399,8 @@ const getObservationsTableInternal = async <T>(
         LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
-        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime} - INTERVAL 2 DAY` : ""}
+        AND o.type = 'GENERATION'
+        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
@@ -439,16 +469,17 @@ export const getObservationsGroupedByModel = async (
 
   const appliedObservationsFilter = observationsFilter.apply();
 
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-
-    SELECT
-      o.provided_model_name as name
-    FROM observations o FINAL
+    SELECT o.provided_model_name as name
+    FROM observations o
     WHERE ${appliedObservationsFilter.query}
+    AND o.type = 'GENERATION'
     GROUP BY o.provided_model_name
     ORDER BY count() DESC
     LIMIT 1000;
-    `;
+  `;
 
   const res = await queryClickhouse<{ name: string }>({
     query,
@@ -482,16 +513,17 @@ export const getObservationsGroupedByName = async (
 
   const appliedObservationsFilter = observationsFilter.apply();
 
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-
-    SELECT
-      o.name as name
-    FROM observations o FINAL
+    SELECT o.name as name
+    FROM observations o
     WHERE ${appliedObservationsFilter.query}
+    AND o.type = 'GENERATION'
     GROUP BY o.name
     ORDER BY count() DESC
     LIMIT 1000;
-    `;
+  `;
 
   const res = await queryClickhouse<{ name: string }>({
     query,
@@ -525,10 +557,11 @@ export const getObservationsGroupedByPromptName = async (
 
   const appliedObservationsFilter = observationsFilter.apply();
 
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-    SELECT
-      o.prompt_id as id
-    FROM observations o FINAL
+    SELECT o.prompt_id as id
+    FROM observations o
     WHERE ${appliedObservationsFilter.query}
     AND o.type = 'GENERATION'
     AND o.prompt_id IS NOT NULL
@@ -571,13 +604,20 @@ export const getCostForTraces = async (
   projectId: string,
   traceIds: string[],
 ) => {
+  // Wrapping the query in a CTE allows us to skip FINAL which allows Clickhouse to use skip indexes.
   const query = `
-    SELECT
-      sum(o.total_cost) as total_cost
-    FROM observations o FINAL
-    WHERE o.project_id = {projectId: String}
-    AND o.trace_id IN ({traceIds: Array(String)});
-    `;
+    WITH selected_observations AS (
+      SELECT o.total_cost as total_cost
+      FROM observations o
+      WHERE o.project_id = {projectId: String}
+      AND o.trace_id IN ({traceIds: Array(String)})
+      ORDER BY o.event_ts DESC
+      LIMIT 1 BY o.id, o.project_id
+    )
+
+    SELECT sum(total_cost) as total_cost
+    FROM selected_observations
+ `;
 
   const res = await queryClickhouse<{ total_cost: string }>({
     query,
@@ -605,4 +645,30 @@ export const deleteObservationsByTraceIds = async (
       traceIds,
     },
   });
+};
+
+export const getObservationsWithPromptName = async (
+  projectId: string,
+  promptNames: string[],
+) => {
+  const query = `
+  SELECT count(*) as count, prompt_name
+  FROM observations FINAL
+  WHERE project_id = {projectId: String}
+  AND prompt_name IN ({promptNames: Array(String)})
+  AND prompt_name IS NOT NULL
+  GROUP BY prompt_name
+`;
+  const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
+    query: query,
+    params: {
+      projectId,
+      promptNames,
+    },
+  });
+
+  return rows.map((r) => ({
+    count: Number(r.count),
+    promptName: r.prompt_name,
+  }));
 };

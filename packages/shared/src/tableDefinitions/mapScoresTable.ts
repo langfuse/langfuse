@@ -69,13 +69,13 @@ export const scoresTableUiColumnDefinitions: UiColumnMapping[] = [
   },
   {
     uiTableName: "Trace Name",
-    uiTableId: "trace_name",
+    uiTableId: "traceName",
     clickhouseTableName: "traces",
     clickhouseSelect: "t.name",
   },
   {
     uiTableName: "User ID",
-    uiTableId: "user_id",
+    uiTableId: "userId",
     clickhouseTableName: "traces",
     clickhouseSelect: "t.user_id",
   },
