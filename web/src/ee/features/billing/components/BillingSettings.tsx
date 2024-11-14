@@ -8,7 +8,7 @@ import Header from "@/src/components/layouts/header";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { type Plan, planLabels } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import {
@@ -28,7 +28,7 @@ export const BillingSettings = () => {
     scope: "langfuseCloudBilling:CRUD",
   });
 
-  const entitled = useHasOrgEntitlement("cloud-billing");
+  const entitled = useHasEntitlement("cloud-billing");
   if (!entitled) return null;
 
   if (!hasAccess)

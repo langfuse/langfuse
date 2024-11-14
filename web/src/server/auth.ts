@@ -38,14 +38,23 @@ import {
   instrumentAsync,
   logger,
 } from "@langfuse/shared/src/server";
-import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import {
+  getOrganizationPlanServerSide,
+  getSelfHostedInstancePlanServerSide,
+} from "@/src/features/entitlements/server/getOrganizationPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
-  // if no allowlist is set or no active EE key, allow all users to create organizations
+  const instancePlan = getSelfHostedInstancePlanServerSide();
+
+  // if no allowlist is set or no entitlement for self-host-allowed-organization-creators, allow all users to create organizations
   if (
     !env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS ||
-    !env.LANGFUSE_EE_LICENSE_KEY
+    !hasEntitlementBasedOnPlan({
+      plan: instancePlan,
+      entitlement: "self-host-allowed-organization-creators",
+    })
   )
     return true;
 
@@ -358,7 +367,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                 env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
-              eeEnabled: env.LANGFUSE_EE_LICENSE_KEY !== undefined,
+              selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
             },
             user:
               dbUser !== null
@@ -404,7 +413,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
                           // Enables features/entitlements based on the plan of the organization, either cloud or EE version when self-hosting
                           // If you edit this line, you risk executing code that is not MIT licensed (contained in /ee folders, see LICENSE)
-                          plan: getOrganizationPlan(parsedCloudConfig.data),
+                          plan: getOrganizationPlanServerSide(
+                            parsedCloudConfig.data,
+                          ),
                         };
                       },
                     ),

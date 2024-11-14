@@ -32,7 +32,7 @@ import { Role } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
-  useHasOrgEntitlement,
+  useHasEntitlement,
   useOrgEntitlementLimit,
 } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -76,7 +76,7 @@ export function CreateProjectMemberButton(props: {
       enabled: hasOrgAccess,
     },
   ).data?.totalCount;
-  const hasProjectRoleEntitlement = useHasOrgEntitlement("rbac-project-roles");
+  const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
   const hasOnlySingleProjectAccess =
     !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
 

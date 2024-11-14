@@ -16,7 +16,7 @@ import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -41,7 +41,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       });
     },
   });
-  const entitled = useHasOrgEntitlement("batch-export");
+  const entitled = useHasEntitlement("batch-export");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "batchExport:create",

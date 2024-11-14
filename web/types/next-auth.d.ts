@@ -22,8 +22,8 @@ declare module "next-auth" {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
       disableExpensivePostgresQueries: boolean;
-      // Enables features that are only available under an enterprise license when self-hosting Langfuse
-      eeEnabled: boolean;
+      // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
+      selfHostedInstancePlan: Plan | null;
     };
   }
 

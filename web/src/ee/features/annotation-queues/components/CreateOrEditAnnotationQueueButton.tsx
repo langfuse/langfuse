@@ -35,8 +35,8 @@ import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  useHasOrgEntitlement,
-  useOrgEntitlementLimit,
+  useHasEntitlement,
+  useEntitlementLimit,
 } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 
@@ -54,8 +54,8 @@ export const CreateOrEditAnnotationQueueButton = ({
     projectId: projectId,
     scope: "annotationQueues:CUD",
   });
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
-  const queueLimit = useOrgEntitlementLimit("annotation-queue-count");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
+  const queueLimit = useEntitlementLimit("annotation-queue-count");
   const router = useRouter();
   const capture = usePostHogClientCapture();
 

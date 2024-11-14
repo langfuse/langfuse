@@ -10,6 +10,8 @@ const entitlements = [
   "integration-posthog",
   "batch-export",
   "annotation-queues",
+  "self-host-ui-customization",
+  "self-host-allowed-organization-creators",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -85,12 +87,23 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
+  "self-hosted:pro": {
+    entitlements: ["annotation-queues", "playground"],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
   "self-hosted:enterprise": {
     entitlements: [
       "annotation-queues",
       "playground",
       "rbac-project-roles",
-      // `LANGFUSE_ALLOWED_ORGANIZATION_CREATORS` -> directly checked on instance level in auth.ts
+      "self-host-ui-customization",
+      "self-host-allowed-organization-creators",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
