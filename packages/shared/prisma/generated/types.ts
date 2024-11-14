@@ -300,8 +300,6 @@ export type Media = {
     project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    expires_at: Timestamp | null;
-    deleted_at: Timestamp | null;
     uploaded_at: Timestamp | null;
     upload_http_status: number | null;
     upload_http_error: string | null;

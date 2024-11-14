@@ -972,8 +972,6 @@ model Media {
   project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at")
-  expiresAt        DateTime?          @map("expires_at")
-  deletedAt        DateTime?          @map("deleted_at")
   uploadedAt       DateTime?          @map("uploaded_at")
   uploadHttpStatus Int?               @map("upload_http_status")
   uploadHttpError  String?            @map("upload_http_error")
@@ -985,7 +983,6 @@ model Media {
   ObservationMedia ObservationMedia[]
 
   @@unique([projectId, sha256Hash])
-  @@index([expiresAt, deletedAt])
   @@map("media")
 }
 

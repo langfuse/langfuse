@@ -5,8 +5,6 @@ CREATE TABLE "media" (
     "project_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "expires_at" TIMESTAMP(3),
-    "deleted_at" TIMESTAMP(3),
     "uploaded_at" TIMESTAMP(3),
     "upload_http_status" INTEGER,
     "upload_http_error" TEXT,
@@ -44,9 +42,6 @@ CREATE TABLE "observation_media" (
 
     CONSTRAINT "observation_media_pkey" PRIMARY KEY ("id")
 );
-
--- CreateIndex
-CREATE INDEX "media_expires_at_deleted_at_idx" ON "media"("expires_at", "deleted_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "media_project_id_sha_256_hash_key" ON "media"("project_id", "sha_256_hash");
