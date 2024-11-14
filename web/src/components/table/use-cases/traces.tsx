@@ -153,7 +153,6 @@ export default function TracesTable({
 
   const tracesAllQueryFilter = {
     ...tracesAllCountFilter,
-    page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
     queryClickhouse: useClickhouse(),

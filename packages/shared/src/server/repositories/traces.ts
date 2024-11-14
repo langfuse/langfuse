@@ -108,6 +108,8 @@ export const getTracesTable = async (
     offset,
   });
 
+  console.log("getTracesTable", rows);
+
   return rows.map(convertToDomain);
 };
 
@@ -325,7 +327,7 @@ export const getTraceByIdOrThrow = async (
     FROM traces
     WHERE id = {traceId: String} 
     AND project_id = {projectId: String}
-    ${timestamp ? `AND timestamp = {timestamp: DateTime64(3)}` : ""} 
+    ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
     ORDER BY event_ts DESC LIMIT 1
   `;
 
@@ -343,7 +345,7 @@ export const getTraceByIdOrThrow = async (
   const res = records.map(convertClickhouseToDomain);
 
   if (res.length === 0) {
-    const errorMessage = `Trace not found for traceId: ${traceId}, projectId: ${projectId}`;
+    const errorMessage = `Trace not found for traceId: ${traceId}, projectId: ${projectId}, and timestamp: ${timestamp}`;
     logger.error(errorMessage);
     throw new Error(errorMessage);
   }
