@@ -89,7 +89,7 @@ export function DatasetCompareRunPeekView({
         </DrawerHeader>
         <div
           data-vaul-no-drag
-          className="mb-4 h-full flex-1 gap-4 overflow-y-auto px-4 md:overflow-hidden md:overflow-y-hidden"
+          className="mb-4 h-full flex-1 gap-4 overflow-y-auto px-4"
         >
           <div
             className={cn(
@@ -130,7 +130,7 @@ export function DatasetCompareRunPeekView({
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-2">
-                <AccordionTrigger>Metadata</AccordionTrigger>
+                <AccordionTrigger>Item metadata</AccordionTrigger>
                 <AccordionContent className="space-y-2">
                   <JSONView
                     key={clickedRow?.id + "-metadata"}
@@ -151,6 +151,8 @@ export function DatasetCompareRunPeekView({
                         >
                           <div className="mb-1 text-sm font-medium">
                             {runsData?.find((r) => r.id === id)?.name ?? id}
+                            {/* TODO: add info tooltip with description like in
+                            header */}
                           </div>
                           <DatasetAggregateTableCell
                             value={run}
@@ -165,21 +167,22 @@ export function DatasetCompareRunPeekView({
                             )}
                             actionButtons={
                               <div className="z-5 absolute right-1 top-1 hidden items-center justify-center gap-1 group-hover:flex">
-                                <Link
-                                  href={
-                                    run.observationId
-                                      ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
-                                      : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="View full trace"
+                                  onClick={() =>
+                                    window.open(
+                                      run.observationId
+                                        ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
+                                        : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
+                                      "_blank",
+                                    )
                                   }
                                 >
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    title="View full trace"
-                                  >
-                                    <ListTree className="h-4 w-4" />
-                                  </Button>
-                                </Link>
+                                  <ListTree className="h-4 w-4" />
+                                </Button>
+
                                 <Button
                                   variant="outline"
                                   size="icon"
