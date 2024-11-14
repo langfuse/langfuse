@@ -186,12 +186,14 @@ export const getObservationUsageByTime = async (
   const appliedFilter = chFilter.apply();
 
   const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
-  const timeFilter = chFilter.find(
-    (f) =>
-      f.clickhouseTable === "observations" &&
-      f.field.includes("start_time") &&
-      (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
+  const timeFilter = tracesFilter
+    ? (chFilter.find(
+        (f) =>
+          f.clickhouseTable === "observations" &&
+          f.field.includes("start_time") &&
+          (f.operator === ">=" || f.operator === ">"),
+      ) as DateTimeFilter | undefined)
+    : undefined;
 
   const query = `
     SELECT 
@@ -243,12 +245,14 @@ export const getDistinctModels = async (
   const appliedFilter = chFilter.apply();
 
   const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
-  const timeFilter = chFilter.find(
-    (f) =>
-      f.clickhouseTable === "observations" &&
-      f.field.includes("start_time") &&
-      (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
+  const timeFilter = tracesFilter
+    ? (chFilter.find(
+        (f) =>
+          f.clickhouseTable === "observations" &&
+          f.field.includes("start_time") &&
+          (f.operator === ">=" || f.operator === ">"),
+      ) as DateTimeFilter | undefined)
+    : undefined;
 
   const query = `
     SELECT distinct(provided_model_name) as model
