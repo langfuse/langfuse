@@ -21,6 +21,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -123,6 +124,7 @@ export default function PromptVersionTable() {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
       filter: dateRangeFilter,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
