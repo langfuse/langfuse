@@ -56,6 +56,7 @@ export const getObservationsCostGroupedByName = async (
   const appliedFilter = chFilter.apply();
 
   const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
     SELECT 
@@ -100,6 +101,7 @@ export const getScoreAggregate = async (
   const chFilterApplied = chFilter.apply();
 
   const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
     SELECT 
@@ -254,7 +256,8 @@ export const getDistinctModels = async (
       ) as DateTimeFilter | undefined)
     : undefined;
 
-  const query = `
+    // No need for final as duplicates are caught by distinct anyway.
+    const query = `
     SELECT distinct(provided_model_name) as model
     FROM observations o
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -289,6 +292,7 @@ export const getScoresAggregateOverTime = async (
   const appliedFilter = chFilter.apply();
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
   SELECT 
@@ -398,11 +402,12 @@ export const getObservationLatencies = async (
 
   const appliedFilter = chFilter.apply();
 
+  // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
     SELECT
-      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
+      quantiles(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
       name
-    FROM observations o FINAL
+    FROM observations o
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
@@ -441,14 +446,15 @@ export const getTracesLatencies = async (
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
     WITH trace_latencies as (
       select o.trace_id,
              t.name,
              o.project_id,
              date_diff('milliseconds', min(o.start_time), coalesce(max(o.end_time), max(o.start_time))) as duration
-      FROM traces t FINAL 
-      JOIN observations o FINAL
+      FROM traces t 
+      JOIN observations o
       ON o.trace_id = t.id AND o.project_id = t.project_id
       WHERE project_id = {projectId: String}
       AND ${appliedFilter.query}
@@ -457,7 +463,7 @@ export const getTracesLatencies = async (
     )
 
     SELECT
-      quantilesExactLow(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
+      quantiles(0.5, 0.9, 0.95, 0.99)(duration) as quantiles,
       name
     FROM trace_latencies
     GROUP BY name
@@ -497,12 +503,13 @@ export const getModelLatenciesOverTime = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
+  // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
   SELECT 
     ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
     provided_model_name,
-    quantilesExactLow(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
-  FROM observations o FINAL
+    quantiles(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
+  FROM observations o
   ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
   AND ${appliedFilter.query}
