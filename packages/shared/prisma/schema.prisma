@@ -300,8 +300,6 @@ model Trace {
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
 
-  JobExecution JobExecution[]
-
   @@index([projectId, timestamp])
   @@index([sessionId])
   @@index([name])
@@ -386,8 +384,7 @@ model Observation {
   completionStartTime DateTime? @map("completion_start_time")
   project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  promptId     String?        @map("prompt_id") // no fk constraint, prompt can be deleted
-  jobExecution JobExecution[]
+  promptId String? @map("prompt_id") // no fk constraint, prompt can be deleted
 
   @@unique([id, projectId])
   @@index([projectId, internalModel, startTime, unit])
@@ -897,11 +894,9 @@ model JobExecution {
   endTime   DateTime?          @map("end_time")
   error     String?
 
-  jobInputTraceId String? @map("job_input_trace_id")
-  trace           Trace?  @relation(fields: [jobInputTraceId], references: [id], onDelete: SetNull) // job remains when traces are deleted
+  jobInputTraceId String? @map("job_input_trace_id") // no fk constraint - traces in ClickHouse, deletion handled via project cascade
 
-  jobInputObservationId String?      @map("job_input_observation_id")
-  observation           Observation? @relation(fields: [jobInputObservationId], references: [id], onDelete: SetNull) // job remains when traces are deleted
+  jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
 
   jobInputDatasetItemId String?      @map("job_input_dataset_item_id")
   datasetItem           DatasetItem? @relation(fields: [jobInputDatasetItemId, projectId], references: [id, projectId], onDelete: Cascade) // job is removed when dataset run items are deleted

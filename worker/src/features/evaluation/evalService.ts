@@ -260,6 +260,7 @@ export const createDatasetEvalJobs = async ({
         SELECT id
         FROM dataset_items as di
         WHERE project_id = ${event.projectId}
+        AND id = ${event.datasetItemId}
         ${condition}
       `;
 
@@ -330,8 +331,11 @@ export const createDatasetEvalJobs = async ({
 
       // apply sampling. Only if the job is sampled, we create a job
       // user supplies a number between 0 and 1, which is the probability of sampling
+      console.log({ sampling: config.sampling });
+
       if (parseFloat(config.sampling) !== 1) {
         const random = Math.random();
+        console.log({ random });
         if (random > parseFloat(config.sampling)) {
           logger.info(
             `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
