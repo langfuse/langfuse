@@ -113,13 +113,13 @@ export const prepareClickhouse = async (
       start_time AS completion_start_time,
       array(${SEED_PROMPTS.map((p) => `concat('${p.id}',project_id)`).join(
         ",",
-      )})[number % ${SEED_PROMPTS.length}] AS prompt_id,
+      )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_id,
       array(${SEED_PROMPTS.map((p) => `'${p.name}'`).join(
         ",",
-      )})[number % ${SEED_PROMPTS.length}] AS prompt_name,
+      )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_name,
       array(${SEED_PROMPTS.map((p) => `'${p.version}'`).join(
         ",",
-      )})[number % ${SEED_PROMPTS.length}] AS prompt_version,
+      )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_version,
       start_time AS created_at,
       start_time AS updated_at,
       start_time AS event_ts,
