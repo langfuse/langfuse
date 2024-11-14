@@ -9,7 +9,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
-  FilterState,
+  type FilterState,
   orderBy,
   paginationZod,
   type SessionOptions,
