@@ -185,6 +185,14 @@ export const getObservationUsageByTime = async (
 
   const appliedFilter = chFilter.apply();
 
+  const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const timeFilter = chFilter.find(
+    (f) =>
+      f.clickhouseTable === "observations" &&
+      f.field.includes("start_time") &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
   const query = `
     SELECT 
       ${selectTimeseriesColumn(groupBy, "start_time", "start_time")},
@@ -192,9 +200,10 @@ export const getObservationUsageByTime = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       provided_model_name
     FROM observations o FINAL
-    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY start_time, provided_model_name
     ${orderByTimeSeries(groupBy, "start_time")}
     `;
@@ -209,6 +218,9 @@ export const getObservationUsageByTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
@@ -230,13 +242,21 @@ export const getDistinctModels = async (
 
   const appliedFilter = chFilter.apply();
 
+  const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const timeFilter = chFilter.find(
+    (f) =>
+      f.clickhouseTable === "observations" &&
+      f.field.includes("start_time") &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
   const query = `
-    SELECT 
-      distinct(provided_model_name) as model
-    FROM observations o FINAL
-    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    SELECT distinct(provided_model_name) as model
+    FROM observations o
+    ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     `;
 
   const result = await queryClickhouse<{ model: string }>({
@@ -244,6 +264,9 @@ export const getDistinctModels = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
