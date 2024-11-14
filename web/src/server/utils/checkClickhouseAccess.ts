@@ -57,7 +57,6 @@ export const measureAndReturnApi = async <T, Y>(args: {
       const isExcludedFromClickhouse =
         user?.featureFlags.excludeClickhouseRead ?? false;
 
-      console.log("isExcludedFromClickhouse", isExcludedFromClickhouse);
       if (
         env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true" ||
         isExcludedFromClickhouse
