@@ -1,13 +1,12 @@
 import { randomUUID } from "crypto";
 import Handlebars from "handlebars";
-import { InferResult, sql } from "kysely";
+import { sql } from "kysely";
 import { z } from "zod";
 import { ScoreSource } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  UpsertEventSchema,
   tableColumnsToSqlFilterAndPrefix,
   TraceUpsertEventSchema,
   DatasetRunItemUpsertEventSchema,
@@ -39,7 +38,6 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
-import { partition } from "lodash";
 import { env } from "../../env";
 import { JobConfigState } from "../../../../packages/shared/dist/prisma/generated/types";
 
@@ -59,17 +57,26 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
   return s3StorageServiceClient;
 };
 
-const query = kyselyPrisma.$kysely.selectFrom("job_configurations").selectAll();
-
-type JobConfigurationsRaw = InferResult<typeof query>;
-
-const traceEval = async ({
+// this function is used to determine which eval jobs to create for a given trace
+// there might be multiple eval jobs to create for a single trace
+export const createTraceEvalJobs = async ({
   event,
-  configs,
 }: {
   event: z.infer<typeof TraceUpsertEventSchema>;
-  configs: JobConfigurationsRaw;
 }) => {
+  const configs = await kyselyPrisma.$kysely
+    .selectFrom("job_configurations")
+    .selectAll()
+    .where(sql.raw("job_type::text"), "=", "EVAL")
+    .where("project_id", "=", event.projectId)
+    .where("target_object", "=", "trace")
+    .execute();
+
+  if (configs.length === 0) {
+    logger.debug("No evaluation jobs found for project", event.projectId);
+    return;
+  }
+
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
@@ -202,13 +209,26 @@ const traceEval = async ({
   }
 };
 
-const datasetEval = async ({
+// this function is used to determine which eval jobs to create for a given dataset run item
+// there will only be one or no eval jobs to create for a single dataset run item
+export const createDatasetEvalJobs = async ({
   event,
-  configs,
 }: {
   event: z.infer<typeof DatasetRunItemUpsertEventSchema>;
-  configs: JobConfigurationsRaw;
 }) => {
+  const configs = await kyselyPrisma.$kysely
+    .selectFrom("job_configurations")
+    .selectAll()
+    .where(sql.raw("job_type::text"), "=", "EVAL")
+    .where("project_id", "=", event.projectId)
+    .where("target_object", "=", "dataset")
+    .execute();
+
+  if (configs.length === 0) {
+    logger.debug("No evaluation jobs found for project", event.projectId);
+    return;
+  }
+
   logger.info(
     `Creating eval jobs for dataset run item ${event.datasetItemId} on project ${event.projectId}`,
   );
@@ -383,35 +403,6 @@ const datasetEval = async ({
 // this function is used to determine which eval jobs to create for a given trace or dataset run item
 // there might be multiple eval jobs to create for a single trace
 // there might be 0 or 1 eval jobs to create for a single dataset run item
-export const createEvalJobs = async ({
-  event,
-}: {
-  event: z.infer<typeof UpsertEventSchema>;
-}) => {
-  const configs = await kyselyPrisma.$kysely
-    .selectFrom("job_configurations")
-    .selectAll()
-    .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .execute();
-
-  if (configs.length === 0) {
-    logger.debug("No evaluation jobs found for project", event.projectId);
-    return;
-  }
-
-  // partition the configs into trace and dataset
-  const [traceConfigs, datasetConfigs] = partition(
-    configs,
-    (c) => c.target_object === "trace",
-  );
-
-  if (event.type === "dataset") {
-    await datasetEval({ event, configs: datasetConfigs });
-  } else {
-    await traceEval({ event, configs: traceConfigs });
-  }
-};
 
 // for a single eval job, this function is used to evaluate the job
 export const evaluate = async ({

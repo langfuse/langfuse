@@ -117,7 +117,6 @@ export default withMiddlewares({
             {
               payload: {
                 projectId: auth.scope.projectId,
-                type: "dataset" as const,
                 datasetItemId: datasetItemId,
                 traceId: finalTraceId,
                 observationId: observationId ?? undefined,
