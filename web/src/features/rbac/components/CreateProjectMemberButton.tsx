@@ -33,7 +33,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   useHasEntitlement,
-  useOrgEntitlementLimit,
+  useEntitlementLimit,
 } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
@@ -59,7 +59,7 @@ export function CreateProjectMemberButton(props: {
     projectId: props.project?.id,
     scope: "projectMembers:CUD",
   });
-  const orgMemberLimit = useOrgEntitlementLimit("organization-member-count");
+  const orgMemberLimit = useEntitlementLimit("organization-member-count");
   const orgMemberCount = api.members.allFromOrg.useQuery(
     {
       orgId: props.orgId,

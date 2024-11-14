@@ -41,7 +41,7 @@ import {
 import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
-} from "@/src/features/entitlements/server/getOrganizationPlan";
+} from "@/src/features/entitlements/server/getPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 

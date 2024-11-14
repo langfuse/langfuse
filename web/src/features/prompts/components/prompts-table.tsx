@@ -22,7 +22,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useOrgEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 type PromptTableRow = {
   name: string;
@@ -128,7 +128,7 @@ export function PromptTable() {
   const capture = usePostHogClientCapture();
   const totalCount = prompts.data?.totalCount ?? null;
 
-  const promptLimit = useOrgEntitlementLimit("prompt-management-count-prompts");
+  const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
 
   useEffect(() => {
     if (prompts.isSuccess) {

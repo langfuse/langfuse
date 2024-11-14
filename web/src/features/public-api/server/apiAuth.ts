@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis } from "ioredis";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";

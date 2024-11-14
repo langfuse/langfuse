@@ -6,7 +6,6 @@ import OktaProvider from "next-auth/providers/okta";
 import CognitoProvider from "next-auth/providers/cognito";
 import Auth0Provider from "next-auth/providers/auth0";
 import AzureADProvider from "next-auth/providers/azure-ad";
-import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
@@ -15,6 +14,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
+import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
 
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
@@ -31,7 +31,7 @@ let cachedSsoConfigs: {
  * @returns {Promise<SsoProviderSchema[]>} - A list of all SSO configurations. Empty array if none are configured or EE is not available.
  */
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
-  if (!isEeEnabled) return [];
+  if (!multiTenantSsoAvailable) return [];
 
   const CACHE_TTL = 60 * 60 * 1000; // 1 hour
   const FAILEDTOFETCH_RETRY_AFTER = 60 * 1000; // 1 minute
@@ -95,7 +95,7 @@ async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
  * @returns {Promise<Provider[]>} - A list of all custom SSO providers.
  */
 export async function loadSsoProviders(): Promise<Provider[]> {
-  if (!isEeEnabled) return [];
+  if (!multiTenantSsoAvailable) return [];
 
   const ssoConfigs = await getSsoConfigs();
 
@@ -113,7 +113,7 @@ export async function loadSsoProviders(): Promise<Provider[]> {
  * @returns `true` if any custom SSO provider is configured in the database.
  */
 export async function isAnySsoConfigured(): Promise<boolean> {
-  if (!isEeEnabled) return false;
+  if (!multiTenantSsoAvailable) return false;
   const ssoConfigs = await getSsoConfigs();
   return ssoConfigs.length > 0;
 }
@@ -127,7 +127,7 @@ export async function isAnySsoConfigured(): Promise<boolean> {
 export async function getSsoAuthProviderIdForDomain(
   domain: string,
 ): Promise<string | null> {
-  if (!isEeEnabled) return null;
+  if (!multiTenantSsoAvailable) return null;
   const ssoConfig = (await getSsoConfigs()).find(
     (ssoConfig) => ssoConfig.domain === domain.toLowerCase(),
   );

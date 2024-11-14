@@ -28,7 +28,7 @@ import SetupTracingButton from "@/src/features/setup/components/SetupTracingButt
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
-import { useOrgEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function Dashboard() {
 
   const uiCustomization = useUiCustomization();
 
-  const lookbackLimit = useOrgEntitlementLimit("data-access-days");
+  const lookbackLimit = useEntitlementLimit("data-access-days");
 
   const session = useSession();
   const disableExpensiveDashboardComponents =

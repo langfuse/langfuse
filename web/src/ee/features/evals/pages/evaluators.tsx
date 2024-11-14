@@ -9,7 +9,7 @@ import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useOrgEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export default function EvaluatorsPage() {
   const evaluatorCount = api.evals.allConfigs.useQuery({
     projectId,
   }).data?.totalCount;
-  const evaluatorLimit = useOrgEntitlementLimit(
+  const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
   );
   const hasWriteAccess = useHasProjectAccess({
