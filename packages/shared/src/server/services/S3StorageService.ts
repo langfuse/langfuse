@@ -121,9 +121,10 @@ export class S3StorageService {
     }
   }
 
-  private async getSignedUrl(
+  public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
+    asAttachment: boolean = true,
   ): Promise<string> {
     try {
       return await getSignedUrl(
@@ -131,7 +132,9 @@ export class S3StorageService {
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: fileName,
-          ResponseContentDisposition: `attachment; filename="${fileName}"`,
+          ResponseContentDisposition: asAttachment
+            ? `attachment; filename="${fileName}"`
+            : undefined,
         }),
         { expiresIn: ttlSeconds },
       );
@@ -139,5 +142,31 @@ export class S3StorageService {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
     }
+  }
+
+  public async getSignedUploadUrl(params: {
+    path: string;
+    ttlSeconds: number;
+    sha256Hash: string;
+    contentType: string;
+    contentLength: number;
+  }): Promise<string> {
+    const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
+
+    return await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: path,
+        ContentType: contentType,
+        ChecksumSHA256: sha256Hash,
+        ContentLength: contentLength,
+      }),
+      {
+        expiresIn: ttlSeconds,
+        signableHeaders: new Set(["content-type", "content-length"]),
+        unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
+      },
+    );
   }
 }
