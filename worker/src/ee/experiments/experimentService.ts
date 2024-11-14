@@ -4,7 +4,7 @@ import {
   LLMApiKeySchema,
   logger,
   PromptContent,
-  ZodModelConfig,
+  ExperimentMetadataSchema,
   PromptContentSchema,
   DatasetRunItemUpsertQueue,
 } from "@langfuse/shared/src/server";
@@ -21,12 +21,6 @@ import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-
-const metadataSchema = ZodModelConfig.extend({
-  prompt_id: z.string(),
-  provider: z.string(),
-  model: z.string(),
-}).strict();
 
 function getIsCharOrUnderscore(value: string): boolean {
   const charOrUnderscore = /^[A-Za-z_]+$/;
@@ -162,8 +156,7 @@ export const createExperimentJob = async ({
     );
   }
 
-  // validate the shape of the metadata using zod
-  const metadata = metadataSchema.safeParse(datasetRun.metadata);
+  const metadata = ExperimentMetadataSchema.safeParse(datasetRun.metadata);
   if (!metadata.success) {
     throw new ForbiddenError(
       "Langfuse in-app experiments can only be run with available model and prompt configurations.",
@@ -171,7 +164,7 @@ export const createExperimentJob = async ({
   }
 
   // validate the prompt
-  const { prompt_id, provider, model, ...modelParams } = metadata.data;
+  const { prompt_id, provider, model, model_params } = metadata.data;
 
   const prompt = await kyselyPrisma.$kysely
     .selectFrom("prompts")
@@ -263,7 +256,7 @@ export const createExperimentJob = async ({
           datasetItem.id,
           parsedKey.data,
           messages,
-          modelParams,
+          model_params,
           provider,
           model,
           z.object({
@@ -284,7 +277,7 @@ export const createExperimentJob = async ({
       input: datasetItem.input,
       output: parsedLLMOutput.response,
       model,
-      modelParameters: modelParams,
+      modelParameters: model_params,
       promptId: prompt_id,
     });
 

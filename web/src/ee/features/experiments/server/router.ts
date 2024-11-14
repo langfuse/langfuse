@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { QueueJobs, QueueName, redis } from "@langfuse/shared/src/server";
+import {
+  type ExperimentMetadata,
+  QueueJobs,
+  QueueName,
+  redis,
+  ZodModelConfig,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
@@ -146,6 +152,11 @@ export const experimentsRouter = createTRPCRouter({
         promptId: z.string().min(1, "Please select a prompt"),
         datasetId: z.string().min(1, "Please select a dataset"),
         description: z.string().max(1000).optional(),
+        modelConfig: z.object({
+          provider: z.string().min(1, "Please select a provider"),
+          model: z.string().min(1, "Please select a model"),
+          modelParams: ZodModelConfig,
+        }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -163,10 +174,11 @@ export const experimentsRouter = createTRPCRouter({
       // validate all dataset items exist??
       // TODO: must only pass the items that are valid. can either pass in data or validate here again?
 
-      const metadata = {
+      const metadata: ExperimentMetadata = {
         prompt_id: input.promptId,
-        provider: "OpenAI",
-        model: "gpt-3.5-turbo",
+        provider: input.modelConfig.provider,
+        model: input.modelConfig.model,
+        model_params: input.modelConfig.modelParams,
       };
       const name = `${input.promptId}-${new Date().toISOString()}`; // TODO: promptname-promptversion-timestamp
 

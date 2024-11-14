@@ -63,6 +63,17 @@ export const ZodModelConfig = z.object({
   top_p: z.coerce.number().optional(),
 });
 
+// Experiment config
+export const ExperimentMetadataSchema = z
+  .object({
+    prompt_id: z.string(),
+    provider: z.string(),
+    model: z.string(),
+    model_params: ZodModelConfig,
+  })
+  .strict();
+export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
+
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
 export const openAIModels = [
   "gpt-4o",

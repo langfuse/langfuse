@@ -57,11 +57,18 @@ import {
   AccordionContent,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
+import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
+import { ZodModelConfig } from "@langfuse/shared";
 
 const CreateExperimentData = z.object({
   promptId: z.string().min(1, "Please select a prompt"),
   datasetId: z.string().min(1, "Please select a dataset"),
   description: z.string().max(1000).optional(),
+  modelConfig: z.object({
+    provider: z.string().min(1, "Please select a provider"),
+    model: z.string().min(1, "Please select a model"),
+    modelParams: ZodModelConfig,
+  }),
 });
 
 export type CreateExperiment = z.infer<typeof CreateExperimentData>;
@@ -89,18 +96,16 @@ export const CreateExperimentsForm = ({
     defaultValues: {
       promptId: "",
       datasetId: "",
+      modelConfig: {},
     },
   });
 
-  // only support text prompts for now -- reuse method???
   const promptNamesAndVersions = api.prompts.allNamesAndVersions.useQuery({
     projectId,
   });
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
-    {
-      projectId,
-    },
+    { projectId },
     {
       trpc: {
         context: {
@@ -128,13 +133,6 @@ export const CreateExperimentsForm = ({
     },
   );
 
-  // Watch for changes to promptId or datasetId and show form errors if invalid
-  useEffect(() => {
-    if (validationResult.data) {
-      console.log("Validation result:", validationResult.data);
-    }
-  }, [validationResult.data]);
-
   const experimentMutation = api.experiments.createExperiment.useMutation({
     onSuccess: (data) => {
       showSuccessToast({
@@ -154,8 +152,21 @@ export const CreateExperimentsForm = ({
     },
   });
 
+  // Watch model config changes and update form
+  useEffect(() => {
+    form.setValue("modelConfig", {
+      provider: modelParams.provider.value,
+      model: modelParams.model.value,
+      modelParams: getFinalModelParams(modelParams),
+    });
+  }, [modelParams, form]);
+
   const onSubmit = async (data: CreateExperiment) => {
-    await experimentMutation.mutateAsync({ ...data, projectId });
+    const experiment = {
+      ...data,
+      projectId,
+    };
+    await experimentMutation.mutateAsync(experiment);
     form.reset();
     setFormOpen(false);
   };
@@ -324,31 +335,50 @@ export const CreateExperimentsForm = ({
           )}
         />
 
-        <Accordion type="single" collapsible>
-          <AccordionItem value="item-1" className="border-none">
-            <div className="sticky top-0 z-10 border-b bg-background">
-              <AccordionTrigger>
-                <span className="text-sm">Model config</span>
-              </AccordionTrigger>
-            </div>
-            <AccordionContent className="mt-4">
-              <Card className="p-4">
-                <ModelParameters
-                  {...{
-                    modelParams,
-                    availableModels,
-                    availableProviders,
-                    updateModelParamValue: updateModelParamValue,
-                    setModelParamEnabled,
-                    modelParamsDescription:
-                      "Select a model which supports function calling.",
-                  }}
-                  evalModelsOnly
-                />
-              </Card>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <FormField
+          control={form.control}
+          name="modelConfig"
+          render={() => (
+            <FormItem>
+              <Accordion type="single" collapsible>
+                <AccordionItem value="item-1" className="border-none">
+                  <div className="sticky top-0 z-10 border-b bg-background">
+                    <AccordionTrigger>
+                      <span className="text-sm">Model config</span>
+                    </AccordionTrigger>
+                  </div>
+                  <AccordionContent className="mt-4">
+                    <Card className="p-4">
+                      <ModelParameters
+                        {...{
+                          modelParams,
+                          availableModels,
+                          availableProviders,
+                          updateModelParamValue: updateModelParamValue,
+                          setModelParamEnabled,
+                          modelParamsDescription:
+                            "Select a model which supports function calling.",
+                        }}
+                        evalModelsOnly
+                      />
+                    </Card>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+              {form.formState.errors.modelConfig && (
+                <p
+                  id="modelConfig"
+                  className={cn("text-sm font-medium text-destructive")}
+                >
+                  {[
+                    form.formState.errors.modelConfig?.model?.message,
+                    form.formState.errors.modelConfig?.provider?.message,
+                  ].join(", ")}
+                </p>
+              )}
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

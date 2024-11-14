@@ -141,9 +141,7 @@ export const PromptDetail = () => {
                   onOpenChange={setIsCreateExperimentDialogOpen}
                 >
                   <DialogTrigger asChild>
-                    <Button
-                      onClick={() => setIsCreateExperimentDialogOpen(true)}
-                    >
+                    <Button>
                       <FlaskConical className="h-4 w-4" />
                       <span className="ml-2">New experiment</span>
                     </Button>
@@ -156,6 +154,7 @@ export const PromptDetail = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <CreateExperimentsForm
+                      key="create-experiment-form"
                       projectId={projectId as string}
                       setFormOpen={setIsCreateExperimentDialogOpen}
                     />
