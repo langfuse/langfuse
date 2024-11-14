@@ -39,7 +39,9 @@ export default withMiddlewares({
       if (!media.uploadHttpStatus)
         throw new LangfuseNotFoundError("Media not yet uploaded");
       if (media.uploadHttpStatus !== 200)
-        throw new LangfuseNotFoundError(`Media upload failed`);
+        throw new LangfuseNotFoundError(
+          `Media upload failed with status ${media.uploadHttpStatus}: \n ${media.uploadHttpError}`,
+        );
 
       const mediaStorageClient = getMediaStorageServiceClient(media.bucketName);
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
