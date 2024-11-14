@@ -124,6 +124,7 @@ export default function PromptVersionTable() {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
       filter: dateRangeFilter,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
