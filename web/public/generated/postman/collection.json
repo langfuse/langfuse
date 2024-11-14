@@ -672,15 +672,14 @@
           "request": {
             "description": "Get a presigned upload URL for a media record",
             "url": {
-              "raw": "{{baseUrl}}/api/public/media/upload-url",
+              "raw": "{{baseUrl}}/api/public/media",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "public",
-                "media",
-                "upload-url"
+                "media"
               ],
               "query": [],
               "variable": []

@@ -883,7 +883,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PatchMediaBody'
-  /api/public/media/upload-url:
+  /api/public/media:
     post:
       description: Get a presigned upload URL for a media record
       operationId: media_getUploadUrl

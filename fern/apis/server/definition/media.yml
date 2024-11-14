@@ -29,7 +29,7 @@ service:
     getUploadUrl:
       docs: Get a presigned upload URL for a media record
       method: POST
-      path: /media/upload-url
+      path: /media
       request: GetMediaUploadUrlRequest
       response: GetMediaUploadUrlResponse
 

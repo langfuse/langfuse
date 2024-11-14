@@ -107,7 +107,7 @@ describe("Media Upload API", () => {
       const getUploadUrlResponse = await makeZodVerifiedAPICallSilent(
         GetMediaUploadUrlResponseSchema,
         "POST",
-        basePath + "/upload-url",
+        basePath,
         {
           contentType: claimedContentType ?? contentType,
           contentLength: claimedContentLength ?? contentLength,
