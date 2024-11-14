@@ -31,7 +31,7 @@ import {
   variableMappingList,
   ZodModelConfig,
   EvalTemplate,
-  evalDatasetTableCols,
+  evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -41,6 +41,7 @@ import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { partition } from "lodash";
 import { env } from "../../env";
+import { JobConfigState } from "../../../../packages/shared/dist/prisma/generated/types";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -74,7 +75,7 @@ const traceEval = async ({
   );
 
   for (const config of configs) {
-    if (config.status === "INACTIVE") {
+    if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
       continue;
     }
@@ -213,7 +214,7 @@ const datasetEval = async ({
   );
 
   for (const config of configs) {
-    if (config.status === "INACTIVE") {
+    if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
       continue;
     }
@@ -231,7 +232,7 @@ const datasetEval = async ({
 
     const condition = tableColumnsToSqlFilterAndPrefix(
       validatedFilter,
-      evalDatasetTableCols,
+      evalDatasetFormFilterCols,
       "dataset_items",
     );
 
