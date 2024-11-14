@@ -1,5 +1,9 @@
 import { env } from "@/src/env.mjs";
-import { instrumentAsync, logger } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  logger,
+  recordGauge,
+} from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
 import { TRPCError } from "@trpc/server";
@@ -18,7 +22,7 @@ export const isClickhouseAdminEligible = (user?: User | null) => {
 
 export const measureAndReturnApi = async <T, Y>(args: {
   input: T & { queryClickhouse: boolean };
-  user: User | undefined;
+  user: User | undefined | null;
   operation: string;
   pgExecution: (input: T) => Promise<Y>;
   clickhouseExecution: (input: T) => Promise<Y>;
@@ -56,25 +60,40 @@ export const measureAndReturnApi = async <T, Y>(args: {
       }
 
       logger.debug("Read from postgres and clickhouse");
-      const [[pgResult, pgDuration], [chResult, chDuration]] =
-        await Promise.all([
-          executionWrapper(input, pgExecution, currentSpan, "pg"),
-          executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
-        ]);
+      try {
+        const [[pgResult, pgDuration], [chResult, chDuration]] =
+          await Promise.all([
+            executionWrapper(input, pgExecution, currentSpan, "pg"),
+            executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
+          ]);
+        // Positive duration difference means clickhouse is faster
+        const durationDifference = pgDuration - chDuration;
+        currentSpan?.setAttribute(
+          "execution-time-difference",
+          durationDifference,
+        );
+        currentSpan?.setAttribute("pg-duration", pgDuration);
+        currentSpan?.setAttribute("ch-duration", chDuration);
 
-      const durationDifference = Math.abs(pgDuration - chDuration);
-      currentSpan?.setAttribute(
-        "execution-time-difference",
-        durationDifference,
-      );
-      currentSpan?.setAttribute("pg-duration", pgDuration);
-      currentSpan?.setAttribute("ch-duration", chDuration);
+        recordGauge("langfuse.clickhouse_execution_time", chDuration, {
+          operation: args.operation,
+        });
+        recordGauge("langfuse.postgres_execution_time", pgDuration, {
+          operation: args.operation,
+        });
 
-      if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-        logger.debug("Return data from clickhouse");
-        return chResult;
+        return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? chResult
+          : pgResult;
+      } catch (e) {
+        logger.error(
+          "Error in clickhouse experiment wrapper. Retrying leading store.",
+          e,
+        );
+        return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? clickhouseExecution(input)
+          : pgExecution(input);
       }
-      return pgResult;
     },
   );
 };

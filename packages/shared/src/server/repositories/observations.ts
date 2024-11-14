@@ -63,7 +63,11 @@ export const getObservationsViewForTrace = async (
     created_at,
     updated_at,
     event_ts
-  FROM observations FINAL WHERE trace_id = {traceId: String} AND project_id = {projectId: String}`;
+  FROM observations 
+  WHERE trace_id = {traceId: String}
+  AND project_id = {projectId: String}
+  ORDER BY event_ts DESC
+  LIMIT 1 BY id, project_id`;
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { traceId, projectId },
@@ -298,6 +302,15 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
+  const orderByTraces = opts.orderBy
+    ? observationsTableTraceUiColumnDefinitions
+        .map((c) => c.uiTableId)
+        .includes(opts.orderBy.column) ||
+      observationsTableTraceUiColumnDefinitions
+        .map((c) => c.uiTableName)
+        .includes(opts.orderBy.column)
+    : undefined;
+
   timeFilter
     ? scoresFilter.push(
         new DateTimeFilter({
@@ -359,7 +372,7 @@ const getObservationsTableInternal = async <T>(
       observation_id
   )`;
 
-  if (traceTableFilter.length > 0) {
+  if (traceTableFilter.length > 0 || orderByTraces) {
     // joins with traces are very expensive. We need to filter by time as well.
     // We assume that a trace has to have been within the last 2 days to be relevant.
 
@@ -372,7 +385,7 @@ const getObservationsTableInternal = async <T>(
         LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
         AND o.type = 'GENERATION'
-        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+        ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
@@ -609,4 +622,30 @@ export const deleteObservationsByTraceIds = async (
       traceIds,
     },
   });
+};
+
+export const getObservationsWithPromptName = async (
+  projectId: string,
+  promptNames: string[],
+) => {
+  const query = `
+  SELECT count(*) as count, prompt_name
+  FROM observations FINAL
+  WHERE project_id = {projectId: String}
+  AND prompt_name IN ({promptNames: Array(String)})
+  AND prompt_name IS NOT NULL
+  GROUP BY prompt_name
+`;
+  const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
+    query: query,
+    params: {
+      projectId,
+      promptNames,
+    },
+  });
+
+  return rows.map((r) => ({
+    count: Number(r.count),
+    promptName: r.prompt_name,
+  }));
 };

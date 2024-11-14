@@ -47,10 +47,7 @@ import {
   convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import {
-  isClickhouseAdminEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
 
 const TraceFilterOptions = z.object({
@@ -135,13 +132,6 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseAdminEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const res = await getTracesTable(
             ctx.session.projectId,
             input.filter ?? [],
@@ -194,13 +184,6 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseAdminEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const countQuery = await getTracesTableCount({
             projectId: ctx.session.projectId,
             filter: input.filter ?? [],
@@ -275,13 +258,6 @@ export const traceRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseAdminEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const res = await getTracesTable(ctx.session.projectId, [
             ...(input.filter ?? []),
             {
@@ -402,13 +378,6 @@ export const traceRouter = createTRPCRouter({
           return res;
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseAdminEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const { timestampFilter } = input;
 
           const [scoreNames, traceNames, tags] = await Promise.all([
@@ -451,7 +420,7 @@ export const traceRouter = createTRPCRouter({
         operation: "traces.byId",
         user: ctx.session.user ?? undefined,
         pgExecution: async () => {
-          return await ctx.prisma.trace.findFirstOrThrow({
+          return ctx.prisma.trace.findFirstOrThrow({
             where: {
               id: input.traceId,
               projectId: input.projectId,
@@ -459,14 +428,7 @@ export const traceRouter = createTRPCRouter({
           });
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseAdminEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
-          return await getTraceByIdOrThrow(
+          return getTraceByIdOrThrow(
             input.traceId,
             input.projectId,
             input.timestamp ?? undefined,
