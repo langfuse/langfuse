@@ -16,12 +16,12 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type FilterState } from "@langfuse/shared";
+import { type ScoreAggregate, type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -124,6 +124,7 @@ export default function PromptVersionTable() {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
       filter: dateRangeFilter,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,

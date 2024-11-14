@@ -74,7 +74,7 @@ export function DatasetItemsTable({
     if (items.isSuccess) {
       setDetailPageList(
         "datasetItems",
-        items.data.datasetItems.map((t) => t.id),
+        items.data.datasetItems.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

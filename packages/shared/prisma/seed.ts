@@ -256,7 +256,7 @@ async function main() {
 
     const queueIds = await generateQueuesForProject(
       [project1, project2],
-      configIdsAndNames
+      configIdsAndNames,
     );
 
     const promptIds = await generatePromptsForProject([project1, project2]);
@@ -282,11 +282,11 @@ async function main() {
       project2,
       promptIds,
       queueIds,
-      configIdsAndNames
+      configIdsAndNames,
     );
 
     logger.info(
-      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`
+      `Seeding ${traces.length} traces, ${observations.length} observations, and ${scores.length} scores`,
     );
 
     await uploadObjects(
@@ -296,7 +296,7 @@ async function main() {
       sessions,
       events,
       comments,
-      queueItems
+      queueItems,
     );
 
     // If openai key is in environment, add it to the projects LLM API keys
@@ -314,7 +314,7 @@ async function main() {
       });
     } else {
       logger.warn(
-        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key."
+        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key.",
       );
     }
 
@@ -449,7 +449,7 @@ async function main() {
 
         for (const datasetItemId of datasetItemIds) {
           const relevantObservations = observations.filter(
-            (o) => o.projectId === project2.id
+            (o) => o.projectId === project2.id,
           );
           const observation =
             relevantObservations[
@@ -492,7 +492,7 @@ async function uploadObjects(
   sessions: Prisma.TraceSessionCreateManyInput[],
   events: Prisma.ObservationCreateManyInput[],
   comments: Prisma.CommentCreateManyInput[],
-  queueItems: Prisma.AnnotationQueueItemCreateManyInput[]
+  queueItems: Prisma.AnnotationQueueItemCreateManyInput[],
 ) {
   let promises: Prisma.PrismaPromise<unknown>[] = [];
 
@@ -506,14 +506,14 @@ async function uploadObjects(
         },
         create: chunk[0]!,
         update: {},
-      })
+      }),
     );
   });
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Sessions ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -524,13 +524,13 @@ async function uploadObjects(
     promises.push(
       prisma.trace.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Traces ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Traces ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -540,14 +540,14 @@ async function uploadObjects(
     promises.push(
       prisma.observation.createMany({
         data: chunk,
-      })
+      }),
     );
   });
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Observations ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Observations ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -557,14 +557,14 @@ async function uploadObjects(
     promises.push(
       prisma.observation.createMany({
         data: chunk,
-      })
+      }),
     );
   });
 
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Events ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Events ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -574,13 +574,13 @@ async function uploadObjects(
     promises.push(
       prisma.score.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Scores ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Scores ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -590,13 +590,13 @@ async function uploadObjects(
     promises.push(
       prisma.comment.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Comments ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -606,13 +606,13 @@ async function uploadObjects(
     promises.push(
       prisma.annotationQueueItem.createMany({
         data: chunk,
-      })
+      }),
     );
   });
   for (let i = 0; i < promises.length; i++) {
     if (i + 1 >= promises.length || i % Math.ceil(promises.length / 10) === 0)
       logger.info(
-        `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`
+        `Seeding of Annotation Queue Items ${((i + 1) / promises.length) * 100}% complete`,
       );
     await promises[i];
   }
@@ -634,7 +634,7 @@ function createObjects(
       dataType: ScoreDataType;
       categories: ConfigCategory[] | null;
     }[]
-  >
+  >,
 ) {
   const traces: Prisma.TraceCreateManyInput[] = [];
   const observations: Prisma.ObservationCreateManyInput[] = [];
@@ -649,7 +649,7 @@ function createObjects(
     // print progress to console with a progress bar that refreshes every 10 iterations
     // random date within last 90 days, with a linear bias towards more recent dates
     const traceTs = new Date(
-      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000)
+      Date.now() - Math.floor(Math.random() ** 1.5 * 90 * 24 * 60 * 60 * 1000),
     );
 
     const envTag = envTags[Math.floor(Math.random() * envTags.length)];
@@ -805,11 +805,11 @@ function createObjects(
     for (let j = 0; j < Math.floor(Math.random() * 10) + 1; j++) {
       // add between 1 and 30 ms to trace timestamp
       const spanTsStart = new Date(
-        traceTs.getTime() + Math.floor(Math.random() * 30)
+        traceTs.getTime() + Math.floor(Math.random() * 30),
       );
       // random duration of upto 5000ms
       const spanTsEnd = new Date(
-        spanTsStart.getTime() + Math.floor(Math.random() * 5000)
+        spanTsStart.getTime() + Math.floor(Math.random() * 5000),
       );
 
       const span = {
@@ -844,22 +844,22 @@ function createObjects(
         const generationTsStart = new Date(
           spanTsStart.getTime() +
             Math.floor(
-              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-            )
+              Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+            ),
         );
         const generationTsEnd = new Date(
           generationTsStart.getTime() +
             Math.floor(
               Math.random() *
-                (spanTsEnd.getTime() - generationTsStart.getTime())
-            )
+                (spanTsEnd.getTime() - generationTsStart.getTime()),
+            ),
         );
         // somewhere in the middle
         const generationTsCompletionStart = new Date(
           generationTsStart.getTime() +
             Math.floor(
-              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3
-            )
+              (generationTsEnd.getTime() - generationTsStart.getTime()) / 3,
+            ),
         );
 
         const promptTokens = Math.floor(Math.random() * 1000) + 300;
@@ -880,7 +880,7 @@ function createObjects(
         const promptId =
           promptIds.get(projectId)![
             Math.floor(
-              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2)
+              Math.random() * Math.floor(promptIds.get(projectId)!.length / 2),
             )
           ];
 
@@ -962,8 +962,8 @@ function createObjects(
           const eventTs = new Date(
             spanTsStart.getTime() +
               Math.floor(
-                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime())
-              )
+                Math.random() * (spanTsEnd.getTime() - spanTsStart.getTime()),
+              ),
           );
 
           events.push({
@@ -985,7 +985,7 @@ function createObjects(
   }
   // find unique sessions by id and projectid
   const uniqueSessions: Prisma.TraceSessionCreateManyInput[] = Array.from(
-    new Set(sessions.map((session) => JSON.stringify(session)))
+    new Set(sessions.map((session) => JSON.stringify(session))),
   ).map((session) => JSON.parse(session) as Prisma.TraceSessionCreateManyInput);
 
   return {
@@ -1007,65 +1007,63 @@ async function generatePromptsForProject(projects: Project[]) {
     projects.map(async (project) => {
       const promptIdsForProject = await generatePrompts(project);
       promptIds.set(project.id, promptIdsForProject);
-    })
+    }),
   );
   return promptIds;
 }
 
-async function generatePrompts(project: Project) {
-  const promptIds: string[] = [];
-  const prompts = [
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "user-1",
-      prompt: "Prompt 1 content",
-      name: "Prompt 1",
-      version: 1,
-      labels: ["production", "latest"],
-    },
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "user-1",
-      prompt: "Prompt 2 content",
-      name: "Prompt 2",
-      version: 1,
-      labels: ["production", "latest"],
-    },
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "API",
-      prompt: "Prompt 3 content",
-      name: "Prompt 3 by API",
-      version: 1,
-      labels: ["production", "latest"],
-    },
-    {
-      id: `prompt-${v4()}`,
-      projectId: project.id,
-      createdBy: "user-1",
-      prompt: "Prompt 4 content",
-      name: "Prompt 4",
-      version: 1,
-      labels: ["production", "latest"],
-      tags: ["tag1", "tag2"],
-    },
-  ];
+export const SEED_PROMPTS = [
+  {
+    id: `prompt-123`,
+    createdBy: "user-1",
+    prompt: "Prompt 1 content",
+    name: "Prompt 1",
+    version: 1,
+    labels: ["production", "latest"],
+  },
+  {
+    id: `prompt-456`,
+    createdBy: "user-1",
+    prompt: "Prompt 2 content",
+    name: "Prompt 2",
+    version: 1,
+    labels: ["production", "latest"],
+  },
+  {
+    id: `prompt-789`,
+    createdBy: "API",
+    prompt: "Prompt 3 content",
+    name: "Prompt 3 by API",
+    version: 1,
+    labels: ["production", "latest"],
+  },
+  {
+    id: `prompt-abc`,
+    createdBy: "user-1",
+    prompt: "Prompt 4 content",
+    name: "Prompt 4",
+    version: 1,
+    labels: ["production", "latest"],
+    tags: ["tag1", "tag2"],
+  },
+];
 
-  for (const prompt of prompts) {
+export const PROMPT_IDS: string[] = [];
+
+async function generatePrompts(project: Project) {
+  const promptIds = [];
+  for (const prompt of SEED_PROMPTS) {
     await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
-          projectId: prompt.projectId,
+          projectId: prompt.id + project.id,
           name: prompt.name,
           version: prompt.version,
         },
       },
       create: {
-        id: prompt.id,
-        projectId: prompt.projectId,
+        id: prompt.id + project.id,
+        projectId: project.id,
         createdBy: prompt.createdBy,
         prompt: prompt.prompt,
         name: prompt.name,
@@ -1193,7 +1191,7 @@ async function generateConfigsForProject(projects: Project[]) {
     projects.map(async (project) => {
       const configNameAndId = await generateConfigs(project);
       projectIdsToConfigs.set(project.id, configNameAndId);
-    })
+    }),
   );
   return projectIdsToConfigs;
 }
@@ -1343,7 +1341,7 @@ async function generateQueuesForProject(
       dataType: ScoreDataType;
       categories: ConfigCategory[] | null;
     }[]
-  >
+  >,
 ) {
   const projectIdsToQueues: Map<string, string[]> = new Map();
 
@@ -1351,10 +1349,10 @@ async function generateQueuesForProject(
     projects.map(async (project) => {
       const queueIds = await generateQueues(
         project,
-        configIdsAndNames.get(project.id) ?? []
+        configIdsAndNames.get(project.id) ?? [],
       );
       projectIdsToQueues.set(project.id, queueIds);
-    })
+    }),
   );
   return projectIdsToQueues;
 }
@@ -1366,7 +1364,7 @@ async function generateQueues(
     id: string;
     dataType: ScoreDataType;
     categories: ConfigCategory[] | null;
-  }[]
+  }[],
 ) {
   const queue = {
     id: `queue-${v4()}`,

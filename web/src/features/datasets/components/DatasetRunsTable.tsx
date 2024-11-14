@@ -18,7 +18,7 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import { ChevronDown, Columns3, MoreVertical } from "lucide-react";
 import {
@@ -114,7 +114,7 @@ export function DatasetRunsTable(props: {
     if (runs.isSuccess) {
       setDetailPageList(
         "datasetRuns",
-        runs.data.runs.map((t) => t.id),
+        runs.data.runs.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

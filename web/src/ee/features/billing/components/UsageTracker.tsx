@@ -1,15 +1,17 @@
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
 import { api } from "@/src/utils/api";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { AlertTriangle } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
 
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
@@ -28,6 +30,7 @@ export const UsageTracker = () => {
       refetchOnMount: false,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
+      staleTime: 60 * 60 * 1000,
     },
   );
 
@@ -48,25 +51,20 @@ export const UsageTracker = () => {
   }
 
   return (
-    <HoverCard>
-      <HoverCardTrigger>
-        <AlertTriangle
-          className={cn(
-            "h-4 w-4",
-            percentage >= 100 ? "text-destructive" : "text-dark-yellow",
-          )}
-        />
-      </HoverCardTrigger>
-      <HoverCardContent className="w-80">
-        <div className="flex justify-between space-x-4">
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold">Free Plan Usage Limit</h4>
-            <p className="text-sm font-normal">
-              {`You've used ${usage.toLocaleString()} out of ${MAX_OBSERVATIONS_FREE_PLAN.toLocaleString()} included observations (${percentage.toFixed(2)}%) over the last 30 days. Please upgrade your plan to avoid interruptions.`}
-            </p>
-          </div>
-        </div>
-      </HoverCardContent>
-    </HoverCard>
+    <Card className="relative max-h-48 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
+      <CardHeader className="p-4 pb-0">
+        <CardTitle className="text-sm">Hobby Plan Usage Limit</CardTitle>
+        <CardDescription>
+          {`${usage.toLocaleString()} / ${MAX_OBSERVATIONS_FREE_PLAN.toLocaleString()} (${percentage.toFixed(0)}%) observations in last 30 days. Please upgrade your plan to avoid interruptions.`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-4 pt-2">
+        <Button variant="secondary" size="sm" asChild>
+          <Link href={`/organization/${organization?.id}/settings/billing`}>
+            Upgrade plan
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 };

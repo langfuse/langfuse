@@ -46,7 +46,7 @@ export const SessionPage: React.FC<{
     if (session.isSuccess) {
       setDetailPageList(
         "traces",
-        session.data.traces.map((t) => t.id),
+        session.data.traces.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,8 +95,8 @@ export const SessionPage: React.FC<{
           <DetailPageNav
             key="nav"
             currentId={encodeURIComponent(sessionId)}
-            path={(id) =>
-              `/project/${projectId}/sessions/${encodeURIComponent(id)}`
+            path={(entry) =>
+              `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
             }
             listKey="sessions"
           />,

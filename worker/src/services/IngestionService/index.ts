@@ -85,7 +85,7 @@ export class IngestionService {
     eventBodyId: string,
     events: IngestionEventType[],
   ): Promise<void> {
-    logger.info(
+    logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
     );
 
@@ -145,7 +145,7 @@ export class IngestionService {
           table: TableName.Scores,
           additionalFilters: {
             whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime} "
+              ? " AND timestamp >= {timestamp: DateTime64(3)} "
               : "",
             params: { timestamp },
           },
@@ -227,7 +227,7 @@ export class IngestionService {
         table: TableName.Traces,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime} "
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
             : "",
           params: { timestamp },
         },
@@ -276,7 +276,7 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} " : ""}`,
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
             params: {
               type,
               startTime,
@@ -444,7 +444,7 @@ export class IngestionService {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
 
-    result.event_ts = Math.max(...records.map((r) => r.event_ts ?? -Infinity));
+    result.event_ts = new Date().getTime();
 
     return result;
   }

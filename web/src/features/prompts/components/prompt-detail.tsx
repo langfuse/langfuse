@@ -155,7 +155,7 @@ export const PromptDetail = () => {
             <DetailPageNav
               key="nav"
               currentId={promptName}
-              path={(name) => `/project/${projectId}/prompts/${name}`}
+              path={(entry) => `/project/${projectId}/prompts/${entry.id}`}
               listKey="prompts"
             />
             <Tabs value="editor">

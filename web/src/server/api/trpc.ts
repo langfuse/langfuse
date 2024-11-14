@@ -83,7 +83,8 @@ import {
   getTraceByIdOrThrow,
   logger,
 } from "@langfuse/shared/src/server";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
 
@@ -218,8 +219,9 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
           },
         });
         if (!dbProject) {
+          logger.error(`Project with ${projectId} id not found`);
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            code: "NOT_FOUND",
             message: "Project not found",
           });
         }
@@ -238,6 +240,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
         });
       }
       // not a member
+      logger.error(`User is not a member of this project with id ${projectId}`);
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "User is not a member of this project",
@@ -287,6 +290,7 @@ const enforceIsAuthedAndOrgMember = t.middleware(({ ctx, rawInput, next }) => {
   );
 
   if (!sessionOrg && ctx.session.user.admin !== true) {
+    logger.error(`User ${ctx.session.user.id} is not a member of org ${orgId}`);
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
@@ -338,22 +342,20 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
 
-  // if the user is eligible for clickhouse, and wants to use clickhouse, do so.
   let trace;
 
+  // first check clickhoue for admin use case if sent via the API accordingly
   if (
     result.data.queryClickhouse === true &&
-    isClickhouseEligible(ctx.session?.user)
+    isClickhouseAdminEligible(ctx.session?.user) // basically checks if user exists and admin
   ) {
-    logger.info(
-      `Querying Clickhouse for traceid: ${traceId} and project: ${projectId} `,
-    );
     trace = await getTraceByIdOrThrow(
       traceId,
       projectId,
       timestamp ?? undefined,
     );
-  } else {
+    // check from postgres for non admins when env is set accordingly
+  } else if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
     trace = await prisma.trace.findFirst({
       where: {
         id: traceId,
@@ -363,25 +365,37 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
         public: true,
       },
     });
+    // check clickhouse otherwise
+  } else {
+    trace = await getTraceByIdOrThrow(
+      traceId,
+      projectId,
+      timestamp ?? undefined,
+    );
   }
 
-  if (!trace)
+  if (!trace) {
+    logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Trace not found",
     });
+  }
 
   const sessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
-  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true)
+  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true) {
+    logger.error(
+      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+    );
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
         "User is not a member of this project and this trace is not public",
     });
-
+  }
   return next({
     ctx: {
       session: {
@@ -430,11 +444,15 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     },
   });
 
-  if (!session)
+  if (!session) {
+    logger.error(
+      `Session with id ${sessionId} not found for project ${projectId}`,
+    );
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Session not found",
     });
+  }
 
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
@@ -444,12 +462,16 @@ const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     !session.public &&
     !userSessionProject &&
     ctx.session?.user?.admin !== true
-  )
+  ) {
+    logger.error(
+      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+    );
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message:
         "User is not a member of this project and this session is not public",
     });
+  }
 
   return next({
     ctx: {
