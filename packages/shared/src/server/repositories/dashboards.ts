@@ -186,7 +186,16 @@ export const getObservationUsageByTime = async (
   );
 
   const appliedFilter = chFilter.apply();
-  // TODO: Validate whether we can filter traces on timestamp here.
+
+  const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const timeFilter = tracesFilter
+    ? (chFilter.find(
+        (f) =>
+          f.clickhouseTable === "observations" &&
+          f.field.includes("start_time") &&
+          (f.operator === ">=" || f.operator === ">"),
+      ) as DateTimeFilter | undefined)
+    : undefined;
 
   const query = `
     SELECT 
@@ -195,9 +204,10 @@ export const getObservationUsageByTime = async (
       sumMap(cost_details)['total'] as sum_cost_details,
       provided_model_name
     FROM observations o FINAL
-    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY start_time, provided_model_name
     ${orderByTimeSeries(groupBy, "start_time")}
     `;
@@ -212,6 +222,9 @@ export const getObservationUsageByTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
@@ -232,16 +245,25 @@ export const getDistinctModels = async (
   );
 
   const appliedFilter = chFilter.apply();
-  // TODO: Validate whether we can filter traces on timestamp here.
 
-  // No need for final as duplicates are caught by distinct anyway.
-  const query = `
-    SELECT 
-      distinct(provided_model_name) as model
+  const tracesFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+  const timeFilter = tracesFilter
+    ? (chFilter.find(
+        (f) =>
+          f.clickhouseTable === "observations" &&
+          f.field.includes("start_time") &&
+          (f.operator === ">=" || f.operator === ">"),
+      ) as DateTimeFilter | undefined)
+    : undefined;
+
+    // No need for final as duplicates are caught by distinct anyway.
+    const query = `
+    SELECT distinct(provided_model_name) as model
     FROM observations o
-    ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     `;
 
   const result = await queryClickhouse<{ model: string }>({
@@ -249,6 +271,9 @@ export const getDistinctModels = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...(timeFilter
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
+        : {}),
     },
   });
 
