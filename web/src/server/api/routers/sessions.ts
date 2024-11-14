@@ -9,6 +9,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
+  type FilterState,
   orderBy,
   paginationZod,
   type SessionOptions,
@@ -27,11 +28,11 @@ import {
   traceException,
   getSessionsTable,
   getSessionsTableCount,
-  getTracesGroupedByUserIds,
   getTracesGroupedByTags,
   getTracesForSession,
   getScoresForTraces,
   getCostForTraces,
+  getTracesGroupedByUsers,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -353,24 +354,36 @@ export const sessionRouter = createTRPCRouter({
                 clickhouseSelect: "timestamp",
               },
             ];
+            const filter: FilterState = [
+              {
+                column: "t.session_id",
+                operator: "is not null",
+                type: "null",
+                value: "",
+              },
+            ];
+            if (timestampFilter) {
+              filter.push(timestampFilter);
+            }
             const [userIds, tags] = await Promise.all([
-              getTracesGroupedByUserIds({
-                projectId: input.projectId,
-                filter: timestampFilter ? [timestampFilter] : [],
-                sessionIdNullFilter: true,
+              getTracesGroupedByUsers(
+                input.projectId,
+                filter,
+                undefined,
+                1000,
+                0,
                 columns,
-              }),
+              ),
               getTracesGroupedByTags({
                 projectId: input.projectId,
-                filter: timestampFilter ? [timestampFilter] : [],
-                sessionIdNullFilter: true,
+                filter,
                 columns,
               }),
             ]);
 
             return {
               userIds: userIds.map((row) => ({
-                value: row.user_id,
+                value: row.user,
               })),
               tags: tags.map((row) => ({
                 value: row.value,

@@ -271,6 +271,7 @@ export const traceRouter = createTRPCRouter({
           const scores = await getScoresForTraces(
             ctx.session.projectId,
             res.map((r) => r.id),
+            undefined,
             1000,
             0,
           );
@@ -541,10 +542,15 @@ export const traceRouter = createTRPCRouter({
               input.projectId,
               input.timestamp ?? undefined,
             ),
-            getObservationsViewForTrace(input.traceId, input.projectId),
+            getObservationsViewForTrace(
+              input.traceId,
+              input.projectId,
+              input.timestamp ?? undefined,
+            ),
             getScoresForTraces(
               input.projectId,
               [input.traceId],
+              input.timestamp ?? undefined,
               undefined,
               undefined,
             ),
