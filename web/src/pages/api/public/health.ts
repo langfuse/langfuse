@@ -18,7 +18,6 @@ export default async function handler(
 
     try {
       if (failIfDatabaseUnavailable) {
-        throw new Error("test");
         await prisma.$queryRaw`SELECT 1;`;
       }
     } catch (e) {
