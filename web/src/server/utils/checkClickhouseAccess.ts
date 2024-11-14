@@ -54,7 +54,14 @@ export const measureAndReturnApi = async <T, Y>(args: {
       // otherwise fetch both and compare timing
       // if env.LANGFUSE_RETURN_FROM_CLICKHOUSE is true, return clickhouse data
 
-      if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
+      const isExcludedFromClickhouse =
+        user?.featureFlags.excludeClickhouseRead ?? false;
+
+      console.log("isExcludedFromClickhouse", isExcludedFromClickhouse);
+      if (
+        env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true" ||
+        isExcludedFromClickhouse
+      ) {
         logger.info("Read from postgres only");
         return await pgExecution(input);
       }
