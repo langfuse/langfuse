@@ -362,13 +362,13 @@ export const getTracesGroupedByName = async (
     ? new FilterList(chFilter).apply()
     : undefined;
 
-  // TODO: On EU there are 50 projects with > 1000 unique trace names. We can probably skip the sort here as well and return on best effort.
-  // Alternatively, we drop the final and just accept duplicates in the count.
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
       select 
         name as name,
         count(*) as count
-      from traces t final
+      from traces t
       WHERE t.project_id = {projectId: String}
       AND t.name IS NOT NULL
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
@@ -410,12 +410,13 @@ export const getTracesGroupedByUsers = async (
   const tracesFilterRes = tracesFilter.apply();
   const search = clickhouseSearchCondition(searchQuery);
 
-  // TODO: Same here - we may just drop the final.
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
       select 
         user_id as user,
         count(*) as count
-      from traces t final
+      from traces t
       WHERE t.project_id = {projectId: String}
       AND t.user_id IS NOT NULL
       AND t.user_id != ''

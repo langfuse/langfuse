@@ -234,6 +234,7 @@ export const getDistinctModels = async (
   const appliedFilter = chFilter.apply();
   // TODO: Validate whether we can filter traces on timestamp here.
 
+  // No need for final as duplicates are caught by distinct anyway.
   const query = `
     SELECT 
       distinct(provided_model_name) as model
