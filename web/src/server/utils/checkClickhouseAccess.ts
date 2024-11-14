@@ -21,7 +21,7 @@ export const isClickhouseAdminEligible = (user?: User | null) => {
 };
 
 export const measureAndReturnApi = async <T, Y>(args: {
-  input: T & { queryClickhouse: boolean };
+  input: T & { queryClickhouse: boolean; projectId: string };
   user: User | undefined | null;
   operation: string;
   pgExecution: (input: T) => Promise<Y>;
