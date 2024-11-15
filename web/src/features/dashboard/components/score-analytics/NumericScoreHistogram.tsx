@@ -12,6 +12,7 @@ import { Card } from "@/src/components/ui/card";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { padChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export function NumericScoreHistogram(props: {
   projectId: string;
@@ -47,6 +48,7 @@ export function NumericScoreHistogram(props: {
         },
       ],
       limit: 10000,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {

@@ -150,7 +150,7 @@ export const datasetCol: ColumnDefinition = {
 export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
-export const evalDatasetTableCols: ColumnDefinition[] = datasetOnlyCols;
+export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
   scores_avg: Array<string>;
   name: Array<OptionsDefinition>;
@@ -161,9 +161,9 @@ export type DatasetOptions = {
 };
 
 // Used only for dataset evaluator, not on dataset table
-export function datasetTableColsWithOptions(
+export function datasetFormFilterColsWithOptions(
   options?: DatasetOptions,
-  cols: ColumnDefinition[] = evalDatasetTableCols,
+  cols: ColumnDefinition[] = evalDatasetFormFilterCols,
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "datasetId") {

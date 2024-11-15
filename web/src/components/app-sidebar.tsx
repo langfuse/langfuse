@@ -16,6 +16,7 @@ import Link from "next/link";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { SidebarNotifications } from "@/src/components/sidebar-notifications";
+import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 type AppSidebarProps = {
   navItems: NavMainItem[];
@@ -41,6 +42,7 @@ export function AppSidebar({
         <NavMain items={navItems} />
         <div className="flex-1" />
         <div className="flex flex-col gap-2 p-2">
+          <UsageTracker />
           <SidebarNotifications />
         </div>
         <NavMain items={secondaryNavItems} showFeedbackButton />

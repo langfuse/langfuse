@@ -1,6 +1,7 @@
 import { expect, test, describe, afterAll, beforeAll, vi } from "vitest";
 import {
-  createEvalJobs,
+  createDatasetEvalJobs,
+  createTraceEvalJobs,
   evaluate,
   extractVariables,
 } from "../features/evaluation/evalService";
@@ -64,10 +65,9 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
-      type: "trace" as const,
     };
 
-    await createEvalJobs({ event: payload });
+    await createTraceEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -144,10 +144,9 @@ describe("create eval jobs", () => {
       traceId: traceId,
       datasetItemId: datasetItemId,
       observationId: observationId,
-      type: "dataset" as const,
     };
 
-    await createEvalJobs({ event: payload });
+    await createDatasetEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -194,10 +193,9 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
-      type: "trace" as const,
     };
 
-    await createEvalJobs({ event: payload });
+    await createTraceEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -250,11 +248,10 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
-      type: "trace" as const,
     };
 
-    await createEvalJobs({ event: payload });
-    await createEvalJobs({ event: payload }); // calling it twice to check it is only generated once
+    await createTraceEvalJobs({ event: payload });
+    await createTraceEvalJobs({ event: payload }); // calling it twice to check it is only generated once
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -300,10 +297,9 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
-      type: "trace" as const,
     };
 
-    await createEvalJobs({ event: payload });
+    await createTraceEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -356,10 +352,9 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
-      type: "trace" as const,
     };
 
-    await createEvalJobs({ event: payload });
+    await createTraceEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -440,10 +435,9 @@ describe("create eval jobs", () => {
     const payload = {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       traceId: traceId,
-      type: "trace" as const,
     };
 
-    await createEvalJobs({ event: payload });
+    await createTraceEvalJobs({ event: payload });
 
     // update the trace to deselect the trace
     await kyselyPrisma.$kysely
@@ -452,7 +446,7 @@ describe("create eval jobs", () => {
       .where("id", "=", traceId)
       .execute();
 
-    await createEvalJobs({
+    await createTraceEvalJobs({
       event: payload,
     }); // calling it twice to check it is only generated once
 

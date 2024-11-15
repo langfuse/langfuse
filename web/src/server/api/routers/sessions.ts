@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+import { prisma } from "@langfuse/shared/src/db";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -9,10 +9,12 @@ import {
 } from "@/src/server/api/trpc";
 import {
   filterAndValidateDbScoreList,
+  type FilterState,
   orderBy,
   paginationZod,
   type SessionOptions,
   singleFilter,
+  type stringOptionsFilter,
   timeFilter,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
@@ -26,11 +28,11 @@ import {
   traceException,
   getSessionsTable,
   getSessionsTableCount,
-  getTracesGroupedByUserIds,
   getTracesGroupedByTags,
   getTracesForSession,
   getScoresForTraces,
   getCostForTraces,
+  getTracesGroupedByUsers,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -78,9 +80,13 @@ export const sessionRouter = createTRPCRouter({
             };
           },
           clickhouseExecution: async () => {
+            const finalFilter = await getPublicSessions(
+              input.projectId,
+              input.filter ?? [],
+            );
             const sessions = await getSessionsTable({
               projectId: input.projectId,
-              filter: input.filter ?? [],
+              filter: finalFilter,
               orderBy: input.orderBy,
               offset: input.page * input.limit,
               limit: input.limit,
@@ -173,9 +179,13 @@ export const sessionRouter = createTRPCRouter({
             };
           },
           clickhouseExecution: async () => {
+            const finalFilter = await getPublicSessions(
+              input.projectId,
+              input.filter ?? [],
+            );
             const count = await getSessionsTableCount({
               projectId: input.projectId,
-              filter: input.filter ?? [],
+              filter: finalFilter,
               orderBy: input.orderBy,
               offset: input.page * input.limit,
               limit: input.limit,
@@ -344,24 +354,36 @@ export const sessionRouter = createTRPCRouter({
                 clickhouseSelect: "timestamp",
               },
             ];
+            const filter: FilterState = [
+              {
+                column: "sessionId",
+                operator: "is not null",
+                type: "null",
+                value: "",
+              },
+            ];
+            if (timestampFilter) {
+              filter.push(timestampFilter);
+            }
             const [userIds, tags] = await Promise.all([
-              getTracesGroupedByUserIds({
-                projectId: input.projectId,
-                filter: timestampFilter ? [timestampFilter] : [],
-                sessionIdNullFilter: true,
+              getTracesGroupedByUsers(
+                input.projectId,
+                filter,
+                undefined,
+                1000,
+                0,
                 columns,
-              }),
+              ),
               getTracesGroupedByTags({
                 projectId: input.projectId,
-                filter: timestampFilter ? [timestampFilter] : [],
-                sessionIdNullFilter: true,
+                filter,
                 columns,
               }),
             ]);
 
             return {
               userIds: userIds.map((row) => ({
-                value: row.user_id,
+                value: row.user,
               })),
               tags: tags.map((row) => ({
                 value: row.value,
@@ -618,3 +640,61 @@ export const sessionRouter = createTRPCRouter({
       }
     }),
 });
+
+const getPublicSessions = async (
+  projectId: string,
+  filter: z.infer<typeof singleFilter>[],
+) => {
+  const sessionsBookmarkedFilter = filter?.find((f) => f.column === "⭐️");
+
+  // we are only fetching bookmarked sessions.
+  // They need to be manipulated in the UI and should not be as many.
+  const filteredSessions = sessionsBookmarkedFilter
+    ? await prisma.traceSession.findMany({
+        where: {
+          projectId: projectId,
+          bookmarked: true,
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          bookmarked: true,
+          public: true,
+        },
+      })
+    : [];
+
+  const additionalBookmarkFilter: z.infer<typeof stringOptionsFilter>[] =
+    sessionsBookmarkedFilter &&
+    typeof sessionsBookmarkedFilter.value === "boolean" &&
+    ((sessionsBookmarkedFilter.value === true &&
+      sessionsBookmarkedFilter.operator === "=") ||
+      (sessionsBookmarkedFilter.value === false &&
+        sessionsBookmarkedFilter.operator === "<>"))
+      ? [
+          {
+            column: "sessionId",
+            type: "stringOptions" as const,
+            operator: "any of" as const,
+            value: filteredSessions.map((s) => s.id),
+          },
+        ]
+      : sessionsBookmarkedFilter &&
+          typeof sessionsBookmarkedFilter.value === "boolean" &&
+          (sessionsBookmarkedFilter.value === false ||
+            (sessionsBookmarkedFilter.value === true &&
+              sessionsBookmarkedFilter.operator === "<>"))
+        ? [
+            {
+              column: "sessionId",
+              type: "stringOptions" as const,
+              operator: "none of" as const,
+              value: filteredSessions.map((s) => s.id),
+            },
+          ]
+        : [];
+
+  return filter
+    ? [...filter.filter((f) => f.column !== "⭐️"), ...additionalBookmarkFilter]
+    : [...additionalBookmarkFilter];
+};

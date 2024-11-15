@@ -145,7 +145,7 @@ export class IngestionService {
           table: TableName.Scores,
           additionalFilters: {
             whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime} "
+              ? " AND timestamp >= {timestamp: DateTime64(3)} "
               : "",
             params: { timestamp },
           },
@@ -227,7 +227,7 @@ export class IngestionService {
         table: TableName.Traces,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime} "
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
             : "",
           params: { timestamp },
         },
@@ -276,7 +276,7 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} " : ""}`,
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
             params: {
               type,
               startTime,
@@ -302,9 +302,8 @@ export class IngestionService {
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
-      const traceId = randomUUID();
       const wrapperTraceRecord: TraceRecordInsertType = {
-        id: traceId,
+        id: finalObservationRecord.id,
         timestamp: finalObservationRecord.start_time,
         project_id: projectId,
         created_at: Date.now(),
@@ -318,7 +317,7 @@ export class IngestionService {
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
-      finalObservationRecord.trace_id = traceId;
+      finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
     this.clickHouseWriter.addToQueue(

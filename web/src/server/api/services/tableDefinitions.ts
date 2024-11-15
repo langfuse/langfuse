@@ -274,6 +274,7 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
 
+  // definition required only for internal mapping of dataset eval filters
   dataset_items: {
     table: ` dataset_items di`,
     columns: [

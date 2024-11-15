@@ -1,7 +1,7 @@
 import { LockIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
-
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -79,6 +79,7 @@ export function PromptTable() {
     {
       projectId: projectId as string,
       promptNames: prompts.data?.prompts.map((p) => p.name) ?? [],
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled:
@@ -132,7 +133,7 @@ export function PromptTable() {
     if (prompts.isSuccess) {
       setDetailPageList(
         "prompts",
-        prompts.data.prompts.map((t) => t.name),
+        prompts.data.prompts.map((t) => ({ id: t.name })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

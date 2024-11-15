@@ -39,20 +39,16 @@ import {
   deleteTraces,
   deleteScoresByTraceIds,
   deleteObservationsByTraceIds,
-  convertMetricsReturnType,
   type TracesMetricsReturnType,
   type TracesAllReturnType,
-  convertToReturnType,
   getTraceById,
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import {
-  isClickhouseEligible,
-  measureAndReturnApi,
-} from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import Decimal from "decimal.js";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -136,13 +132,6 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const res = await getTracesTable(
             ctx.session.projectId,
             input.filter ?? [],
@@ -153,7 +142,7 @@ export const traceRouter = createTRPCRouter({
           );
 
           return {
-            traces: res.map(convertToReturnType),
+            traces: res,
           };
         },
       });
@@ -195,13 +184,6 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const countQuery = await getTracesTableCount({
             projectId: ctx.session.projectId,
             filter: input.filter ?? [],
@@ -276,13 +258,6 @@ export const traceRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const res = await getTracesTable(ctx.session.projectId, [
             ...(input.filter ?? []),
             {
@@ -296,6 +271,7 @@ export const traceRouter = createTRPCRouter({
           const scores = await getScoresForTraces(
             ctx.session.projectId,
             res.map((r) => r.id),
+            undefined,
             1000,
             0,
           );
@@ -305,14 +281,29 @@ export const traceRouter = createTRPCRouter({
             traceException,
           );
 
-          return res.map((r) =>
-            convertMetricsReturnType({
-              ...r,
-              scores: aggregateScores(
-                validatedScores.filter((s) => s.traceId === r.id),
-              ),
-            }),
-          );
+          return res.map((row) => ({
+            id: row.id,
+            promptTokens: BigInt(row.usageDetails?.input ?? 0),
+            completionTokens: BigInt(row.usageDetails?.output ?? 0),
+            totalTokens: BigInt(row.usageDetails?.total ?? 0),
+            latency: row.latencyMilliseconds
+              ? row.latencyMilliseconds / 1000
+              : null,
+            level: row.level,
+            observationCount: BigInt(row.observationCount ?? 0),
+            calculatedTotalCost: row.costDetails?.total
+              ? new Decimal(row.costDetails.total)
+              : null,
+            calculatedInputCost: row.costDetails?.input
+              ? new Decimal(row.costDetails.input)
+              : null,
+            calculatedOutputCost: row.costDetails?.output
+              ? new Decimal(row.costDetails.output)
+              : null,
+            scores: aggregateScores(
+              validatedScores.filter((s) => s.traceId === row.id),
+            ),
+          }));
         },
       });
     }),
@@ -388,13 +379,6 @@ export const traceRouter = createTRPCRouter({
           return res;
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
           const { timestampFilter } = input;
 
           const [scoreNames, traceNames, tags] = await Promise.all([
@@ -437,7 +421,7 @@ export const traceRouter = createTRPCRouter({
         operation: "traces.byId",
         user: ctx.session.user ?? undefined,
         pgExecution: async () => {
-          return await ctx.prisma.trace.findFirstOrThrow({
+          return ctx.prisma.trace.findFirstOrThrow({
             where: {
               id: input.traceId,
               projectId: input.projectId,
@@ -445,14 +429,7 @@ export const traceRouter = createTRPCRouter({
           });
         },
         clickhouseExecution: async () => {
-          if (!isClickhouseEligible(ctx.session.user)) {
-            throw new TRPCError({
-              code: "UNAUTHORIZED",
-              message: "Not eligible to query clickhouse",
-            });
-          }
-
-          return await getTraceByIdOrThrow(
+          return getTraceByIdOrThrow(
             input.traceId,
             input.projectId,
             input.timestamp ?? undefined,
@@ -565,10 +542,15 @@ export const traceRouter = createTRPCRouter({
               input.projectId,
               input.timestamp ?? undefined,
             ),
-            getObservationsViewForTrace(input.traceId, input.projectId),
+            getObservationsViewForTrace(
+              input.traceId,
+              input.projectId,
+              input.timestamp ?? undefined,
+            ),
             getScoresForTraces(
               input.projectId,
               [input.traceId],
+              input.timestamp ?? undefined,
               undefined,
               undefined,
             ),
@@ -652,6 +634,21 @@ export const traceRouter = createTRPCRouter({
               in: input.traceIds,
             },
             projectId: input.projectId,
+          },
+        }),
+        // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
+        ctx.prisma.jobExecution.updateMany({
+          where: {
+            jobInputTraceId: { in: input.traceIds },
+            projectId: input.projectId,
+          },
+          data: {
+            jobInputTraceId: {
+              set: null,
+            },
+            jobInputObservationId: {
+              set: null,
+            },
           },
         }),
       ]);

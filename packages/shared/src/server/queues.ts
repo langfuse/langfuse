@@ -66,19 +66,13 @@ export const BatchExportJobSchema = z.object({
 export const TraceUpsertEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
-  type: z.literal("trace"),
 });
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
   datasetItemId: z.string(),
   traceId: z.string(),
   observationId: z.string().optional(),
-  type: z.literal("dataset"),
 });
-export const UpsertEventSchema = z.discriminatedUnion("type", [
-  TraceUpsertEventSchema,
-  DatasetRunItemUpsertEventSchema,
-]);
 export const EvalExecutionEvent = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),

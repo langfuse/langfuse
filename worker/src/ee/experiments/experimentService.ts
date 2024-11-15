@@ -306,7 +306,6 @@ export const createExperimentJob = async ({
           {
             payload: {
               projectId,
-              type: "dataset" as const,
               datasetItemId: datasetItem.id,
               traceId: trace.id,
             },

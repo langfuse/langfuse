@@ -2,14 +2,13 @@ import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   type jsonSchema,
   type ObservationLevel,
   type ObservationType,
 } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
 import type Decimal from "decimal.js";
 import { z } from "zod";
 
@@ -59,26 +58,22 @@ export const observationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (!input.queryClickhouse) {
-        return ctx.prisma.observation.findFirstOrThrow({
-          where: {
-            id: input.observationId,
-            traceId: input.traceId,
-            projectId: input.projectId,
-          },
-        });
-      } else {
-        if (!isClickhouseEligible(ctx.session.user)) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "Not eligible to query clickhouse",
+      return measureAndReturnApi({
+        input,
+        operation: "observations.byId",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          return ctx.prisma.observation.findFirstOrThrow({
+            where: {
+              id: input.observationId,
+              traceId: input.traceId,
+              projectId: input.projectId,
+            },
           });
-        }
-        return await getObservationById(
-          input.observationId,
-          input.projectId,
-          true,
-        );
-      }
+        },
+        clickhouseExecution: async () => {
+          return getObservationById(input.observationId, input.projectId, true);
+        },
+      });
     }),
 });

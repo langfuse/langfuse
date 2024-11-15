@@ -1,10 +1,14 @@
 import { env } from "@/src/env.mjs";
-import { instrumentAsync, logger } from "@langfuse/shared/src/server";
+import {
+  instrumentAsync,
+  logger,
+  recordHistogram,
+} from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
 import { TRPCError } from "@trpc/server";
 
-export const isClickhouseEligible = (user?: User | null) => {
+export const isClickhouseAdminEligible = (user?: User | null) => {
   return (
     user &&
     user.admin &&
@@ -17,8 +21,8 @@ export const isClickhouseEligible = (user?: User | null) => {
 };
 
 export const measureAndReturnApi = async <T, Y>(args: {
-  input: T & { queryClickhouse: boolean };
-  user: User | undefined;
+  input: T & { queryClickhouse: boolean; projectId?: string };
+  user: User | undefined | null;
   operation: string;
   pgExecution: (input: T) => Promise<Y>;
   clickhouseExecution: (input: T) => Promise<Y>;
@@ -33,14 +37,7 @@ export const measureAndReturnApi = async <T, Y>(args: {
 
       currentSpan?.setAttribute("operation", args.operation);
 
-      if (!user) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Did not find user in function context",
-        });
-      }
-
-      if (input.queryClickhouse && !isClickhouseEligible(user)) {
+      if (input.queryClickhouse && !isClickhouseAdminEligible(user)) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Not eligible to query clickhouse",
@@ -57,31 +54,62 @@ export const measureAndReturnApi = async <T, Y>(args: {
       // otherwise fetch both and compare timing
       // if env.LANGFUSE_RETURN_FROM_CLICKHOUSE is true, return clickhouse data
 
-      if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
+      const isExcludedFromClickhouse =
+        user?.featureFlags.excludeClickhouseRead ?? false;
+
+      const excludedProjects =
+        env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS?.split(",") ?? [];
+
+      const isExcludedProject = excludedProjects.includes(
+        input.projectId ?? "",
+      );
+
+      if (
+        env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true" ||
+        isExcludedFromClickhouse ||
+        isExcludedProject
+      ) {
         logger.info("Read from postgres only");
         return await pgExecution(input);
       }
 
-      logger.info("Read from postgres and clickhouse");
-      const [[pgResult, pgDuration], [chResult, chDuration]] =
-        await Promise.all([
-          executionWrapper(input, pgExecution, currentSpan, "pg"),
-          executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
-        ]);
+      logger.debug("Read from postgres and clickhouse");
+      try {
+        const [[pgResult, pgDuration], [chResult, chDuration]] =
+          await Promise.all([
+            executionWrapper(input, pgExecution, currentSpan, "pg"),
+            executionWrapper(input, clickhouseExecution, currentSpan, "ch"),
+          ]);
+        // Positive duration difference means clickhouse is faster
+        const durationDifference = pgDuration - chDuration;
+        currentSpan?.setAttribute(
+          "execution-time-difference",
+          durationDifference,
+        );
+        currentSpan?.setAttribute("pg-duration", pgDuration);
+        currentSpan?.setAttribute("ch-duration", chDuration);
 
-      const durationDifference = Math.abs(pgDuration - chDuration);
-      currentSpan?.setAttribute(
-        "execution-time-difference",
-        durationDifference,
-      );
-      currentSpan?.setAttribute("pg-duration", pgDuration);
-      currentSpan?.setAttribute("ch-duration", chDuration);
+        recordHistogram("langfuse.clickhouse_experiment", chDuration, {
+          operation: args.operation,
+          database: "clickhouse",
+        });
+        recordHistogram("langfuse.clickhouse_experiment", pgDuration, {
+          operation: args.operation,
+          database: "postgres",
+        });
 
-      if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-        logger.info("Return data from clickhouse");
-        return chResult;
+        return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? chResult
+          : pgResult;
+      } catch (e) {
+        logger.error(
+          "Error in clickhouse experiment wrapper. Retrying leading store.",
+          e,
+        );
+        return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? clickhouseExecution(input)
+          : pgExecution(input);
       }
-      return pgResult;
     },
   );
 };

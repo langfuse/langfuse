@@ -1,6 +1,10 @@
 import { Job, Queue } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
-import { evaluate, createEvalJobs } from "../features/evaluation/evalService";
+import {
+  createDatasetEvalJobs,
+  createTraceEvalJobs,
+  evaluate,
+} from "../features/evaluation/evalService";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -53,21 +57,33 @@ export class EvalExecutionQueue {
   }
 }
 
-export const evalJobCreatorQueueProcessor = async (
-  job: Job<
-    | TQueueJobTypes[QueueName.TraceUpsert]
-    | TQueueJobTypes[QueueName.DatasetRunItemUpsert]
-  >,
+export const evalJobTraceCreatorQueueProcessor = async (
+  job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
-    await createEvalJobs({ event: job.data.payload });
+    await createTraceEvalJobs({ event: job.data.payload });
     return true;
   } catch (e) {
-    const errorMessage =
-      job.data.payload.type === "trace"
-        ? `Failed job Evaluation for traceId ${job.data.payload.traceId}`
-        : `Failed job Evaluation for dataset item: ${job.data.payload.datasetItemId}`;
-    logger.error(errorMessage, e);
+    logger.error(
+      `Failed job Evaluation for traceId ${job.data.payload.traceId}`,
+      e,
+    );
+    traceException(e);
+    throw e;
+  }
+};
+
+export const evalJobDatasetCreatorQueueProcessor = async (
+  job: Job<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>,
+) => {
+  try {
+    await createDatasetEvalJobs({ event: job.data.payload });
+    return true;
+  } catch (e) {
+    logger.error(
+      `Failed job Evaluation for dataset item: ${job.data.payload.datasetItemId}`,
+      e,
+    );
     traceException(e);
     throw e;
   }

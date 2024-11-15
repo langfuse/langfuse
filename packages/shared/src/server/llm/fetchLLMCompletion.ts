@@ -99,6 +99,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
+      streamUsage: false, // https://github.com/langchain-ai/langchainjs/issues/6533
       callbacks,
       maxRetries,
       configuration: {

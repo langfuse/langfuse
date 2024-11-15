@@ -114,7 +114,7 @@ export function DatasetRunsTable(props: {
     if (runs.isSuccess) {
       setDetailPageList(
         "datasetRuns",
-        runs.data.runs.map((t) => t.id),
+        runs.data.runs.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

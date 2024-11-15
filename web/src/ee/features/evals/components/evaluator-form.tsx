@@ -22,11 +22,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   tracesTableColsWithOptions,
   evalTraceTableCols,
-  evalDatasetTableCols,
+  evalDatasetFormFilterCols,
   singleFilter,
   type JobConfiguration,
   availableTraceEvalVariables,
-  datasetTableColsWithOptions,
+  datasetFormFilterColsWithOptions,
   availableDatasetEvalVariables,
   type langfuseObjects,
 } from "@langfuse/shared";
@@ -366,6 +366,7 @@ export const InnerEvalConfigForm = (props: {
     return {
       datasetId: datasets.data?.map((d) => ({
         value: d.id,
+        displayValue: d.name,
       })),
     };
   }, [datasets.data]);
@@ -556,9 +557,9 @@ export const InnerEvalConfigForm = (props: {
                     <>
                       <FormControl>
                         <InlineFilterBuilder
-                          columns={datasetTableColsWithOptions(
+                          columns={datasetFormFilterColsWithOptions(
                             datasetFilterOptions,
-                            evalDatasetTableCols,
+                            evalDatasetFormFilterCols,
                           )}
                           filterState={field.value ?? []}
                           onChange={(value) => field.onChange(value)}

@@ -9,8 +9,9 @@ import MessageResponse from "./interfaces/MessageResponse";
 require("dotenv").config();
 
 import {
-  evalJobCreatorQueueProcessor,
+  evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
+  evalJobTraceCreatorQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -49,15 +50,19 @@ if (env.LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS === "true") {
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {
-    concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
-  });
+  WorkerManager.register(
+    QueueName.TraceUpsert,
+    evalJobTraceCreatorQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+    },
+  );
 }
 
 if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.DatasetRunItemUpsert,
-    evalJobCreatorQueueProcessor,
+    evalJobDatasetCreatorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
     },

@@ -9,6 +9,7 @@ export type UiColumnMapping = {
 export type OptionsDefinition = {
   value: string;
   count?: number;
+  displayValue?: string; // FIX: Temporary workaround: Used to display a different value than the actual value since multiSelect doesn't support key-value pairs
 };
 
 export type ColumnDefinition =

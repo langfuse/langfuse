@@ -13,7 +13,7 @@ import { type ReactNode, useEffect } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
-export type EvalConfigRow = {
+export type EvaluatorDataRow = {
   id: string;
   status: string;
   createdAt: string;
@@ -47,17 +47,19 @@ export default function EvaluatorTable({
   });
   const totalCount = evaluators.data?.totalCount ?? null;
 
+  const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
   useEffect(() => {
     if (evaluators.isSuccess) {
       setDetailPageList(
         "evals",
-        evaluators.data.configs.map((evaluator) => evaluator.id),
+        evaluators.data.configs.map((evaluator) => ({ id: evaluator.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evaluators.isSuccess, evaluators.data]);
 
-  const columnHelper = createColumnHelper<EvalConfigRow>();
+  const columnHelper = createColumnHelper<EvaluatorDataRow>();
   const columns = [
     columnHelper.accessor("id", {
       header: "Id",
@@ -117,22 +119,41 @@ export default function EvaluatorTable({
       header: "Filter",
       size: 200,
       cell: (row) => {
-        const node = row.getValue();
+        const filterState = row.getValue();
+
+        // FIX: Temporary workaround: Used to display a different value than the actual value since multiSelect doesn't support key-value pairs
+        const newFilterState = filterState.map((filter) => {
+          if (filter.type === "stringOptions" && filter.column === "Dataset") {
+            return {
+              ...filter,
+              value: filter.value.map(
+                (datasetId) =>
+                  datasets.data?.find((d) => d.id === datasetId)?.name ??
+                  datasetId,
+              ),
+            };
+          }
+          return filter;
+        });
+
         return (
           <div className="flex h-full overflow-x-auto">
-            <InlineFilterState filterState={node} />
+            <InlineFilterState filterState={newFilterState} />
           </div>
         );
       },
     }),
-  ] as LangfuseColumnDef<EvalConfigRow>[];
+  ] as LangfuseColumnDef<EvaluatorDataRow>[];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<EvalConfigRow>("evalConfigColumnVisibility", columns);
+    useColumnVisibility<EvaluatorDataRow>(
+      "evalConfigColumnVisibility",
+      columns,
+    );
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
-  ): EvalConfigRow => {
+  ): EvaluatorDataRow => {
     return {
       id: jobConfig.id,
       status: jobConfig.status,

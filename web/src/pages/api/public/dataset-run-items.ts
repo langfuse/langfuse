@@ -117,7 +117,6 @@ export default withMiddlewares({
             {
               payload: {
                 projectId: auth.scope.projectId,
-                type: "dataset" as const,
                 datasetItemId: datasetItemId,
                 traceId: finalTraceId,
                 observationId: observationId ?? undefined,
@@ -132,7 +131,7 @@ export default withMiddlewares({
                 type: "exponential",
                 delay: 1000,
               },
-              delay: 90000, // 90 seconds
+              delay: 10000, // 10 seconds
               removeOnComplete: true,
               removeOnFail: 1_000,
             },
