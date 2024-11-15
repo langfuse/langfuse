@@ -72,7 +72,7 @@ export function SidebarNotifications() {
   const currentNotification = notifications[currentNotificationIndex];
 
   return (
-    <Card className="relative overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
+    <Card className="relative max-h-44 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
       <Button
         variant="ghost"
         size="sm"
