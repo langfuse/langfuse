@@ -169,13 +169,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
-    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z
-      .string()
-      .default("media/")
-      .refine(
-        (value) => value.endsWith("/"),
-        "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX must end with a slash ('/')",
-      ),
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
