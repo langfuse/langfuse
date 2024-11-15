@@ -3,6 +3,12 @@
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
 
+# Check if CLICKHOUSE_URL is configured
+if [ -z "${CLICKHOUSE_URL}" ]; then
+  echo "Info: CLICKHOUSE_URL not configured, skipping migration."
+  exit 0
+fi
+
 # Check if golang-migrate is installed
 if ! command -v migrate &> /dev/null
 then
