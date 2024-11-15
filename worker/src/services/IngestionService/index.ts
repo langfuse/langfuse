@@ -1,5 +1,4 @@
 import { Redis } from "ioredis";
-import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
@@ -239,6 +238,23 @@ export class IngestionService {
       postgresTraceRecord,
       traceRecords,
     });
+
+    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
+    if (finalTraceRecord.session_id) {
+      await this.prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: finalTraceRecord.session_id,
+            projectId,
+          },
+        },
+        create: {
+          id: finalTraceRecord.session_id,
+          projectId,
+        },
+        update: {},
+      });
+    }
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
   }
