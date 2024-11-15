@@ -25,6 +25,11 @@ if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
 
     # Apply migrations
     prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+
+    # Apply Clickhouse migrations
+    cd ./packages/shared
+    sh ./clickhouse/scripts/up.sh
+    cd ../../
 fi
 status=$?
 
