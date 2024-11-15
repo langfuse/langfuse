@@ -302,9 +302,8 @@ export class IngestionService {
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
-      const traceId = randomUUID();
       const wrapperTraceRecord: TraceRecordInsertType = {
-        id: traceId,
+        id: finalObservationRecord.id,
         timestamp: finalObservationRecord.start_time,
         project_id: projectId,
         created_at: Date.now(),
@@ -318,7 +317,7 @@ export class IngestionService {
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
-      finalObservationRecord.trace_id = traceId;
+      finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
     this.clickHouseWriter.addToQueue(
