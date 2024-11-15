@@ -116,7 +116,7 @@ export const createTraceEvalJobs = async ({
 
     // if we matched a trace, we might want to create a job
     if (traces.length > 0) {
-      logger.info(
+      logger.debug(
         `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`,
       );
 
@@ -124,7 +124,7 @@ export const createTraceEvalJobs = async ({
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
-        logger.info(
+        logger.debug(
           `Eval job for config ${config.id} and trace ${event.traceId} already exists`,
         );
         continue;
@@ -136,14 +136,14 @@ export const createTraceEvalJobs = async ({
       if (parseFloat(config.sampling) !== 1) {
         const random = Math.random();
         if (random > parseFloat(config.sampling)) {
-          logger.info(
+          logger.debug(
             `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
           );
           continue;
         }
       }
 
-      logger.info(
+      logger.debug(
         `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
@@ -185,9 +185,9 @@ export const createTraceEvalJobs = async ({
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
-      logger.info(`Eval job for config ${config.id} did not match trace`);
+      logger.debug(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
-        logger.info(
+        logger.debug(
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`,
         );
         await kyselyPrisma.$kysely
@@ -221,7 +221,7 @@ export const createDatasetEvalJobs = async ({
     return;
   }
 
-  logger.info(
+  logger.debug(
     `Creating eval jobs for dataset run item ${event.datasetItemId} on project ${event.projectId}`,
   );
 
@@ -231,7 +231,7 @@ export const createDatasetEvalJobs = async ({
       continue;
     }
 
-    logger.info("Creating eval job for config", config.id);
+    logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     const condition = tableColumnsToSqlFilterAndPrefix(
@@ -299,7 +299,7 @@ export const createDatasetEvalJobs = async ({
         }
       }
 
-      logger.info(
+      logger.debug(
         `Eval job for config ${config.id} matched dataset run item ids ${JSON.stringify(datasetItems.map((d) => d.id))}`,
       );
 
@@ -307,7 +307,7 @@ export const createDatasetEvalJobs = async ({
 
       // deduplication: if a job exists already for the given dataset item, trace and observation, we do not create a new one.
       if (existingJob.length > 0) {
-        logger.info(
+        logger.debug(
           `Eval job for config ${config.id}, dataset item ${event.datasetItemId} already exists for the given run`,
         );
         continue;
@@ -319,14 +319,14 @@ export const createDatasetEvalJobs = async ({
         const random = Math.random();
         console.log({ random });
         if (random > parseFloat(config.sampling)) {
-          logger.info(
+          logger.debug(
             `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
           );
           continue;
         }
       }
 
-      logger.info(
+      logger.debug(
         `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
@@ -370,9 +370,9 @@ export const createDatasetEvalJobs = async ({
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
-      logger.info(`Eval job for config ${config.id} did not match trace`);
+      logger.debug(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
-        logger.info(
+        logger.debug(
           `Cancelling eval job for config ${config.id} and dataset item ${event.datasetItemId}`,
         );
         await kyselyPrisma.$kysely
@@ -396,7 +396,7 @@ export const evaluate = async ({
 }: {
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
   // first, fetch all the context required for the evaluation
@@ -414,7 +414,7 @@ export const evaluate = async ({
   }
 
   if (job.status === "CANCELLED") {
-    logger.info(`Job ${job.id} for project ${event.projectId} was cancelled.`);
+    logger.debug(`Job ${job.id} for project ${event.projectId} was cancelled.`);
 
     await kyselyPrisma.$kysely
       .deleteFrom("job_executions")
@@ -533,7 +533,7 @@ export const evaluate = async ({
     },
   );
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
   );
 
@@ -612,7 +612,7 @@ export const evaluate = async ({
     throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
   }
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`,
   );
 
@@ -624,7 +624,7 @@ export const evaluate = async ({
     .where("id", "=", event.jobExecutionId)
     .execute();
 
-  logger.info(
+  logger.debug(
     `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
   );
 };
