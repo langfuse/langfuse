@@ -17,6 +17,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -99,23 +100,27 @@ export function DatasetCompareRunPeekView({
                 : "grid-cols-1",
             )}
           >
-            {traceAndObservationId?.traceId && trace.data && (
+            {traceAndObservationId?.traceId && (
               <Card className="h-full overflow-y-auto p-2">
-                <ObservationTree
-                  observations={trace.data?.observations ?? []}
-                  collapsedObservations={[]}
-                  toggleCollapsedObservation={() => {}}
-                  collapseAll={() => {}}
-                  expandAll={() => {}}
-                  trace={trace.data}
-                  scores={trace.data?.scores ?? []}
-                  currentObservationId={undefined}
-                  setCurrentObservationId={() => {}}
-                  showMetrics={false}
-                  showScores={true}
-                  colorCodeMetrics={false}
-                  className="flex w-full flex-col overflow-y-auto"
-                />
+                {trace.data ? (
+                  <ObservationTree
+                    observations={trace.data?.observations ?? []}
+                    collapsedObservations={[]}
+                    toggleCollapsedObservation={() => {}}
+                    collapseAll={() => {}}
+                    expandAll={() => {}}
+                    trace={trace.data}
+                    scores={trace.data?.scores ?? []}
+                    currentObservationId={undefined}
+                    setCurrentObservationId={() => {}}
+                    showMetrics={false}
+                    showScores={true}
+                    colorCodeMetrics={false}
+                    className="flex w-full flex-col overflow-y-auto"
+                  />
+                ) : (
+                  <Skeleton className="min-h-full w-full" />
+                )}
               </Card>
             )}
             <Accordion type="multiple" defaultValue={["item-3"]}>
@@ -177,6 +182,7 @@ export function DatasetCompareRunPeekView({
                                         ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
                                         : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
                                       "_blank",
+                                      "noopener noreferrer",
                                     )
                                   }
                                 >
