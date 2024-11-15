@@ -8,7 +8,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  EvalTargetObject,
   ZodModelConfig,
   singleFilter,
   variableMapping,
@@ -358,7 +357,7 @@ export const evalRouter = createTRPCRouter({
             jobType: "EVAL",
             evalTemplateId: input.evalTemplateId,
             scoreName: input.scoreName,
-            targetObject: EvalTargetObject.Trace,
+            targetObject: input.target,
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,

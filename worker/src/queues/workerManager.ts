@@ -12,6 +12,7 @@ import {
   recordIncrement,
   redisQueueRetryOptions,
   TraceUpsertQueue,
+  DatasetRunItemUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { EvalExecutionQueue } from "./evalQueue";
@@ -27,6 +28,8 @@ export class WorkerManager {
         return BatchExportQueue.getInstance();
       case QueueName.CloudUsageMeteringQueue:
         return CloudUsageMeteringQueue.getInstance();
+      case QueueName.DatasetRunItemUpsert:
+        return DatasetRunItemUpsertQueue.getInstance();
       case QueueName.EvaluationExecution:
         return EvalExecutionQueue.getInstance();
       case QueueName.TraceUpsert:
