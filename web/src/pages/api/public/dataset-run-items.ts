@@ -7,10 +7,7 @@ import {
   transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
-import { DatasetRunItemUpsertQueue } from "../../../../../packages/shared/dist/src/server/redis/datasetRunItemUpsert";
-import { randomUUID } from "crypto";
-import { QueueJobs, redis } from "@langfuse/shared/src/server";
+import { addDatasetRunItemsToEvalQueue } from "@/src/ee/features/evals/server/addDatasetRunItemsToEvalQueue";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -109,35 +106,12 @@ export default withMiddlewares({
        * ASYNC RUN ITEM EVAL *
        ********************/
 
-      if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-        const queue = DatasetRunItemUpsertQueue.getInstance();
-        if (queue) {
-          await queue.add(
-            QueueJobs.DatasetRunItemUpsert,
-            {
-              payload: {
-                projectId: auth.scope.projectId,
-                datasetItemId: datasetItemId,
-                traceId: finalTraceId,
-                observationId: observationId ?? undefined,
-              },
-              id: randomUUID(),
-              timestamp: new Date(),
-              name: QueueJobs.DatasetRunItemUpsert as const,
-            },
-            {
-              attempts: 3, // retry 3 times
-              backoff: {
-                type: "exponential",
-                delay: 1000,
-              },
-              delay: 10000, // 10 seconds
-              removeOnComplete: true,
-              removeOnFail: 1_000,
-            },
-          );
-        }
-      }
+      await addDatasetRunItemsToEvalQueue({
+        projectId: auth.scope.projectId,
+        datasetItemId,
+        traceId: finalTraceId,
+        observationId: observationId ?? undefined,
+      });
 
       return transformDbDatasetRunItemToAPIDatasetRunItem({
         ...runItem,
