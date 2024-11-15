@@ -70,7 +70,6 @@ export function convertTraceUpsertEventsToRedisEvents(
           payload: {
             projectId,
             traceId,
-            type: "trace" as const,
           },
           id: randomUUID(),
           timestamp: new Date(),

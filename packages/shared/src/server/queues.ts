@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { eventTypes, ingestionBatchEvent } from ".";
-import { jsonSchema } from "../utils/zod";
 
 export enum EventName {
   TraceUpsert = "TraceUpsert",
