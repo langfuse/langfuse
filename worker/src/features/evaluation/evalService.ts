@@ -315,8 +315,6 @@ export const createDatasetEvalJobs = async ({
 
       // apply sampling. Only if the job is sampled, we create a job
       // user supplies a number between 0 and 1, which is the probability of sampling
-      console.log({ sampling: config.sampling });
-
       if (parseFloat(config.sampling) !== 1) {
         const random = Math.random();
         console.log({ random });
