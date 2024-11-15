@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Load environment variables
-source ../../.env
+[ -f ../../.env ] && source ../../.env
 
 # Check if golang-migrate is installed
 if ! command -v migrate &> /dev/null
