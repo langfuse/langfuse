@@ -181,7 +181,10 @@ export const addTracesToTraceUpsertQueue = async (
       typeof result.result === "object" &&
       "id" in result.result
         ? // ingestion API only gets traces for one projectId
-          { traceId: result.result.id as string, projectId }
+          {
+            traceId: result.result.id as string,
+            projectId,
+          }
         : null,
     )
     .filter(isNotNullOrUndefined);

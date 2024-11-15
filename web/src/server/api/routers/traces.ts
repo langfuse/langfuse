@@ -636,6 +636,21 @@ export const traceRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         }),
+        // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
+        ctx.prisma.jobExecution.updateMany({
+          where: {
+            jobInputTraceId: { in: input.traceIds },
+            projectId: input.projectId,
+          },
+          data: {
+            jobInputTraceId: {
+              set: null,
+            },
+            jobInputObservationId: {
+              set: null,
+            },
+          },
+        }),
       ]);
 
       if (env.CLICKHOUSE_URL) {
