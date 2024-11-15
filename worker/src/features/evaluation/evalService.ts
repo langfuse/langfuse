@@ -351,6 +351,7 @@ export const evaluate = async ({
     source: ScoreSource.EVAL,
   };
 
+  // TODO: Remove foreign key on jobExecutions when removing this
   await prisma.score.create({
     data: {
       ...baseScore,
