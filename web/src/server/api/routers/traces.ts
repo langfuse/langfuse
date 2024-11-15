@@ -636,6 +636,14 @@ export const traceRouter = createTRPCRouter({
             projectId: input.projectId,
           },
         }),
+        ctx.prisma.datasetRunItems.deleteMany({
+          where: {
+            traceId: {
+              in: input.traceIds,
+            },
+            projectId: input.projectId,
+          },
+        }),
       ]);
 
       if (env.CLICKHOUSE_URL) {
