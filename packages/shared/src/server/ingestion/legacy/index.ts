@@ -184,7 +184,6 @@ export const addTracesToTraceUpsertQueue = async (
           {
             traceId: result.result.id as string,
             projectId,
-            type: "trace" as const,
           }
         : null,
     )
