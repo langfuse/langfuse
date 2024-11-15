@@ -273,4 +273,17 @@ export const tableDefinitions: TableDefinitions = {
       traceTags,
     ],
   },
+
+  // definition required only for internal mapping of dataset eval filters
+  dataset_items: {
+    table: ` dataset_items di`,
+    columns: [
+      {
+        name: "Dataset",
+        id: "datasetId",
+        type: "string",
+        internal: 'di."dataset_id"',
+      },
+    ],
+  },
 };

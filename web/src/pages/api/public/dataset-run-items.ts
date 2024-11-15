@@ -7,6 +7,7 @@ import {
   transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
+import { addDatasetRunItemsToEvalQueue } from "@/src/ee/features/evals/server/addDatasetRunItemsToEvalQueue";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -22,6 +23,10 @@ export default withMiddlewares({
         runDescription,
         metadata,
       } = body;
+
+      /**************
+       * VALIDATION *
+       **************/
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
@@ -62,6 +67,10 @@ export default withMiddlewares({
         throw new InvalidRequestError("No traceId set");
       }
 
+      /********************
+       * RUN ITEM CREATION *
+       ********************/
+
       const run = await prisma.datasetRuns.upsert({
         where: {
           datasetId_projectId_name: {
@@ -91,6 +100,17 @@ export default withMiddlewares({
           datasetRunId: run.id,
           projectId: auth.scope.projectId,
         },
+      });
+
+      /********************
+       * ASYNC RUN ITEM EVAL *
+       ********************/
+
+      await addDatasetRunItemsToEvalQueue({
+        projectId: auth.scope.projectId,
+        datasetItemId,
+        traceId: finalTraceId,
+        observationId: observationId ?? undefined,
       });
 
       return transformDbDatasetRunItemToAPIDatasetRunItem({
