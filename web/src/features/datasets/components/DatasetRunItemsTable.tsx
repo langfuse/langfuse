@@ -13,6 +13,7 @@ import { useEffect, useMemo } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { CompareDialog } from "@/src/components/ui/CompareDialog";
 import { ListTree } from "lucide-react";
 import {
   getScoreGroupColumnProps,
@@ -30,6 +31,7 @@ export type DatasetRunItemRowData = {
     traceId: string;
     observationId?: string;
   };
+  comparison?: unknown;
   // i/o not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
@@ -133,6 +135,26 @@ export function DatasetRunItemsTable(
             icon={<ListTree className="h-4 w-4" />}
           />
         );
+      },
+    },
+    {
+      accessorKey: "comparison",
+      header: "Compare",
+      id: "comparison",
+      size: 60,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const datasetItemId: string = row.getValue("datasetItemId");
+        const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
+        return datasetItemId && trace ? (
+          <DatasetCompareCell
+            projectId={props.projectId}
+            datasetId={props.datasetId}
+            datasetItemId={datasetItemId}
+            traceId={trace.traceId}
+            observationId={trace.observationId}
+          />
+        ) : null;
       },
     },
     {
@@ -395,6 +417,57 @@ const DatasetItemIOCell = ({
           : datasetItem.data?.input
       }
       singleLine={singleLine}
+    />
+  );
+};
+
+const DatasetCompareCell = ({
+  projectId,
+  datasetId,
+  datasetItemId,
+  traceId,
+  observationId,
+}: {
+  projectId: string;
+  datasetId: string;
+  datasetItemId: string;
+  traceId: string;
+  observationId?: string;
+}) => {
+  const datasetItem = api.datasets.itemById.useQuery(
+    {
+      projectId: projectId,
+      datasetId: datasetId,
+      datasetItemId: datasetItemId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  const trace = api.traces.byId.useQuery(
+    { traceId, projectId },
+    {
+      enabled: true,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  return (
+    <CompareDialog
+      expectedOutput={datasetItem.data?.expectedOutput}
+      output={trace.data?.output}
+      isLoading={datasetItem.isLoading || trace.isLoading}
     />
   );
 };
