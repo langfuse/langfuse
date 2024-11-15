@@ -108,6 +108,10 @@ RUN adduser --system --uid 1001 nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma@5.20.0
 
+RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
+    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.0/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
+    mv migrate /usr/bin/migrate
+
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
 
@@ -118,6 +122,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/stat
 COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/clickhouse ./packages/shared/clickhouse
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
