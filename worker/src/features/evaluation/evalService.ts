@@ -87,14 +87,6 @@ export const createTraceEvalJobs = async ({
       continue;
     }
 
-    // safeguard only, this should never happen
-    if (config.target_object !== "trace") {
-      logger.debug(
-        `Skipping eval config ${config.id} as target object is not trace`,
-      );
-      continue;
-    }
-
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
@@ -236,14 +228,6 @@ export const createDatasetEvalJobs = async ({
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
-      continue;
-    }
-
-    // safeguard only, this should never happen
-    if (config.target_object !== "dataset") {
-      logger.debug(
-        `Skipping eval config ${config.id} as target object is not dataset run item`,
-      );
       continue;
     }
 
