@@ -23,7 +23,6 @@ import { type DatasetCompareRunRowData } from "@/src/features/datasets/component
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { PanelLeftOpen, PanelLeftClose, X, ListTree } from "lucide-react";
-import Link from "next/link";
 import { useState } from "react";
 
 export function DatasetCompareRunPeekView({
