@@ -1,3 +1,4 @@
+import DocPopup from "@/src/components/layouts/doc-popup";
 import Header from "@/src/components/layouts/header";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { ObservationTree } from "@/src/components/trace/ObservationTree";
@@ -9,7 +10,6 @@ import {
 } from "@/src/components/ui/accordion";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   Drawer,
   DrawerClose,
@@ -125,7 +125,7 @@ export function DatasetCompareRunPeekView({
             <div className="flex h-full flex-col overflow-hidden">
               <Accordion
                 type="multiple"
-                defaultValue={["item-3"]}
+                defaultValue={["item-2"]}
                 className="min-h-0 flex-1 overflow-y-auto"
               >
                 <AccordionItem value="item-1">
@@ -138,81 +138,78 @@ export function DatasetCompareRunPeekView({
                     />
                   </AccordionContent>
                 </AccordionItem>
-                <AccordionItem value="item-2">
-                  <AccordionTrigger>Item metadata</AccordionTrigger>
-                  <AccordionContent className="space-y-2">
-                    <JSONView
-                      key={clickedRow?.id + "-metadata"}
-                      title="Metadata"
-                      json={clickedRow?.metadata ?? undefined}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="item-3" className="border-b-0">
+
+                <AccordionItem value="item-2" className="border-b-0">
                   <AccordionTrigger>Run outputs</AccordionTrigger>
                   <AccordionContent className="mb-2 grid grid-rows-[auto,1fr] gap-2 overflow-y-hidden">
                     {clickedRow?.runs && (
                       <div className="flex w-full gap-4 overflow-x-auto overflow-y-hidden">
-                        {Object.entries(clickedRow.runs).map(([id, run]) => (
-                          <div
-                            key={id}
-                            className="h-[50dvh] w-[45%] flex-none overflow-y-auto overflow-x-hidden"
-                          >
-                            <div className="mb-1 text-sm font-medium">
-                              {runsData?.find((r) => r.id === id)?.name ?? id}
-                              {/* TODO: add info tooltip with description like in
-                            header */}
-                            </div>
-                            <DatasetAggregateTableCell
-                              value={run}
-                              projectId={projectId}
-                              scoreKeyToDisplayName={scoreKeyToDisplayName}
-                              selectedMetrics={["scores", "resourceMetrics"]}
-                              singleLine={false}
-                              variant="peek"
-                              className={cn(
-                                "relative max-h-[45dvh]",
-                                traceAndObservationId?.runId === id &&
-                                  "border-4",
-                              )}
-                              actionButtons={
-                                <div className="z-5 absolute right-1 top-1 hidden items-center justify-center gap-1 group-hover:flex">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    title="View full trace"
-                                    onClick={() =>
-                                      window.open(
-                                        run.observationId
-                                          ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
-                                          : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
-                                        "_blank",
-                                        "noopener noreferrer",
-                                      )
-                                    }
-                                  >
-                                    <ListTree className="h-4 w-4" />
-                                  </Button>
+                        {Object.entries(clickedRow.runs).map(([id, run]) => {
+                          const runData = runsData?.find((r) => r.id === id);
+                          return (
+                            <div
+                              key={id}
+                              className="h-[50dvh] w-[45%] flex-none overflow-y-auto"
+                            >
+                              <div className="mb-1 flex items-center text-sm font-medium">
+                                {runData?.name ?? id}
+                                {runData?.description && (
+                                  <DocPopup
+                                    description={runData?.description}
+                                  />
+                                )}
+                              </div>
+                              <DatasetAggregateTableCell
+                                value={run}
+                                projectId={projectId}
+                                scoreKeyToDisplayName={scoreKeyToDisplayName}
+                                selectedMetrics={["scores", "resourceMetrics"]}
+                                singleLine={false}
+                                variant="peek"
+                                className={cn(
+                                  "relative max-h-[45dvh]",
+                                  traceAndObservationId?.runId === id &&
+                                    "border-4",
+                                )}
+                                actionButtons={
+                                  <div className="z-5 absolute right-1 top-1 hidden items-center justify-center gap-1 group-hover:flex">
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      title="View full trace"
+                                      onClick={() =>
+                                        window.open(
+                                          run?.observationId
+                                            ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
+                                            : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
+                                          "_blank",
+                                          "noopener noreferrer",
+                                        )
+                                      }
+                                    >
+                                      <ListTree className="h-4 w-4" />
+                                    </Button>
 
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    title="View trace tree"
-                                    onClick={() =>
-                                      setTraceAndObservationId({
-                                        traceId: run.traceId,
-                                        observationId: run.observationId,
-                                        runId: id,
-                                      })
-                                    }
-                                  >
-                                    <PanelLeftOpen className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              }
-                            />
-                          </div>
-                        ))}
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      title="View trace tree"
+                                      onClick={() =>
+                                        setTraceAndObservationId({
+                                          traceId: run.traceId,
+                                          observationId: run.observationId,
+                                          runId: id,
+                                        })
+                                      }
+                                    >
+                                      <PanelLeftOpen className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                }
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </AccordionContent>
