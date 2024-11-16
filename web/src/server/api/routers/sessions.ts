@@ -673,7 +673,7 @@ const getPublicSessions = async (
         sessionsBookmarkedFilter.operator === "<>"))
       ? [
           {
-            column: "sessionId",
+            column: "id",
             type: "stringOptions" as const,
             operator: "any of" as const,
             value: filteredSessions.map((s) => s.id),
@@ -686,7 +686,7 @@ const getPublicSessions = async (
               sessionsBookmarkedFilter.operator === "<>"))
         ? [
             {
-              column: "sessionId",
+              column: "id",
               type: "stringOptions" as const,
               operator: "none of" as const,
               value: filteredSessions.map((s) => s.id),
