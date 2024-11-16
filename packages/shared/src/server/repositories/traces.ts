@@ -313,6 +313,24 @@ export const getTracesByIds = async (
   return records.map(convertClickhouseToDomain);
 };
 
+export const hasAnyTrace = async (projectId: string) => {
+  const query = `
+    SELECT count(*) as count
+    FROM traces
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ count: string }>({
+    query,
+    params: {
+      projectId,
+    },
+  });
+
+  return rows.length > 0 && Number(rows[0].count) > 0;
+};
+
 export const getTraceByIdOrThrow = async (
   traceId: string,
   projectId: string,
