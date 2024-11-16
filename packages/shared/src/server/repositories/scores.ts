@@ -588,16 +588,26 @@ export const getScoresForObservationsAndTraces = async (
       s.observation_id
     FROM scores s FINAL 
     WHERE o.project_id = {projectId: String}
-    AND (trace_id, observation_id) IN ({identifier: Array(Tuple(String, Nullable(String)))})
+    AND (trace_id, observation_id) IN (({identifier: Array(Tuple(String, Nullable(String)))}))
   `;
 
+  const a = identifier
+    .map(
+      (i) =>
+        `('${i.traceId}', ${i.observationId ? `'${i.observationId}'` : "NULL"})`,
+    )
+    .join(", ");
+  console.log(a);
   const rows = await queryClickhouse<
     ScoreAggregation & { trace_id: string; observation_id: string }
   >({
     query,
     params: {
       projectId,
-      identifier,
+      identifier: identifier.map((i) => [
+        i.traceId,
+        i.observationId ? i.observationId : null,
+      ]),
     },
   });
 
