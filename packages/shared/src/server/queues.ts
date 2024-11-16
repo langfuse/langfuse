@@ -66,6 +66,12 @@ export const TraceUpsertEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
 });
+export const DatasetRunItemUpsertEventSchema = z.object({
+  projectId: z.string(),
+  datasetItemId: z.string(),
+  traceId: z.string(),
+  observationId: z.string().optional(),
+});
 export const EvalExecutionEvent = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
@@ -74,6 +80,9 @@ export const EvalExecutionEvent = z.object({
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceUpsertEventType = z.infer<typeof TraceUpsertEventSchema>;
+export type DatasetRunItemUpsertEventType = z.infer<
+  typeof DatasetRunItemUpsertEventSchema
+>;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type LegacyIngestionEventType = z.infer<typeof LegacyIngestionEvent>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
@@ -97,6 +106,7 @@ export type EventBodyType = z.infer<typeof EventBodySchema>;
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
+  DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
@@ -105,6 +115,7 @@ export enum QueueName {
 
 export enum QueueJobs {
   TraceUpsert = "trace-upsert",
+  DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
   EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
@@ -119,6 +130,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: TraceUpsertEventType;
     name: QueueJobs.TraceUpsert;
+  };
+  [QueueName.DatasetRunItemUpsert]: {
+    timestamp: Date;
+    id: string;
+    payload: DatasetRunItemUpsertEventType;
+    name: QueueJobs.DatasetRunItemUpsert;
   };
   [QueueName.EvaluationExecution]: {
     timestamp: Date;

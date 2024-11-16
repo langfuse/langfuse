@@ -83,7 +83,9 @@ export function MultiSelect({
     const hasCustomOption =
       !!freeText &&
       !!getFreeTextInput(isCustomSelectEnabled, values, optionValues);
-    const customOption = hasCustomOption ? [{ value: freeText }] : [];
+    const customOption: FilterOption[] = hasCustomOption
+      ? [{ value: freeText }]
+      : [];
 
     return [...selectedOptions, ...customOption];
   }
@@ -125,7 +127,7 @@ export function MultiSelect({
                       key={option.value}
                       className="rounded-sm px-1 font-normal"
                     >
-                      {option.value}
+                      {option.displayValue ?? option.value}
                     </Badge>
                   ))
                 )}
@@ -168,7 +170,9 @@ export function MultiSelect({
                     >
                       <Check className={cn("h-4 w-4")} />
                     </div>
-                    <span className="overflow-x-scroll">{option.value}</span>
+                    <span className="overflow-x-scroll">
+                      {option.displayValue ?? option.value}
+                    </span>
                     {option.count !== undefined ? (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
                         {option.count}
