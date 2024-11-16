@@ -131,7 +131,8 @@ export function DatasetCompareRunPeekView({
                       <div className="h-[calc(100%-1.75rem)] space-y-2 overflow-y-auto">
                         <IOPreview
                           key={clickedRow?.id + "-input"}
-                          input={clickedRow?.input ?? undefined}
+                          input={clickedRow?.input ?? null}
+                          hideOutput
                         />
                       </div>
                     </div>
@@ -140,7 +141,8 @@ export function DatasetCompareRunPeekView({
                       <div className="h-[calc(100%-1.75rem)] space-y-2 overflow-y-auto">
                         <IOPreview
                           key={clickedRow?.id + "-output"}
-                          output={clickedRow?.expectedOutput ?? undefined}
+                          output={clickedRow?.expectedOutput ?? null}
+                          hideInput
                         />
                       </div>
                     </div>
