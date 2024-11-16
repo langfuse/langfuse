@@ -49,6 +49,10 @@ export const measureAndReturnApi = async <T, Y>(args: {
         return await clickhouseExecution(input);
       }
 
+      if (env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY === "true") {
+        return await clickhouseExecution(input);
+      }
+
       // logic for regular users:
       // if env.LANGFUSE_READ_FROM_POSTGRES_ONLY is true, return postgres only
       // otherwise fetch both and compare timing
