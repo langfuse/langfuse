@@ -388,83 +388,89 @@ async function main() {
     });
 
     for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
-      const dataset = await prisma.dataset.create({
-        data: {
-          name: `demo-dataset-${datasetNumber}`,
-          description:
-            datasetNumber === 0 ? "Dataset test description" : undefined,
-          projectId: project2.id,
-          metadata: datasetNumber === 0 ? { key: "value" } : undefined,
-        },
-      });
-
-      const datasetItemIds = [];
-      for (let i = 0; i < 18; i++) {
-        const sourceObservation =
-          Math.random() > 0.3
-            ? observations[Math.floor(Math.random() * observations.length)]
-            : undefined;
-        const datasetItem = await prisma.datasetItem.create({
+      for (const projectId of [project1.id, project2.id]) {
+        const dataset = await prisma.dataset.create({
           data: {
-            projectId: project2.id,
-            datasetId: dataset.id,
-            sourceTraceId: sourceObservation?.traceId,
-            sourceObservationId:
-              Math.random() > 0.5 ? sourceObservation?.id : undefined,
-            input:
-              Math.random() > 0.3
-                ? [
-                    {
-                      role: "user",
-                      content: "How can i create a React component?",
-                    },
-                  ]
-                : undefined,
-            expectedOutput:
-              Math.random() > 0.3
-                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
-                : undefined,
-            metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
-          },
-        });
-        datasetItemIds.push(datasetItem.id);
-      }
-
-      for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
-        const datasetRun = await prisma.datasetRuns.create({
-          data: {
-            projectId: project2.id,
-            name: `demo-dataset-run-${datasetRunNumber}`,
-            description: Math.random() > 0.5 ? "Dataset run description" : "",
-            datasetId: dataset.id,
-            metadata: [
-              undefined,
-              "string",
-              100,
-              { key: "value" },
-              ["tag1", "tag2"],
-            ][datasetRunNumber % 5],
+            name: `demo-dataset-${datasetNumber}`,
+            description:
+              datasetNumber === 0 ? "Dataset test description" : undefined,
+            projectId,
+            metadata: datasetNumber === 0 ? { key: "value" } : undefined,
           },
         });
 
-        for (const datasetItemId of datasetItemIds) {
-          const relevantObservations = observations.filter(
-            (o) => o.projectId === project2.id,
-          );
-          const observation =
-            relevantObservations[
-              Math.floor(Math.random() * relevantObservations.length)
-            ];
-
-          await prisma.datasetRunItems.create({
+        const datasetItemIds = [];
+        for (let i = 0; i < 18; i++) {
+          const sourceObservation =
+            Math.random() > 0.3
+              ? observations[Math.floor(Math.random() * observations.length)]
+              : undefined;
+          const datasetItem = await prisma.datasetItem.create({
             data: {
-              projectId: project2.id,
-              datasetItemId,
-              traceId: observation.traceId as string,
-              observationId: Math.random() > 0.5 ? observation.id : undefined,
-              datasetRunId: datasetRun.id,
+              projectId,
+              datasetId: dataset.id,
+              sourceTraceId: sourceObservation?.traceId,
+              sourceObservationId:
+                Math.random() > 0.5 ? sourceObservation?.id : undefined,
+              input:
+                Math.random() > 0.3
+                  ? [
+                      {
+                        role: "user",
+                        content: "How can i create a React component?",
+                      },
+                    ]
+                  : undefined,
+              expectedOutput:
+                Math.random() > 0.3
+                  ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
+                  : undefined,
+              metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
             },
           });
+          datasetItemIds.push(datasetItem.id);
+        }
+
+        for (
+          let datasetRunNumber = 0;
+          datasetRunNumber < 5;
+          datasetRunNumber++
+        ) {
+          const datasetRun = await prisma.datasetRuns.create({
+            data: {
+              projectId,
+              name: `demo-dataset-run-${datasetRunNumber}`,
+              description: Math.random() > 0.5 ? "Dataset run description" : "",
+              datasetId: dataset.id,
+              metadata: [
+                undefined,
+                "string",
+                100,
+                { key: "value" },
+                ["tag1", "tag2"],
+              ][datasetRunNumber % 5],
+            },
+          });
+
+          for (const datasetItemId of datasetItemIds) {
+            const relevantObservations = observations.filter(
+              (o) => o.projectId === projectId,
+            );
+            const observation =
+              relevantObservations[
+                Math.floor(Math.random() * relevantObservations.length)
+              ];
+
+            await prisma.datasetRunItems.create({
+              data: {
+                projectId,
+                datasetItemId,
+                traceId: observation.traceId as string,
+                observationId: Math.random() > 0.5 ? observation.id : undefined,
+                datasetRunId: datasetRun.id,
+              },
+            });
+          }
         }
       }
     }

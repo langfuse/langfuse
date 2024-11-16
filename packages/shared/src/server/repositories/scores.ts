@@ -550,6 +550,7 @@ export const getAggregatedScoresForPrompts = async (
       AND o.project_id = s.project_id 
       ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
     WHERE o.project_id = {projectId: String}
+    AND s.project_id = {projectId: String}
     AND o.prompt_id IN ({promptIds: Array(String)})
     AND o.type = 'GENERATION'
     AND s.name IS NOT NULL
