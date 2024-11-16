@@ -745,3 +745,71 @@ export const getObservationMetricsForPrompts = async (
     medianLatencyMs: Number(r.median_latency_ms),
   }));
 };
+
+export const getLatencyAndTotalCostForObservations = async (
+  projectId: string,
+  observationIds: string[],
+) => {
+  const query = `
+    SELECT
+        id,
+        cost_details['total'] AS total_cost,
+        dateDiff('milliseconds', start_time, end_time) AS latency_ms
+    FROM observations
+    FINAL
+    WHERE (type = 'GENERATION') 
+    AND project_id = {projectId: String} 
+    AND id IN ({observationIds: Array(String)})
+`;
+  const rows = await queryClickhouse<{
+    id: string;
+    total_cost: string;
+    latency_ms: string;
+  }>({
+    query: query,
+    params: {
+      projectId,
+      observationIds,
+    },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    totalCost: Number(r.total_cost),
+    latency: Number(r.latency_ms) / 1000,
+  }));
+};
+
+export const getLatencyAndTotalCostForObservationsByTraces = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  const query = `
+    SELECT
+        trace_id,
+        sumMap(cost_details)['total'] AS total_cost,
+        dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
+    FROM observations FINAL
+    WHERE (type = 'GENERATION') 
+    AND project_id = {projectId: String} 
+    AND trace_id IN ({traceIds: Array(String)})
+    GROUP BY trace_id
+`;
+  const rows = await queryClickhouse<{
+    trace_id: string;
+    total_cost: string;
+    latency_ms: string;
+  }>({
+    query: query,
+    params: {
+      projectId,
+      traceIds,
+    },
+  });
+
+  return rows.map((r) => ({
+    traceId: r.trace_id,
+    totalCost: Number(r.total_cost),
+    latency: Number(r.latency_ms) / 1000,
+  }));
+};

@@ -1060,6 +1060,7 @@ async function generatePrompts(project: Project) {
           name: prompt.name,
           version: prompt.version,
         },
+        id: prompt.id + project.id,
       },
       create: {
         id: prompt.id + project.id,
@@ -1071,9 +1072,7 @@ async function generatePrompts(project: Project) {
         labels: prompt.labels,
         tags: prompt.tags,
       },
-      update: {
-        id: prompt.id,
-      },
+      update: {},
     });
     promptIds.push(prompt.id);
   }
@@ -1127,6 +1126,7 @@ async function generatePrompts(project: Project) {
           name: version.name,
           version: version.version,
         },
+        id: version.id,
       },
       create: {
         id: version.id,
@@ -1157,6 +1157,7 @@ async function generatePrompts(project: Project) {
           name: promptName,
           version: i,
         },
+        id: promptId,
       },
       create: {
         id: promptId,
