@@ -21,7 +21,7 @@ export const isClickhouseAdminEligible = (user?: User | null) => {
 };
 
 export const measureAndReturnApi = async <T, Y>(args: {
-  input: T & { queryClickhouse: boolean };
+  input: T & { queryClickhouse: boolean; projectId?: string };
   user: User | undefined | null;
   operation: string;
   pgExecution: (input: T) => Promise<Y>;
@@ -49,6 +49,10 @@ export const measureAndReturnApi = async <T, Y>(args: {
         return await clickhouseExecution(input);
       }
 
+      if (env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY === "true") {
+        return await clickhouseExecution(input);
+      }
+
       // logic for regular users:
       // if env.LANGFUSE_READ_FROM_POSTGRES_ONLY is true, return postgres only
       // otherwise fetch both and compare timing
@@ -57,9 +61,17 @@ export const measureAndReturnApi = async <T, Y>(args: {
       const isExcludedFromClickhouse =
         user?.featureFlags.excludeClickhouseRead ?? false;
 
+      const excludedProjects =
+        env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS?.split(",") ?? [];
+
+      const isExcludedProject = excludedProjects.includes(
+        input.projectId ?? "",
+      );
+
       if (
         env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true" ||
-        isExcludedFromClickhouse
+        isExcludedFromClickhouse ||
+        isExcludedProject
       ) {
         logger.info("Read from postgres only");
         return await pgExecution(input);

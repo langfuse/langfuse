@@ -45,6 +45,7 @@ import {
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
+  hasAnyTrace,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -68,17 +69,32 @@ export type ObservationReturnType = Omit<
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const hasAny = await ctx.prisma.trace.findFirst({
-        where: {
-          projectId: input.projectId,
+      return await measureAndReturnApi({
+        input,
+        operation: "traces.hasAny",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const hasAny = await ctx.prisma.trace.findFirst({
+            where: {
+              projectId: input.projectId,
+            },
+            select: {
+              id: true,
+            },
+          });
+          return hasAny !== null;
         },
-        select: {
-          id: true,
+        clickhouseExecution: async () => {
+          return await hasAnyTrace(input.projectId);
         },
       });
-      return hasAny !== null;
     }),
   all: protectedProjectProcedure
     .input(
@@ -634,6 +650,21 @@ export const traceRouter = createTRPCRouter({
               in: input.traceIds,
             },
             projectId: input.projectId,
+          },
+        }),
+        // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
+        ctx.prisma.jobExecution.updateMany({
+          where: {
+            jobInputTraceId: { in: input.traceIds },
+            projectId: input.projectId,
+          },
+          data: {
+            jobInputTraceId: {
+              set: null,
+            },
+            jobInputObservationId: {
+              set: null,
+            },
           },
         }),
       ]);

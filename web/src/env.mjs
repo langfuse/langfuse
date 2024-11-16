@@ -169,13 +169,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
-    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z
-      .string()
-      .default("media/")
-      .refine(
-        (value) => value.endsWith("/"),
-        "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX must end with a slash ('/')",
-      ),
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -225,7 +219,11 @@ export const env = createEnv({
       .default(15_000),
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
     LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
       .enum(["true", "false"])
       .default("false"),
     STRIPE_SECRET_KEY: z.string().optional(),
@@ -456,8 +454,12 @@ export const env = createEnv({
       process.env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
     LANGFUSE_READ_FROM_POSTGRES_ONLY:
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
+    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
+      process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
     LANGFUSE_RETURN_FROM_CLICKHOUSE:
       process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
+    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS:
+      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS,
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE:
       process.env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
