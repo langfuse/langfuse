@@ -209,7 +209,7 @@ export function DatasetCompareRunsTable(props: {
             <Button
               variant="outline"
               size="icon"
-              className="z-5 absolute right-1 top-1 hidden items-center justify-center group-hover:flex"
+              className="absolute right-1 top-1 z-10 hidden items-center justify-center group-hover:flex"
               onClick={() => setClickedRow(row.original)}
             >
               <Expand className="h-4 w-4" />
@@ -234,7 +234,7 @@ export function DatasetCompareRunsTable(props: {
             <Button
               variant="outline"
               size="icon"
-              className="z-5 absolute right-1 top-1 hidden items-center justify-center group-hover:flex"
+              className="absolute right-1 top-1 z-10 hidden items-center justify-center group-hover:flex"
               onClick={() => setClickedRow(row.original)}
             >
               <Expand className="h-4 w-4" />
