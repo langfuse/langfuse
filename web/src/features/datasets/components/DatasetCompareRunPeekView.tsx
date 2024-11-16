@@ -1,3 +1,4 @@
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import Header from "@/src/components/layouts/header";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -23,6 +24,7 @@ import { type DatasetCompareRunRowData } from "@/src/features/datasets/component
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { PanelLeftOpen, PanelLeftClose, X, ListTree } from "lucide-react";
+import { useRouter } from "next/router";
 import { useState } from "react";
 
 export function DatasetCompareRunPeekView({
@@ -38,14 +40,25 @@ export function DatasetCompareRunPeekView({
   setClickedRow: (row: DatasetCompareRunRowData | null) => void;
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
 }) {
+  const router = useRouter();
   const [traceAndObservationId, setTraceAndObservationId] = useState<{
     runId: string;
     traceId: string;
     observationId?: string;
   } | null>(null);
 
+  const timestamp =
+    router.query.timestamp && typeof router.query.timestamp === "string"
+      ? new Date(decodeURIComponent(router.query.timestamp))
+      : undefined;
+
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-    { traceId: traceAndObservationId?.traceId as string, projectId },
+    {
+      traceId: traceAndObservationId?.traceId as string,
+      projectId,
+      timestamp,
+      queryClickhouse: useClickhouse(),
+    },
     {
       enabled: !!traceAndObservationId,
       retry(failureCount, error) {
@@ -111,7 +124,14 @@ export function DatasetCompareRunPeekView({
                     trace={trace.data}
                     scores={trace.data?.scores ?? []}
                     currentObservationId={undefined}
-                    setCurrentObservationId={() => {}}
+                    setCurrentObservationId={(id) => {
+                      if (id)
+                        window.open(
+                          `/project/${projectId}/traces/${encodeURIComponent(traceAndObservationId?.traceId)}?observation=${encodeURIComponent(id)}`,
+                          "_blank",
+                          "noopener noreferrer",
+                        );
+                    }}
                     showMetrics={false}
                     showScores={true}
                     colorCodeMetrics={false}
@@ -137,7 +157,9 @@ export function DatasetCompareRunPeekView({
                       </div>
                     </div>
                     <div className="min-h-0 overflow-hidden">
-                      <h3 className="font-lg mb-1 font-semibold">Output</h3>
+                      <h3 className="font-lg mb-1 font-semibold">
+                        Expected output
+                      </h3>
                       <div className="h-[calc(100%-1.75rem)] space-y-2 overflow-y-auto">
                         <IOPreview
                           key={clickedRow?.id + "-output"}
