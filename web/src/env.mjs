@@ -223,6 +223,9 @@ export const env = createEnv({
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
+      .enum(["true", "false"])
+      .default("false"),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -451,6 +454,8 @@ export const env = createEnv({
       process.env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
     LANGFUSE_READ_FROM_POSTGRES_ONLY:
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
+    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
+      process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
     LANGFUSE_RETURN_FROM_CLICKHOUSE:
       process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
     LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS:
