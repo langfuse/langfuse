@@ -582,13 +582,17 @@ export const getScoresForObservationsAndTraces = async (
       s.value,
       s.source,
       s.data_type,
-      s.comment
+      s.comment,
+      s.trace_id,
+      s.observation_id
     FROM scores s FINAL 
     WHERE o.project_id = {projectId: String}
-    AND (trace_id, observation_id) IN ({identifier: Array(Tuple(String, Nullable(String))})
+    AND (trace_id, observation_id) IN ({identifier: Array(Tuple(String, Nullable(String)))})
   `;
 
-  const rows = await queryClickhouse<ScoreAggregation>({
+  const rows = await queryClickhouse<
+    ScoreAggregation & { trace_id: string; observation_id: string }
+  >({
     query,
     params: {
       projectId,
@@ -596,5 +600,9 @@ export const getScoresForObservationsAndTraces = async (
     },
   });
 
-  return rows.map(convertScoreAggregation);
+  return rows.map((r) => ({
+    ...convertScoreAggregation(r),
+    traceId: r.trace_id,
+    observationId: r.observation_id,
+  }));
 };

@@ -59,7 +59,7 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
     evalJobExecutorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-    }
+    },
   );
 }
 
@@ -89,7 +89,7 @@ if (
     cloudUsageMeteringQueueProcessor,
     {
       concurrency: 1,
-    }
+    },
   );
 }
 
@@ -97,7 +97,7 @@ if (env.QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.LegacyIngestionQueue,
     legacyIngestionQueueProcessor,
-    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY } // n ingestion batches at a time
+    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY }, // n ingestion batches at a time
   );
 }
 

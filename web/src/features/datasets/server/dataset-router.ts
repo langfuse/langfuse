@@ -25,6 +25,8 @@ import {
   getScoresForTraces,
   traceException,
   getScoresForObservationsAndTraces,
+  getAggregatedLatencyAndTotalCostForObservationsByTraces,
+  getAggregatedLatencyAndTotalCostForObservations,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
@@ -320,11 +322,12 @@ export const datasetRouter = createTRPCRouter({
               run_id: string;
               run_name: string;
               run_description: string;
-              run_metadata: Prisma.InputJsonObject;
+              run_metadata: Prisma.JsonValue;
               run_created_at: Date;
               run_updated_at: Date;
-              trace_id: string;
-              observation_id: string;
+              trace_ids: string[];
+              observation_ids: string[];
+              count: number;
             }[]
           >(
             Prisma.sql`
@@ -335,8 +338,9 @@ export const datasetRouter = createTRPCRouter({
               runs.metadata as run_metadata,
               runs.created_at as run_created_at,
               runs.updated_at as run_updated_at,
-              ri.trace_id,
-              ri.observation_id
+              ARRAY_AGG(ri.trace_id) AS trace_ids,
+              ARRAY_AGG(ri.observation_id) AS observation_ids,
+              COUNT(ri.id) AS count
             FROM
               datasets d
               JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
@@ -344,61 +348,103 @@ export const datasetRouter = createTRPCRouter({
                 AND ri.project_id = runs.project_id
             WHERE
               d.id = ${input.datasetId}
-              AND d.project_id = ${input.projectId};
+              AND d.project_id = ${input.projectId}
+            GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
+            LIMIT ${input.limit}
+            OFFSET ${input.page * input.limit}
           `,
           );
 
-          const uniqueRunsMap = new Map<
-            string,
-            {
-              run_id: string;
-              run_name: string;
-              run_description: string;
-              run_metadata: Prisma.InputJsonObject;
-              run_created_at: Date;
-              run_updated_at: Date;
-            }
-          >();
+          async function getTraceAggregates() {
+            const traceOnlyRuns = runs.filter((ri) =>
+              ri.observation_ids.some(
+                (observationId) => observationId === null,
+              ),
+            );
 
-          runs.forEach((run) => {
-            if (!uniqueRunsMap.has(run.run_id)) {
-              uniqueRunsMap.set(run.run_id, {
-                run_id: run.run_id,
-                run_name: run.run_name,
-                run_description: run.run_description,
-                run_metadata: run.run_metadata,
-                run_created_at: run.run_created_at,
-                run_updated_at: run.run_updated_at,
-              });
-            }
-          });
+            return await Promise.all(
+              traceOnlyRuns.map((run) =>
+                getAggregatedLatencyAndTotalCostForObservationsByTraces(
+                  input.projectId,
+                  run.trace_ids,
+                ).then((agg) => ({
+                  runId: run.run_id,
+                  agg,
+                })),
+              ),
+            );
+          }
 
-          const uniqueRuns = Array.from(uniqueRunsMap.values());
+          async function getObservationAggregates() {
+            const observationRuns = runs.filter((ri) =>
+              ri.observation_ids.every(
+                (observationId) => observationId !== null,
+              ),
+            );
 
-          const [scores, totalRuns] = await Promise.all([
-            getScoresForObservationsAndTraces(
-              input.projectId,
-              runs.map((ri) => ({
-                traceId: ri.trace_id,
-                observationId: ri.observation_id,
-              })),
-            ),
-            ctx.prisma.datasetRuns.count({
-              where: {
-                datasetId: input.datasetId,
-                projectId: input.projectId,
-              },
-            }),
-          ]);
+            return await Promise.all(
+              observationRuns.map((run) =>
+                getAggregatedLatencyAndTotalCostForObservations(
+                  input.projectId,
+                  run.observation_ids,
+                ).then((agg) => ({
+                  runId: run.run_id,
+                  agg,
+                })),
+              ),
+            );
+          }
+
+          const [scores, totalRuns, traceAggregate, observationAggregate] =
+            await Promise.all([
+              getScoresForObservationsAndTraces(
+                input.projectId,
+                runs.flatMap((ri) =>
+                  ri.trace_ids.map((traceId, index) => ({
+                    traceId,
+                    observationId: ri.observation_ids[index],
+                  })),
+                ),
+              ),
+              ctx.prisma.datasetRuns.count({
+                where: {
+                  datasetId: input.datasetId,
+                  projectId: input.projectId,
+                },
+              }),
+              getTraceAggregates(),
+              getObservationAggregates(),
+            ]);
 
           return {
             totalRuns,
-            runs: uniqueRuns.map((run) => ({
-              ...run,
-              scores: aggregateScores(
-                scores.flatMap((s) => (s.runId === run.id ? s.scores : [])),
-              ),
-            })),
+            runs: runs.map((run) => {
+              const agg =
+                traceAggregate.find((agg) => agg.runId === run.run_id) ??
+                observationAggregate.find((agg) => agg.runId === run.run_id);
+              return {
+                id: run.run_id,
+                projectId: input.projectId,
+                datasetId: input.datasetId,
+                name: run.run_name,
+                description: run.run_description,
+                metadata: run.run_metadata,
+                createdAt: run.run_created_at,
+                updatedAt: run.run_updated_at,
+                countRunItems: run.count,
+                avgLatency: agg?.agg ? agg.agg.avgLatency : 0,
+                avgTotalCost: agg?.agg
+                  ? new Decimal(agg.agg.avgTotalCost)
+                  : new Decimal(0),
+                scores: aggregateScores(
+                  scores.filter(
+                    (s) =>
+                      run.trace_ids.includes(s.traceId) &&
+                      run.observation_ids.includes(s.observationId),
+                  ),
+                ),
+              };
+            }),
           };
         },
       });
