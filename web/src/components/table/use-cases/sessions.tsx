@@ -197,7 +197,7 @@ export default function SessionsTable({
           />
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting: false,
     },
     {
       accessorKey: "id",
