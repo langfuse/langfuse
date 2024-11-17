@@ -24,7 +24,6 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   traceException,
-  getScoresForObservationsAndTraces,
   getAggregatedLatencyAndTotalCostForObservationsByTraces,
   getAggregatedLatencyAndTotalCostForObservations,
 } from "@langfuse/shared/src/server";
@@ -355,6 +354,28 @@ export const datasetRouter = createTRPCRouter({
           `,
           );
 
+          const runsWithMatchedTracesAndObservations = runs.map((run) => {
+            const traceObservationMap = run.trace_ids.reduce(
+              (acc, traceId, index) => {
+                if (!acc[traceId]) {
+                  acc[traceId] = [];
+                }
+                if (run.observation_ids[index] !== null) {
+                  acc[traceId].push(run.observation_ids[index]);
+                }
+                return acc;
+              },
+              {} as Record<string, string[]>,
+            );
+
+            return {
+              ...run,
+              traceObservationMap,
+            };
+          });
+
+          console.log("aggregatedRuns", runsWithMatchedTracesAndObservations);
+
           async function getTraceAggregates() {
             const traceOnlyRuns = runs.filter((ri) =>
               ri.observation_ids.some(
@@ -395,26 +416,41 @@ export const datasetRouter = createTRPCRouter({
             );
           }
 
-          const [scores, totalRuns, traceAggregate, observationAggregate] =
-            await Promise.all([
-              getScoresForObservationsAndTraces(
-                input.projectId,
-                runs.flatMap((ri) =>
-                  ri.trace_ids.map((traceId, index) => ({
-                    traceId,
-                    observationId: ri.observation_ids[index],
-                  })),
+          const [
+            traceScores,
+            observationScores,
+            totalRuns,
+            traceAggregate,
+            observationAggregate,
+          ] = await Promise.all([
+            getScoresForTraces(
+              input.projectId,
+              Array.from(
+                new Set(runs.flatMap((ri) => ri.trace_ids).filter(Boolean)),
+              ),
+            ),
+            getScoresForObservations(
+              input.projectId,
+              Array.from(
+                new Set(
+                  runs.flatMap((ri) => ri.observation_ids).filter(Boolean),
                 ),
               ),
-              ctx.prisma.datasetRuns.count({
-                where: {
-                  datasetId: input.datasetId,
-                  projectId: input.projectId,
-                },
-              }),
-              getTraceAggregates(),
-              getObservationAggregates(),
-            ]);
+            ),
+            ctx.prisma.datasetRuns.count({
+              where: {
+                datasetId: input.datasetId,
+                projectId: input.projectId,
+              },
+            }),
+            getTraceAggregates(),
+            getObservationAggregates(),
+          ]);
+
+          const joinedScores = traceScores.concat(observationScores);
+
+          console.log("traceAggregate", traceAggregate);
+          console.log("observationAggregate", observationAggregate);
 
           return {
             totalRuns,
@@ -437,11 +473,7 @@ export const datasetRouter = createTRPCRouter({
                   ? new Decimal(agg.agg.avgTotalCost)
                   : new Decimal(0),
                 scores: aggregateScores(
-                  scores.filter(
-                    (s) =>
-                      run.trace_ids.includes(s.traceId) &&
-                      run.observation_ids.includes(s.observationId),
-                  ),
+                  joinedScores.filter((s) => run.trace_ids.includes(s.traceId)),
                 ),
               };
             }),
