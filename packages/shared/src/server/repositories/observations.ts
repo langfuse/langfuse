@@ -751,20 +751,25 @@ export const getLatencyAndTotalCostForObservations = async (
   observationIds: string[],
 ) => {
   const query = `
+    WITH aggregate AS (
+      SELECT
+          cost_details['total'] AS total_cost, 
+          dateDiff('milliseconds', start_time, end_time) AS latency_ms
+      FROM
+          observations FINAL
+      WHERE
+          project_id = {projectId: String} 
+          AND observations.id IN ({ids: Array(String)})
+
     SELECT
-        id,
-        cost_details['total'] AS total_cost,
-        dateDiff('milliseconds', start_time, end_time) AS latency_ms
-    FROM observations
-    FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
-    AND id IN ({observationIds: Array(String)})
+      avg(total_cost) as avg_total_cost,
+      avg(latency_ms) as avg_latency_ms
+    from aggregate
 `;
   const rows = await queryClickhouse<{
     id: string;
-    total_cost: string;
-    latency_ms: string;
+    avg_total_cost: string;
+    avg_latency_ms: string;
   }>({
     query: query,
     params: {
@@ -775,8 +780,8 @@ export const getLatencyAndTotalCostForObservations = async (
 
   return rows.map((r) => ({
     id: r.id,
-    totalCost: Number(r.total_cost),
-    latency: Number(r.latency_ms) / 1000,
+    totalCost: Number(r.avg_total_cost),
+    latency: Number(r.avg_latency_ms) / 1000,
   }));
 };
 
@@ -790,8 +795,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
         sumMap(cost_details)['total'] AS total_cost,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
     GROUP BY trace_id
 `;
@@ -825,7 +829,6 @@ export const getAggregatedLatencyAndTotalCostForObservationsByTraces = async (
             sumMap(cost_details)['total'] AS total_cost,
             dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
         FROM observations FINAL
-        WHERE (type = 'GENERATION') 
         AND project_id = {projectId: String} 
         AND trace_id IN ({traceIds: Array(String)})
         GROUP BY trace_id
@@ -866,7 +869,6 @@ export const getAggregatedLatencyAndTotalCostForObservations = async (
             sumMap(cost_details)['total'] AS total_cost,
             dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
         FROM observations FINAL
-        WHERE (type = 'GENERATION') 
         AND project_id = {projectId: String} 
         AND id IN ({ids: Array(String)})
     )
