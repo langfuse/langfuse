@@ -107,21 +107,24 @@ const DatasetAggregateCell = ({
         </div>
       )}
 
-      {selectedMetrics.includes("resourceMetrics") && (
-        <div className="flex w-full flex-row flex-wrap gap-1">
-          <Badge variant="outline" className="p-0.5 px-1 font-normal">
-            <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
-            <span className="capitalize">
-              {!!resourceMetrics.latency
-                ? formatIntervalSeconds(resourceMetrics.latency)
-                : null}
-            </span>
-          </Badge>
-          <Badge variant="outline" className="p-0.5 px-1 font-normal">
-            <span className="mr-0.5">{resourceMetrics.totalCost}</span>
-          </Badge>
-        </div>
-      )}
+      {selectedMetrics.includes("resourceMetrics") &&
+        (resourceMetrics.latency || resourceMetrics.totalCost) && (
+          <div className="flex w-full flex-row flex-wrap gap-1">
+            {resourceMetrics.latency && (
+              <Badge variant="outline" className="p-0.5 px-1 font-normal">
+                <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+                <span className="capitalize">
+                  {formatIntervalSeconds(resourceMetrics.latency)}
+                </span>
+              </Badge>
+            )}
+            {resourceMetrics.totalCost && (
+              <Badge variant="outline" className="p-0.5 px-1 font-normal">
+                <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+              </Badge>
+            )}
+          </div>
+        )}
 
       <div className="flex-grow" />
 
