@@ -18,6 +18,7 @@ export default createNextApiHandler({
       error,
     );
     traceException(error);
+    return error;
   },
   responseMeta() {
     return {

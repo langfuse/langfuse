@@ -276,18 +276,6 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   });
 };
 
-export const getTraceById = async (
-  traceId: string,
-  projectId: string,
-  timestamp?: Date,
-): Promise<Trace | undefined> => {
-  try {
-    return getTraceByIdOrThrow(traceId, projectId, timestamp);
-  } catch (e) {
-    return undefined;
-  }
-};
-
 export const getTracesByIds = async (
   traceIds: string[],
   projectId: string,
@@ -331,7 +319,7 @@ export const hasAnyTrace = async (projectId: string) => {
   return rows.length > 0 && Number(rows[0].count) > 0;
 };
 
-export const getTraceByIdOrThrow = async (
+export const getTraceById = async (
   traceId: string,
   projectId: string,
   timestamp?: Date,
@@ -359,12 +347,7 @@ export const getTraceByIdOrThrow = async (
 
   const res = records.map(convertClickhouseToDomain);
 
-  if (res.length === 0) {
-    const errorMessage = `Trace not found for traceId: ${traceId}, projectId: ${projectId}, and timestamp: ${timestamp}`;
-    logger.error(errorMessage);
-    throw new Error(errorMessage);
-  }
-  return res[0] as Trace;
+  return res.length > 0 ? res[0] : undefined;
 };
 
 export const getTracesGroupedByName = async (
