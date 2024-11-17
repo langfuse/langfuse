@@ -246,7 +246,13 @@ export function Trace(props: {
   );
 }
 
-export function TracePage({ traceId }: { traceId: string }) {
+export function TracePage({
+  traceId,
+  timestamp,
+}: {
+  traceId: string;
+  timestamp?: Date;
+}) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
@@ -256,6 +262,7 @@ export function TracePage({ traceId }: { traceId: string }) {
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
+      timestamp,
       projectId: router.query.projectId as string,
       queryClickhouse: useClickhouse(),
     },
@@ -328,7 +335,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             />
             <DetailPageNav
               currentId={traceId}
-              path={(id) => {
+              path={(entry) => {
                 const { view, display, projectId } = router.query;
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
@@ -337,7 +344,13 @@ export function TracePage({ traceId }: { traceId: string }) {
                 const queryParamString = Boolean(queryParams.size)
                   ? `?${queryParams.toString()}`
                   : "";
-                return `/project/${projectId as string}/traces/${id}${queryParamString}`;
+
+                const timestamp =
+                  entry.params && entry.params.timestamp
+                    ? encodeURIComponent(entry.params.timestamp)
+                    : undefined;
+
+                return `/project/${projectId as string}/traces/${entry.id}${queryParamString}${timestamp ? `?timestamp=${timestamp}` : ""}`;
               }}
               listKey="traces"
             />

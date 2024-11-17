@@ -122,7 +122,7 @@ const handleSingleEvent = async (
     restEvent = rest;
   }
 
-  logger.info(
+  logger.debug(
     `handling single event ${event.id} of type ${event.type}:  ${JSON.stringify({ body: restEvent })}`,
   );
 
@@ -181,14 +181,17 @@ export const addTracesToTraceUpsertQueue = async (
       typeof result.result === "object" &&
       "id" in result.result
         ? // ingestion API only gets traces for one projectId
-          { traceId: result.result.id as string, projectId }
+          {
+            traceId: result.result.id as string,
+            projectId,
+          }
         : null,
     )
     .filter(isNotNullOrUndefined);
 
   try {
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && redis) {
-      logger.info(`Sending ${traceEvents.length} events to worker via Redis`);
+      logger.debug(`Sending ${traceEvents.length} events to worker via Redis`);
 
       const queue = TraceUpsertQueue.getInstance();
       if (!queue) {

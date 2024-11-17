@@ -278,6 +278,8 @@ export type JobExecution = {
     end_time: Timestamp | null;
     error: string | null;
     job_input_trace_id: string | null;
+    job_input_observation_id: string | null;
+    job_input_dataset_item_id: string | null;
     job_output_score_id: string | null;
 };
 export type LlmApiKeys = {
@@ -293,6 +295,20 @@ export type LlmApiKeys = {
     with_default_models: Generated<boolean>;
     config: unknown | null;
     project_id: string;
+};
+export type Media = {
+    id: string;
+    sha_256_hash: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    uploaded_at: Timestamp | null;
+    upload_http_status: number | null;
+    upload_http_error: string | null;
+    bucket_path: string;
+    bucket_name: string;
+    content_type: string;
+    content_length: string;
 };
 export type MembershipInvitation = {
     id: string;
@@ -353,6 +369,16 @@ export type Observation = {
     calculated_total_cost: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
+};
+export type ObservationMedia = {
+    id: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    media_id: string;
+    trace_id: string;
+    observation_id: string;
+    field: string;
 };
 export type ObservationView = {
     id: string;
@@ -515,6 +541,15 @@ export type Trace = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
+export type TraceMedia = {
+    id: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    media_id: string;
+    trace_id: string;
+    field: string;
+};
 export type TraceSession = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -579,8 +614,10 @@ export type DB = {
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
+    media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
+    observation_media: ObservationMedia;
     observations: Observation;
     observations_view: ObservationView;
     organization_memberships: OrganizationMembership;
@@ -594,6 +631,7 @@ export type DB = {
     scores: Score;
     Session: Session;
     sso_configs: SsoConfig;
+    trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: Trace;
     traces_view: TraceView;

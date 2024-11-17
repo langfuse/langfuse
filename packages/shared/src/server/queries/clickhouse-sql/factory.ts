@@ -1,7 +1,7 @@
 import z from "zod";
 import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
-import { isValidTableName } from "../../clickhouse/schema-utils";
+import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import { UiColumnMapping } from "../../../tableDefinitions";
 import {
@@ -14,6 +14,7 @@ import {
   BooleanFilter,
   NumberObjectFilter,
   StringObjectFilter,
+  NullFilter,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -101,9 +102,16 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
-
+      case "null":
+        return new NullFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          operator: frontEndFilter.operator,
+          tablePrefix: column.queryPrefix,
+        });
       default:
-        logger.error(`Invalid filter type: ${JSON.stringify(frontEndFilter)}`);
+        const exhaustiveCheck: never = frontEndFilter;
+        logger.error(`Invalid filter type: ${JSON.stringify(exhaustiveCheck)}`);
         throw new QueryBuilderError(`Invalid filter type`);
     }
   });

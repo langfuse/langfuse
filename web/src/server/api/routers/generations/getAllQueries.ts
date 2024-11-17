@@ -8,8 +8,7 @@ import {
   getObservationsTableCount,
   parseGetAllGenerationsInput,
 } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
-import { isClickhouseEligible } from "@/src/server/utils/checkClickhouseAccess";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
@@ -25,33 +24,32 @@ export const getAllQueries = {
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (!input.queryClickhouse) {
-        const { generations } = await getAllGenerations({
-          input,
-          selectIOAndMetadata: false,
-        });
-
-        return {
-          generations: generations,
-        };
-      } else {
-        if (!isClickhouseEligible(ctx.session.user)) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "Not eligible to query clickhouse",
+      return await measureAndReturnApi({
+        input,
+        operation: "generations.all",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const { generations } = await getAllGenerations({
+            input,
+            selectIOAndMetadata: false,
           });
-        }
 
-        const { generations } = await getAllGenerations({
-          input,
-          selectIOAndMetadata: false,
-          queryClickhouse: true,
-        });
+          return {
+            generations: generations,
+          };
+        },
+        clickhouseExecution: async () => {
+          const { generations } = await getAllGenerations({
+            input,
+            selectIOAndMetadata: false,
+            queryClickhouse: true,
+          });
 
-        return {
-          generations: generations,
-        };
-      }
+          return {
+            generations: generations,
+          };
+        },
+      });
     }),
   countAll: protectedProjectProcedure
     .input(
@@ -60,14 +58,18 @@ export const getAllQueries = {
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (!input.queryClickhouse) {
-        const { searchCondition, filterCondition, datetimeFilter } =
-          parseGetAllGenerationsInput(input);
+      return await measureAndReturnApi({
+        input,
+        operation: "generations.countAll",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const { searchCondition, filterCondition, datetimeFilter } =
+            parseGetAllGenerationsInput(input);
 
-        const totalGenerations = await ctx.prisma.$queryRaw<
-          Array<{ count: bigint }>
-        >(
-          Prisma.sql`
+          const totalGenerations = await ctx.prisma.$queryRaw<
+            Array<{ count: bigint }>
+          >(
+            Prisma.sql`
           SELECT
             count(*)
           FROM observations_view o
@@ -98,30 +100,25 @@ export const getAllQueries = {
             ${searchCondition}
             ${filterCondition}
     `,
-        );
+          );
 
-        const count = totalGenerations[0]?.count;
-        return {
-          totalCount: count ? Number(count) : undefined,
-        };
-      } else {
-        if (!isClickhouseEligible(ctx.session.user)) {
-          throw new TRPCError({
-            code: "UNAUTHORIZED",
-            message: "Not eligible to query clickhouse",
+          const count = totalGenerations[0]?.count;
+          return {
+            totalCount: count ? Number(count) : undefined,
+          };
+        },
+        clickhouseExecution: async () => {
+          const countQuery = await getObservationsTableCount({
+            projectId: ctx.session.projectId,
+            filter: input.filter ?? [],
+            limit: 1,
+            offset: 0,
           });
-        }
 
-        const countQuery = await getObservationsTableCount({
-          projectId: ctx.session.projectId,
-          filter: input.filter ?? [],
-          limit: 1,
-          offset: 0,
-        });
-
-        return {
-          totalCount: countQuery.shift()?.count,
-        };
-      }
+          return {
+            totalCount: countQuery.shift()?.count,
+          };
+        },
+      });
     }),
 };

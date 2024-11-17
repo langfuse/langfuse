@@ -21,3 +21,13 @@ export const createObservation = async (
     values: [observation],
   });
 };
+
+export const createObservations = async (
+  observations: ObservationRecordInsertType[],
+) => {
+  return await clickhouseClient.insert({
+    table: "observations",
+    format: "JSONEachRow",
+    values: observations,
+  });
+};

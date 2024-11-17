@@ -18,7 +18,7 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
@@ -70,13 +70,15 @@ export function DatasetRunItemsTable(
     if (runItems.isSuccess) {
       setDetailPageList(
         "traces",
-        runItems.data.runItems.filter((i) => !!i.trace).map((i) => i.trace!.id),
+        runItems.data.runItems
+          .filter((i) => !!i.trace)
+          .map((i) => ({ id: i.trace!.id })),
       );
       // set the datasetItems list only when viewing this table from the run page
       if ("datasetRunId" in props)
         setDetailPageList(
           "datasetItems",
-          runItems.data.runItems.map((i) => i.datasetItemId),
+          runItems.data.runItems.map((i) => ({ id: i.datasetItemId })),
         );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

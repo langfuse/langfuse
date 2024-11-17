@@ -22,7 +22,7 @@ const EnvSchema = z.object({
     .string()
     .length(
       64,
-      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
+      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
     )
     .optional(),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -36,6 +36,16 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
 });

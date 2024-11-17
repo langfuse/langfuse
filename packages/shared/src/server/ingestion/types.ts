@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel, ScoreSource } from "@prisma/client";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -163,6 +163,7 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  source: z.nativeEnum(ScoreSource).default(ScoreSource.API),
 });
 
 /**

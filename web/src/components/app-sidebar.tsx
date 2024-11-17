@@ -15,6 +15,8 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { SidebarNotifications } from "@/src/components/sidebar-notifications";
+import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 type AppSidebarProps = {
   navItems: NavMainItem[];
@@ -34,12 +36,14 @@ export function AppSidebar({
         <div className="flex items-center gap-2 p-2">
           <LangfuseLogo version />
         </div>
+        <DemoBadge />
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navItems} />
         <div className="flex-1" />
-        <div className="p-2">
-          <DemoBadge />
+        <div className="flex flex-col gap-2 p-2">
+          <UsageTracker />
+          <SidebarNotifications />
         </div>
         <NavMain items={secondaryNavItems} showFeedbackButton />
       </SidebarContent>
@@ -59,7 +63,7 @@ const DemoBadge = () => {
     env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
     routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
     Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
-    <Alert className="bg-light-yellow group-data-[collapsible=icon]:hidden">
+    <Alert className="rounded-md bg-light-yellow group-data-[collapsible=icon]:hidden">
       <AlertDescription className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
         View-only{" "}
         <Link

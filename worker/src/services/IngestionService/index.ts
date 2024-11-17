@@ -1,5 +1,4 @@
 import { Redis } from "ioredis";
-import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
@@ -85,7 +84,7 @@ export class IngestionService {
     eventBodyId: string,
     events: IngestionEventType[],
   ): Promise<void> {
-    logger.info(
+    logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
     );
 
@@ -145,7 +144,7 @@ export class IngestionService {
           table: TableName.Scores,
           additionalFilters: {
             whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime} "
+              ? " AND timestamp >= {timestamp: DateTime64(3)} "
               : "",
             params: { timestamp },
           },
@@ -227,7 +226,7 @@ export class IngestionService {
         table: TableName.Traces,
         additionalFilters: {
           whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime} "
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
             : "",
           params: { timestamp },
         },
@@ -239,6 +238,23 @@ export class IngestionService {
       postgresTraceRecord,
       traceRecords,
     });
+
+    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
+    if (finalTraceRecord.session_id) {
+      await this.prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: finalTraceRecord.session_id,
+            projectId,
+          },
+        },
+        create: {
+          id: finalTraceRecord.session_id,
+          projectId,
+        },
+        update: {},
+      });
+    }
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
   }
@@ -276,7 +292,7 @@ export class IngestionService {
           entityId,
           table: TableName.Observations,
           additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime} " : ""}`,
+            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
             params: {
               type,
               startTime,
@@ -302,9 +318,8 @@ export class IngestionService {
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
-      const traceId = randomUUID();
       const wrapperTraceRecord: TraceRecordInsertType = {
-        id: traceId,
+        id: finalObservationRecord.id,
         timestamp: finalObservationRecord.start_time,
         project_id: projectId,
         created_at: Date.now(),
@@ -318,7 +333,7 @@ export class IngestionService {
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
-      finalObservationRecord.trace_id = traceId;
+      finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
     this.clickHouseWriter.addToQueue(
@@ -444,7 +459,7 @@ export class IngestionService {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
 
-    result.event_ts = Math.max(...records.map((r) => r.event_ts ?? -Infinity));
+    result.event_ts = new Date().getTime();
 
     return result;
   }
