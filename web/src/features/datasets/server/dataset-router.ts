@@ -1063,9 +1063,7 @@ export const datasetRouter = createTRPCRouter({
             ),
             getLatencyAndTotalCostForObservationsByTraces(
               input.projectId,
-              runItems
-                .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-                .map((ri) => ri.traceId),
+              runItems.map((ri) => ri.traceId),
             ),
           ]);
 
