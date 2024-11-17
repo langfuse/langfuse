@@ -461,13 +461,13 @@ export const datasetRouter = createTRPCRouter({
 
               const avgLatency =
                 validAgg.length > 0
-                  ? validAgg.reduce((sum, a) => sum + (a.latency || 0), 0) /
+                  ? validAgg.reduce((sum, a) => sum + (a?.latency ?? 0), 0) /
                     validAgg.length
                   : 0;
 
               const avgTotalCost =
                 validAgg.length > 0
-                  ? validAgg.reduce((sum, a) => sum + (a.totalCost || 0), 0) /
+                  ? validAgg.reduce((sum, a) => sum + (a?.totalCost || 0), 0) /
                     validAgg.length
                   : 0;
 
