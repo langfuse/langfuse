@@ -167,7 +167,7 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return await measureAndReturnApi({
         input,
-        operation: "scores.runsByDatasetId",
+        operation: "datasets.runsByDatasetId",
         user: ctx.session.user,
         pgExecution: async () => {
           const scoresByRunId = await ctx.prisma.$queryRaw<
