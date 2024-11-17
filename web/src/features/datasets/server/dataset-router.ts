@@ -327,7 +327,7 @@ export const datasetRouter = createTRPCRouter({
               run_updated_at: Date;
               trace_ids: string[];
               observation_ids: string[];
-              count: number;
+              count: BigInt;
             }[]
           >(
             Prisma.sql`
@@ -443,7 +443,7 @@ export const datasetRouter = createTRPCRouter({
                 metadata: run.run_metadata,
                 createdAt: run.run_created_at,
                 updatedAt: run.run_updated_at,
-                countRunItems: run.count,
+                countRunItems: Number(run.count),
                 avgLatency: agg?.agg ? agg.agg.avgLatency : 0,
                 avgTotalCost: agg?.agg
                   ? new Decimal(agg.agg.avgTotalCost)
@@ -1063,9 +1063,7 @@ export const datasetRouter = createTRPCRouter({
             ),
             getLatencyAndTotalCostForObservationsByTraces(
               input.projectId,
-              runItems
-                .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-                .map((ri) => ri.traceId),
+              runItems.map((ri) => ri.traceId),
             ),
           ]);
 

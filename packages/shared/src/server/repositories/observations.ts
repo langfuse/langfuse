@@ -862,6 +862,7 @@ export const getAggregatedLatencyAndTotalCostForObservations = async (
 ) => {
   const query = `
     WITH aggregate AS (
+        SELECT
             sumMap(cost_details)['total'] AS total_cost,
             dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
         FROM observations FINAL
