@@ -363,12 +363,6 @@ export const datasetRouter = createTRPCRouter({
           `,
           );
 
-          console.log(
-            JSON.stringify(
-              runs.flatMap((r) => r.run_items).map((ri) => ri.trace_id),
-            ),
-          );
-
           async function getTraceAggregates() {
             const traceOnlyRunItems = runs
               .flatMap((r) => r.run_items)
