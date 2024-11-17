@@ -3,12 +3,6 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import Header from "@/src/components/layouts/header";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { ObservationTree } from "@/src/components/trace/ObservationTree";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -201,7 +195,7 @@ export function DatasetCompareRunPeekView({
                                   "border-4",
                               )}
                               actionButtons={
-                                <div className="z-5 absolute right-1 top-1 hidden items-center justify-center gap-1 group-hover:flex">
+                                <div className="absolute right-1 top-1 z-10 hidden items-center justify-center gap-1 group-hover:flex">
                                   <Button
                                     variant="outline"
                                     size="icon"
