@@ -756,9 +756,7 @@ export const getLatencyAndTotalCostForObservations = async (
         cost_details['total'] AS total_cost,
         dateDiff('milliseconds', start_time, end_time) AS latency_ms
     FROM observations
-    FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    FINAL project_id = {projectId: String} 
     AND id IN ({observationIds: Array(String)})
 `;
   const rows = await queryClickhouse<{
@@ -790,8 +788,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
         sumMap(cost_details)['total'] AS total_cost,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
     GROUP BY trace_id
 `;
@@ -809,72 +806,6 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
 
   return rows.map((r) => ({
     traceId: r.trace_id,
-    totalCost: Number(r.total_cost),
-    latency: Number(r.latency_ms) / 1000,
-  }));
-};
-
-export const getAggregatedLatencyAndTotalCostForObservationsByTraces = async (
-  projectId: string,
-  traceIds: string[],
-) => {
-  const query = `
-      SELECT
-          trace_id,
-          sumMap(cost_details)['total'] AS total_cost,
-          dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-      FROM observations FINAL
-      WHERE project_id = {projectId: String} 
-      AND trace_id IN ({traceIds: Array(String)})
-      GROUP BY trace_id
-    `;
-  const rows = await queryClickhouse<{
-    total_cost: string;
-    latency_ms: string;
-    trace_id: string;
-  }>({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
-    },
-  });
-
-  return rows.map((r) => ({
-    totalCost: Number(r.total_cost),
-    latency: Number(r.latency_ms) / 1000,
-    id: r.trace_id,
-  }));
-};
-
-export const getAggregatedLatencyAndTotalCostForObservations = async (
-  projectId: string,
-  ids: string[],
-) => {
-  const query = `
-    SELECT
-      id,    
-      cost_details['total'] AS total_cost,
-      dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-    FROM observations FINAL
-    WHERE project_id = {projectId: String} 
-    AND id IN ({ids: Array(String)})
-    GROUP BY id, cost_details['total']
-    `;
-  const rows = await queryClickhouse<{
-    latency_ms: string;
-    total_cost: string;
-    id: string;
-  }>({
-    query: query,
-    params: {
-      projectId,
-      ids,
-    },
-  });
-
-  return rows.map((r) => ({
-    id: r.id,
     totalCost: Number(r.total_cost),
     latency: Number(r.latency_ms) / 1000,
   }));

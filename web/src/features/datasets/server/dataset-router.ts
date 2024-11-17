@@ -24,8 +24,6 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   traceException,
-  getAggregatedLatencyAndTotalCostForObservationsByTraces,
-  getAggregatedLatencyAndTotalCostForObservations,
   getTracesByIds,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -369,7 +367,7 @@ export const datasetRouter = createTRPCRouter({
               .filter((runItem) => runItem.observation_id === null);
 
             const traceData =
-              await getAggregatedLatencyAndTotalCostForObservationsByTraces(
+              await getLatencyAndTotalCostForObservationsByTraces(
                 input.projectId,
                 traceOnlyRunItems.map((ri) => ri.trace_id),
               );
@@ -389,11 +387,10 @@ export const datasetRouter = createTRPCRouter({
               .flatMap((r) => r.run_items)
               .filter((runItem) => runItem.observation_id !== null);
 
-            const observationData =
-              await getAggregatedLatencyAndTotalCostForObservations(
-                input.projectId,
-                observationRunItems.map((ri) => ri.observation_id),
-              );
+            const observationData = await getLatencyAndTotalCostForObservations(
+              input.projectId,
+              observationRunItems.map((ri) => ri.observation_id),
+            );
             return observationRunItems.map((ri) => {
               const data = observationData.find(
                 (d) => d.id === ri.observation_id,
