@@ -22,6 +22,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type RunMetrics = {
   id: string;
@@ -72,7 +73,7 @@ export function DatasetCompareRunsTable(props: {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
-
+  const queryClickhouse = useClickhouse();
   // Individual queries for each run
   const runs = (props.runIds ?? []).map((runId) => ({
     runId,
@@ -82,6 +83,7 @@ export function DatasetCompareRunsTable(props: {
         datasetRunId: runId,
         page: paginationState.pageIndex,
         limit: paginationState.pageSize,
+        queryClickhouse,
       },
       {
         refetchOnWindowFocus: false,
