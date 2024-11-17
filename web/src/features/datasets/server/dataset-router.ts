@@ -373,7 +373,7 @@ export const datasetRouter = createTRPCRouter({
               );
 
             return traceOnlyRunItems.map((ri) => {
-              const data = traceData.find((d) => d.id === ri.trace_id);
+              const data = traceData.find((d) => d.traceId === ri.trace_id);
               return {
                 runItemId: ri.ri_id,
                 latency: data?.latency,

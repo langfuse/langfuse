@@ -755,8 +755,8 @@ export const getLatencyAndTotalCostForObservations = async (
         id,
         cost_details['total'] AS total_cost,
         dateDiff('milliseconds', start_time, end_time) AS latency_ms
-    FROM observations
-    FINAL project_id = {projectId: String} 
+    FROM observations FINAL 
+    WHERE project_id = {projectId: String} 
     AND id IN ({observationIds: Array(String)})
 `;
   const rows = await queryClickhouse<{
