@@ -26,6 +26,7 @@ import {
   traceException,
   getAggregatedLatencyAndTotalCostForObservationsByTraces,
   getAggregatedLatencyAndTotalCostForObservations,
+  getTracesByIds,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
@@ -354,28 +355,6 @@ export const datasetRouter = createTRPCRouter({
           `,
           );
 
-          const runsWithMatchedTracesAndObservations = runs.map((run) => {
-            const traceObservationMap = run.trace_ids.reduce(
-              (acc, traceId, index) => {
-                if (!acc[traceId]) {
-                  acc[traceId] = [];
-                }
-                if (run.observation_ids[index] !== null) {
-                  acc[traceId].push(run.observation_ids[index]);
-                }
-                return acc;
-              },
-              {} as Record<string, string[]>,
-            );
-
-            return {
-              ...run,
-              traceObservationMap,
-            };
-          });
-
-          console.log("aggregatedRuns", runsWithMatchedTracesAndObservations);
-
           async function getTraceAggregates() {
             const traceOnlyRuns = runs.filter((ri) =>
               ri.observation_ids.some(
@@ -448,9 +427,6 @@ export const datasetRouter = createTRPCRouter({
           ]);
 
           const joinedScores = traceScores.concat(observationScores);
-
-          console.log("traceAggregate", traceAggregate);
-          console.log("observationAggregate", observationAggregate);
 
           return {
             totalRuns,
@@ -540,9 +516,24 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      // check in clickhouse if the traces already exist. They arrive delayed.
+      const traces = await getTracesByIds(
+        datasetItems
+          .map((item) => item.sourceTraceId)
+          .filter((id): id is string => Boolean(id)),
+        input.projectId,
+      );
+
       return {
         totalDatasetItems,
-        datasetItems,
+        datasetItems: datasetItems.map((item) => {
+          const trace = traces.find((t) => t.id === item.sourceTraceId);
+          return {
+            ...item,
+            sourceTraceId: trace?.id ?? null,
+            sourceObservationId: trace?.id ? item.sourceObservationId : null,
+          };
+        }),
       };
     }),
   baseDatasetItemByDatasetId: protectedProjectProcedure
