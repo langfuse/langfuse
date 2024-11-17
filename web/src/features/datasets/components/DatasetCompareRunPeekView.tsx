@@ -12,6 +12,11 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/src/components/ui/resizable";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
@@ -19,27 +24,31 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { PanelLeftOpen, PanelLeftClose, X, ListTree } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState } from "react";
 
 export function DatasetCompareRunPeekView({
   projectId,
   scoreKeyToDisplayName,
   clickedRow,
   setClickedRow,
+  traceAndObservationId,
+  setTraceAndObservationId,
   runsData,
 }: {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   clickedRow: DatasetCompareRunRowData | null;
   setClickedRow: (row: DatasetCompareRunRowData | null) => void;
-  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
-}) {
-  const router = useRouter();
-  const [traceAndObservationId, setTraceAndObservationId] = useState<{
+  traceAndObservationId: {
     runId: string;
     traceId: string;
     observationId?: string;
-  } | null>(null);
+  } | null;
+  setTraceAndObservationId: (
+    id: { runId: string; traceId: string; observationId?: string } | null,
+  ) => void;
+  runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
+}) {
+  const router = useRouter();
 
   const timestamp =
     router.query.timestamp && typeof router.query.timestamp === "string"
@@ -137,8 +146,14 @@ export function DatasetCompareRunPeekView({
               </Card>
             )}
             <div className="grid h-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-              <div className="grid grid-rows-[minmax(0,50%),minmax(0,50%)] gap-2 overflow-hidden">
-                <div className="min-h-0 overflow-hidden">
+              <ResizablePanelGroup
+                direction="vertical"
+                className="overflow-hidden"
+              >
+                <ResizablePanel
+                  minSize={30}
+                  className="mb-2 min-h-0 overflow-hidden"
+                >
                   <div className="grid h-full grid-cols-2 gap-4">
                     <div className="min-h-0 overflow-hidden">
                       <h3 className="font-lg mb-1 font-semibold">Input</h3>
@@ -163,9 +178,13 @@ export function DatasetCompareRunPeekView({
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="min-h-0 overflow-hidden">
+                </ResizablePanel>
+                <ResizableHandle withHandle className="bg-border" />
+                <ResizablePanel
+                  minSize={30}
+                  defaultSize={50}
+                  className="mt-2 min-h-0 overflow-hidden"
+                >
                   <h3 className="font-lg mb-1 font-semibold">Run outputs</h3>
                   {clickedRow?.runs && (
                     <div className="flex h-[calc(100%-2rem)] w-full gap-4 overflow-x-auto">
@@ -235,9 +254,8 @@ export function DatasetCompareRunPeekView({
                       })}
                     </div>
                   )}
-                </div>
-              </div>
-              <div className="h-1 w-full border-b"></div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
             </div>
           </div>
         </div>

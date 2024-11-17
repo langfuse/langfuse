@@ -64,6 +64,11 @@ export function DatasetCompareRunsTable(props: {
   const [clickedRow, setClickedRow] = useState<DatasetCompareRunRowData | null>(
     null,
   );
+  const [traceAndObservationId, setTraceAndObservationId] = useState<{
+    runId: string;
+    traceId: string;
+    observationId?: string;
+  } | null>(null);
 
   const rowHeight = "l";
 
@@ -211,8 +216,11 @@ export function DatasetCompareRunsTable(props: {
             <Button
               variant="outline"
               size="icon"
-              className="absolute right-1 top-1 z-10 hidden items-center justify-center group-hover:flex"
-              onClick={() => setClickedRow(row.original)}
+              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
+              onClick={() => {
+                setTraceAndObservationId(null);
+                setClickedRow(row.original);
+              }}
             >
               <Expand className="h-4 w-4" />
             </Button>
@@ -236,8 +244,11 @@ export function DatasetCompareRunsTable(props: {
             <Button
               variant="outline"
               size="icon"
-              className="absolute right-1 top-1 z-10 hidden items-center justify-center group-hover:flex"
-              onClick={() => setClickedRow(row.original)}
+              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
+              onClick={() => {
+                setTraceAndObservationId(null);
+                setClickedRow(row.original);
+              }}
             >
               <Expand className="h-4 w-4" />
             </Button>
@@ -357,6 +368,8 @@ export function DatasetCompareRunsTable(props: {
           scoreKeyToDisplayName={scoreKeyToDisplayName}
           clickedRow={clickedRow}
           setClickedRow={setClickedRow}
+          traceAndObservationId={traceAndObservationId}
+          setTraceAndObservationId={setTraceAndObservationId}
           runsData={props.runsData ?? []}
         />
       )}
