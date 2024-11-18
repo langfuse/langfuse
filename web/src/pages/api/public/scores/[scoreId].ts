@@ -14,6 +14,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   deleteScore,
   getScoreById,
+  logger,
   traceException,
 } from "@langfuse/shared/src/server";
 
@@ -50,6 +51,7 @@ export default withMiddlewares({
 
       if (!parsedScore.success) {
         traceException(parsedScore.error);
+        logger.error(`Incorrect score return type ${parsedScore.error}`);
         throw new InternalServerError("Requested score is corrupted");
       }
 

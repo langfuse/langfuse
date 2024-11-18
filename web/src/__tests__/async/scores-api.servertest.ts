@@ -17,8 +17,10 @@ describe("/api/public/scores API Endpoint", () => {
         name: "Test Score",
         timestamp: Date.now(),
         observation_id: v4(),
-        value: 100,
+        value: 100.5,
         source: "API",
+        comment: "comment",
+        data_type: "NUMERIC" as const,
         created_at: Date.now(),
         updated_at: Date.now(),
         event_ts: Date.now(),
@@ -36,7 +38,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(getScore.status).toBe(200);
       expect(getScore.body).toMatchObject({
         id: scoreId,
-        name: "score-name",
+        name: "Test Score",
         value: 100.5,
         comment: "comment",
         source: "API",
