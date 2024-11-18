@@ -74,7 +74,15 @@ export const IOPreview: React.FC<{
   output?: Prisma.JsonValue;
   isLoading?: boolean;
   hideIfNull?: boolean;
-}> = ({ isLoading = false, hideIfNull = false, ...props }) => {
+  hideOutput?: boolean;
+  hideInput?: boolean;
+}> = ({
+  isLoading = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  ...props
+}) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
@@ -169,10 +177,10 @@ export const IOPreview: React.FC<{
             />
           ) : (
             <>
-              {!(hideIfNull && !input) ? (
+              {!(hideIfNull && !input) && !hideInput ? (
                 <MarkdownOrJsonView title="Input" content={input} />
               ) : null}
-              {!(hideIfNull && !output) ? (
+              {!(hideIfNull && !output) && !hideOutput ? (
                 <MarkdownOrJsonView
                   title="Output"
                   content={output}
@@ -186,7 +194,7 @@ export const IOPreview: React.FC<{
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (
         <>
-          {!(hideIfNull && !input) ? (
+          {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
               title="Input"
               json={input ?? null}
@@ -194,7 +202,7 @@ export const IOPreview: React.FC<{
               className="flex-1"
             />
           ) : null}
-          {!(hideIfNull && !output) ? (
+          {!(hideIfNull && !output) && !hideOutput ? (
             <JSONView
               title="Output"
               json={outputClean}

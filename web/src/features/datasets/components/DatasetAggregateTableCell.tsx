@@ -8,7 +8,9 @@ import {
 } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
+import { cn } from "@/src/utils/tailwind";
 import { ClockIcon, ListTree } from "lucide-react";
+import { type ReactNode } from "react";
 
 const DatasetAggregateCell = ({
   scores,
@@ -18,10 +20,18 @@ const DatasetAggregateCell = ({
   observationId,
   scoreKeyToDisplayName,
   selectedMetrics,
+  singleLine = true,
+  className,
+  variant = "table",
+  actionButtons,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
+  singleLine?: boolean;
+  className?: string;
+  variant?: "table" | "peek";
+  actionButtons?: ReactNode;
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
@@ -62,13 +72,19 @@ const DatasetAggregateCell = ({
   const data = observationId === undefined ? trace.data : observation.data;
 
   return (
-    <div className="group flex h-full w-full flex-col gap-1.5 overflow-hidden overflow-y-auto rounded-sm border p-1">
+    <div
+      className={cn(
+        "group flex h-full w-full flex-col gap-1.5 overflow-hidden overflow-y-auto rounded-sm border p-1",
+        className,
+      )}
+    >
+      {variant === "peek" && actionButtons}
       <div className="flex flex-row items-center justify-center gap-1">
         <IOTableCell
           isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
           data={data?.output}
           className={"bg-accent-light-green"}
-          singleLine={true}
+          singleLine={singleLine}
         />
       </div>
 
@@ -91,39 +107,43 @@ const DatasetAggregateCell = ({
         </div>
       )}
 
-      {selectedMetrics.includes("resourceMetrics") && (
-        <div className="flex w-full flex-row flex-wrap gap-1">
-          <Badge variant="outline" className="p-0.5 px-1 font-normal">
-            <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
-            <span className="capitalize">
-              {!!resourceMetrics.latency
-                ? formatIntervalSeconds(resourceMetrics.latency)
-                : null}
-            </span>
-          </Badge>
-          <Badge variant="outline" className="p-0.5 px-1 font-normal">
-            <span className="mr-0.5">{resourceMetrics.totalCost}</span>
-          </Badge>
-        </div>
-      )}
+      {selectedMetrics.includes("resourceMetrics") &&
+        (resourceMetrics.latency || resourceMetrics.totalCost) && (
+          <div className="flex w-full flex-row flex-wrap gap-1">
+            {resourceMetrics.latency && (
+              <Badge variant="outline" className="p-0.5 px-1 font-normal">
+                <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
+                <span className="capitalize">
+                  {formatIntervalSeconds(resourceMetrics.latency)}
+                </span>
+              </Badge>
+            )}
+            {resourceMetrics.totalCost && (
+              <Badge variant="outline" className="p-0.5 px-1 font-normal">
+                <span className="mr-0.5">{resourceMetrics.totalCost}</span>
+              </Badge>
+            )}
+          </div>
+        )}
 
       <div className="flex-grow" />
 
-      {observationId ? (
-        <TableLink
-          path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
-          value={`Trace: ${traceId}, Observation: ${observationId}`}
-          icon={<ListTree className="h-4 w-4" />}
-          className="hidden w-fit self-end group-hover:block"
-        />
-      ) : (
-        <TableLink
-          path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
-          value={`Trace: ${traceId}`}
-          icon={<ListTree className="h-4 w-4" />}
-          className="hidden w-fit self-end group-hover:block"
-        />
-      )}
+      {variant === "table" &&
+        (observationId ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
+            value={`Trace: ${traceId}, Observation: ${observationId}`}
+            icon={<ListTree className="h-4 w-4" />}
+            className="hidden w-fit self-end group-hover:block"
+          />
+        ) : (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
+            value={`Trace: ${traceId}`}
+            icon={<ListTree className="h-4 w-4" />}
+            className="hidden w-fit self-end group-hover:block"
+          />
+        ))}
     </div>
   );
 };
@@ -133,11 +153,19 @@ export const DatasetAggregateTableCell = ({
   projectId,
   scoreKeyToDisplayName,
   selectedMetrics,
+  singleLine = true,
+  className,
+  variant = "table",
+  actionButtons,
 }: {
   value: RunMetrics;
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
+  singleLine?: boolean;
+  className?: string;
+  variant?: "table" | "peek";
+  actionButtons?: ReactNode;
 }) => {
   return value ? (
     <DatasetAggregateCell
@@ -145,6 +173,10 @@ export const DatasetAggregateTableCell = ({
       {...value}
       scoreKeyToDisplayName={scoreKeyToDisplayName}
       selectedMetrics={selectedMetrics}
+      singleLine={singleLine}
+      className={className}
+      variant={variant}
+      actionButtons={actionButtons}
     />
   ) : null;
 };
