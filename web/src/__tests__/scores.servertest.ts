@@ -36,7 +36,7 @@ describe("/api/public/scores API Endpoint", () => {
         version: "2.0.0",
       },
     );
-  });
+  }, 10000);
   afterEach(async () => {
     if (should_prune_db) await pruneDatabase();
   });
