@@ -365,6 +365,7 @@ export function DatasetCompareRunsTable(props: {
       {scoreKeysAndProps.isSuccess && (
         <DatasetCompareRunPeekView
           projectId={props.projectId}
+          datasetId={props.datasetId}
           scoreKeyToDisplayName={scoreKeyToDisplayName}
           clickedRow={clickedRow}
           setClickedRow={setClickedRow}
