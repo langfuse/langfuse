@@ -15,13 +15,14 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Rows3 } from "lucide-react";
+import { ChevronDown, Expand, Rows3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type RunMetrics = {
@@ -60,6 +61,15 @@ export function DatasetCompareRunsTable(props: {
     "resourceMetrics",
   ]);
   const [isMetricsDropdownOpen, setIsMetricsDropdownOpen] = useState(false);
+  const [clickedRow, setClickedRow] = useState<DatasetCompareRunRowData | null>(
+    null,
+  );
+  const [traceAndObservationId, setTraceAndObservationId] = useState<{
+    runId: string;
+    traceId: string;
+    observationId?: string;
+  } | null>(null);
+
   const rowHeight = "l";
 
   const [paginationState, setPaginationState] = useQueryParams({
@@ -201,7 +211,22 @@ export function DatasetCompareRunsTable(props: {
         const input = row.getValue(
           "input",
         ) as DatasetCompareRunRowData["input"];
-        return input !== null ? <IOTableCell data={input} /> : null;
+        return input !== null ? (
+          <div className="group relative h-full w-full">
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
+              onClick={() => {
+                setTraceAndObservationId(null);
+                setClickedRow(row.original);
+              }}
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
+            <IOTableCell data={input} />
+          </div>
+        ) : null;
       },
     },
     {
@@ -215,10 +240,23 @@ export function DatasetCompareRunsTable(props: {
           "expectedOutput",
         ) as DatasetCompareRunRowData["expectedOutput"];
         return expectedOutput !== null ? (
-          <IOTableCell
-            data={expectedOutput}
-            className="bg-accent-light-green"
-          />
+          <div className="group relative h-full w-full">
+            <Button
+              variant="outline"
+              size="icon"
+              className="absolute right-1 top-1 z-[5] hidden items-center justify-center group-hover:flex"
+              onClick={() => {
+                setTraceAndObservationId(null);
+                setClickedRow(row.original);
+              }}
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
+            <IOTableCell
+              data={expectedOutput}
+              className="bg-accent-light-green"
+            />
+          </div>
         ) : null;
       },
     },
@@ -324,6 +362,18 @@ export function DatasetCompareRunsTable(props: {
         }}
         rowHeight={rowHeight}
       />
+      {scoreKeysAndProps.isSuccess && (
+        <DatasetCompareRunPeekView
+          projectId={props.projectId}
+          datasetId={props.datasetId}
+          scoreKeyToDisplayName={scoreKeyToDisplayName}
+          clickedRow={clickedRow}
+          setClickedRow={setClickedRow}
+          traceAndObservationId={traceAndObservationId}
+          setTraceAndObservationId={setTraceAndObservationId}
+          runsData={props.runsData ?? []}
+        />
+      )}
     </>
   );
 }

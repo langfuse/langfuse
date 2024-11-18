@@ -24,8 +24,6 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   traceException,
-  getAggregatedLatencyAndTotalCostForObservationsByTraces,
-  getAggregatedLatencyAndTotalCostForObservations,
   getTracesByIds,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -317,6 +315,10 @@ export const datasetRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
+          // we cannot easily join all the tracing data with the dataset run items
+          // hence, we pull the trace_ids and observation_ids separately for all run items
+          // afterwards, we aggregate them per run
+
           const runs = await ctx.prisma.$queryRaw<
             {
               run_id: string;
@@ -325,9 +327,11 @@ export const datasetRouter = createTRPCRouter({
               run_metadata: Prisma.JsonValue;
               run_created_at: Date;
               run_updated_at: Date;
-              trace_ids: string[];
-              observation_ids: string[];
-              count: BigInt;
+              run_items: {
+                trace_id: string;
+                observation_id: string;
+                ri_id: string;
+              }[];
             }[]
           >(
             Prisma.sql`
@@ -338,9 +342,11 @@ export const datasetRouter = createTRPCRouter({
               runs.metadata as run_metadata,
               runs.created_at as run_created_at,
               runs.updated_at as run_updated_at,
-              ARRAY_AGG(ri.trace_id) AS trace_ids,
-              ARRAY_AGG(ri.observation_id) AS observation_ids,
-              COUNT(ri.id) AS count
+              JSON_AGG(JSON_BUILD_OBJECT(
+                'trace_id', ri.trace_id,
+                'observation_id', ri.observation_id,
+                'ri_id', ri.id
+              )) AS run_items
             FROM
               datasets d
               JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
@@ -356,43 +362,45 @@ export const datasetRouter = createTRPCRouter({
           );
 
           async function getTraceAggregates() {
-            const traceOnlyRuns = runs.filter((ri) =>
-              ri.observation_ids.some(
-                (observationId) => observationId === null,
-              ),
-            );
+            const traceOnlyRunItems = runs
+              .flatMap((r) => r.run_items)
+              .filter((runItem) => runItem.observation_id === null);
 
-            return await Promise.all(
-              traceOnlyRuns.map((run) =>
-                getAggregatedLatencyAndTotalCostForObservationsByTraces(
-                  input.projectId,
-                  run.trace_ids,
-                ).then((agg) => ({
-                  runId: run.run_id,
-                  agg,
-                })),
-              ),
-            );
+            const traceData =
+              await getLatencyAndTotalCostForObservationsByTraces(
+                input.projectId,
+                traceOnlyRunItems.map((ri) => ri.trace_id),
+              );
+
+            return traceOnlyRunItems.map((ri) => {
+              const data = traceData.find((d) => d.traceId === ri.trace_id);
+              return {
+                runItemId: ri.ri_id,
+                latency: data?.latency,
+                totalCost: data?.totalCost,
+              };
+            });
           }
 
           async function getObservationAggregates() {
-            const observationRuns = runs.filter((ri) =>
-              ri.observation_ids.every(
-                (observationId) => observationId !== null,
-              ),
-            );
+            const observationRunItems = runs
+              .flatMap((r) => r.run_items)
+              .filter((runItem) => runItem.observation_id !== null);
 
-            return await Promise.all(
-              observationRuns.map((run) =>
-                getAggregatedLatencyAndTotalCostForObservations(
-                  input.projectId,
-                  run.observation_ids,
-                ).then((agg) => ({
-                  runId: run.run_id,
-                  agg,
-                })),
-              ),
+            const observationData = await getLatencyAndTotalCostForObservations(
+              input.projectId,
+              observationRunItems.map((ri) => ri.observation_id),
             );
+            return observationRunItems.map((ri) => {
+              const data = observationData.find(
+                (d) => d.id === ri.observation_id,
+              );
+              return {
+                runItemId: ri.ri_id,
+                latency: data?.latency,
+                totalCost: data?.totalCost,
+              };
+            });
           }
 
           const [
@@ -405,14 +413,22 @@ export const datasetRouter = createTRPCRouter({
             getScoresForTraces(
               input.projectId,
               Array.from(
-                new Set(runs.flatMap((ri) => ri.trace_ids).filter(Boolean)),
+                new Set(
+                  runs
+                    .flatMap((r) => r.run_items)
+                    .map((i) => i.trace_id)
+                    .filter(Boolean),
+                ),
               ),
             ),
             getScoresForObservations(
               input.projectId,
               Array.from(
                 new Set(
-                  runs.flatMap((ri) => ri.observation_ids).filter(Boolean),
+                  runs
+                    .flatMap((r) => r.run_items)
+                    .map((i) => i.observation_id)
+                    .filter(Boolean),
                 ),
               ),
             ),
@@ -431,9 +447,30 @@ export const datasetRouter = createTRPCRouter({
           return {
             totalRuns,
             runs: runs.map((run) => {
-              const agg =
-                traceAggregate.find((agg) => agg.runId === run.run_id) ??
-                observationAggregate.find((agg) => agg.runId === run.run_id);
+              const agg = run.run_items.map((ri) => {
+                if (ri.observation_id) {
+                  return observationAggregate.find(
+                    (a) => a.runItemId === ri.ri_id,
+                  );
+                } else {
+                  return traceAggregate.find((a) => a.runItemId === ri.ri_id);
+                }
+              });
+
+              const validAgg = agg.filter((a) => a !== undefined);
+
+              const avgLatency =
+                validAgg.length > 0
+                  ? validAgg.reduce((sum, a) => sum + (a?.latency ?? 0), 0) /
+                    validAgg.length
+                  : 0;
+
+              const avgTotalCost =
+                validAgg.length > 0
+                  ? validAgg.reduce((sum, a) => sum + (a?.totalCost || 0), 0) /
+                    validAgg.length
+                  : 0;
+
               return {
                 id: run.run_id,
                 projectId: input.projectId,
@@ -443,13 +480,13 @@ export const datasetRouter = createTRPCRouter({
                 metadata: run.run_metadata,
                 createdAt: run.run_created_at,
                 updatedAt: run.run_updated_at,
-                countRunItems: Number(run.count),
-                avgLatency: agg?.agg ? agg.agg.avgLatency : 0,
-                avgTotalCost: agg?.agg
-                  ? new Decimal(agg.agg.avgTotalCost)
-                  : new Decimal(0),
+                countRunItems: run.run_items.length,
+                avgLatency: avgLatency,
+                avgTotalCost: new Decimal(avgTotalCost),
                 scores: aggregateScores(
-                  joinedScores.filter((s) => run.trace_ids.includes(s.traceId)),
+                  joinedScores.filter((s) =>
+                    run.run_items.map((i) => i.trace_id).includes(s.traceId),
+                  ),
                 ),
               };
             }),
