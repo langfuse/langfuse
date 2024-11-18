@@ -14,7 +14,11 @@ const clientTestConfig = {
 
 const serverTestConfig = {
   displayName: "sync-server",
-  testMatch: ["/**/!(*async*)/*.servertest.[jt]s?(x)"],
+  testMatch: ["/**/*.servertest.[jt]s?(x)"],
+  testPathIgnorePatterns: [
+    "/__tests__/after-teardown.ts",
+    "/**/async/*.servertest.[jt]s?(x)",
+  ],
   testEnvironment: "jest-environment-node",
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
   globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
@@ -38,6 +42,11 @@ const config = {
     await createJestConfig(clientTestConfig)(),
     {
       ...(await createJestConfig(serverTestConfig)()),
+      transformIgnorePatterns: [
+        `/web/node_modules/(?!(${esModules.join("|")})/)`,
+      ],
+    },
+    {
       ...(await createJestConfig(asyncServerTestConfig)()),
       transformIgnorePatterns: [
         `/web/node_modules/(?!(${esModules.join("|")})/)`,
