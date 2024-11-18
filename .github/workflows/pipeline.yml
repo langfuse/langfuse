@@ -66,7 +66,7 @@ jobs:
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
-  tests-web:
+  tests-web-sync:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
@@ -131,8 +131,8 @@ jobs:
           LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
-      - name: run test-legacy
-        run: pnpm --filter=web run test-legacy
+      - name: run test-sync
+        run: pnpm --filter=web run test-sync
 
   tests-web-async:
     timeout-minutes: 20
@@ -354,7 +354,7 @@ jobs:
     needs:
       [
         lint,
-        tests-web,
+        tests-web-sync,
         tests-worker,
         e2e-tests,
         test-docker-build,
