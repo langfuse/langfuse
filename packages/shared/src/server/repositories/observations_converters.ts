@@ -1,49 +1,24 @@
 import {
   Observation,
   ObservationView,
-  Model,
-  Price,
   ObservationType,
   ObservationLevel,
 } from "@prisma/client";
 import Decimal from "decimal.js";
-import { prisma } from "../../db";
 import { jsonSchema } from "../../utils/zod";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservation = async (record: ObservationRecordReadType) => {
-  const model = record.internal_model_id
-    ? await prisma.model.findFirst({
-        where: {
-          id: record.internal_model_id,
-        },
-        include: {
-          Price: true,
-        },
-      })
-    : undefined;
   return convertObservationAndModel(record);
 };
 
-export const convertObservationToView = async (
+export const convertObservationToView = (
   record: ObservationRecordReadType,
-  providedModel?: Model & { Price: Price[] },
-): Promise<
-  Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice" | "modelId">
+): Omit<
+  ObservationView,
+  "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
 > => {
-  // const model =
-  //   providedModel ??
-  //   (record.internal_model_id
-  //     ? await prisma.model.findFirst({
-  //         where: {
-  //           id: record.internal_model_id,
-  //         },
-  //         include: {
-  //           Price: true,
-  //         },
-  //       })
-  //     : undefined);
   return {
     ...convertObservationAndModel(record ?? undefined),
     latency: record.end_time
@@ -54,15 +29,8 @@ export const convertObservationToView = async (
       ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
       : null,
-    // inputPrice:
-    //   model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-    // outputPrice:
-    //   model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-    // totalPrice:
-    //   model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
-    // modelId: record.internal_model_id ?? null,
   };
 };
 
@@ -122,7 +90,6 @@ export const convertObservationAndModel = (
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
-    // internalModel: model?.modelName ?? null, // to be removed
     unit: "TOKENS", // to be removed.
   };
 };

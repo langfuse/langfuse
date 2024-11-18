@@ -14,7 +14,10 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { FullObservations } from "../queries/createGenerationsQuery";
+import {
+  FullObservation,
+  FullObservations,
+} from "../queries/createGenerationsQuery";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
@@ -196,7 +199,72 @@ export const getObservationsTableCount = async (opts: ObservationTableQuery) =>
     select: "count(*) as count",
   });
 
+export type ObservationsTableRow = Omit<
+  FullObservation,
+  "modelId" | "inputPrice" | "outputPrice" | "totalPrice"
+>;
+
 export const getObservationsTable = async (
+  opts: ObservationTableQuery,
+): Promise<Array<ObservationsTableRow>> => {
+  const observationRecords = await getObservationsTableInternal<
+    Omit<
+      ObservationsTableQueryResult,
+      "trace_tags" | "trace_name" | "trace_user_id" | "type"
+    >
+  >({
+    ...opts,
+    select: `
+        o.id as id,
+        o.name as name,
+        o."model_parameters" as model_parameters,
+        o.start_time as "start_time",
+        o.end_time as "end_time",
+        o.trace_id as "trace_id",
+        o.completion_start_time as "completion_start_time",
+        o.provided_usage_details as "provided_usage_details",
+        o.usage_details as "usage_details",
+        o.provided_cost_details as "provided_cost_details",
+        o.cost_details as "cost_details",
+        o.level as level,
+        o.status_message as "status_message",
+        o.version as version,
+        o.parent_observation_id as "parent_observation_id",
+        o.created_at as "created_at",
+        o.updated_at as "updated_at",
+        o.provided_model_name as "provided_model_name",
+        o.total_cost as "total_cost",
+        internal_model_id as "internal_model_id",
+        provided_model_name as "provided_model_name",
+        if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`,
+  });
+
+  const traces = await getTracesByIds(
+    observationRecords
+      .map((o) => o.trace_id)
+      .filter((o): o is string => Boolean(o)),
+    opts.projectId,
+  );
+
+  return await Promise.all(
+    observationRecords.map(async (o) => {
+      const trace = traces.find((t) => t.id === o.trace_id);
+      return {
+        ...convertObservationToView({ ...o, type: "GENERATION" }),
+        latency: o.latency ? Number(o.latency) / 1000 : null,
+        timeToFirstToken: o.time_to_first_token
+          ? Number(o.time_to_first_token) / 1000
+          : null,
+        traceName: trace?.name ?? null,
+        traceTags: trace?.tags ?? [],
+        userId: trace?.userId ?? null,
+      };
+    }),
+  );
+};
+
+export const getObservationsTableWithModelData = async (
   opts: ObservationTableQuery,
 ): Promise<FullObservations> => {
   const observationRecords = await getObservationsTableInternal<
@@ -265,6 +333,7 @@ export const getObservationsTable = async (
   return await Promise.all(
     observationRecords.map(async (o) => {
       const trace = traces.find((t) => t.id === o.trace_id);
+      const model = models.find((m) => m.id === o.internal_model_id);
       return {
         ...(await convertObservationToView({ ...o, type: "GENERATION" })),
         latency: o.latency ? Number(o.latency) / 1000 : null,
@@ -274,6 +343,13 @@ export const getObservationsTable = async (
         traceName: trace?.name ?? null,
         traceTags: trace?.tags ?? [],
         userId: trace?.userId ?? null,
+        modelId: model?.id ?? null,
+        inputPrice:
+          model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+        outputPrice:
+          model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+        totalPrice:
+          model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
       };
     }),
   );
