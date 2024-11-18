@@ -2,7 +2,6 @@ import { createObservation } from "@/src/__tests__/fixtures/tracing-factory";
 import { createObservations } from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationV1Response } from "@/src/features/public-api/types/observations";
-import { GetScoreResponse } from "@langfuse/shared";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

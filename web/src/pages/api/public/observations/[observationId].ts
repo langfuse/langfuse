@@ -9,10 +9,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { getObservationById } from "@langfuse/shared/src/server";
-import {
-  convertObservationToView,
-  mergeObservationAndModel,
-} from "@langfuse/shared/src/server";
+import { mergeObservationAndModel } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
