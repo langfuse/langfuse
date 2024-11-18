@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
@@ -10,7 +11,12 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { deleteScore, traceException } from "@langfuse/shared/src/server";
+import {
+  deleteScore,
+  getScoreById,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -20,10 +26,20 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
 
-      const score = await prisma.score.findUnique({
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
+      const score = await measureAndReturnApi({
+        input: { projectId: auth.scope.projectId, queryClickhouse: false },
+        operation: "api/public/scores/[scoreId]",
+        user: null,
+        pgExecution: async () => {
+          return await prisma.score.findUnique({
+            where: {
+              id: scoreId,
+              projectId: auth.scope.projectId,
+            },
+          });
+        },
+        clickhouseExecution: async () => {
+          return await getScoreById(auth.scope.projectId, scoreId);
         },
       });
 
@@ -35,6 +51,7 @@ export default withMiddlewares({
 
       if (!parsedScore.success) {
         traceException(parsedScore.error);
+        logger.error(`Incorrect score return type ${parsedScore.error}`);
         throw new InternalServerError("Requested score is corrupted");
       }
 
