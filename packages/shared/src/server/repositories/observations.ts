@@ -235,7 +235,6 @@ export const getObservationsTable = async (
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
         internal_model_id as "internal_model_id",
-        provided_model_name as "provided_model_name",
         if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`,
   });
@@ -295,7 +294,6 @@ export const getObservationsTableWithModelData = async (
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
         internal_model_id as "internal_model_id",
-        provided_model_name as "provided_model_name",
         if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`,
   });
