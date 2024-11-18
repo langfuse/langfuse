@@ -26,7 +26,7 @@ export default withMiddlewares({
       const { scoreId } = query;
 
       const score = await measureAndReturnApi({
-        input: { projectId: auth.scope.projectId, queryClickhouse: true },
+        input: { projectId: auth.scope.projectId, queryClickhouse: false },
         operation: "api/public/scores/[scoreId]",
         user: null,
         pgExecution: async () => {
