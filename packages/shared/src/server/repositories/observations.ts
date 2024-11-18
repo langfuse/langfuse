@@ -91,7 +91,7 @@ export const getObservationsViewForTrace = async (
     },
   });
 
-  return await Promise.all(records.map(convertObservationToView));
+  return records.map(convertObservationToView);
 };
 
 export const getObservationById = async (
