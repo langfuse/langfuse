@@ -30,8 +30,7 @@ export const observationsRouter = createTRPCRouter({
             },
           });
 
-          /* eslint-disable no-unused-vars */
-          const { internalModel, ...observationWithoutInternalModel } =
+          const { internalModel: _, ...observationWithoutInternalModel } =
             observation;
           return observationWithoutInternalModel;
         },
