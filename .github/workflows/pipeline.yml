@@ -69,7 +69,7 @@ jobs:
   tests-web-sync:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
         node-version: [20]
@@ -137,7 +137,7 @@ jobs:
   tests-web-async:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
         node-version: [20]
