@@ -9,8 +9,8 @@ import {
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import {
-  MediaContentType,
-  MediaReturnType,
+  type MediaContentType,
+  type MediaReturnType,
 } from "@/src/features/media/validation";
 
 export const mediaRouter = createTRPCRouter({

@@ -3,13 +3,13 @@ import { api } from "@/src/utils/api";
 import { ImageOff } from "lucide-react";
 import {
   MediaReferenceStringSchema,
-  ParsedMediaReferenceType,
+  type ParsedMediaReferenceType,
 } from "@/src/components/schemas/ChatMlSchema";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   MediaContentType,
-  MediaReturnType,
+  type MediaReturnType,
 } from "@/src/features/media/validation";
 import { FileIcon, ImageIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
 
@@ -23,6 +23,8 @@ export const LangfuseMediaView = ({
   asFileIcon?: boolean;
 }) => {
   let mediaData: { id: string; type: MediaContentType } | null = null;
+
+  const projectId = useProjectIdFromURL();
 
   if (mediaReferenceString && typeof mediaReferenceString === "string") {
     const { success, data: parsedTag } =
@@ -53,8 +55,6 @@ export const LangfuseMediaView = ({
         <span className="truncate text-sm">Invalid Langfuse Media Tag</span>
       </div>
     );
-
-  const projectId = useProjectIdFromURL();
 
   const { data } = api.media.getById.useQuery(
     {

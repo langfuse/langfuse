@@ -10,7 +10,6 @@ import {
   Minimize2,
 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { isPresent } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { captureException } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
@@ -29,7 +28,7 @@ const customLoader = ({
   width: number;
   quality?: number;
 }) => {
-  return src;
+  return src + (width && quality ? `?w=${width}&q=${quality || 75}` : "");
 };
 
 const ImageErrorDisplay = ({

@@ -10,7 +10,7 @@ import { useTheme } from "next-themes";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
-import { MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 
 export function JSONView(props: {
@@ -125,7 +125,11 @@ export function JSONView(props: {
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
             {props.media.map((m) => (
-              <LangfuseMediaView mediaAPIReturnValue={m} asFileIcon={true} />
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
             ))}
           </div>
         </>

@@ -13,10 +13,10 @@ import {
   ChatMlArraySchema,
   type ChatMlMessageSchema,
   OpenAIContentSchema,
-  OpenAIOutputAudioType,
+  type OpenAIOutputAudioType,
 } from "@/src/components/schemas/ChatMlSchema";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
-import { MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media/validation";
 
 const isSupportedMarkdownFormat = (
   content: unknown,

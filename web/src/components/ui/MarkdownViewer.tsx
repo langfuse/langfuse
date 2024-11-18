@@ -26,9 +26,9 @@ import {
   MediaReferenceStringSchema,
   type OpenAIContentParts,
   type OpenAIContentSchema,
-  OpenAIOutputAudioType,
+  type OpenAIOutputAudioType,
 } from "@/src/components/schemas/ChatMlSchema";
-import { z } from "zod";
+import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 
