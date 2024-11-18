@@ -3,6 +3,8 @@ import {
   ObservationView,
   ObservationType,
   ObservationLevel,
+  Price,
+  Model,
 } from "@prisma/client";
 import Decimal from "decimal.js";
 import { jsonSchema } from "../../utils/zod";
@@ -17,22 +19,38 @@ export const convertObservationToView = (
 > => {
   return {
     ...convertObservation(record ?? undefined),
-    latency: record.end_time
-      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
-      : null,
-    timeToFirstToken: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
-      : null,
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
   };
 };
 
+export const mergeObservationAndModel = (
+  observation: Omit<
+    ObservationView,
+    "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
+  >,
+  model?: Model & { Price: Price[] },
+) => {
+  return {
+    ...observation,
+    modelId: model?.id ?? null,
+    inputPrice:
+      model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+    outputPrice:
+      model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+    totalPrice:
+      model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+  };
+};
+
 export const convertObservation = (
   record: ObservationRecordReadType,
-): Omit<Observation, "internalModel"> => {
+): Omit<Observation, "internalModel"> & {
+  promptName: string | null;
+  promptVersion: number | null;
+  latency: number | null;
+  timeToFirstToken: number | null;
+} => {
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -87,5 +105,15 @@ export const convertObservation = (
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     unit: "TOKENS", // to be removed.
+    promptName: record.prompt_name ?? null,
+    promptVersion: record.prompt_version ?? null,
+    latency: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+      : null,
+    timeToFirstToken: record.completion_start_time
+      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
+      : null,
   };
 };
