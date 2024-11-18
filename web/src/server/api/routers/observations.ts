@@ -29,8 +29,8 @@ export const observationsRouter = createTRPCRouter({
               projectId: input.projectId,
             },
           });
-
-          const { internalModel: _, ...observationWithoutInternalModel } =
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { internalModel, ...observationWithoutInternalModel } =
             observation;
           return observationWithoutInternalModel;
         },
