@@ -11,6 +11,7 @@ import { TRPCError } from "@trpc/server";
 import {
   type MediaContentType,
   type MediaReturnType,
+  type MediaEnabledFields,
 } from "@/src/features/media/validation";
 
 export const mediaRouter = createTRPCRouter({
@@ -89,7 +90,7 @@ export const mediaRouter = createTRPCRouter({
 
         let media: {
           id: string;
-          field: string;
+          field: MediaEnabledFields;
           bucket_name: string;
           bucket_path: string;
           content_type: string;
@@ -101,7 +102,7 @@ export const mediaRouter = createTRPCRouter({
           media = await ctx.prisma.$queryRaw<
             {
               id: string;
-              field: string;
+              field: MediaEnabledFields;
               bucket_name: string;
               bucket_path: string;
               content_type: string;
@@ -126,7 +127,7 @@ export const mediaRouter = createTRPCRouter({
           media = await ctx.prisma.$queryRaw<
             {
               id: string;
-              field: string;
+              field: MediaEnabledFields;
               bucket_name: string;
               bucket_path: string;
               content_type: string;
