@@ -65,7 +65,6 @@ import { cn } from "@/src/utils/tailwind";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 const formSchema = z.object({
   scoreName: z.string(),
@@ -293,7 +292,6 @@ export const InnerEvalConfigForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
-  const isFeatureFlagEnabled = useIsFeatureEnabled("evaluatorsOnDatasetRuns");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -512,13 +510,8 @@ export const InnerEvalConfigForm = (props: {
                         <TabsTrigger value="trace" disabled={props.disabled}>
                           Trace
                         </TabsTrigger>
-                        <TabsTrigger
-                          value="dataset"
-                          disabled={props.disabled || !isFeatureFlagEnabled}
-                        >
-                          {isFeatureFlagEnabled
-                            ? "Dataset"
-                            : "Dataset (coming soon)"}
+                        <TabsTrigger value="dataset" disabled={props.disabled}>
+                          Dataset
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
