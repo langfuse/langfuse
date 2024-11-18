@@ -139,6 +139,7 @@ export function DatasetCompareRunPeekView({
                     showScores={true}
                     colorCodeMetrics={false}
                     className="flex w-full flex-col overflow-y-auto"
+                    showExpandControls={false}
                   />
                 ) : (
                   <Skeleton className="min-h-full w-full" />
