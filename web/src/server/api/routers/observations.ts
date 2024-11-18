@@ -4,7 +4,6 @@ import {
 } from "@/src/server/api/trpc";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { getObservationById } from "@langfuse/shared/src/server";
-import type Decimal from "decimal.js";
 import { z } from "zod";
 
 export const observationsRouter = createTRPCRouter({
