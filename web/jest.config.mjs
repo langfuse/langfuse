@@ -38,6 +38,7 @@ const config = {
     await createJestConfig(clientTestConfig)(),
     {
       ...(await createJestConfig(serverTestConfig)()),
+      ...(await createJestConfig(asyncServerTestConfig)()),
       transformIgnorePatterns: [
         `/web/node_modules/(?!(${esModules.join("|")})/)`,
       ],
