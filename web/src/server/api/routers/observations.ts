@@ -3,7 +3,6 @@ import {
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
