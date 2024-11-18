@@ -1,5 +1,6 @@
 import {
   clickhouseClient,
+  type ScoreRecordInsertType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -29,5 +30,13 @@ export const createObservations = async (
     table: "observations",
     format: "JSONEachRow",
     values: observations,
+  });
+};
+
+export const createScores = async (scores: ScoreRecordInsertType[]) => {
+  return await clickhouseClient.insert({
+    table: "scores",
+    format: "JSONEachRow",
+    values: scores,
   });
 };
