@@ -1,1 +1,1 @@
-ALTER TABLE traces DROP INDEX IF EXISTS idx_session_id;
+ALTER TABLE rep_traces ON CLUSTER default DROP INDEX IF EXISTS idx_session_id;

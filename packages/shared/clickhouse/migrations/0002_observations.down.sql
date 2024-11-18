@@ -1,1 +1,1 @@
-DROP TABLE observations;
+DROP TABLE rep_observations ON CLUSTER default;

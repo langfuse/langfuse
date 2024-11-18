@@ -1,1 +1,1 @@
-ALTER TABLE observations DROP INDEX IF EXISTS idx_project_id;
+ALTER TABLE rep_observations ON CLUSTER default DROP INDEX IF EXISTS idx_project_id;

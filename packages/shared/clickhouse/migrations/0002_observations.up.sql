@@ -1,4 +1,4 @@
-CREATE TABLE observations (
+CREATE TABLE rep_observations ON CLUSTER default (
     `id` String,
     `trace_id` String,
     `project_id` String,
@@ -32,16 +32,16 @@ CREATE TABLE observations (
     INDEX idx_id id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter() GRANULARITY 1,
     INDEX idx_project_id project_id TYPE bloom_filter() GRANULARITY 1
-) ENGINE = ReplacingMergeTree(event_ts, is_deleted) Partition by toYYYYMM(start_time)
+) ENGINE = ReplicatedReplacingMergeTree(event_ts, is_deleted) Partition by toYYYYMM(start_time)
 PRIMARY KEY (
-        project_id,
-        `type`,
-        toDate(start_time)
-    )
+    project_id,
+    `type`,
+    toDate(start_time)
+)
 ORDER BY (
-        project_id,
-        `type`,
-        toDate(start_time),
-        id
-    );
+    project_id,
+    `type`,
+    toDate(start_time),
+    id
+);
 

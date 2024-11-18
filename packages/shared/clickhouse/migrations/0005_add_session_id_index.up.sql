@@ -1,2 +1,2 @@
-ALTER TABLE traces ADD INDEX IF NOT EXISTS idx_session_id session_id TYPE bloom_filter() GRANULARITY 1;
-ALTER TABLE traces MATERIALIZE INDEX IF EXISTS idx_session_id;
+ALTER TABLE rep_traces ON CLUSTER default ADD INDEX IF NOT EXISTS idx_session_id session_id TYPE bloom_filter() GRANULARITY 1;
+ALTER TABLE rep_traces ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_session_id;
