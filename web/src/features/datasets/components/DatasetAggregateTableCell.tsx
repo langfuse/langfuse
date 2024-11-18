@@ -110,7 +110,7 @@ const DatasetAggregateCell = ({
       {selectedMetrics.includes("resourceMetrics") &&
         (resourceMetrics.latency || resourceMetrics.totalCost) && (
           <div className="flex w-full flex-row flex-wrap gap-1">
-            {resourceMetrics.latency && (
+            {!!resourceMetrics.latency && (
               <Badge variant="outline" className="p-0.5 px-1 font-normal">
                 <ClockIcon className="mb-0.5 mr-1 h-3 w-3" />
                 <span className="capitalize">
