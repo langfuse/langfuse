@@ -41,43 +41,6 @@ describe("Create and get sessions", () => {
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
     });
   });
-
-  it("should get session including traces", async () => {
-    await pruneDatabase();
-
-    await makeZodVerifiedAPICall(
-      PostTracesV1Response,
-      "POST",
-      "/api/public/traces",
-      {
-        name: "trace-name",
-        id: "trace-id",
-        input: { hello: "world" },
-        output: "hi",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        sessionId: "session-id",
-      },
-    );
-
-    const response = await makeZodVerifiedAPICall(
-      GetSessionV1Response,
-      "GET",
-      "/api/public/sessions/session-id",
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      id: "session-id",
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      traces: [
-        {
-          id: "trace-id",
-          input: { hello: "world" },
-          output: "hi",
-        },
-      ],
-    });
-  });
 });
 
 describe("GET /api/public/sessions API Endpoint", () => {

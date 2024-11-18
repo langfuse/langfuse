@@ -4,11 +4,11 @@ import {
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
 
-export const createTrace = async (trace: TraceRecordInsertType) => {
+export const createTraces = async (trace: TraceRecordInsertType[]) => {
   return await clickhouseClient.insert({
     table: "traces",
     format: "JSONEachRow",
-    values: [trace],
+    values: trace,
   });
 };
 

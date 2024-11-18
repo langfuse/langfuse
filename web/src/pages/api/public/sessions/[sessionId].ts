@@ -18,7 +18,7 @@ export default withMiddlewares({
       const { sessionId } = query;
 
       return await measureAndReturnApi({
-        input: { projectId: auth.scope.projectId, queryClickhouse: true },
+        input: { projectId: auth.scope.projectId, queryClickhouse: false },
         operation: "scores.countAll",
         user: null,
         pgExecution: async () => {
