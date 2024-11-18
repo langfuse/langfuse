@@ -12,6 +12,7 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  Prisma,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -599,5 +600,51 @@ export const evalRouter = createTRPCRouter({
         data: jobExecutions,
         totalCount: count,
       };
+    }),
+
+  evaluatorsByDatasetId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJobExecution:read",
+      });
+
+      const evaluators = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          scoreName: string;
+        }>
+      >(Prisma.sql`
+      SELECT
+        id, 
+        score_name as "scoreName"
+      FROM 
+        "job_configurations" as jc
+        jsonb_array_elements(jc.filter) as f
+      WHERE 
+        jc.project_id = ${input.projectId}
+        AND jc.job_type = 'EVAL'
+        AND jc.target_object = 'dataset'
+        AND jc.status = 'ACTIVE'
+        AND f->>'column' = 'Dataset'
+        AND f->>'type' = 'stringOptions'
+        AND (
+        -- For "any of" operator, check if datasetId is IN the array
+        (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
+        OR 
+        -- For "none of" operator, check if datasetId is NOT IN the array
+        (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
+        )
+      )
+      `);
+
+      return evaluators;
     }),
 });
