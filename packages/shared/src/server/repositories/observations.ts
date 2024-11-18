@@ -755,10 +755,8 @@ export const getLatencyAndTotalCostForObservations = async (
         id,
         cost_details['total'] AS total_cost,
         dateDiff('milliseconds', start_time, end_time) AS latency_ms
-    FROM observations
-    FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    FROM observations FINAL 
+    WHERE project_id = {projectId: String} 
     AND id IN ({observationIds: Array(String)})
 `;
   const rows = await queryClickhouse<{
@@ -790,8 +788,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
         sumMap(cost_details)['total'] AS total_cost,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
     GROUP BY trace_id
 `;
@@ -812,86 +809,4 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     totalCost: Number(r.total_cost),
     latency: Number(r.latency_ms) / 1000,
   }));
-};
-
-export const getAggregatedLatencyAndTotalCostForObservationsByTraces = async (
-  projectId: string,
-  traceIds: string[],
-) => {
-  const query = `
-    WITH aggregate AS (
-        SELECT
-            trace_id,
-            sumMap(cost_details)['total'] AS total_cost,
-            dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-        FROM observations FINAL
-        WHERE (type = 'GENERATION') 
-        AND project_id = {projectId: String} 
-        AND trace_id IN ({traceIds: Array(String)})
-        GROUP BY trace_id
-    )
-    SELECT 
-        count() as count,
-        avg(total_cost) as avg_total_cost,
-        avg(latency_ms) as avg_latency_ms
-    FROM aggregate
-    `;
-  const rows = await queryClickhouse<{
-    avg_total_cost: string;
-    avg_latency_ms: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
-    },
-  });
-
-  const converted = rows.map((r) => ({
-    avgTotalCost: Number(r.avg_total_cost),
-    avgLatency: Number(r.avg_latency_ms) / 1000,
-    count: Number(r.count),
-  }));
-  return converted.length > 0 ? converted[0] : null;
-};
-
-export const getAggregatedLatencyAndTotalCostForObservations = async (
-  projectId: string,
-  ids: string[],
-) => {
-  const query = `
-    WITH aggregate AS (
-        SELECT
-            sumMap(cost_details)['total'] AS total_cost,
-            dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-        FROM observations FINAL
-        WHERE (type = 'GENERATION') 
-        AND project_id = {projectId: String} 
-        AND id IN ({ids: Array(String)})
-    )
-    SELECT 
-        count() as count,
-        avg(total_cost) as avg_total_cost,
-        avg(latency_ms) as avg_latency_ms
-    FROM aggregate
-    `;
-  const rows = await queryClickhouse<{
-    avg_total_cost: string;
-    avg_latency_ms: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId,
-      ids,
-    },
-  });
-
-  const converted = rows.map((r) => ({
-    avgTotalCost: Number(r.avg_total_cost),
-    avgLatency: Number(r.avg_latency_ms) / 1000,
-    count: Number(r.count),
-  }));
-  return converted.length > 0 ? converted[0] : null;
 };
