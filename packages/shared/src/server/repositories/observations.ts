@@ -91,9 +91,7 @@ export const getObservationsViewForTrace = async (
     },
   });
 
-  return await Promise.all(
-    records.map(async (o) => await convertObservationToView(o)),
-  );
+  return await Promise.all(records.map(convertObservationToView));
 };
 
 export const getObservationById = async (
@@ -141,9 +139,7 @@ export const getObservationById = async (
     params: { id, projectId },
   });
 
-  const mapped = await Promise.all(
-    records.map(async (r) => await convertObservation(r)),
-  );
+  const mapped = records.map(convertObservation);
 
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
