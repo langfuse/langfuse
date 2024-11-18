@@ -3,11 +3,6 @@ import {
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import {
-  type jsonSchema,
-  type ObservationLevel,
-  type ObservationType,
-} from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import type Decimal from "decimal.js";
 import { z } from "zod";
