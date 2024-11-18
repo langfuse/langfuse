@@ -3,7 +3,9 @@ import {
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 export const observationsRouter = createTRPCRouter({
@@ -22,20 +24,30 @@ export const observationsRouter = createTRPCRouter({
         operation: "observations.byId",
         user: ctx.session.user,
         pgExecution: async () => {
-          const observation = await ctx.prisma.observation.findFirstOrThrow({
+          return await ctx.prisma.observation.findFirstOrThrow({
             where: {
               id: input.observationId,
               traceId: input.traceId,
               projectId: input.projectId,
             },
           });
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { internalModel, ...observationWithoutInternalModel } =
-            observation;
-          return observationWithoutInternalModel;
         },
         clickhouseExecution: async () => {
-          return getObservationById(input.observationId, input.projectId, true);
+          const obs = await getObservationById(
+            input.observationId,
+            input.projectId,
+            true,
+          );
+          if (!obs) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Observation not found within authorized project",
+            });
+          }
+          return {
+            ...obs,
+            internalModel: obs?.internalModelId,
+          };
         },
       });
     }),
