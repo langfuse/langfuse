@@ -90,14 +90,14 @@ export const searchExistingAnnotationScore = async (
 export const getScoreById = async (
   projectId: string,
   scoreId: string,
-  source: ScoreSource,
+  source?: ScoreSource,
 ) => {
   const query = `
     SELECT *
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.id = {scoreId: String}
-    AND s.source = {source: String}
+    ${source ? `AND s.source = {source: String}` : ""}
     ORDER BY s.event_ts DESC
     LIMIT 1 BY s.id, s.project_id
     LIMIT 1
@@ -108,7 +108,7 @@ export const getScoreById = async (
     params: {
       projectId,
       scoreId,
-      source,
+      ...(source !== undefined ? { source } : {}),
     },
   });
   return rows.map(convertToScore).shift();
