@@ -12,7 +12,7 @@ describe("Clickhouse Scores Repository Test", () => {
 
   it("should return null if no scores are found", async () => {
     const result = await getScoreById(projectId, v4());
-    expect(result).toBeNull();
+    expect(result).toBeUndefined();
   });
 
   it("should return a score if it exists", async () => {
