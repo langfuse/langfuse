@@ -4,10 +4,7 @@ import {
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
-import {
-  GetSessionV1Response,
-  GetSessionsV1Response,
-} from "@/src/features/public-api/types/sessions";
+import { GetSessionsV1Response } from "@/src/features/public-api/types/sessions";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
 
