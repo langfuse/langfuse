@@ -22,16 +22,18 @@ export const observationsRouter = createTRPCRouter({
         operation: "observations.byId",
         user: ctx.session.user,
         pgExecution: async () => {
+          const observation = await ctx.prisma.observation.findFirstOrThrow({
+            where: {
+              id: input.observationId,
+              traceId: input.traceId,
+              projectId: input.projectId,
+            },
+          });
+
           /* eslint-disable no-unused-vars */
-          const { internalModel, ...rest } =
-            await ctx.prisma.observation.findFirstOrThrow({
-              where: {
-                id: input.observationId,
-                traceId: input.traceId,
-                projectId: input.projectId,
-              },
-            });
-          return rest;
+          const { internalModel, ...observationWithoutInternalModel } =
+            observation;
+          return observationWithoutInternalModel;
         },
         clickhouseExecution: async () => {
           return getObservationById(input.observationId, input.projectId, true);
