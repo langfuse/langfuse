@@ -9,10 +9,6 @@ import { jsonSchema } from "../../utils/zod";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { ObservationRecordReadType } from "./definitions";
 
-export const convertObservation = async (record: ObservationRecordReadType) => {
-  return convertObservationAndModel(record);
-};
-
 export const convertObservationToView = (
   record: ObservationRecordReadType,
 ): Omit<
@@ -20,7 +16,7 @@ export const convertObservationToView = (
   "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
 > => {
   return {
-    ...convertObservationAndModel(record ?? undefined),
+    ...convertObservation(record ?? undefined),
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
@@ -34,7 +30,7 @@ export const convertObservationToView = (
   };
 };
 
-export const convertObservationAndModel = (
+export const convertObservation = (
   record: ObservationRecordReadType,
 ): Omit<Observation, "internalModel"> => {
   return {

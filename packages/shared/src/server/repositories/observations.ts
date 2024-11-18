@@ -333,7 +333,7 @@ export const getObservationsTableWithModelData = async (
       const trace = traces.find((t) => t.id === o.trace_id);
       const model = models.find((m) => m.id === o.internal_model_id);
       return {
-        ...(await convertObservationToView({ ...o, type: "GENERATION" })),
+        ...convertObservationToView({ ...o, type: "GENERATION" }),
         latency: o.latency ? Number(o.latency) / 1000 : null,
         timeToFirstToken: o.time_to_first_token
           ? Number(o.time_to_first_token) / 1000
