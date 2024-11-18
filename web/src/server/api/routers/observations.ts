@@ -63,6 +63,7 @@ export const observationsRouter = createTRPCRouter({
         operation: "observations.byId",
         user: ctx.session.user,
         pgExecution: async () => {
+          /* eslint-disable no-unused-vars */
           const { internalModel, ...rest } =
             await ctx.prisma.observation.findFirstOrThrow({
               where: {
