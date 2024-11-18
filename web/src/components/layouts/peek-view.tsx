@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import {
   Drawer,
@@ -8,11 +7,12 @@ import {
   DrawerTitle,
 } from "@/src/components/ui/drawer";
 import { X } from "lucide-react";
+import Link from "next/link";
 import { type ReactNode } from "react";
 
 export default function PeekView(props: {
-  key: string;
-  title: string;
+  itemName: string;
+  itemType: string;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -21,10 +21,21 @@ export default function PeekView(props: {
   return (
     <Drawer open={props.open} modal={false} onClose={props.onClose}>
       <DrawerContent size="lg" className="mx-auto">
-        <DrawerHeader className="sticky top-0 z-10 flex flex-row items-center justify-between rounded-sm bg-background">
+        <DrawerHeader className="sticky top-0 z-10 mb-2 flex flex-row items-center justify-between rounded-tl-xl border-b bg-background p-3">
           <DrawerTitle className="flex flex-row items-center gap-2">
-            {props.actionButtons ?? null}
-            <Header title={props.title} level="h3"></Header>
+            <div className="mb-2 mt-2 flex flex-wrap items-center justify-between gap-2">
+              {props.actionButtons ?? null}
+              <h3 className="text-xl font-bold leading-7 sm:tracking-tight">
+                {`${props.itemType}:`}
+              </h3>
+              <Link
+                className="inline-block h-5 max-w-full overflow-hidden text-ellipsis text-nowrap rounded bg-primary-accent/20 px-2 py-0.5 text-base font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
+                href=""
+                title={props.itemName}
+              >
+                {props.itemName}
+              </Link>
+            </div>
           </DrawerTitle>
           <DrawerClose asChild onClick={props.onClose}>
             <Button variant="outline" size="icon">

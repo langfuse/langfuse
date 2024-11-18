@@ -72,9 +72,9 @@ export function DatasetCompareRunPeekView({
   return (
     <PeekView
       onClose={onClose}
-      key={clickedRow?.id ?? "closed"}
+      itemName={clickedRow?.id ?? "item"}
+      itemType="Dataset item"
       open={!!clickedRow}
-      title="Comparing traces"
       actionButtons={
         <>
           {traceAndObservationId?.traceId && (
