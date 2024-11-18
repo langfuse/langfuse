@@ -19,7 +19,7 @@ then
 fi
 
 # Construct the database URL
-if [ "$CLICKHOUSE_MIGRATION_CLUSTER_DISABLED" != "true"] ; then
+if [ "$CLICKHOUSE_MIGRATION_CLUSTER_DISABLED" != "true" ] ; then
   if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=default&x-migrations-table-engine=ReplicatedMergeTree"
   else
