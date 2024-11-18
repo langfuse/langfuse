@@ -1,4 +1,4 @@
-CREATE TABLE rep_scores ON CLUSTER default (
+CREATE TABLE scores ON CLUSTER default (
     `id` String,
     `timestamp` DateTime64(3),
     `project_id` String,

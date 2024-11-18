@@ -1,1 +1,1 @@
-DROP TABLE rep_scores ON CLUSTER default;
+DROP TABLE scores ON CLUSTER default;

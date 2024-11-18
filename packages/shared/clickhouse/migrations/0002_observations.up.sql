@@ -1,4 +1,4 @@
-CREATE TABLE rep_observations ON CLUSTER default (
+CREATE TABLE observations ON CLUSTER default (
     `id` String,
     `trace_id` String,
     `project_id` String,

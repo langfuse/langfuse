@@ -1,1 +1,1 @@
-DROP TABLE rep_traces ON CLUSTER default;
+DROP TABLE traces ON CLUSTER default;

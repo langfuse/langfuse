@@ -1,4 +1,4 @@
-CREATE TABLE rep_traces ON CLUSTER default (
+CREATE TABLE traces ON CLUSTER default (
     `id` String,
     `timestamp` DateTime64(3),
     `name` String,
