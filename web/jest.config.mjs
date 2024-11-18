@@ -13,8 +13,16 @@ const clientTestConfig = {
 };
 
 const serverTestConfig = {
-  displayName: "server",
-  testMatch: ["/**/*.servertest.[jt]s?(x)"],
+  displayName: "sync-server",
+  testMatch: ["/**/!(*async*)/*.servertest.[jt]s?(x)"],
+  testEnvironment: "jest-environment-node",
+  setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
+  globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
+};
+
+const asyncServerTestConfig = {
+  displayName: "async-server",
+  testMatch: ["/**/async/*.servertest.[jt]s?(x)"],
   testEnvironment: "jest-environment-node",
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
   globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
