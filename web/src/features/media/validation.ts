@@ -6,6 +6,10 @@ export enum MediaEnabledFields {
   Metadata = "metadata",
 }
 
+/*
+  When adding new media content types, also update the supported content types in the server definition
+  in fern/apis/server/definition/media.yml and reflect the changes in the SDKs.
+ */
 export enum MediaContentType {
   PNG = "image/png",
   JPEG = "image/jpeg",
@@ -90,3 +94,14 @@ export const GetMediaResponseSchema = z.object({
 });
 
 export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
+
+export const MediaReturnSchema = z.object({
+  mediaId: z.string(),
+  contentType: z.nativeEnum(MediaContentType),
+  contentLength: z.coerce.number(),
+  url: z.string(),
+  urlExpiry: z.string(),
+  field: z.nativeEnum(MediaEnabledFields),
+});
+
+export type MediaReturnType = z.infer<typeof MediaReturnSchema>;
