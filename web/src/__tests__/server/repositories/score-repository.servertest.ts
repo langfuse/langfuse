@@ -26,7 +26,7 @@ describe("Clickhouse Scores Repository Test", () => {
       name: "Test Score",
       timestamp: Date.now(),
       value: 100,
-      source: "TEST",
+      source: "API",
       created_at: Date.now(),
       updated_at: Date.now(),
       event_ts: Date.now(),
