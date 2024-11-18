@@ -264,13 +264,9 @@ export const getObservationsTable = async (
 
   return await Promise.all(
     observationRecords.map(async (o) => {
-      const model = models.find((p) => p.id === o.internal_model_id);
       const trace = traces.find((t) => t.id === o.trace_id);
       return {
-        ...(await convertObservationToView(
-          { ...o, type: "GENERATION" },
-          model,
-        )),
+        ...(await convertObservationToView({ ...o, type: "GENERATION" })),
         latency: o.latency ? Number(o.latency) / 1000 : null,
         timeToFirstToken: o.time_to_first_token
           ? Number(o.time_to_first_token) / 1000

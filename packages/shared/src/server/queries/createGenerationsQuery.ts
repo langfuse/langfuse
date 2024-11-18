@@ -12,7 +12,11 @@ type AdditionalObservationFields = {
   traceTags: Array<string>;
 };
 
-export type FullObservation = AdditionalObservationFields & ObservationView;
+export type FullObservation = AdditionalObservationFields &
+  Omit<
+    ObservationView,
+    "modelId" | "inputPrice" | "outputPrice" | "totalPrice"
+  >;
 
 export type FullObservations = Array<FullObservation>;
 

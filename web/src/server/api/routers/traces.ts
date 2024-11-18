@@ -62,7 +62,7 @@ type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
 export type ObservationReturnType = Omit<
   ObservationView,
-  "input" | "output"
+  "input" | "output" | "modelId" | "inputPrice" | "outputPrice" | "totalPrice"
 > & {
   traceId: string;
 };
