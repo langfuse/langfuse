@@ -616,6 +616,7 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Get all evaluators for the project, refactor to re-use filter builder pattern in lfe-2887
       const evaluators = await ctx.prisma.$queryRaw<
         Array<{
           id: string;

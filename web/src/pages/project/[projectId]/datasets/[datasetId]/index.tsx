@@ -17,19 +17,20 @@ import { ExternalLink } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export default function Dataset() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
+  const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
+  const isFeatureFlagEnabled = useIsFeatureEnabled("evaluatorsOnDatasetRuns");
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
     projectId,
   });
-
-  const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -42,7 +43,11 @@ export default function Dataset() {
       datasetId,
     },
     {
-      enabled: hasReadAccess && hasEntitlement && dataset.isSuccess,
+      enabled:
+        hasReadAccess &&
+        hasEntitlement &&
+        isFeatureFlagEnabled &&
+        dataset.isSuccess,
     },
   );
 
@@ -71,33 +76,36 @@ export default function Dataset() {
         }
         actionButtons={
           <>
-            {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
-              <MultiSelectKeyValues
-                className="max-w-fit"
-                placeholder="Search..."
-                title="Evaluators"
-                hideClearButton
-                onValueChange={(_values, changedValue) => {
-                  if (changedValue)
-                    window.open(
-                      `/project/${projectId}/evals/${changedValue}`,
-                      "_blank",
-                    );
-                }}
-                values={evaluatorsOptions}
-                options={evaluatorsOptions}
-                controlButtons={
-                  <CommandItem
-                    onSelect={() => {
-                      window.open(`/project/${projectId}/evals`, "_blank");
-                    }}
-                  >
-                    Manage evaluators
-                    <ExternalLink className="ml-auto h-4 w-4" />
-                  </CommandItem>
-                }
-              />
-            )}
+            {hasReadAccess &&
+              hasEntitlement &&
+              evaluators.isSuccess &&
+              isFeatureFlagEnabled && (
+                <MultiSelectKeyValues
+                  className="max-w-fit"
+                  placeholder="Search..."
+                  title="Evaluators"
+                  hideClearButton
+                  onValueChange={(_values, changedValue) => {
+                    if (changedValue)
+                      window.open(
+                        `/project/${projectId}/evals/${changedValue}`,
+                        "_blank",
+                      );
+                  }}
+                  values={evaluatorsOptions}
+                  options={evaluatorsOptions}
+                  controlButtons={
+                    <CommandItem
+                      onSelect={() => {
+                        window.open(`/project/${projectId}/evals`, "_blank");
+                      }}
+                    >
+                      Manage evaluators
+                      <ExternalLink className="ml-auto h-4 w-4" />
+                    </CommandItem>
+                  }
+                />
+              )}
             <DetailPageNav
               currentId={datasetId}
               path={(entry) => `/project/${projectId}/datasets/${entry.id}`}
