@@ -1,5 +1,4 @@
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { GetScoreResponse } from "@langfuse/shared";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import { createTraces } from "@/src/__tests__/server/repositories/clickhouse-helpers";
