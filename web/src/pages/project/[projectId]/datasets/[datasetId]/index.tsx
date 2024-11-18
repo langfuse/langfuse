@@ -11,6 +11,9 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 
+import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { CommandItem } from "@/src/components/ui/command";
+import { ExternalLink } from "lucide-react";
 export default function Dataset() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -39,6 +42,31 @@ export default function Dataset() {
         }
         actionButtons={
           <>
+            <MultiSelectKeyValues
+              className="max-w-fit"
+              placeholder="Search..."
+              title="Evaluators"
+              hideClearButton
+              onValueChange={() => {}} // TODO: open detail view for selected evaluator
+              values={[
+                { key: "active", value: "Active" },
+                { key: "archived", value: "Archived" },
+              ]}
+              options={[
+                { key: "active", value: "Active" },
+                { key: "archived", value: "Archived" },
+              ]}
+              controlButtons={
+                <CommandItem
+                  onSelect={() => {
+                    window.open(`/project/${projectId}/evals`, "_blank");
+                  }}
+                >
+                  Manage evaluators
+                  <ExternalLink className="ml-auto h-4 w-4" />
+                </CommandItem>
+              }
+            />
             <DetailPageNav
               currentId={datasetId}
               path={(entry) => `/project/${projectId}/datasets/${entry.id}`}

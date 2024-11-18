@@ -41,6 +41,7 @@ export function MultiSelectKeyValues<
   items = "items",
   align = "center",
   controlButtons,
+  hideClearButton = false,
 }: {
   title?: string;
   placeholder?: string;
@@ -56,11 +57,12 @@ export function MultiSelectKeyValues<
   items?: string;
   align?: "center" | "end" | "start";
   controlButtons?: React.ReactNode;
+  hideClearButton?: boolean;
 }) {
   const selectedValueKeys = new Set(
     values.map((value) => (typeof value === "string" ? value : value.key)),
   );
-  const showClearItems = selectedValueKeys.size > 0;
+  const showClearItems = selectedValueKeys.size > 0 && !hideClearButton;
 
   function formatFilterValues(): T[] {
     if (values.length > 0 && typeof values[0] === "string") {
