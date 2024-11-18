@@ -132,7 +132,7 @@ jobs:
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run test-legacy
-        run: pnpm --filter=web run test
+        run: pnpm --filter=web run test-legacy
 
   tests-web-async:
     timeout-minutes: 20
