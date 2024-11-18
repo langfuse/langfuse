@@ -11,8 +11,11 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 
 export default function PeekView(props: {
-  itemName: string;
-  itemType: string;
+  item: {
+    name: string;
+    type: string;
+    link: string;
+  };
   open: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -26,14 +29,14 @@ export default function PeekView(props: {
             <div className="mb-2 mt-2 flex flex-wrap items-center justify-between gap-2">
               {props.actionButtons ?? null}
               <h3 className="text-xl font-bold leading-7 sm:tracking-tight">
-                {`${props.itemType}:`}
+                {`${props.item.type}:`}
               </h3>
               <Link
                 className="inline-block h-5 max-w-full overflow-hidden text-ellipsis text-nowrap rounded bg-primary-accent/20 px-2 py-0.5 text-base font-semibold text-accent-dark-blue shadow-sm hover:bg-accent-light-blue/45"
-                href=""
-                title={props.itemName}
+                href={props.item.link}
+                title={props.item.name}
               >
-                {props.itemName}
+                {props.item.name}
               </Link>
             </div>
           </DrawerTitle>

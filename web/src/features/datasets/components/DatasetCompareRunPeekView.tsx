@@ -15,11 +15,12 @@ import { DatasetAggregateTableCell } from "@/src/features/datasets/components/Da
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { PanelLeftOpen, PanelLeftClose, X, ListTree } from "lucide-react";
+import { PanelLeftOpen, PanelLeftClose, ListTree } from "lucide-react";
 import { useRouter } from "next/router";
 
 export function DatasetCompareRunPeekView({
   projectId,
+  datasetId,
   scoreKeyToDisplayName,
   clickedRow,
   setClickedRow,
@@ -28,6 +29,7 @@ export function DatasetCompareRunPeekView({
   runsData,
 }: {
   projectId: string;
+  datasetId: string;
   scoreKeyToDisplayName: Map<string, string>;
   clickedRow: DatasetCompareRunRowData | null;
   setClickedRow: (row: DatasetCompareRunRowData | null) => void;
@@ -72,8 +74,11 @@ export function DatasetCompareRunPeekView({
   return (
     <PeekView
       onClose={onClose}
-      itemName={clickedRow?.id ?? "item"}
-      itemType="Dataset item"
+      item={{
+        name: clickedRow?.id ?? "item",
+        type: "Dataset item",
+        link: `/project/${projectId}/datasets/${datasetId}/items/${clickedRow?.id}`,
+      }}
       open={!!clickedRow}
       actionButtons={
         <>
