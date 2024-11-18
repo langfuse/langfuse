@@ -4021,8 +4021,7 @@ components:
             The observation ID associated with the media record. If the media
             record is associated directly with a trace, this will be null.
         contentType:
-          type: string
-          description: The MIME type of the media record
+          $ref: '#/components/schemas/MediaContentType'
         contentLength:
           type: integer
           description: The size of the media record in bytes
@@ -4055,6 +4054,13 @@ components:
           description: The unique langfuse identifier of a media record
       required:
         - mediaId
+    MediaContentType:
+      title: MediaContentType
+      type: string
+      enum:
+        - >-
+          image/png","image/jpeg","image/jpg","image/webp","audio/mpeg","audio/mp3","audio/wav","text/plain","application/pdf
+      description: The MIME type of the media record
     DailyMetrics:
       title: DailyMetrics
       type: object
