@@ -1,6 +1,6 @@
 import {
   createObservation,
-  createTrace,
+  createTraces,
 } from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { getTracesTable } from "@langfuse/shared/src/server";
@@ -35,7 +35,7 @@ describe("UI Traces table", () => {
       is_deleted: 0,
     };
 
-    await createTrace(trace);
+    await createTraces([trace]);
 
     const result = await getTracesTable(
       projectId,
@@ -123,7 +123,7 @@ describe("UI Traces table", () => {
       completion_start_time: Date.now(),
     };
 
-    await createTrace(trace);
+    await createTraces([trace]);
     await createObservation(observation);
 
     const result = await getTracesTable(

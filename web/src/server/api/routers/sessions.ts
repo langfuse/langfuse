@@ -29,7 +29,7 @@ import {
   getSessionsTable,
   getSessionsTableCount,
   getTracesGroupedByTags,
-  getTracesForSession,
+  getTracesIdentifierForSession,
   getScoresForTraces,
   getCostForTraces,
   getTracesGroupedByUsers,
@@ -499,7 +499,7 @@ export const sessionRouter = createTRPCRouter({
               });
             }
 
-            const clickhouseTraces = await getTracesForSession(
+            const clickhouseTraces = await getTracesIdentifierForSession(
               input.projectId,
               input.sessionId,
             );
