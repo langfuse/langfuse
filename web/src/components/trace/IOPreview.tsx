@@ -87,7 +87,16 @@ export const IOPreview: React.FC<{
   isLoading?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
-}> = ({ isLoading = false, hideIfNull = false, media, ...props }) => {
+  hideOutput?: boolean;
+  hideInput?: boolean;
+}> = ({
+  isLoading = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  media,
+  ...props
+}) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
@@ -182,14 +191,14 @@ export const IOPreview: React.FC<{
             />
           ) : (
             <>
-              {!(hideIfNull && !input) ? (
+              {!(hideIfNull && !input) && !hideInput ? (
                 <MarkdownOrJsonView
                   title="Input"
                   content={input}
                   media={media?.filter((m) => m.field === "input") ?? []}
                 />
               ) : null}
-              {!(hideIfNull && !output) ? (
+              {!(hideIfNull && !output) && !hideOutput ? (
                 <MarkdownOrJsonView
                   title="Output"
                   content={output}
@@ -204,7 +213,7 @@ export const IOPreview: React.FC<{
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (
         <>
-          {!(hideIfNull && !input) ? (
+          {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
               title="Input"
               json={input ?? null}
@@ -213,7 +222,7 @@ export const IOPreview: React.FC<{
               media={media?.filter((m) => m.field === "input") ?? []}
             />
           ) : null}
-          {!(hideIfNull && !output) ? (
+          {!(hideIfNull && !output) && !hideOutput ? (
             <JSONView
               title="Output"
               json={outputClean}
