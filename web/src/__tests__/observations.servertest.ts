@@ -1,17 +1,13 @@
 /** @jest-environment node */
 
 import { v4 as uuidv4 } from "uuid";
-
 import {
   makeZodVerifiedAPICall,
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { ModelUsageUnit } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  GetObservationV1Response,
-  GetObservationsV1Response,
-} from "@/src/features/public-api/types/observations";
+import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 
 describe("/api/public/observations API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
