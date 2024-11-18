@@ -138,7 +138,7 @@ function TreeItemInner({
                 <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-1/2 w-full overflow-hidden md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+            <DrawerContent className="w-full overflow-hidden" size="md">
               {children}
             </DrawerContent>
           </Drawer>
