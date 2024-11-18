@@ -13,8 +13,10 @@ import {
   ChatMlArraySchema,
   type ChatMlMessageSchema,
   OpenAIContentSchema,
+  OpenAIOutputAudioType,
 } from "@/src/components/schemas/ChatMlSchema";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { MediaReturnType } from "@/src/features/media/validation";
 
 const isSupportedMarkdownFormat = (
   content: unknown,
@@ -31,11 +33,15 @@ export function MarkdownOrJsonView({
   title,
   className,
   customCodeHeaderClassName,
+  audio,
+  media,
 }: {
   content?: unknown;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
+  audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
 }) {
   const stringOrValidatedMarkdown = useMemo(
     () => StringOrMarkdownSchema.safeParse(content),
@@ -52,20 +58,26 @@ export function MarkdownOrJsonView({
     validatedOpenAIContent,
   );
 
-  return isMarkdownEnabled && canEnableMarkdown ? (
-    <MarkdownView
-      markdown={stringOrValidatedMarkdown.data ?? content}
-      title={title}
-      className={className}
-      customCodeHeaderClassName={customCodeHeaderClassName}
-    />
-  ) : (
-    <JSONView
-      json={content}
-      canEnableMarkdown={canEnableMarkdown}
-      title={title}
-      className={className}
-    />
+  return (
+    <>
+      {isMarkdownEnabled && canEnableMarkdown ? (
+        <MarkdownView
+          markdown={stringOrValidatedMarkdown.data ?? content}
+          title={title}
+          className={className}
+          customCodeHeaderClassName={customCodeHeaderClassName}
+          audio={audio}
+        />
+      ) : (
+        <JSONView
+          json={content ?? (audio ? { audio } : null)}
+          canEnableMarkdown={canEnableMarkdown}
+          title={title}
+          className={className}
+          media={media}
+        />
+      )}
+    </>
   );
 }
 
@@ -74,7 +86,8 @@ export const IOPreview: React.FC<{
   output?: Prisma.JsonValue;
   isLoading?: boolean;
   hideIfNull?: boolean;
-}> = ({ isLoading = false, hideIfNull = false, ...props }) => {
+  media?: MediaReturnType[];
+}> = ({ isLoading = false, hideIfNull = false, media, ...props }) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
@@ -170,7 +183,11 @@ export const IOPreview: React.FC<{
           ) : (
             <>
               {!(hideIfNull && !input) ? (
-                <MarkdownOrJsonView title="Input" content={input} />
+                <MarkdownOrJsonView
+                  title="Input"
+                  content={input}
+                  media={media?.filter((m) => m.field === "input") ?? []}
+                />
               ) : null}
               {!(hideIfNull && !output) ? (
                 <MarkdownOrJsonView
@@ -178,6 +195,7 @@ export const IOPreview: React.FC<{
                   content={output}
                   className="bg-accent-light-green dark:border-accent-dark-green"
                   customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
+                  media={media?.filter((m) => m.field === "output") ?? []}
                 />
               ) : null}
             </>
@@ -192,6 +210,7 @@ export const IOPreview: React.FC<{
               json={input ?? null}
               isLoading={isLoading}
               className="flex-1"
+              media={media?.filter((m) => m.field === "input") ?? []}
             />
           ) : null}
           {!(hideIfNull && !output) ? (
@@ -200,6 +219,7 @@ export const IOPreview: React.FC<{
               json={outputClean}
               isLoading={isLoading}
               className="flex-1 bg-accent-light-green dark:border-accent-dark-green"
+              media={media?.filter((m) => m.field === "output") ?? []}
             />
           ) : null}
         </>
@@ -235,7 +255,7 @@ export const OpenAiMessageView: React.FC<{
           .map((message, index) => (
             <Fragment key={index}>
               <div>
-                {!!message.content &&
+                {(!!message.content || !!message.audio) &&
                   (shouldRenderMarkdown ? (
                     <MarkdownOrJsonView
                       title={message.name ?? message.role}
@@ -252,6 +272,7 @@ export const OpenAiMessageView: React.FC<{
                         message.role === "assistant" &&
                           "bg-muted-green dark:bg-secondary",
                       )}
+                      audio={message.audio}
                     />
                   ) : (
                     <JSONView

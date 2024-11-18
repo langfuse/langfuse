@@ -29,7 +29,7 @@ const customLoader = ({
   width: number;
   quality?: number;
 }) => {
-  return `${src}?w=${width}&q=${quality || 75}`;
+  return src;
 };
 
 const ImageErrorDisplay = ({
@@ -52,19 +52,24 @@ const ImageErrorDisplay = ({
 export const ResizableImage = ({
   src,
   alt,
+  isDefaultVisible = false,
+  shouldValidateImageSource = true,
 }: {
-  src?: string;
+  src: string;
   alt?: string;
+  isDefaultVisible?: boolean;
+  shouldValidateImageSource?: boolean;
 }) => {
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
-  const [isImageVisible, setIsImageVisible] = useState(false);
+  const [isImageVisible, setIsImageVisible] = useState(isDefaultVisible);
   const session = useSession();
-
-  if (!isPresent(src)) return null;
-
   const isValidImage = api.utilities.validateImgUrl.useQuery(src, {
-    enabled: session.status === "authenticated" && isImageVisible,
+    enabled:
+      session.status === "authenticated" &&
+      isImageVisible &&
+      shouldValidateImageSource,
+    initialData: { isValid: true },
   });
 
   if (session.status !== "authenticated") {
