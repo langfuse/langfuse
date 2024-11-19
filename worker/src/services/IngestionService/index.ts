@@ -280,6 +280,7 @@ export class IngestionService {
       minStartTime === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minStartTime));
+
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -435,6 +436,14 @@ export class IngestionService {
         postgresObservationRecord?.usage_details ?? {};
     }
 
+    if (
+      "cost_details" in generationUsage &&
+      Object.keys(generationUsage.cost_details).length === 0
+    ) {
+      generationUsage.cost_details =
+        postgresObservationRecord?.cost_details ?? {};
+    }
+
     return {
       ...parsedObservationRecord,
       ...generationUsage,
@@ -532,15 +541,32 @@ export class IngestionService {
       },
     });
 
+    logger.info(
+      `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
+    );
+
     const final_usage_details = this.getUsageUnits(
       observationRecord,
       internalModel,
     );
     const modelPrices = await this.getModelPrices(internalModel?.id);
+
+    logger.info(
+      `Model prices for observation ${observationRecord.id}: ${JSON.stringify(
+        modelPrices.map((price) => price.id),
+      )}`,
+    );
+
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
       observationRecord,
       final_usage_details.usage_details ?? {},
+    );
+
+    logger.info(
+      `Calculated costs for observation ${observationRecord.id}: ${JSON.stringify(
+        final_cost_details,
+      )}`,
     );
 
     return {
@@ -582,6 +608,10 @@ export class IngestionService {
         text: observationRecord.output,
         model,
       });
+
+      logger.info(
+        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
+      );
 
       const newTotalCount =
         newInputCount || newOutputCount
