@@ -31,7 +31,6 @@ import {
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
-  getTraceByIdOrThrow,
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
@@ -451,11 +450,18 @@ export const traceRouter = createTRPCRouter({
           });
         },
         clickhouseExecution: async () => {
-          return getTraceByIdOrThrow(
+          const trace = getTraceById(
             input.traceId,
             input.projectId,
             input.timestamp ?? undefined,
           );
+          if (!trace) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
+          }
+          return trace;
         },
       });
     }),
@@ -475,7 +481,7 @@ export const traceRouter = createTRPCRouter({
         user: ctx.session.user ?? undefined,
         pgExecution: async () => {
           const [trace, observations, scores] = await Promise.all([
-            ctx.prisma.trace.findFirstOrThrow({
+            ctx.prisma.trace.findFirst({
               where: {
                 id: input.traceId,
                 projectId: input.projectId,
@@ -531,6 +537,14 @@ export const traceRouter = createTRPCRouter({
               },
             }),
           ]);
+
+          if (!trace) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
+          }
+
           const validatedScores = filterAndValidateDbScoreList(
             scores,
             traceException,
@@ -563,7 +577,7 @@ export const traceRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           const [trace, observations, scores] = await Promise.all([
-            getTraceByIdOrThrow(
+            getTraceById(
               input.traceId,
               input.projectId,
               input.timestamp ?? undefined,
@@ -581,6 +595,13 @@ export const traceRouter = createTRPCRouter({
               undefined,
             ),
           ]);
+
+          if (!trace) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
+          }
 
           const validatedScores = filterAndValidateDbScoreList(
             scores,

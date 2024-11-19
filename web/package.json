@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.90.1",
+  "version": "2.91.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -14,10 +14,11 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --testPathIgnorePatterns='__e2e__'",
+    "test": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects async-server",
+    "test-sync": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects sync-server",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
+    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "dependencies": {
@@ -56,7 +57,7 @@
     "@opentelemetry/sdk-node": "^0.53.0",
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
-    "@prisma/instrumentation": "^5.20.0",
+    "@prisma/instrumentation": "^5.22.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-avatar": "^1.1.1",
@@ -122,7 +123,7 @@
     "posthog-js": "^1.176.0",
     "posthog-node": "^3.6.3",
     "prexit": "^2.2.0",
-    "prisma": "^5.20.0",
+    "prisma": "^5.22.0",
     "rate-limiter-flexible": "^5.0.3",
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",

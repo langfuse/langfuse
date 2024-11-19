@@ -276,18 +276,6 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   });
 };
 
-export const getTraceById = async (
-  traceId: string,
-  projectId: string,
-  timestamp?: Date,
-): Promise<Trace | undefined> => {
-  try {
-    return getTraceByIdOrThrow(traceId, projectId, timestamp);
-  } catch (e) {
-    return undefined;
-  }
-};
-
 export const getTracesByIds = async (
   traceIds: string[],
   projectId: string,
@@ -305,6 +293,31 @@ export const getTracesByIds = async (
     query,
     params: {
       traceIds,
+      projectId,
+      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+    },
+  });
+
+  return records.map(convertClickhouseToDomain);
+};
+
+export const getTracesBySessionId = async (
+  projectId: string,
+  sessionIds: string[],
+  timestamp?: Date,
+) => {
+  const query = `
+      SELECT * 
+      FROM traces
+      WHERE session_id IN ({sessionIds: Array(String)})
+      AND project_id = {projectId: String}
+      ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
+      ORDER BY event_ts DESC
+      LIMIT 1 by id, project_id;`;
+  const records = await queryClickhouse<TraceRecordReadType>({
+    query,
+    params: {
+      sessionIds,
       projectId,
       timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
     },
@@ -331,7 +344,7 @@ export const hasAnyTrace = async (projectId: string) => {
   return rows.length > 0 && Number(rows[0].count) > 0;
 };
 
-export const getTraceByIdOrThrow = async (
+export const getTraceById = async (
   traceId: string,
   projectId: string,
   timestamp?: Date,
@@ -359,12 +372,7 @@ export const getTraceByIdOrThrow = async (
 
   const res = records.map(convertClickhouseToDomain);
 
-  if (res.length === 0) {
-    const errorMessage = `Trace not found for traceId: ${traceId}, projectId: ${projectId}, and timestamp: ${timestamp}`;
-    logger.error(errorMessage);
-    throw new Error(errorMessage);
-  }
-  return res[0] as Trace;
+  return res.shift();
 };
 
 export const getTracesGroupedByName = async (
@@ -682,7 +690,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
   return res;
 };
 
-export const getTracesForSession = async (
+export const getTracesIdentifierForSession = async (
   projectId: string,
   sessionId: string,
 ) => {
