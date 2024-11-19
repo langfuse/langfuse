@@ -8,15 +8,13 @@ import {
   QueueName,
   TraceUpsertQueue,
   DatasetRunItemUpsertQueue,
-  CloudUsageMeteringQueue,
   EvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { type Queue } from "bullmq";
 
 /* 
-This API route is used by Langfuse Cloud to delete API keys for a project. It will return 403 for self-hosters.
-We will work on admin APIs in the future. See the discussion here: https://github.com/orgs/langfuse/discussions/3243
+This API route is used by Langfuse Cloud to retry failed bullmq jobs.
 */
 
 const RetryBullMqJobs = z.object({
