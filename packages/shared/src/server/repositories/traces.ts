@@ -313,6 +313,31 @@ export const getTracesByIds = async (
   return records.map(convertClickhouseToDomain);
 };
 
+export const getTracesBySessionId = async (
+  projectId: string,
+  sessionIds: string[],
+  timestamp?: Date,
+) => {
+  const query = `
+      SELECT * 
+      FROM traces
+      WHERE session_id IN ({sessionIds: Array(String)})
+      AND project_id = {projectId: String}
+      ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
+      ORDER BY event_ts DESC
+      LIMIT 1 by id, project_id;`;
+  const records = await queryClickhouse<TraceRecordReadType>({
+    query,
+    params: {
+      sessionIds,
+      projectId,
+      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+    },
+  });
+
+  return records.map(convertClickhouseToDomain);
+};
+
 export const hasAnyTrace = async (projectId: string) => {
   const query = `
     SELECT count(*) as count
@@ -682,7 +707,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
   return res;
 };
 
-export const getTracesForSession = async (
+export const getTracesIdentifierForSession = async (
   projectId: string,
   sessionId: string,
 ) => {
