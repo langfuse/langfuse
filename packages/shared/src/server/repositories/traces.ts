@@ -8,9 +8,8 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
-import { ObservationLevel, Trace } from "@prisma/client";
+import { ObservationLevel } from "@prisma/client";
 import { FilterState } from "../../types";
-import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
@@ -71,6 +70,45 @@ export const getTracesTableCount = async (props: {
   }));
 
   return converted.length > 0 ? converted[0].count : 0;
+};
+
+export const checkTraceExists = async (
+  projectId: string,
+  traceId: string,
+  filter: FilterState,
+): Promise<boolean> => {
+  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
+  });
+
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+    new StringFilter({
+      clickhouseTable: "t",
+      field: "id",
+      operator: "=",
+      value: traceId,
+    }),
+  );
+
+  const tracesFilterRes = tracesFilter.apply();
+
+  const query = `
+    SELECT id, project_id
+    FROM traces t
+    WHERE ${tracesFilterRes.query}
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id
+  `;
+
+  const rows = await queryClickhouse<{ id: string; project_id: string }>({
+    query,
+    params: {
+      ...tracesFilterRes.params,
+    },
+  });
+
+  return rows.length > 0;
 };
 
 export const getTracesTable = async (

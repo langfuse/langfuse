@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import Handlebars from "handlebars";
 import { sql } from "kysely";
 import { z } from "zod";
-import { ScoreSource } from "@prisma/client";
+import { ScoreSource, JobConfigState } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
@@ -15,6 +15,10 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
+  checkTraceExists,
+  checkObservationExists,
+  getTraceById,
+  getObservationForTraceIdByName,
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
@@ -39,7 +43,6 @@ import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { JobConfigState } from "../../../../packages/shared/dist/prisma/generated/types";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -90,13 +93,21 @@ export const createTraceEvalJobs = async ({
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
-    const condition = tableColumnsToSqlFilterAndPrefix(
-      validatedFilter,
-      evalTraceTableCols,
-      "traces",
-    );
+    let traceExists: boolean = false;
+    if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE) {
+      traceExists = await checkTraceExists(
+        event.projectId,
+        event.traceId,
+        validatedFilter,
+      );
+    } else {
+      const condition = tableColumnsToSqlFilterAndPrefix(
+        validatedFilter,
+        evalTraceTableCols,
+        "traces",
+      );
 
-    const joinedQuery = Prisma.sql`
+      const joinedQuery = Prisma.sql`
         SELECT id
         FROM traces as t
         WHERE project_id = ${event.projectId}
@@ -104,7 +115,9 @@ export const createTraceEvalJobs = async ({
         ${condition}
       `;
 
-    const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+      const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+      traceExists = traces.length > 0;
+    }
 
     const existingJob = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -115,11 +128,7 @@ export const createTraceEvalJobs = async ({
       .execute();
 
     // if we matched a trace, we might want to create a job
-    if (traces.length > 0) {
-      logger.debug(
-        `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`,
-      );
-
+    if (traceExists) {
       const jobExecutionId = randomUUID();
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
@@ -269,12 +278,14 @@ export const createDatasetEvalJobs = async ({
     if (datasetItems.length > 0) {
       // check if trace and observation exist, otherwise retry
       // Verify trace exists before proceeding
-      const traceExists = await kyselyPrisma.$kysely
-        .selectFrom("traces")
-        .select("id")
-        .where("project_id", "=", event.projectId)
-        .where("id", "=", event.traceId)
-        .executeTakeFirst();
+      const traceExists = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+        ? await checkTraceExists(event.projectId, event.traceId, [])
+        : await kyselyPrisma.$kysely
+            .selectFrom("traces")
+            .select("id")
+            .where("project_id", "=", event.projectId)
+            .where("id", "=", event.traceId)
+            .executeTakeFirst();
 
       if (!traceExists) {
         logger.info(
@@ -284,12 +295,14 @@ export const createDatasetEvalJobs = async ({
       }
 
       if (event.observationId) {
-        const observationExists = await kyselyPrisma.$kysely
-          .selectFrom("observations")
-          .select("id")
-          .where("project_id", "=", event.projectId)
-          .where("id", "=", event.observationId)
-          .executeTakeFirst();
+        const observationExists = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+          ? await checkObservationExists(event.projectId, event.observationId)
+          : await kyselyPrisma.$kysely
+              .selectFrom("observations")
+              .select("id")
+              .where("project_id", "=", event.projectId)
+              .where("id", "=", event.observationId)
+              .executeTakeFirst();
 
         if (!observationExists) {
           logger.info(
@@ -688,163 +701,172 @@ export async function extractVariables({
   // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>;
   datasetItemId?: string;
-}) {
-  const mappingResult: { var: string; value: string }[] = [];
+}): Promise<{ var: string; value: string }[]> {
+  return Promise.all(
+    variables.map(async (variable) => {
+      const mapping = variableMapping.find(
+        (m) => m.templateVariable === variable,
+      );
 
-  // find the context for each variable of the template
-  for (const variable of variables) {
-    const mapping = variableMapping.find(
-      (m) => m.templateVariable === variable,
-    );
-
-    if (!mapping) {
-      logger.debug(`No mapping found for variable ${variable}`);
-      mappingResult.push({ var: variable, value: "" });
-      continue; // no need to fetch additional data
-    }
-
-    if (mapping.langfuseObject === "dataset_item") {
-      if (!datasetItemId) {
-        logger.error(
-          `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
+      if (!mapping) {
+        logger.debug(`No mapping found for variable ${variable}`);
+        return { var: variable, value: "" };
       }
 
-      // find the internal definitions of the column
-      const safeInternalColumn = availableDatasetEvalVariables
-        .find((o) => o.id === "dataset_item")
-        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+      if (mapping.langfuseObject === "dataset_item") {
+        if (!datasetItemId) {
+          logger.error(
+            `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
+          );
+          return { var: variable, value: "" };
+        }
 
-      // if no column was found, we still process with an empty variable
-      if (!safeInternalColumn?.id) {
-        logger.error(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
+        // find the internal definitions of the column
+        const safeInternalColumn = availableDatasetEvalVariables
+          .find((o) => o.id === "dataset_item")
+          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+
+        // if no column was found, we still process with an empty variable
+        if (!safeInternalColumn?.id) {
+          logger.error(
+            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        const datasetItem = await kyselyPrisma.$kysely
+          .selectFrom("dataset_items as d")
+          .select(
+            sql`${sql.raw(safeInternalColumn.internal)}`.as(
+              safeInternalColumn.id,
+            ),
+          ) // query the internal column name raw
+          .where("id", "=", datasetItemId)
+          .where("project_id", "=", projectId)
+          .executeTakeFirst();
+
+        // user facing errors
+        if (!datasetItem) {
+          logger.error(
+            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+          );
+          throw new LangfuseNotFoundError(
+            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+          );
+        }
+
+        return {
+          var: variable,
+          value: parseUnknownToString(datasetItem[mapping.selectedColumnId]),
+        };
       }
 
-      const datasetItem = await kyselyPrisma.$kysely
-        .selectFrom("dataset_items as d")
-        .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(
-            safeInternalColumn.id,
-          ),
-        ) // query the internal column name raw
-        .where("id", "=", datasetItemId)
-        .where("project_id", "=", projectId)
-        .executeTakeFirst();
+      if (mapping.langfuseObject === "trace") {
+        // find the internal definitions of the column
+        const safeInternalColumn = availableTraceEvalVariables
+          .find((o) => o.id === "trace")
+          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
-      // user facing errors
-      if (!datasetItem) {
-        logger.error(
-          `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
-        );
-        throw new LangfuseNotFoundError(
-          `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
-        );
+        // if no column was found, we still process with an empty variable
+        if (!safeInternalColumn?.id) {
+          logger.error(
+            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        const trace: Record<string, unknown> | undefined =
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+            ? await getTraceById(traceId, projectId)
+            : await kyselyPrisma.$kysely
+                .selectFrom("traces as t")
+                .select(
+                  sql`${sql.raw(safeInternalColumn.internal)}`.as(
+                    safeInternalColumn.id,
+                  ),
+                ) // query the internal column name raw
+                .where("id", "=", traceId)
+                .where("project_id", "=", projectId)
+                .executeTakeFirst();
+
+        // user facing errors
+        if (!trace) {
+          logger.error(
+            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+          );
+          throw new LangfuseNotFoundError(
+            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+          );
+        }
+
+        return {
+          var: variable,
+          value: parseUnknownToString(trace[mapping.selectedColumnId]),
+        };
       }
 
-      mappingResult.push({
-        var: variable,
-        value: parseUnknownToString(datasetItem[mapping.selectedColumnId]),
-      });
-    }
+      if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
+        const safeInternalColumn = availableTraceEvalVariables
+          .find((o) => o.id === mapping.langfuseObject)
+          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
-    if (mapping.langfuseObject === "trace") {
-      // find the internal definitions of the column
-      const safeInternalColumn = availableTraceEvalVariables
-        .find((o) => o.id === "trace")
-        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+        if (!mapping.objectName) {
+          logger.info(
+            `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
+          );
+          return { var: variable, value: "" };
+        }
 
-      // if no column was found, we still process with an empty variable
-      if (!safeInternalColumn?.id) {
-        logger.error(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
+        if (!safeInternalColumn?.id) {
+          logger.warn(
+            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        const observation: Record<string, unknown> | undefined =
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+            ? (
+                await getObservationForTraceIdByName(
+                  traceId,
+                  projectId,
+                  mapping.objectName,
+                  undefined,
+                  true,
+                )
+              ).shift() // We only take the first match and ignore duplicate generation-names in a trace.
+            : await kyselyPrisma.$kysely
+                .selectFrom("observations as o")
+                .select(
+                  sql`${sql.raw(safeInternalColumn.internal)}`.as(
+                    safeInternalColumn.id,
+                  ),
+                ) // query the internal column name raw
+                .where("trace_id", "=", traceId)
+                .where("project_id", "=", projectId)
+                .where("name", "=", mapping.objectName)
+                .orderBy("start_time", "desc")
+                .executeTakeFirst();
+
+        // user facing errors
+        if (!observation) {
+          logger.error(
+            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+          );
+          throw new LangfuseNotFoundError(
+            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+          );
+        }
+
+        return {
+          var: variable,
+          value: parseUnknownToString(observation[mapping.selectedColumnId]),
+        };
       }
 
-      const trace = await kyselyPrisma.$kysely
-        .selectFrom("traces as t")
-        .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(
-            safeInternalColumn.id,
-          ),
-        ) // query the internal column name raw
-        .where("id", "=", traceId)
-        .where("project_id", "=", projectId)
-        .executeTakeFirst();
-
-      // user facing errors
-      if (!trace) {
-        logger.error(
-          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-        );
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-        );
-      }
-
-      mappingResult.push({
-        var: variable,
-        value: parseUnknownToString(trace[mapping.selectedColumnId]),
-      });
-    }
-    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-      const safeInternalColumn = availableTraceEvalVariables
-        .find((o) => o.id === mapping.langfuseObject)
-        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
-
-      if (!mapping.objectName) {
-        logger.info(
-          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
-      }
-
-      if (!safeInternalColumn?.id) {
-        logger.warn(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
-      }
-
-      const observation = await kyselyPrisma.$kysely
-        .selectFrom("observations as o")
-        .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(
-            safeInternalColumn.id,
-          ),
-        ) // query the internal column name raw
-        .where("trace_id", "=", traceId)
-        .where("project_id", "=", projectId)
-        .where("name", "=", mapping.objectName)
-        .orderBy("start_time", "desc")
-        .executeTakeFirst();
-
-      // user facing errors
-      if (!observation) {
-        logger.error(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-        );
-        throw new LangfuseNotFoundError(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-        );
-      }
-
-      mappingResult.push({
-        var: variable,
-        value: parseUnknownToString(observation[mapping.selectedColumnId]),
-      });
-    }
-  }
-  return mappingResult;
+      throw new Error(`Unknown object type ${mapping.langfuseObject}`);
+    }),
+  );
 }
 
 export const parseUnknownToString = (value: unknown): string => {

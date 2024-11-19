@@ -38,6 +38,30 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 
+export const checkObservationExists = async (
+  projectId: string,
+  id: string,
+): Promise<boolean> => {
+  const query = `
+    SELECT id, project_id
+    FROM observations o
+    WHERE project_id = {projectId: String}
+    AND id = {id: String}
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id
+  `;
+
+  const rows = await queryClickhouse<{ id: string; project_id: string }>({
+    query,
+    params: {
+      id,
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
 export const getObservationsViewForTrace = async (
   traceId: string,
   projectId: string,
@@ -85,6 +109,65 @@ export const getObservationsViewForTrace = async (
     params: {
       traceId,
       projectId,
+      ...(timestamp
+        ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
+  });
+
+  return records.map(convertObservationToView);
+};
+
+export const getObservationForTraceIdByName = async (
+  traceId: string,
+  projectId: string,
+  name: string,
+  timestamp?: Date,
+  fetchWithInputOutput: boolean = false,
+) => {
+  const query = `
+  SELECT
+    id,
+    trace_id,
+    project_id,
+    type,
+    parent_observation_id,
+    start_time,
+    end_time,
+    name,
+    metadata,
+    level,
+    status_message,
+    version,
+    ${fetchWithInputOutput ? "input, output," : ""}
+    provided_model_name,
+    internal_model_id,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    created_at,
+    updated_at,
+    event_ts
+  FROM observations 
+  WHERE trace_id = {traceId: String}
+  AND project_id = {projectId: String}
+  AND name = {name: String}
+   ${timestamp ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+  ORDER BY event_ts DESC
+  LIMIT 1 BY id, project_id`;
+  const records = await queryClickhouse<ObservationRecordReadType>({
+    query,
+    params: {
+      traceId,
+      projectId,
+      name,
       ...(timestamp
         ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),

@@ -199,6 +199,7 @@ export const addTracesToTraceUpsertQueue = async (
         return;
       }
 
+      // TODO: Trace Upsert add to queue. -> This needs to happen in new ingestion pipeline as well.
       await queue.addBulk(convertTraceUpsertEventsToRedisEvents(traceEvents));
     }
   } catch (error) {

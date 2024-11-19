@@ -1,7 +1,10 @@
 import { env } from "@/src/env.mjs";
-import { DatasetRunItemUpsertQueue } from "../../../../../../packages/shared/dist/src/server/redis/datasetRunItemUpsert";
 import { randomUUID } from "crypto";
-import { QueueJobs, redis } from "@langfuse/shared/src/server";
+import {
+  QueueJobs,
+  DatasetRunItemUpsertQueue,
+  redis,
+} from "@langfuse/shared/src/server";
 
 export const addDatasetRunItemsToEvalQueue = async ({
   projectId,
@@ -37,6 +40,7 @@ export const addDatasetRunItemsToEvalQueue = async ({
             type: "exponential",
             delay: 1000,
           },
+          // TODO: Is this delay sufficient?
           delay: 10000, // 10 seconds
           removeOnComplete: true,
           removeOnFail: 1_000,
