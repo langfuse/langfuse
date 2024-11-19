@@ -293,6 +293,7 @@ export class IngestionService {
       minStartTime === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minStartTime));
+
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -545,15 +546,28 @@ export class IngestionService {
       },
     });
 
+    logger.debug(
+      `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
+    );
+
     const final_usage_details = this.getUsageUnits(
       observationRecord,
       internalModel,
     );
     const modelPrices = await this.getModelPrices(internalModel?.id);
+
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
       observationRecord,
       final_usage_details.usage_details ?? {},
+    );
+
+    logger.info(
+      `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
+      {
+        cost: final_cost_details.cost_details,
+        usage: final_usage_details.usage_details,
+      },
     );
 
     return {
@@ -595,6 +609,10 @@ export class IngestionService {
         text: observationRecord.output,
         model,
       });
+
+      logger.info(
+        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
+      );
 
       const newTotalCount =
         newInputCount || newOutputCount
