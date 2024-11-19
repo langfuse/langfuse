@@ -317,7 +317,6 @@ export class IngestionService {
       clickhouseObservationRecord,
     });
 
-    logger.info(`Merged record: ${JSON.stringify(finalObservationRecord)}`);
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const wrapperTraceRecord: TraceRecordInsertType = {
@@ -534,7 +533,7 @@ export class IngestionService {
       },
     });
 
-    logger.info(
+    logger.debug(
       `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
     );
 
@@ -544,12 +543,6 @@ export class IngestionService {
     );
     const modelPrices = await this.getModelPrices(internalModel?.id);
 
-    logger.info(
-      `Model prices for observation ${observationRecord.id}: ${JSON.stringify(
-        modelPrices.map((price) => price.id),
-      )}`,
-    );
-
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
       observationRecord,
@@ -557,9 +550,11 @@ export class IngestionService {
     );
 
     logger.info(
-      `Calculated costs for observation ${observationRecord.id}: ${JSON.stringify(
-        final_cost_details,
-      )}`,
+      `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
+      {
+        cost: final_cost_details.cost_details,
+        usage: final_usage_details.usage_details,
+      },
     );
 
     return {
