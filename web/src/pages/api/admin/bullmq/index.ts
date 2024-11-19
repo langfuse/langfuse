@@ -87,7 +87,6 @@ export default async function handler(
           }
 
           failed = await queue?.getJobs(["failed"], 0, 1000, true);
-          logger.info(`Retrying jobs for queue ${JSON.stringify(failed)}`);
           if (failed && failed.length > 0) {
             await Promise.all(failed.map((job) => job.retry()));
             count += failed.length;
