@@ -1,11 +1,4 @@
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  QueueName,
-  TQueueJobTypes,
-  logger,
-  redisQueueRetryOptions,
-} from "@langfuse/shared/src/server";
 
 export class EvalExecutionQueue {
   private static instance: Queue<
