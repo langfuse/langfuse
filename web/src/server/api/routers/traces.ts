@@ -61,7 +61,13 @@ type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
 export type ObservationReturnType = Omit<
   ObservationView,
-  "input" | "output"
+  | "input"
+  | "output"
+  | "modelId"
+  | "inputPrice"
+  | "outputPrice"
+  | "totalPrice"
+  | "metadata"
 > & {
   traceId: string;
 };
@@ -511,6 +517,10 @@ export const traceRouter = createTRPCRouter({
                 calculatedInputCost: true,
                 calculatedOutputCost: true,
                 calculatedTotalCost: true,
+                promptName: true,
+                promptVersion: true,
+                latency: true,
+                updatedAt: true,
               },
               where: {
                 traceId: {

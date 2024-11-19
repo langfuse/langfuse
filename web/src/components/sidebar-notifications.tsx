@@ -24,6 +24,14 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw2-1",
+    title: "Launch Week 2 – Day 1",
+    description:
+      "New side-by-side comparison view for dataset experiment runs.",
+    link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
+    linkTitle: "Changelog",
+  },
+  {
     id: "github-star",
     title: "Star Langfuse",
     description:
@@ -51,13 +59,17 @@ export function SidebarNotifications() {
     string[]
   >(STORAGE_KEY, []);
 
-  // Find the first non-dismissed notification on mount or when dismissed list changes
+  // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {
-    const firstAvailableIndex = notifications.findIndex(
-      (notif) => !dismissedNotifications.includes(notif.id),
-    );
+    const lastAvailableIndex = notifications
+      .slice()
+      .reverse()
+      .findIndex((notif) => !dismissedNotifications.includes(notif.id));
+
     setCurrentNotificationIndex(
-      firstAvailableIndex === -1 ? null : firstAvailableIndex,
+      lastAvailableIndex === -1
+        ? null
+        : notifications.length - 1 - lastAvailableIndex,
     );
   }, [dismissedNotifications]);
 

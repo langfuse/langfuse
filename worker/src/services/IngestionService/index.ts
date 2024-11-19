@@ -241,19 +241,32 @@ export class IngestionService {
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
-      await this.prisma.traceSession.upsert({
-        where: {
-          id_projectId: {
+      try {
+        await this.prisma.traceSession.upsert({
+          where: {
+            id_projectId: {
+              id: finalTraceRecord.session_id,
+              projectId,
+            },
+          },
+          create: {
             id: finalTraceRecord.session_id,
             projectId,
           },
-        },
-        create: {
-          id: finalTraceRecord.session_id,
-          projectId,
-        },
-        update: {},
-      });
+          update: {},
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          logger.warn(
+            `Failed to upsert session. Session ${finalTraceRecord.session_id} in project ${projectId} already exists`,
+          );
+        } else {
+          throw e;
+        }
+      }
     }
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);

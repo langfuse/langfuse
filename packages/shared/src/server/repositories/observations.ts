@@ -14,7 +14,10 @@ import {
   FilterList,
   StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
-import { FullObservations } from "../queries/createGenerationsQuery";
+import {
+  FullObservation,
+  FullObservations,
+} from "../queries/createGenerationsQuery";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
@@ -88,9 +91,7 @@ export const getObservationsViewForTrace = async (
     },
   });
 
-  return await Promise.all(
-    records.map(async (o) => await convertObservationToView(o)),
-  );
+  return records.map(convertObservationToView);
 };
 
 export const getObservationById = async (
@@ -138,9 +139,7 @@ export const getObservationById = async (
     params: { id, projectId },
   });
 
-  const mapped = await Promise.all(
-    records.map(async (r) => await convertObservation(r)),
-  );
+  const mapped = records.map(convertObservation);
 
   if (mapped.length === 0) {
     throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
@@ -196,7 +195,71 @@ export const getObservationsTableCount = async (opts: ObservationTableQuery) =>
     select: "count(*) as count",
   });
 
+export type ObservationsTableRow = Omit<
+  FullObservation,
+  "modelId" | "inputPrice" | "outputPrice" | "totalPrice"
+>;
+
 export const getObservationsTable = async (
+  opts: ObservationTableQuery,
+): Promise<Array<ObservationsTableRow>> => {
+  const observationRecords = await getObservationsTableInternal<
+    Omit<
+      ObservationsTableQueryResult,
+      "trace_tags" | "trace_name" | "trace_user_id" | "type"
+    >
+  >({
+    ...opts,
+    select: `
+        o.id as id,
+        o.name as name,
+        o."model_parameters" as model_parameters,
+        o.start_time as "start_time",
+        o.end_time as "end_time",
+        o.trace_id as "trace_id",
+        o.completion_start_time as "completion_start_time",
+        o.provided_usage_details as "provided_usage_details",
+        o.usage_details as "usage_details",
+        o.provided_cost_details as "provided_cost_details",
+        o.cost_details as "cost_details",
+        o.level as level,
+        o.status_message as "status_message",
+        o.version as version,
+        o.parent_observation_id as "parent_observation_id",
+        o.created_at as "created_at",
+        o.updated_at as "updated_at",
+        o.provided_model_name as "provided_model_name",
+        o.total_cost as "total_cost",
+        internal_model_id as "internal_model_id",
+        if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`,
+  });
+
+  const traces = await getTracesByIds(
+    observationRecords
+      .map((o) => o.trace_id)
+      .filter((o): o is string => Boolean(o)),
+    opts.projectId,
+  );
+
+  return await Promise.all(
+    observationRecords.map(async (o) => {
+      const trace = traces.find((t) => t.id === o.trace_id);
+      return {
+        ...convertObservationToView({ ...o, type: "GENERATION" }),
+        latency: o.latency ? Number(o.latency) / 1000 : null,
+        timeToFirstToken: o.time_to_first_token
+          ? Number(o.time_to_first_token) / 1000
+          : null,
+        traceName: trace?.name ?? null,
+        traceTags: trace?.tags ?? [],
+        userId: trace?.userId ?? null,
+      };
+    }),
+  );
+};
+
+export const getObservationsTableWithModelData = async (
   opts: ObservationTableQuery,
 ): Promise<FullObservations> => {
   const observationRecords = await getObservationsTableInternal<
@@ -227,7 +290,6 @@ export const getObservationsTable = async (
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
         internal_model_id as "internal_model_id",
-        provided_model_name as "provided_model_name",
         if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`,
   });
@@ -264,13 +326,10 @@ export const getObservationsTable = async (
 
   return await Promise.all(
     observationRecords.map(async (o) => {
-      const model = models.find((p) => p.id === o.internal_model_id);
       const trace = traces.find((t) => t.id === o.trace_id);
+      const model = models.find((m) => m.id === o.internal_model_id);
       return {
-        ...(await convertObservationToView(
-          { ...o, type: "GENERATION" },
-          model,
-        )),
+        ...convertObservationToView({ ...o, type: "GENERATION" }),
         latency: o.latency ? Number(o.latency) / 1000 : null,
         timeToFirstToken: o.time_to_first_token
           ? Number(o.time_to_first_token) / 1000
@@ -278,6 +337,13 @@ export const getObservationsTable = async (
         traceName: trace?.name ?? null,
         traceTags: trace?.tags ?? [],
         userId: trace?.userId ?? null,
+        modelId: model?.id ?? null,
+        inputPrice:
+          model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+        outputPrice:
+          model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+        totalPrice:
+          model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
       };
     }),
   );
@@ -755,10 +821,8 @@ export const getLatencyAndTotalCostForObservations = async (
         id,
         cost_details['total'] AS total_cost,
         dateDiff('milliseconds', start_time, end_time) AS latency_ms
-    FROM observations
-    FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    FROM observations FINAL 
+    WHERE project_id = {projectId: String} 
     AND id IN ({observationIds: Array(String)})
 `;
   const rows = await queryClickhouse<{
@@ -790,8 +854,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
         sumMap(cost_details)['total'] AS total_cost,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
-    WHERE (type = 'GENERATION') 
-    AND project_id = {projectId: String} 
+    WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
     GROUP BY trace_id
 `;
@@ -812,86 +875,4 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     totalCost: Number(r.total_cost),
     latency: Number(r.latency_ms) / 1000,
   }));
-};
-
-export const getAggregatedLatencyAndTotalCostForObservationsByTraces = async (
-  projectId: string,
-  traceIds: string[],
-) => {
-  const query = `
-    WITH aggregate AS (
-        SELECT
-            trace_id,
-            sumMap(cost_details)['total'] AS total_cost,
-            dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-        FROM observations FINAL
-        WHERE (type = 'GENERATION') 
-        AND project_id = {projectId: String} 
-        AND trace_id IN ({traceIds: Array(String)})
-        GROUP BY trace_id
-    )
-    SELECT 
-        count() as count,
-        avg(total_cost) as avg_total_cost,
-        avg(latency_ms) as avg_latency_ms
-    FROM aggregate
-    `;
-  const rows = await queryClickhouse<{
-    avg_total_cost: string;
-    avg_latency_ms: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
-    },
-  });
-
-  const converted = rows.map((r) => ({
-    avgTotalCost: Number(r.avg_total_cost),
-    avgLatency: Number(r.avg_latency_ms) / 1000,
-    count: Number(r.count),
-  }));
-  return converted.length > 0 ? converted[0] : null;
-};
-
-export const getAggregatedLatencyAndTotalCostForObservations = async (
-  projectId: string,
-  ids: string[],
-) => {
-  const query = `
-    WITH aggregate AS (
-        SELECT
-            sumMap(cost_details)['total'] AS total_cost,
-            dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-        FROM observations FINAL
-        WHERE (type = 'GENERATION') 
-        AND project_id = {projectId: String} 
-        AND id IN ({ids: Array(String)})
-    )
-    SELECT 
-        count() as count,
-        avg(total_cost) as avg_total_cost,
-        avg(latency_ms) as avg_latency_ms
-    FROM aggregate
-    `;
-  const rows = await queryClickhouse<{
-    avg_total_cost: string;
-    avg_latency_ms: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId,
-      ids,
-    },
-  });
-
-  const converted = rows.map((r) => ({
-    avgTotalCost: Number(r.avg_total_cost),
-    avgLatency: Number(r.avg_latency_ms) / 1000,
-    count: Number(r.count),
-  }));
-  return converted.length > 0 ? converted[0] : null;
 };
