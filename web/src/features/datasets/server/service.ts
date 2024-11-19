@@ -11,6 +11,7 @@ import {
   logger,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -33,14 +34,6 @@ type PostgresDatasetRun = {
   run_created_at: Date;
   run_updated_at: Date;
   run_items: PostgresRunItem[];
-};
-
-type DatasetRunItemTempTableRow = {
-  project_id: string;
-  run_id: string;
-  run_item_id: string;
-  dataset_id: string;
-  trace_id: string;
 };
 
 export type DatasetRunsTableInput = z.infer<typeof datasetRunsTableSchema>;
@@ -89,10 +82,21 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
     console.log("obsAgg", obsAgg);
     console.log("traceAgg", traceAgg);
     await deleteTempTableInClickhouse(tableName);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const enrichedRuns = runs.map(({ run_items, ...run }) => {
+      const observation = obsAgg.find((o) => o.runId === run.run_id);
+      const trace = traceAgg.find((t) => t.runId === run.run_id);
+      return {
+        ...run,
+        avgLatency: trace?.latencyMs ?? observation?.latencyMs,
+        avgCost: trace?.cost ?? observation?.cost,
+        scores: aggregateScores(scores.filter((s) => s.run_id === run.run_id)),
+      };
+    });
+
     return {
-      scores,
-      obsAgg,
-      traceAgg,
+      runs: enrichedRuns,
     };
   } catch (e) {
     logger.error("Failed to fetch dataset runs from clickhouse", e);
@@ -195,7 +199,8 @@ const getScoresFromTempTable = async (
 ) => {
   const query = `
       SELECT 
-        *
+        s.*,
+        tmp.run_id
       FROM ${tableName} tmp JOIN scores s 
         ON tmp.project_id = s.project_id 
         AND tmp.observation_id = s.observation_id 
@@ -207,7 +212,9 @@ const getScoresFromTempTable = async (
       LIMIT 1 BY s.id, s.project_id
   `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<
+    FetchScoresReturnType & { run_id: string }
+  >({
     query: query,
     params: {
       projectId: input.projectId,
@@ -216,7 +223,7 @@ const getScoresFromTempTable = async (
     clickhouseConfigs: { session_id: clickhouseSession },
   });
 
-  return rows.map(convertToScore);
+  return rows.map((row) => ({ ...convertToScore(row), run_id: row.run_id }));
 };
 
 const getObservationLatencyAndCostForDataset = async (

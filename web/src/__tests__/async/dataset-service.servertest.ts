@@ -55,6 +55,7 @@ describe("dataset service", () => {
     const traceId2 = v4();
     const traceId3 = v4();
     const scoreId = v4();
+    const scoreName = v4();
 
     await prisma.datasetRunItems.create({
       data: {
@@ -120,10 +121,11 @@ describe("dataset service", () => {
       observation_id: observationId,
       trace_id: traceId,
       project_id: projectId,
+      name: scoreName,
     });
     createScores([score]);
 
-    const { scores, obsAgg, traceAgg } = await createDatasetRunsTable({
+    const runs = await createDatasetRunsTable({
       projectId,
       datasetId,
       queryClickhouse: false,
@@ -131,20 +133,26 @@ describe("dataset service", () => {
       limit: 10,
     });
 
-    expect(scores).toHaveLength(1);
-    expect(scores[0].id).toEqual(scoreId);
-    expect(scores[0].traceId).toEqual(traceId);
-    expect(scores[0].observationId).toEqual(observationId);
-    expect(scores[0].projectId).toEqual(projectId);
+    console.log("runs", JSON.stringify(runs));
 
-    expect(obsAgg).toHaveLength(1);
-    expect(obsAgg[0].runId).toEqual(datasetRunId);
-    expect(obsAgg[0].latencyMs).toEqual(3600);
-    expect(obsAgg[0].cost).toEqual(300);
+    expect(runs.runs).toHaveLength(1);
+    expect(runs.runs[0].run_id).toEqual(datasetRunId);
 
-    expect(traceAgg).toHaveLength(1);
-    expect(traceAgg[0].runId).toEqual(datasetRunId);
-    expect(traceAgg[0].latencyMs).toEqual(10800);
-    expect(traceAgg[0].cost).toEqual(275);
+    expect(runs.runs[0].run_description).toBeNull();
+    expect(runs.runs[0].run_metadata).toEqual({});
+
+    expect(runs.runs[0].avgLatency).toEqual(10800);
+    expect(runs.runs[0].avgCost).toEqual(275);
+
+    const expectedObject = JSON.stringify({
+      [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        type: "NUMERIC",
+        values: [100.5],
+        average: 100.5,
+        comment: "comment",
+      },
+    });
+
+    expect(JSON.stringify(runs.runs[0].scores)).toEqual(expectedObject);
   });
 });
