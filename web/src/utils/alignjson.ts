@@ -1,3 +1,5 @@
+import { isEqual } from "lodash";
+
 type JSONValue =
   | string
   | number
@@ -41,7 +43,7 @@ function alignArrays(arr1: JSONArray, arr2: JSONArray): [JSONArray, JSONArray] {
   const usedIndices2 = new Set<number>();
   arr1.forEach((item1) => {
     const matchIndex = arr2.findIndex(
-      (item2, index2) => !usedIndices2.has(index2) && item1 === item2,
+      (item2, index2) => !usedIndices2.has(index2) && isEqual(item1, item2),
     );
     if (matchIndex !== -1) {
       matched1.push(item1);
