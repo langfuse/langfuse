@@ -3,7 +3,7 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
-  upsertClickhouse,
+  upsertClickhouseWithS3,
 } from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { FilterState } from "../../types";
@@ -122,7 +122,7 @@ export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
   if (!["id", "project_id", "name", "timestamp"].every((key) => key in score)) {
     throw new Error("Identifier fields must be provided to upsert Score.");
   }
-  await upsertClickhouse({
+  await upsertClickhouseWithS3({
     table: "scores",
     records: [score as FetchScoresReturnType],
     eventBodyMapper: convertToScore,

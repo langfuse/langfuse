@@ -25,7 +25,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
   return s3StorageServiceClient;
 };
 
-export async function upsertClickhouse<
+export async function upsertClickhouseWithS3<
   T extends Record<string, unknown>,
 >(opts: {
   table: "scores" | "traces"; // TODO: Modify eventType logic to support more tables going forward
