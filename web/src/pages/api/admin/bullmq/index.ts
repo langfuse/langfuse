@@ -89,8 +89,9 @@ export default async function handler(
           }
 
           failed = await queue?.getJobs(["failed"], 0, 100, true);
+          logger.info(`Retrying jobs for queue ${JSON.stringify(failed)}`);
           if (failed && failed.length > 0) {
-            await queue?.addBulk(failed);
+            await Promise.all(failed.map((job) => job.retry()));
             count += failed.length;
           }
           loopCount++;
@@ -99,7 +100,7 @@ export default async function handler(
         logger.info(`Retried ${count} jobs for queue ${queueName}`);
       }
 
-      return res.status(200).json({ message: "API keys deleted" });
+      return res.status(200).json({ message: "Retried all jobs" });
     }
 
     // return not implemented error
