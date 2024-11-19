@@ -9,13 +9,11 @@ import {
 } from "@/src/__tests__/fixtures/tracing-factory";
 import {
   getTracesTable,
-  type TracesAllReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
   type TracesTableReturnType,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 
 describe("Traces table API test", () => {
   it("should get a correct trace without observation", async () => {
