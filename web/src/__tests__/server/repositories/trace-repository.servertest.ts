@@ -1,7 +1,7 @@
 import { createTraces } from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
-  getTraceByIdOrThrow,
+  getTraceById,
   getTracesBySessionId,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -14,7 +14,7 @@ describe("Clickhouse Traces Repository Test", () => {
   });
 
   it("should throw if no traces are found", async () => {
-    await expect(getTraceByIdOrThrow(v4(), v4())).rejects.toThrow();
+    expect(await getTraceById(v4(), v4())).toBeUndefined();
   });
 
   it("should return a trace if it exists", async () => {
@@ -41,11 +41,15 @@ describe("Clickhouse Traces Repository Test", () => {
 
     await createTraces([trace]);
 
-    const result = await getTraceByIdOrThrow(
+    const result = await getTraceById(
       traceId,
       projectId,
       new Date(trace.timestamp),
     );
+    expect(result).not.toBeNull();
+    if (!result) {
+      return;
+    }
     expect(result.id).toEqual(trace.id);
     expect(result.projectId).toEqual(trace.project_id);
     expect(result.name).toEqual(trace.name);
@@ -88,7 +92,11 @@ describe("Clickhouse Traces Repository Test", () => {
 
     await createTraces([trace]);
 
-    const result = await getTraceByIdOrThrow(traceId, projectId);
+    const result = await getTraceById(traceId, projectId);
+    expect(result).not.toBeNull();
+    if (!result) {
+      return;
+    }
     expect(result.id).toEqual(trace.id);
     expect(result.projectId).toEqual(trace.project_id);
     expect(result.name).toEqual(trace.name);
@@ -106,7 +114,6 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(result.createdAt).toEqual(new Date(trace.created_at));
     expect(result.updatedAt).toEqual(new Date(trace.updated_at));
   });
-
   it("should retrieve traces by session ID", async () => {
     const sessionId = v4();
     const trace1 = {
