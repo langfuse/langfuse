@@ -14,7 +14,7 @@ export default createNextApiHandler({
   createContext: createTRPCContext,
   onError: ({ path, error }) => {
     logger.error(
-      `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
+      `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
       error,
     );
     traceException(error);
