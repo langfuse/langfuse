@@ -80,7 +80,7 @@ import { setUpSuperjson } from "@/src/utils/superjson";
 import { DB } from "@/src/server/db";
 import {
   addUserToSpan,
-  getTraceByIdOrThrow,
+  getTraceById,
   logger,
 } from "@langfuse/shared/src/server";
 import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
@@ -121,13 +121,17 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    logger.error("middleware intercepted error", res.error);
+    logger.error(
+      `middleware intercepted error with code ${res.error.code}`,
+      res.error,
+    );
 
     // Throw a new TRPC error with:
     // - The same error code as the original error
     // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
-    throw new TRPCError({
+    res.error = new TRPCError({
       code: res.error.code,
+      cause: null, // do not expose stack traces
       message:
         res.error.code !== "INTERNAL_SERVER_ERROR"
           ? res.error.message
@@ -349,11 +353,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     result.data.queryClickhouse === true &&
     isClickhouseAdminEligible(ctx.session?.user) // basically checks if user exists and admin
   ) {
-    trace = await getTraceByIdOrThrow(
-      traceId,
-      projectId,
-      timestamp ?? undefined,
-    );
+    trace = await getTraceById(traceId, projectId, timestamp ?? undefined);
     // check from postgres for non admins when env is set accordingly
   } else if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
     trace = await prisma.trace.findFirst({
@@ -367,11 +367,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     });
     // check clickhouse otherwise
   } else {
-    trace = await getTraceByIdOrThrow(
-      traceId,
-      projectId,
-      timestamp ?? undefined,
-    );
+    trace = await getTraceById(traceId, projectId, timestamp ?? undefined);
   }
 
   if (!trace) {
