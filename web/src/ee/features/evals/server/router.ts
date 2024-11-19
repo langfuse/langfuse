@@ -670,27 +670,31 @@ export const evalRouter = createTRPCRouter({
           scoreName: string;
         }>
       >(Prisma.sql`
-      SELECT
-        id, 
-        score_name as "scoreName"
+      SELECT DISTINCT
+        jc.id, 
+        jc.score_name as "scoreName"
       FROM 
         "job_configurations" as jc
-        jsonb_array_elements(jc.filter) as f
       WHERE 
         jc.project_id = ${input.projectId}
         AND jc.job_type = 'EVAL'
         AND jc.target_object = 'dataset'
         AND jc.status = 'ACTIVE'
-        AND f->>'column' = 'Dataset'
-        AND f->>'type' = 'stringOptions'
         AND (
-        -- For "any of" operator, check if datasetId is IN the array
-        (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
-        OR 
-        -- For "none of" operator, check if datasetId is NOT IN the array
-        (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
+          jc.filter IS NULL 
+          OR jsonb_array_length(jc.filter) = 0
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(jc.filter) as f
+            WHERE f->>'column' = 'Dataset'
+              AND f->>'type' = 'stringOptions'
+              AND (
+                (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
+                OR 
+                (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
+              )
+          )
         )
-      )
       `);
 
       return evaluators;
