@@ -53,12 +53,15 @@ export default withMiddlewares({
         false,
       );
 
+      const { contentType, contentLength, uploadedAt } = media;
+
       return {
         mediaId,
-        contentType: media.contentType,
-        contentLength: Number(media.contentLength),
+        contentType,
+        contentLength: Number(contentLength),
         url,
         urlExpiry,
+        uploadedAt,
       };
     },
   }),
