@@ -32,8 +32,8 @@ export default withMiddlewares({
         },
         clickhouseExecution: async () => {
           const observation = await getObservationById(
-            auth.scope.projectId,
             observationId,
+            auth.scope.projectId,
           );
           if (!observation) {
             throw new LangfuseNotFoundError(
