@@ -372,7 +372,7 @@ export const getTraceById = async (
 
   const res = records.map(convertClickhouseToDomain);
 
-  return res.length > 0 ? res[0] : undefined;
+  return res.shift();
 };
 
 export const getTracesGroupedByName = async (
