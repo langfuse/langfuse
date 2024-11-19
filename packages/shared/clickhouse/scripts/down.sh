@@ -1,7 +1,13 @@
 #!/bin/bash
 
 # Load environment variables
-source ../../.env
+[ -f ../../.env ] && source ../../.env
+
+# Check if CLICKHOUSE_URL is configured
+if [ -z "${CLICKHOUSE_URL}" ]; then
+  echo "Info: CLICKHOUSE_URL not configured, skipping migration."
+  exit 0
+fi
 
 # Check if golang-migrate is installed
 if ! command -v migrate &> /dev/null
@@ -13,10 +19,22 @@ then
 fi
 
 # Construct the database URL
-if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+if [ "$CLICKHOUSE_MIGRATION_CLUSTER_DISABLED" != "true" ] ; then
+  if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&secure=true&skip_verify=true&x-cluster-name=default&x-migrations-table-engine=ReplicatedMergeTree"
+  else
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&x-cluster-name=default&x-migrations-table-engine=ReplicatedMergeTree"
+  fi
+
+  # Execute the up command
+  migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" down
 else
-    DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+  if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&secure=true&skip_verify=true&x-migrations-table-engine=MergeTree"
+  else
+      DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=default&x-multi-statement=true&x-migrations-table-engine=MergeTree"
+  fi
+
+  # Execute the up command
+  migrate -source file://clickhouse/migrations/unclustered -database "$DATABASE_URL" down
 fi
-# Execute the down command
-migrate -source file://clickhouse/migrations -database "$DATABASE_URL" down
