@@ -13,6 +13,14 @@ const DefaultModelPriceSchema = z.object({
   tokenizer_config: z.record(z.union([z.string(), z.number()])).nullish(),
   tokenizer_id: z.string().nullish(),
 });
+type DefaultModelPrice = z.infer<typeof DefaultModelPriceSchema>;
+
+const ExistingModelPriceSchema = z.object({
+  modelId: z.string(),
+  modelUpdatedAt: z.coerce.date(),
+  usageType: z.string(),
+  price: z.coerce.number(),
+});
 
 /**
  * Upserts default model prices into the database into models and prices tables.
@@ -46,20 +54,43 @@ export const upsertDefaultModelPrices = async (force = false) => {
       .array(DefaultModelPriceSchema)
       .parse(defaultModelPrices);
 
-    // Fetch existing default models. Store in a map for O(1) lookup.
-    const existingModelUpdateDates = new Map(
-      (
-        await prisma.model.findMany({
-          where: {
-            projectId: null,
-          },
-          select: {
-            id: true,
-            updatedAt: true,
-          },
-        })
-      ).map((model) => [model.id, model.updatedAt])
+    const existingModelPricesQuery = await prisma.$queryRaw`
+      SELECT
+        m.id AS "modelId",
+        m.updated_at "modelUpdatedAt",
+        p.usage_type "usageType",
+        p.price "price"
+      FROM
+        prices p
+        LEFT JOIN models m ON m.id = p.model_id
+      WHERE
+        m.project_id IS NULL
+    `;
+
+    const existingModelPrices = ExistingModelPriceSchema.array().parse(
+      existingModelPricesQuery,
     );
+
+    // Store in a map for O(1) lookup.
+    const existinModelPricesMap = new Map<
+      string,
+      { updatedAt: Date; prices: Record<string, number> }
+    >(
+      existingModelPrices.map((em) => [
+        em.modelId,
+        {
+          updatedAt: em.modelUpdatedAt,
+          prices: {},
+        },
+      ]),
+    );
+
+    for (const em of existingModelPrices) {
+      const modelUpdateDate = existinModelPricesMap.get(em.modelId);
+      if (modelUpdateDate) {
+        modelUpdateDate.prices[em.usageType] = em.price;
+      }
+    }
 
     // Upsert in batches
     const batchSize = 10;
@@ -70,37 +101,26 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
       const batch = parsedDefaultModelPrices.slice(
         i * batchSize,
-        (i + 1) * batchSize
+        (i + 1) * batchSize,
       );
 
       const promises = [];
 
       for (const defaultModelPrice of batch) {
-        const existingModelUpdateDate = existingModelUpdateDates.get(
-          defaultModelPrice.id
+        const existingModelUpdateDate = existinModelPricesMap.get(
+          defaultModelPrice.id,
         );
 
         if (
           !force &&
           existingModelUpdateDate &&
-          existingModelUpdateDate.getTime() ===
-            defaultModelPrice.updated_at.getTime()
+          isExistingModelUpToDate(defaultModelPrice, existingModelUpdateDate)
         ) {
           logger.debug(
-            `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`
+            `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`,
           );
-          continue;
-        }
 
-        if (
-          !force &&
-          existingModelUpdateDate &&
-          existingModelUpdateDate.getTime() >
-            defaultModelPrice.updated_at.getTime()
-        ) {
-          logger.error(
-            `Model drift detected for default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}). updatedAt ${existingModelUpdateDate.toISOString()} after ${defaultModelPrice.updated_at.toISOString()}. Upserting model and prices.`
-          );
+          continue;
         }
 
         // Upsert model and prices in a transaction
@@ -136,7 +156,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
               const pricesToUpsert = [];
 
               for (const [usageType, price] of Object.entries(
-                defaultModelPrice.prices
+                defaultModelPrice.prices,
               )) {
                 pricesToUpsert.push(
                   tx.price.upsert({
@@ -157,14 +177,14 @@ export const upsertDefaultModelPrices = async (force = false) => {
                       createdAt: defaultModelPrice.created_at,
                       updatedAt: defaultModelPrice.updated_at,
                     },
-                  })
+                  }),
                 );
               }
 
               await Promise.all(pricesToUpsert);
 
               logger.info(
-                `Upserted default model ${defaultModelPrice.model_name} (${defaultModelPrice.id})`
+                `Upserted default model ${defaultModelPrice.model_name} (${defaultModelPrice.id})`,
               );
             })
             .catch((error) => {
@@ -172,9 +192,9 @@ export const upsertDefaultModelPrices = async (force = false) => {
                 `Error upserting default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}): ${error.message}`,
                 {
                   error,
-                }
+                },
               );
-            })
+            }),
         );
       }
 
@@ -183,7 +203,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
     }
 
     logger.info(
-      `Finished upserting default model prices in ${Date.now() - startTime}ms`
+      `Finished upserting default model prices in ${Date.now() - startTime}ms`,
     );
   } catch (error) {
     logger.error(
@@ -192,7 +212,27 @@ export const upsertDefaultModelPrices = async (force = false) => {
       }`,
       {
         error,
-      }
+      },
     );
   }
 };
+
+function isExistingModelUpToDate(
+  defaultModelPrice: DefaultModelPrice,
+  existingModelUpdateDate: { updatedAt: Date; prices: Record<string, number> },
+) {
+  const isUpdatedAtSame =
+    existingModelUpdateDate.updatedAt.getTime() ===
+    defaultModelPrice.updated_at.getTime();
+
+  const isPriceSame =
+    Object.keys(defaultModelPrice.prices).length ===
+      Object.keys(existingModelUpdateDate.prices).length &&
+    Object.entries(existingModelUpdateDate.prices).every(
+      ([usageType, price]) => {
+        return price === defaultModelPrice.prices[usageType];
+      },
+    );
+
+  return isUpdatedAtSame && isPriceSame;
+}
