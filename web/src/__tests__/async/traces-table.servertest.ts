@@ -127,20 +127,20 @@ describe("Traces table API test", () => {
     {
       traceInput: {},
       observationInput: [
-        { cost_details: { total: 100 } },
-        { cost_details: { total: 200 } },
+        { cost_details: { total: 0.000001 } },
+        { cost_details: { total: 0.000002 } },
       ],
       filterstate: [
         {
           column: "totalCost",
-          operator: "<" as const,
-          value: 100000,
+          operator: ">" as const,
+          value: 0.000002,
           type: "number" as const,
         },
       ],
       expected: [
         {
-          cost_details: { total: 300 },
+          cost_details: { total: 0.000003 },
         },
       ],
     },
