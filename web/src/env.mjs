@@ -182,26 +182,6 @@ export const env = createEnv({
       .nonnegative()
       .default(3600),
 
-    // Ingestion event upload to S3
-    LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
-
-    LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
-    LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_ASYNC_INGESTION_PROCESSING: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING: z
-      .enum(["true", "false"])
-      .default("false"),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -213,10 +193,6 @@ export const env = createEnv({
           (creator) => emailSchema.safeParse(creator).success,
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
-    LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
-      .number()
-      .nonnegative()
-      .default(15_000),
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
     LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
     LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
@@ -384,23 +360,6 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
-    // S3 event upload
-    LANGFUSE_S3_EVENT_UPLOAD_ENABLED:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED,
-    LANGFUSE_S3_EVENT_UPLOAD_BUCKET:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    LANGFUSE_S3_EVENT_UPLOAD_PREFIX:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX,
-    LANGFUSE_S3_EVENT_UPLOAD_REGION:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-    LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-    LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-    LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker
@@ -444,14 +403,8 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-    LANGFUSE_ASYNC_INGESTION_PROCESSING:
-      process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
-    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING:
-      process.env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
-    LANGFUSE_INGESTION_QUEUE_DELAY_MS:
-      process.env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
     LANGFUSE_READ_FROM_POSTGRES_ONLY:
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
     LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
