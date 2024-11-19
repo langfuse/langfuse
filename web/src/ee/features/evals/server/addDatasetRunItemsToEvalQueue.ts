@@ -35,13 +35,12 @@ export const addDatasetRunItemsToEvalQueue = async ({
           name: QueueJobs.DatasetRunItemUpsert as const,
         },
         {
-          attempts: 3, // retry 3 times
+          attempts: 5,
           backoff: {
             type: "exponential",
             delay: 1000,
           },
-          // TODO: Is this delay sufficient?
-          delay: 10000, // 10 seconds
+          delay: 30000, // 30 seconds
           removeOnComplete: true,
           removeOnFail: 1_000,
         },
