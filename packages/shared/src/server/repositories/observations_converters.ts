@@ -25,10 +25,7 @@ export const convertObservationToView = (
 };
 
 export const mergeObservationAndModel = (
-  observation: Omit<
-    ObservationView,
-    "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
-  >,
+  observation: Omit<Observation, "internalModel">,
   model?: Model & { Price: Price[] },
 ) => {
   return {

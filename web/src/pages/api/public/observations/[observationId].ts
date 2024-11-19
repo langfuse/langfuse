@@ -72,7 +72,20 @@ export default withMiddlewares({
               })
             : undefined;
 
-          return mergeObservationAndModel(observation, model ?? undefined);
+          const mergedObservation = mergeObservationAndModel(
+            observation,
+            model ?? undefined,
+          );
+
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const {
+            inputCost,
+            outputCost,
+            totalCost,
+            internalModelId,
+            ...cleanedObservation
+          } = mergedObservation;
+          return cleanedObservation;
         },
       });
 

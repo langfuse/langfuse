@@ -330,13 +330,15 @@ export const getObservationsTableWithModelData = async (
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
       ...mergeObservationAndModel(
-        convertObservationToView({ ...o, type: "GENERATION" }),
+        convertObservation({ ...o, type: "GENERATION" }),
         model,
       ),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
         : null,
+      promptName: prompt?.name ?? null,
+      promptVersion: prompt?.version ?? null,
       traceName: trace?.name ?? null,
       traceTags: trace?.tags ?? [],
       userId: trace?.userId ?? null,
