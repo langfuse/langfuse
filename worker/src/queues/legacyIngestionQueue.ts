@@ -36,6 +36,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 export const legacyIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>,
 ) => {
+  // throw new Error("Not implemented");
   try {
     let ingestionEvents: IngestionEventType[] = [];
     if (job.data.payload.useS3EventStore) {
