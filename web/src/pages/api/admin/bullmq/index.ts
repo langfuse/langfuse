@@ -76,7 +76,7 @@ export default async function handler(
         let count = 0;
         let failed;
         let loopCount = 0;
-        const maxLoops = 100;
+        const maxLoops = 200;
 
         do {
           if (loopCount >= maxLoops) {
@@ -86,7 +86,7 @@ export default async function handler(
             break;
           }
 
-          failed = await queue?.getJobs(["failed"], 0, 100, true);
+          failed = await queue?.getJobs(["failed"], 0, 1000, true);
           logger.info(`Retrying jobs for queue ${JSON.stringify(failed)}`);
           if (failed && failed.length > 0) {
             await Promise.all(failed.map((job) => job.retry()));
