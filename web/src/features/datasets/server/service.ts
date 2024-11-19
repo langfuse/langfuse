@@ -203,3 +203,35 @@ const getScoresFromTempTable = async (
 
   return rows.map(convertToScore);
 };
+
+const getObservationLatencyAndCostForDataset = async (
+  input: DatasetRunsTableInput,
+  tableName: string,
+  clickhouseSession: string,
+) => {
+  const query = `
+      SELECT 
+        *
+      FROM ${tableName} tmp JOIN observations o 
+        ON tmp.project_id = o.project_id 
+        AND tmp.observation_id = o.id 
+        AND tmp.trace_id = o.trace_id
+      WHERE o.project_id = {projectId: String}
+      AND tmp.project_id = {projectId: String}
+      AND tmp.dataset_id = {datasetId: String}
+      AND tmp.observation_id IS NOT NULL
+      ORDER BY o.event_ts DESC
+      LIMIT 1 BY o.id, o.project_id
+  `;
+
+  const rows = await queryClickhouse<FetchScoresReturnType>({
+    query: query,
+    params: {
+      projectId: input.projectId,
+      datasetId: input.datasetId,
+    },
+    clickhouseConfigs: { session_id: clickhouseSession },
+  });
+
+  return rows.map(convertToScore);
+};
