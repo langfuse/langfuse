@@ -638,7 +638,7 @@ async function callLLM(
   evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
 ): Promise<z.infer<typeof evalScoreSchema>> {
   try {
-    const completion = await fetchLLMCompletion({
+    const { completion } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
       baseURL: llmApiKey.baseURL || undefined,

@@ -19,8 +19,20 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 
 import { ChatMessage, ChatMessageRole, LLMAdapter, ModelParams } from "./types";
+import { Langfuse } from "/Users/hassieb/Langfuse/langfuse-js/langfuse";
+import { CallbackHandler } from "/Users/hassieb/Langfuse/langfuse-js/langfuse-langchain";
 
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+
+type GetTracedEvents =
+  | typeof Langfuse.prototype._shutdownAdmin
+  | (() => Promise<null>);
+
+type TraceParams = {
+  traceName: string;
+  traceId: string;
+  tags: string[];
+};
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -31,6 +43,7 @@ type LLMCompletionParams = {
   apiKey: string;
   maxRetries?: number;
   config?: Record<string, string> | null;
+  traceParams?: TraceParams;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -40,25 +53,34 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
-  }
-): Promise<IterableReadableStream<Uint8Array>>;
+  },
+): Promise<{
+  completion: IterableReadableStream<Uint8Array>;
+  getTracedEvents: GetTracedEvents;
+}>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
-  }
-): Promise<string>;
+  },
+): Promise<{ completion: string; getTracedEvents: GetTracedEvents }>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
-  }
-): Promise<unknown>;
+  },
+): Promise<{
+  completion: unknown;
+  getTracedEvents: GetTracedEvents;
+}>;
 
 export async function fetchLLMCompletion(
-  params: FetchLLMCompletionParams
-): Promise<string | IterableReadableStream<Uint8Array> | unknown> {
+  params: FetchLLMCompletionParams,
+): Promise<{
+  completion: string | IterableReadableStream<Uint8Array> | unknown;
+  getTracedEvents: GetTracedEvents;
+}> {
   // the apiKey must never be printed to the console
   const {
     messages,
@@ -69,7 +91,23 @@ export async function fetchLLMCompletion(
     baseURL,
     maxRetries,
     config,
+    traceParams,
   } = params;
+
+  let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
+  let getTracedEvents: GetTracedEvents = () => Promise.resolve(null);
+
+  if (traceParams) {
+    const handler = new CallbackHandler({
+      tags: traceParams.tags,
+    });
+
+    finalCallbacks.push(handler);
+
+    getTracedEvents = handler.langfuse._shutdownAdmin.bind(handler.langfuse);
+  }
+
+  finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
   const finalMessages = messages.map((message) => {
     if (message.role === ChatMessageRole.User)
@@ -89,7 +127,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
-      callbacks,
+      callbacks: finalCallbacks,
       clientOptions: { maxRetries },
     });
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
@@ -100,7 +138,7 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       streamUsage: false, // https://github.com/langchain-ai/langchainjs/issues/6533
-      callbacks,
+      callbacks: finalCallbacks,
       maxRetries,
       configuration: {
         baseURL,
@@ -115,7 +153,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
-      callbacks,
+      callbacks: finalCallbacks,
       maxRetries,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
@@ -129,7 +167,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
-      callbacks,
+      callbacks: finalCallbacks,
       maxRetries,
     });
   } else {
@@ -139,9 +177,16 @@ export async function fetchLLMCompletion(
   }
 
   if (params.structuredOutputSchema) {
-    return await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-      .withStructuredOutput(params.structuredOutputSchema)
-      .invoke(finalMessages);
+    return {
+      completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+        .withStructuredOutput(params.structuredOutputSchema)
+        .invoke(finalMessages, {
+          callbacks: finalCallbacks,
+          runId: traceParams?.traceId,
+          runName: traceParams?.traceName,
+        }),
+      getTracedEvents,
+    };
   }
 
   /*
@@ -157,27 +202,40 @@ export async function fetchLLMCompletion(
   Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
   */
   if (modelParams.model.startsWith("o1-")) {
-    return await new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: modelParams.model,
-      temperature: 1,
-      maxTokens: undefined,
-      topP: undefined,
-      callbacks,
-      maxRetries,
-      configuration: {
-        baseURL,
-      },
-    })
-      .pipe(new StringOutputParser())
-      .invoke(
-        finalMessages.filter((message) => message._getType() !== "system")
-      );
+    return {
+      completion: await new ChatOpenAI({
+        openAIApiKey: apiKey,
+        modelName: modelParams.model,
+        temperature: 1,
+        maxTokens: undefined,
+        topP: undefined,
+        callbacks,
+        maxRetries,
+        configuration: {
+          baseURL,
+        },
+      })
+        .pipe(new StringOutputParser())
+        .invoke(
+          finalMessages.filter((message) => message._getType() !== "system"),
+        ),
+      getTracedEvents,
+    };
   }
 
   if (streaming) {
-    return chatModel.pipe(new BytesOutputParser()).stream(finalMessages);
+    return {
+      completion: await chatModel
+        .pipe(new BytesOutputParser())
+        .stream(finalMessages),
+      getTracedEvents,
+    };
   }
 
-  return await chatModel.pipe(new StringOutputParser()).invoke(finalMessages);
+  return {
+    completion: await chatModel
+      .pipe(new StringOutputParser())
+      .invoke(finalMessages),
+    getTracedEvents,
+  };
 }
