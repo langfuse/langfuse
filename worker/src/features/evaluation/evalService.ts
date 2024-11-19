@@ -16,6 +16,7 @@ import {
   redis,
   IngestionQueue,
 } from "@langfuse/shared/src/server";
+import { JobConfigState } from "@langfuse/shared/src/db";
 import {
   ApiError,
   availableTraceEvalVariables,
@@ -39,7 +40,6 @@ import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { JobConfigState } from "../../../../packages/shared/dist/prisma/generated/types";
 
 let s3StorageServiceClient: S3StorageService;
 

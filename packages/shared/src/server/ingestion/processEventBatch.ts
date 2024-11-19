@@ -32,7 +32,7 @@ import { getProcessorForEvent } from "./legacy/EventProcessor";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
 import { type Model } from "../../db";
 
-type TokenCountDelegate = (p: {
+export type TokenCountDelegate = (p: {
   model: Model;
   text: unknown;
 }) => number | undefined;

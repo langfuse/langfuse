@@ -1,5 +1,7 @@
 import type { ZodSchema } from "zod";
 
+import { CallbackHandler } from "/Users/hassieb/Langfuse/langfuse-js/langfuse-langchain";
+
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatBedrockConverse } from "@langchain/aws";
 import {
@@ -17,21 +19,25 @@ import {
   BedrockConfigSchema,
   BedrockCredentialSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-
+import { AuthHeaderValidVerificationResult } from "../auth/types";
+import {
+  processEventBatch,
+  type TokenCountDelegate,
+} from "../ingestion/processEventBatch";
+import { logger } from "../logger";
 import { ChatMessage, ChatMessageRole, LLMAdapter, ModelParams } from "./types";
-import { Langfuse } from "/Users/hassieb/Langfuse/langfuse-js/langfuse";
-import { CallbackHandler } from "/Users/hassieb/Langfuse/langfuse-js/langfuse-langchain";
 
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
-type GetTracedEvents =
-  | typeof Langfuse.prototype._shutdownAdmin
-  | (() => Promise<null>);
+type ProcessTracedEvents = () => Promise<void>;
 
 type TraceParams = {
   traceName: string;
   traceId: string;
+  projectId: string;
   tags: string[];
+  tokenCountDelegate: TokenCountDelegate;
+  authCheck: AuthHeaderValidVerificationResult;
 };
 
 type LLMCompletionParams = {
@@ -56,14 +62,14 @@ export async function fetchLLMCompletion(
   },
 ): Promise<{
   completion: IterableReadableStream<Uint8Array>;
-  getTracedEvents: GetTracedEvents;
+  processTracedEvents: ProcessTracedEvents;
 }>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{ completion: string; getTracedEvents: GetTracedEvents }>;
+): Promise<{ completion: string; processTracedEvents: ProcessTracedEvents }>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -72,14 +78,14 @@ export async function fetchLLMCompletion(
   },
 ): Promise<{
   completion: unknown;
-  getTracedEvents: GetTracedEvents;
+  processTracedEvents: ProcessTracedEvents;
 }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<{
   completion: string | IterableReadableStream<Uint8Array> | unknown;
-  getTracedEvents: GetTracedEvents;
+  processTracedEvents: ProcessTracedEvents;
 }> {
   // the apiKey must never be printed to the console
   const {
@@ -95,7 +101,7 @@ export async function fetchLLMCompletion(
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
-  let getTracedEvents: GetTracedEvents = () => Promise.resolve(null);
+  let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceParams) {
     const handler = new CallbackHandler({
@@ -104,7 +110,18 @@ export async function fetchLLMCompletion(
 
     finalCallbacks.push(handler);
 
-    getTracedEvents = handler.langfuse._shutdownAdmin.bind(handler.langfuse);
+    processTracedEvents = async () => {
+      try {
+        const events = await handler.langfuse._shutdownAdmin();
+        await processEventBatch(
+          JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
+          traceParams.authCheck,
+          traceParams.tokenCountDelegate,
+        );
+      } catch (e) {
+        logger.error("Failed to process traced events", { error: e });
+      }
+    };
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -185,7 +202,7 @@ export async function fetchLLMCompletion(
           runId: traceParams?.traceId,
           runName: traceParams?.traceName,
         }),
-      getTracedEvents,
+      processTracedEvents,
     };
   }
 
@@ -219,7 +236,7 @@ export async function fetchLLMCompletion(
         .invoke(
           finalMessages.filter((message) => message._getType() !== "system"),
         ),
-      getTracedEvents,
+      processTracedEvents,
     };
   }
 
@@ -228,7 +245,7 @@ export async function fetchLLMCompletion(
       completion: await chatModel
         .pipe(new BytesOutputParser())
         .stream(finalMessages),
-      getTracedEvents,
+      processTracedEvents,
     };
   }
 
@@ -236,6 +253,6 @@ export async function fetchLLMCompletion(
     completion: await chatModel
       .pipe(new StringOutputParser())
       .invoke(finalMessages),
-    getTracedEvents,
+    processTracedEvents,
   };
 }
