@@ -49,7 +49,7 @@ export class ClickhouseWriter {
 
   private start() {
     logger.info(
-      `Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`
+      `Starting ClickhouseWriter. Max interval: ${this.writeInterval} ms, Max batch size: ${this.batchSize}`,
     );
 
     this.intervalId = setInterval(() => {
@@ -92,7 +92,7 @@ export class ClickhouseWriter {
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
-      }
+      },
     );
   }
 
@@ -102,7 +102,7 @@ export class ClickhouseWriter {
 
     const queueItems = entityQueue.splice(
       0,
-      fullQueue ? entityQueue.length : this.batchSize
+      fullQueue ? entityQueue.length : this.batchSize,
     );
 
     // Log wait time
@@ -134,11 +134,11 @@ export class ClickhouseWriter {
         Date.now() - processingStartTime,
         {
           unit: "milliseconds",
-        }
+        },
       );
 
       logger.debug(
-        `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`
+        `Flushed ${queueItems.length} records to Clickhouse ${tableName}. New queue length: ${entityQueue.length}`,
       );
 
       recordGauge(
@@ -147,7 +147,7 @@ export class ClickhouseWriter {
         {
           unit: "records",
           entityType: tableName,
-        }
+        },
       );
     } catch (err) {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
@@ -162,7 +162,7 @@ export class ClickhouseWriter {
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`
+            `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`,
           );
         }
       });
@@ -171,7 +171,7 @@ export class ClickhouseWriter {
 
   public addToQueue<T extends TableName>(
     tableName: T,
-    data: RecordInsertType<T>
+    data: RecordInsertType<T>,
   ) {
     const entityQueue = this.queue[tableName];
     entityQueue.push({
@@ -195,7 +195,7 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await clickhouseClient
+    await clickhouseClient()
       .insert({
         table: params.table,
         format: "JSONEachRow",
@@ -208,7 +208,7 @@ export class ClickhouseWriter {
       });
 
     logger.debug(
-      `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`
+      `ClickhouseWriter.writeToClickhouse: ${Date.now() - startTime} ms`,
     );
 
     recordGauge("ingestion_clickhouse_insert", params.records.length);

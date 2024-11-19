@@ -1986,7 +1986,7 @@ async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
 ): Promise<RecordReadType<T>> {
-  const query = await clickhouseClient.query({
+  const query = await clickhouseClient().query({
     query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
     format: "JSONEachRow",
   });

@@ -1,18 +1,21 @@
 import { createClient } from "@clickhouse/client";
 import { env } from "../../env";
+import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export const clickhouseClient = createClient({
-  url: env.CLICKHOUSE_URL,
-  username: env.CLICKHOUSE_USER,
-  password: env.CLICKHOUSE_PASSWORD,
-  database: "default",
-  clickhouse_settings: {
-    async_insert: 1,
-    wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
-  },
-});
+export const clickhouseClient = (opts?: NodeClickHouseClientConfigOptions) =>
+  createClient({
+    ...opts,
+    url: env.CLICKHOUSE_URL,
+    username: env.CLICKHOUSE_USER,
+    password: env.CLICKHOUSE_PASSWORD,
+    database: "default",
+    clickhouse_settings: {
+      async_insert: 1,
+      wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+    },
+  });
 
 /**
  * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
