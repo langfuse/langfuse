@@ -12,6 +12,7 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  Prisma,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -266,7 +267,54 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+
+  // to be deprecated, only kept for cases of client side caching of routes
   evaluatorsByTemplateName: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "evalJob:read",
+        });
+
+        const templates = await ctx.prisma.evalTemplate.findMany({
+          where: {
+            projectId: input.projectId,
+            name: input.evalTemplateName,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        return {
+          evaluators: await ctx.prisma.jobConfiguration.findMany({
+            where: {
+              projectId: input.projectId,
+              evalTemplateId: { in: templates.map((t) => t.id) },
+            },
+          }),
+        };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching eval jobs for template failed.",
+        });
+      }
+    }),
+
+  jobConfigsByTemplateName: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
       try {
@@ -599,5 +647,56 @@ export const evalRouter = createTRPCRouter({
         data: jobExecutions,
         totalCount: count,
       };
+    }),
+
+  jobConfigsByDatasetId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      // Get all evaluators (jobConfigs) for the project, refactor to reuse filter builder pattern in lfe-2887
+      const evaluators = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          scoreName: string;
+        }>
+      >(Prisma.sql`
+      SELECT DISTINCT
+        jc.id, 
+        jc.score_name as "scoreName"
+      FROM 
+        "job_configurations" as jc
+      WHERE 
+        jc.project_id = ${input.projectId}
+        AND jc.job_type = 'EVAL'
+        AND jc.target_object = 'dataset'
+        AND jc.status = 'ACTIVE'
+        AND (
+          jc.filter IS NULL 
+          OR jsonb_array_length(jc.filter) = 0
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(jc.filter) as f
+            WHERE f->>'column' = 'Dataset'
+              AND f->>'type' = 'stringOptions'
+              AND (
+                (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
+                OR 
+                (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
+              )
+          )
+        )
+      `);
+
+      return evaluators;
     }),
 });
