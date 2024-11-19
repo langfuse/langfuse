@@ -35,7 +35,7 @@ export default function Dataset() {
     scope: "evalJobExecution:read",
   });
 
-  const evaluators = api.evals.evaluatorsByDatasetId.useQuery(
+  const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
     {
       projectId,
       datasetId,

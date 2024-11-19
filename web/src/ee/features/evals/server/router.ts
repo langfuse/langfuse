@@ -267,7 +267,54 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+
+  // to be deprecated, only kept for cases of client side caching of routes
   evaluatorsByTemplateName: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "evalJob:read",
+        });
+
+        const templates = await ctx.prisma.evalTemplate.findMany({
+          where: {
+            projectId: input.projectId,
+            name: input.evalTemplateName,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        return {
+          evaluators: await ctx.prisma.jobConfiguration.findMany({
+            where: {
+              projectId: input.projectId,
+              evalTemplateId: { in: templates.map((t) => t.id) },
+            },
+          }),
+        };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching eval jobs for template failed.",
+        });
+      }
+    }),
+
+  jobConfigsByTemplateName: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
       try {
@@ -602,7 +649,7 @@ export const evalRouter = createTRPCRouter({
       };
     }),
 
-  evaluatorsByDatasetId: protectedProjectProcedure
+  jobConfigsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
@@ -613,10 +660,10 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJobExecution:read",
+        scope: "evalJob:read",
       });
 
-      // Get all evaluators for the project, refactor to reuse filter builder pattern in lfe-2887
+      // Get all evaluators (jobConfigs) for the project, refactor to reuse filter builder pattern in lfe-2887
       const evaluators = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
