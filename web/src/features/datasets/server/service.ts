@@ -54,11 +54,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       input.datasetId,
       clickhouseSession,
     );
-    const a = await queryClickhouse({
-      query: `SELECT * FROM ${tableName}`,
-      params: {},
-      clickhouseConfigs: { session_id: clickhouseSession },
-    });
 
     // these calls need to happen sequentially as there can be only one active session with
     // the same session_id at the time.
@@ -89,7 +84,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       const trace = traceAgg.find((t) => t.runId === run.run_id);
       return {
         ...run,
-        avgLatency: trace?.latencyMs ?? observation?.latencyMs,
+        avgLatency: trace?.latency ?? observation?.latency,
         avgCost: trace?.cost ?? observation?.cost,
         scores: aggregateScores(scores.filter((s) => s.run_id === run.run_id)),
       };
@@ -271,7 +266,7 @@ const getObservationLatencyAndCostForDataset = async (
 
   return rows.map((row) => ({
     runId: row.run_id,
-    latencyMs: Number(row.avg_latency_ms) / 1000,
+    latency: Number(row.avg_latency_ms) / 1000,
     cost: Number(row.avg_total_cost),
   }));
 };
@@ -320,7 +315,7 @@ const getTraceLatencyAndCostForDataset = async (
 
   return rows.map((row) => ({
     runId: row.run_id,
-    latencyMs: Number(row.avg_latency_ms) / 1000,
+    latency: Number(row.avg_latency_ms) / 1000,
     cost: Number(row.avg_total_cost),
   }));
 };
