@@ -67,17 +67,32 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       clickhouseConfigs: { session_id: clickhouseSession },
     });
 
-    console.log(a);
+    // these calls need to happen sequentially as there can be only one active session with
+    // the same session_id at the time.
     const scores = await getScoresFromTempTable(
+      input,
+      tableName,
+      clickhouseSession,
+    );
+    const obsAgg = await getObservationLatencyAndCostForDataset(
+      input,
+      tableName,
+      clickhouseSession,
+    );
+    const traceAgg = await getTraceLatencyAndCostForDataset(
       input,
       tableName,
       clickhouseSession,
     );
 
     console.log("scores", scores);
-
+    console.log("obsAgg", obsAgg);
+    console.log("traceAgg", traceAgg);
+    await deleteTempTableInClickhouse(tableName);
     return {
       scores,
+      obsAgg,
+      traceAgg,
     };
   } catch (e) {
     logger.error("Failed to fetch dataset runs from clickhouse", e);
@@ -136,7 +151,7 @@ export const createTempTableInClickhouse = async (
 
 export const deleteTempTableInClickhouse = async (tableName: string) => {
   const query = `
-      DROP TABLE IF EXISTS {tableName: String}
+      DROP TABLE IF EXISTS ${tableName}
   `;
   await commandClickhouse({ query, params: { tableName } });
 };
@@ -146,30 +161,30 @@ export const getDatasetRunsFromPostgres = async (
 ) => {
   return await prisma.$queryRaw<PostgresDatasetRun[]>(
     Prisma.sql`
-            SELECT
-              runs.id as run_id,
-              runs.name as run_name,
-              runs.description as run_description,
-              runs.metadata as run_metadata,
-              runs.created_at as run_created_at,
-              runs.updated_at as run_updated_at,
-              JSON_AGG(JSON_BUILD_OBJECT(
-                'trace_id', ri.trace_id,
-                'observation_id', ri.observation_id,
-                'ri_id', ri.id
-              )) AS run_items
-            FROM
-              datasets d
-              JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
-              JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
-                AND ri.project_id = runs.project_id
-            WHERE
-              d.id = ${input.datasetId}
-              AND d.project_id = ${input.projectId}
-            GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
-            LIMIT ${input.limit}
-            OFFSET ${input.page * input.limit}
-          `,
+      SELECT
+        runs.id as run_id,
+        runs.name as run_name,
+        runs.description as run_description,
+        runs.metadata as run_metadata,
+        runs.created_at as run_created_at,
+        runs.updated_at as run_updated_at,
+        JSON_AGG(JSON_BUILD_OBJECT(
+          'trace_id', ri.trace_id,
+          'observation_id', ri.observation_id,
+          'ri_id', ri.id
+        )) AS run_items
+      FROM
+        datasets d
+        JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
+        JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
+          AND ri.project_id = runs.project_id
+      WHERE
+        d.id = ${input.datasetId}
+        AND d.project_id = ${input.projectId}
+      GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
+      LIMIT ${input.limit}
+      OFFSET ${input.page * input.limit}
+    `,
   );
 };
 
@@ -210,8 +225,11 @@ const getObservationLatencyAndCostForDataset = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      SELECT 
-        *
+      WITH agg AS (
+      SELECT
+        run_id,
+        dateDiff('milliseconds', start_time, end_time) AS latency_ms,
+        total_cost AS cost
       FROM ${tableName} tmp JOIN observations o 
         ON tmp.project_id = o.project_id 
         AND tmp.observation_id = o.id 
@@ -222,9 +240,20 @@ const getObservationLatencyAndCostForDataset = async (
       AND tmp.observation_id IS NOT NULL
       ORDER BY o.event_ts DESC
       LIMIT 1 BY o.id, o.project_id
+    )
+    SELECT 
+      run_id,
+      avg(latency_ms) as avg_latency_ms,
+      avg(cost) as avg_total_cost
+    FROM agg
+    GROUP BY run_id
   `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<{
+    run_id: string;
+    avg_latency_ms: string;
+    avg_total_cost: string;
+  }>({
     query: query,
     params: {
       projectId: input.projectId,
@@ -233,5 +262,58 @@ const getObservationLatencyAndCostForDataset = async (
     clickhouseConfigs: { session_id: clickhouseSession },
   });
 
-  return rows.map(convertToScore);
+  return rows.map((row) => ({
+    runId: row.run_id,
+    latencyMs: Number(row.avg_latency_ms) / 1000,
+    cost: Number(row.avg_total_cost),
+  }));
+};
+
+const getTraceLatencyAndCostForDataset = async (
+  input: DatasetRunsTableInput,
+  tableName: string,
+  clickhouseSession: string,
+) => {
+  const query = `
+      WITH agg AS (
+      SELECT
+        o.trace_id,
+        run_id,
+        dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms,
+        sum(total_cost) AS cost
+      FROM ${tableName} tmp JOIN observations o 
+        ON tmp.project_id = o.project_id 
+        AND tmp.trace_id = o.trace_id
+      WHERE o.project_id = {projectId: String}
+      AND tmp.project_id = {projectId: String}
+      AND tmp.dataset_id = {datasetId: String}
+      AND tmp.observation_id IS NULL
+      GROUP BY o.trace_id, run_id
+    )
+    SELECT 
+      run_id,
+      avg(latency_ms) as avg_latency_ms,
+      avg(cost) as avg_total_cost
+    FROM agg
+    GROUP BY run_id
+  `;
+
+  const rows = await queryClickhouse<{
+    run_id: string;
+    avg_latency_ms: string;
+    avg_total_cost: string;
+  }>({
+    query: query,
+    params: {
+      projectId: input.projectId,
+      datasetId: input.datasetId,
+    },
+    clickhouseConfigs: { session_id: clickhouseSession },
+  });
+
+  return rows.map((row) => ({
+    runId: row.run_id,
+    latencyMs: Number(row.avg_latency_ms) / 1000,
+    cost: Number(row.avg_total_cost),
+  }));
 };
