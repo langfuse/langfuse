@@ -28,6 +28,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
+import { datasetRunsTableSchema } from "@/src/features/datasets/server/service";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -154,14 +155,7 @@ export const datasetRouter = createTRPCRouter({
       });
     }),
   runsByDatasetId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-        queryClickhouse: z.boolean().optional().default(false),
-        ...paginationZod,
-      }),
-    )
+    .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
       return await measureAndReturnApi({
         input,
