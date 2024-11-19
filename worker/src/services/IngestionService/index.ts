@@ -317,6 +317,7 @@ export class IngestionService {
       clickhouseObservationRecord,
     });
 
+    logger.info(`Merged record: ${JSON.stringify(finalObservationRecord)}`);
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
       const wrapperTraceRecord: TraceRecordInsertType = {
@@ -434,14 +435,6 @@ export class IngestionService {
     ) {
       generationUsage.usage_details =
         postgresObservationRecord?.usage_details ?? {};
-    }
-
-    if (
-      "cost_details" in generationUsage &&
-      Object.keys(generationUsage.cost_details).length === 0
-    ) {
-      generationUsage.cost_details =
-        postgresObservationRecord?.cost_details ?? {};
     }
 
     return {
