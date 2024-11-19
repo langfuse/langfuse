@@ -120,7 +120,7 @@ export const createTRPCRouter = t.router;
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
-  if (!res.ok && res.error) {
+  if (!res.ok) {
     logger.error(
       `middleware intercepted error with code ${res.error.code}`,
       res.error,
@@ -131,7 +131,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     // - Either the original error message OR "Internal error" if it's an INTERNAL_SERVER_ERROR
     res.error = new TRPCError({
       code: res.error.code,
-      cause: res.error,
+      cause: null, // do not expose stack traces
       message:
         res.error.code !== "INTERNAL_SERVER_ERROR"
           ? res.error.message
