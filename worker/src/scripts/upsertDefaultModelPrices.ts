@@ -72,7 +72,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
     );
 
     // Store in a map for O(1) lookup.
-    const existinModelPricesMap = new Map<
+    const existingModelPricesMap = new Map<
       string,
       { updatedAt: Date; prices: Record<string, number> }
     >(
@@ -85,10 +85,15 @@ export const upsertDefaultModelPrices = async (force = false) => {
       ]),
     );
 
-    for (const em of existingModelPrices) {
-      const modelUpdateDate = existinModelPricesMap.get(em.modelId);
-      if (modelUpdateDate) {
-        modelUpdateDate.prices[em.usageType] = em.price;
+    for (const existingModelPrice of existingModelPrices) {
+      const mapRecord = existingModelPricesMap.get(existingModelPrice.modelId);
+      if (mapRecord) {
+        mapRecord.prices[existingModelPrice.usageType] =
+          existingModelPrice.price;
+      } else {
+        logger.error(
+          `Existing model price for ${existingModelPrice.modelId} not found in map.`,
+        );
       }
     }
 
@@ -107,7 +112,7 @@ export const upsertDefaultModelPrices = async (force = false) => {
       const promises = [];
 
       for (const defaultModelPrice of batch) {
-        const existingModelUpdateDate = existinModelPricesMap.get(
+        const existingModelUpdateDate = existingModelPricesMap.get(
           defaultModelPrice.id,
         );
 
@@ -119,7 +124,6 @@ export const upsertDefaultModelPrices = async (force = false) => {
           logger.debug(
             `Default model ${defaultModelPrice.model_name} (${defaultModelPrice.id}) already up to date. Skipping.`,
           );
-
           continue;
         }
 
@@ -219,20 +223,18 @@ export const upsertDefaultModelPrices = async (force = false) => {
 
 function isExistingModelUpToDate(
   defaultModelPrice: DefaultModelPrice,
-  existingModelUpdateDate: { updatedAt: Date; prices: Record<string, number> },
+  existingModelPrices: { updatedAt: Date; prices: Record<string, number> },
 ) {
   const isUpdatedAtSame =
-    existingModelUpdateDate.updatedAt.getTime() ===
+    existingModelPrices.updatedAt.getTime() ===
     defaultModelPrice.updated_at.getTime();
 
   const isPriceSame =
     Object.keys(defaultModelPrice.prices).length ===
-      Object.keys(existingModelUpdateDate.prices).length &&
-    Object.entries(existingModelUpdateDate.prices).every(
-      ([usageType, price]) => {
-        return price === defaultModelPrice.prices[usageType];
-      },
-    );
+      Object.keys(existingModelPrices.prices).length &&
+    Object.entries(existingModelPrices.prices).every(([usageType, price]) => {
+      return price === defaultModelPrice.prices[usageType];
+    });
 
   return isUpdatedAtSame && isPriceSame;
 }
