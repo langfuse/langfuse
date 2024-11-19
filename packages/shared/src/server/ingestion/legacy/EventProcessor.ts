@@ -625,19 +625,32 @@ export class TraceProcessor implements EventProcessor {
           : undefined;
 
     if (body.sessionId) {
-      await prisma.traceSession.upsert({
-        where: {
-          id_projectId: {
+      try {
+        await prisma.traceSession.upsert({
+          where: {
+            id_projectId: {
+              id: body.sessionId,
+              projectId: apiScope.projectId,
+            },
+          },
+          create: {
             id: body.sessionId,
             projectId: apiScope.projectId,
           },
-        },
-        create: {
-          id: body.sessionId,
-          projectId: apiScope.projectId,
-        },
-        update: {},
-      });
+          update: {},
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          logger.warn(
+            `Failed to upsert session. Session ${body.sessionId} in project ${apiScope.projectId} already exists`,
+          );
+        } else {
+          throw e;
+        }
+      }
     }
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert

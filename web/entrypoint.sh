@@ -36,8 +36,7 @@ if [ $status -ne 0 ]; then
 fi
 
 # Execute the Clickhouse migration, except when disabled.
-# TODO: For now, we use the same flag as for the Postgres migration.
-if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
+if [ "$LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED" != "true" ]; then
     # Apply Clickhouse migrations
     cd ./packages/shared
     sh ./clickhouse/scripts/up.sh
