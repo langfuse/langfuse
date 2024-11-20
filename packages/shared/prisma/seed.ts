@@ -519,7 +519,6 @@ export async function createDatasets(
               datasetRunId: datasetRun.id,
             },
           });
-          datasetItemIds.push(datasetItem.id);
         }
 
         for (
