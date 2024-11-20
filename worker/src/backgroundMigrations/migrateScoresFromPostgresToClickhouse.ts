@@ -87,7 +87,7 @@ export default class MigrateScoresFromPostgresToClickhouse
       );
 
       const insertStart = Date.now();
-      await clickhouseClient.insert({
+      await clickhouseClient().insert({
         table: "scores",
         values: scores.map(convertPostgresScoreToInsert),
         format: "JSONEachRow",
