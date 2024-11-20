@@ -12,6 +12,8 @@ import { ObservationRecordReadType } from "./definitions";
 export const convertObservationToView = (
   record: ObservationRecordReadType,
 ): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
+  // these cost are not used from the view. They are in the select statement but not in the
+  // Prisma file. We will not clean this up but keep it as it is for now.
   // eslint-disable-next-line no-unused-vars
   const { inputCost, outputCost, totalCost, internalModelId, ...rest } =
     convertObservation(record ?? undefined);
