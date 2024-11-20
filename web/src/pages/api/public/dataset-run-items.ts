@@ -8,8 +8,8 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/ee/features/evals/server/addDatasetRunItemsToEvalQueue";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { getObservationById } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -51,29 +51,14 @@ export default withMiddlewares({
 
       // Backwards compatibility: historically, dataset run items were linked to observations, not traces
       if (!traceId && observationId) {
-        // TODO @Max: Any concerns about reusing this logic here for internal calls?
-        const observation = observationId
-          ? await measureAndReturnApi({
-              input: { queryClickhouse: false },
-              operation: "POST datasetRunItems",
-              user: undefined,
-              pgExecution: async () => {
-                return prisma.observation.findUnique({
-                  where: {
-                    id: observationId,
-                    projectId: auth.scope.projectId,
-                  },
-                });
+        const observation = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+          ? await getObservationById(observationId, auth.scope.projectId, true)
+          : await prisma.observation.findUnique({
+              where: {
+                id: observationId,
+                projectId: auth.scope.projectId,
               },
-              clickhouseExecution: async () => {
-                return getObservationById(
-                  observationId,
-                  auth.scope.projectId,
-                  true,
-                );
-              },
-            })
-          : undefined;
+            });
 
         if (observationId && !observation) {
           throw new LangfuseNotFoundError("Observation not found");
