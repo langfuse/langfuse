@@ -1,6 +1,10 @@
 import { v4 } from "uuid";
 import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
-import { OrgEnrichedApiKey, redis } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  OrgEnrichedApiKey,
+  redis,
+} from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
 const generateAuth = (username: string, password: string) => {
@@ -98,6 +102,10 @@ describe("Ingestion Pipeline", () => {
             Authorization: userApiKeyAuth,
           },
         });
+
+        console.log(
+          await clickhouseClient().query({ query: "SELECT * FROM traces" }),
+        );
 
         expect(traceResponse.status).toBe(200);
         expect(traceResponse.body).not.toBeNull();
