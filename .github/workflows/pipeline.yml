@@ -337,6 +337,14 @@ jobs:
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Ensure Docker dependencies are healthy
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
@@ -346,14 +354,6 @@ jobs:
         run: pnpm run build
       - name: Run server
         run: (pnpm run start&)
-      - name: Ensure no unhealthy status
-        run: |
-          if docker-compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
       - name: Check worker health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
