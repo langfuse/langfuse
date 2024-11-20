@@ -26,7 +26,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
   return s3StorageServiceClient;
 };
 
-export async function upsertClickhouseWithS3<
+export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
   table: "scores" | "traces"; // TODO: Modify eventType logic to support more tables going forward
@@ -152,7 +152,6 @@ export async function commandClickhouse<T>(opts: {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
-    console.log("commandClickhouse", opts.query, opts.params);
     const res = await clickhouseClient(opts.clickhouseConfigs).command({
       query: opts.query,
       query_params: opts.params,

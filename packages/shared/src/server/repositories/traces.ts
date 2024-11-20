@@ -2,7 +2,7 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
-  upsertClickhouseWithS3,
+  upsertClickhouse,
 } from "./clickhouse";
 import {
   createFilterFromFilterState,
@@ -269,7 +269,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   if (!["id", "project_id", "timestamp"].every((key) => key in trace)) {
     throw new Error("Identifier fields must be provided to upsert Trace.");
   }
-  await upsertClickhouseWithS3({
+  await upsertClickhouse({
     table: "traces",
     records: [trace as TraceRecordReadType],
     eventBodyMapper: convertClickhouseToDomain,
