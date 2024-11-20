@@ -15,6 +15,7 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
+    EvalExecutionQueue,
   checkTraceExists,
   checkObservationExists,
   getTraceById,
@@ -40,7 +41,6 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
-import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
 

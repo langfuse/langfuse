@@ -117,8 +117,9 @@ export const getTracesTable = async (
   searchQuery?: string,
   orderBy?: OrderByState,
   limit?: number,
-  offset?: number,
+  page?: number,
 ) => {
+  console.log("getTracesTable", limit, page);
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: `
     t.id, 
@@ -143,7 +144,7 @@ export const getTracesTable = async (
     searchQuery,
     orderBy,
     limit,
-    offset,
+    page,
   });
 
   return rows.map(convertToDomain);
@@ -156,11 +157,11 @@ type FetchTracesTableProps = {
   searchQuery?: string;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 };
 
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, offset, searchQuery } =
+  const { select, projectId, filter, orderBy, limit, page, searchQuery } =
     props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =
@@ -281,14 +282,14 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     WHERE ${tracesFilterRes.query}
     ${search.query}
     ${orderByToClickhouseSql(orderBy ?? null, tracesTableUiColumnDefinitions)}
-    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
   const res = await queryClickhouse<T>({
     query: query,
     params: {
       limit: limit,
-      offset: offset,
+      offset: (limit ?? 0) * (page ?? 0),
       ...tracesFilterRes.params,
       ...observationFilterRes.params,
       ...scoresFilterRes.params,
@@ -573,7 +574,7 @@ export const getSessionsTableCount = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 }) => {
   const rows = await getSessionsTableGeneric<{ count: string }>({
     select: `
@@ -583,7 +584,7 @@ export const getSessionsTableCount = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    offset: props.offset,
+    page: props.page,
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -594,7 +595,7 @@ export const getSessionsTable = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 }) => {
   const rows = await getSessionsTableGeneric<SessionDataReturnType>({
     select: `
@@ -620,14 +621,14 @@ export const getSessionsTable = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    offset: props.offset,
+    page: props.page,
   });
 
   return rows;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, offset } = props;
+  const { select, projectId, filter, orderBy, limit, page } = props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "s" });
@@ -702,7 +703,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     FROM session_data s
     WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
-    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
 
   const obsStartTimeValue = traceTimestampFilter
@@ -714,7 +715,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     params: {
       projectId,
       limit: limit,
-      offset: offset,
+      offset: (limit ?? 0) * (page ?? 0),
       ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
