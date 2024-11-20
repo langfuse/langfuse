@@ -2,7 +2,10 @@ import { api } from "@/src/utils/api";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  useHasOrgEntitlement,
+  useOrganizationPlan,
+} from "@/src/features/entitlements/hooks";
 import {
   Card,
   CardContent,
@@ -16,6 +19,7 @@ import Link from "next/link";
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
   const hasEntitlement = useHasOrgEntitlement("cloud-billing");
+  const plan = useOrganizationPlan();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "langfuseCloudBilling:CRUD",
@@ -38,7 +42,8 @@ export const UsageTracker = () => {
     usageQuery.isLoading ||
     !usageQuery.data ||
     !hasAccess ||
-    !hasEntitlement
+    !hasEntitlement ||
+    plan !== "cloud:hobby"
   ) {
     return null;
   }

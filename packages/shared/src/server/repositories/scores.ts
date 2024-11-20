@@ -17,7 +17,11 @@ import {
   scoresTableUiColumnDefinitions,
 } from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
-import { convertToScore } from "./scores_converters";
+import {
+  convertScoreAggregation,
+  convertToScore,
+  ScoreAggregation,
+} from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
@@ -86,14 +90,14 @@ export const searchExistingAnnotationScore = async (
 export const getScoreById = async (
   projectId: string,
   scoreId: string,
-  source: ScoreSource,
+  source?: ScoreSource,
 ) => {
   const query = `
     SELECT *
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.id = {scoreId: String}
-    AND s.source = {source: String}
+    ${source ? `AND s.source = {source: String}` : ""}
     ORDER BY s.event_ts DESC
     LIMIT 1 BY s.id, s.project_id
     LIMIT 1
@@ -104,7 +108,7 @@ export const getScoreById = async (
     params: {
       projectId,
       scoreId,
-      source,
+      ...(source !== undefined ? { source } : {}),
     },
   });
   return rows.map(convertToScore).shift();
@@ -546,22 +550,14 @@ export const getAggregatedScoresForPrompts = async (
       AND o.project_id = s.project_id 
       ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
     WHERE o.project_id = {projectId: String}
+    AND s.project_id = {projectId: String}
     AND o.prompt_id IN ({promptIds: Array(String)})
     AND o.type = 'GENERATION'
     AND s.name IS NOT NULL
     ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
   `;
 
-  const rows = await queryClickhouse<{
-    prompt_id: string;
-    id: string;
-    name: string;
-    string_value: string | null;
-    value: string;
-    source: string;
-    data_type: string;
-    comment: string | null;
-  }>({
+  const rows = await queryClickhouse<ScoreAggregation & { prompt_id: string }>({
     query,
     params: {
       projectId,
@@ -570,13 +566,7 @@ export const getAggregatedScoresForPrompts = async (
   });
 
   return rows.map((row) => ({
+    ...convertScoreAggregation(row),
     promptId: row.prompt_id,
-    id: row.id,
-    name: row.name,
-    stringValue: row.string_value,
-    value: Number(row.value),
-    source: row.source as ScoreSource,
-    dataType: row.data_type as ScoreDataType,
-    comment: row.comment,
   }));
 };

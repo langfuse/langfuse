@@ -1,4 +1,4 @@
-import { Job, Queue } from "bullmq";
+import { Job } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
 import {
   createDatasetEvalJobs,
@@ -8,12 +8,10 @@ import {
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
-  createNewRedisInstance,
   QueueName,
   TQueueJobTypes,
   logger,
   traceException,
-  redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 
 export class EvalExecutionQueue {

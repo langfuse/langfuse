@@ -108,10 +108,7 @@ export default function DatasetCompare() {
             }))}
             values={runs.filter((run) => runIds?.includes(run.key))}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
-              if (values.length === 0)
-                setRunState({
-                  runs: [],
-                });
+              if (values.length === 0) return; // TODO: hide clear button
               if (changedValueId) {
                 if (selectedValueKeys?.has(changedValueId)) {
                   setRunState({

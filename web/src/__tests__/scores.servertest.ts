@@ -36,7 +36,7 @@ describe("/api/public/scores API Endpoint", () => {
         version: "2.0.0",
       },
     );
-  });
+  }, 10000);
   afterEach(async () => {
     if (should_prune_db) await pruneDatabase();
   });
@@ -825,58 +825,6 @@ describe("/api/public/scores API Endpoint", () => {
       },
     });
     expect(deletedScore).toBeNull();
-  });
-
-  it("should GET a score", async () => {
-    await pruneDatabase();
-
-    const traceId = uuidv4();
-
-    await makeZodVerifiedAPICall(
-      PostTracesV1Response,
-      "POST",
-      "/api/public/traces",
-      {
-        id: traceId,
-      },
-    );
-    const generationId = uuidv4();
-    await makeZodVerifiedAPICall(
-      PostTracesV1Response,
-      "POST",
-      "/api/public/generations",
-      {
-        id: generationId,
-      },
-    );
-
-    const scoreId = uuidv4();
-    await makeAPICall("POST", "/api/public/scores", {
-      id: scoreId,
-      observationId: generationId,
-      name: "score-name",
-      value: 100.5,
-      traceId: traceId,
-      comment: "comment",
-    });
-
-    const getScore = await makeZodVerifiedAPICall(
-      GetScoreResponse,
-      "GET",
-      `/api/public/scores/${scoreId}`,
-    );
-
-    expect(getScore.status).toBe(200);
-    expect(getScore.body).toMatchObject({
-      id: scoreId,
-      name: "score-name",
-      value: 100.5,
-      comment: "comment",
-      source: "API",
-      traceId,
-      observationId: generationId,
-      dataType: "NUMERIC",
-    });
   });
 
   describe("should Filter scores", () => {

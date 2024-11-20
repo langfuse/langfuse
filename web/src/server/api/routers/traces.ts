@@ -31,7 +31,6 @@ import {
   getTracesTable,
   getTracesTableCount,
   getScoresForTraces,
-  getTraceByIdOrThrow,
   getScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
@@ -45,6 +44,7 @@ import {
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
+  hasAnyTrace,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -61,24 +61,45 @@ type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
 export type ObservationReturnType = Omit<
   ObservationView,
-  "input" | "output"
+  | "input"
+  | "output"
+  | "modelId"
+  | "inputPrice"
+  | "outputPrice"
+  | "totalPrice"
+  | "metadata"
 > & {
   traceId: string;
 };
 
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const hasAny = await ctx.prisma.trace.findFirst({
-        where: {
-          projectId: input.projectId,
+      return await measureAndReturnApi({
+        input,
+        operation: "traces.hasAny",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const hasAny = await ctx.prisma.trace.findFirst({
+            where: {
+              projectId: input.projectId,
+            },
+            select: {
+              id: true,
+            },
+          });
+          return hasAny !== null;
         },
-        select: {
-          id: true,
+        clickhouseExecution: async () => {
+          return await hasAnyTrace(input.projectId);
         },
       });
-      return hasAny !== null;
     }),
   all: protectedProjectProcedure
     .input(
@@ -429,11 +450,18 @@ export const traceRouter = createTRPCRouter({
           });
         },
         clickhouseExecution: async () => {
-          return getTraceByIdOrThrow(
+          const trace = getTraceById(
             input.traceId,
             input.projectId,
             input.timestamp ?? undefined,
           );
+          if (!trace) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
+          }
+          return trace;
         },
       });
     }),
@@ -453,7 +481,7 @@ export const traceRouter = createTRPCRouter({
         user: ctx.session.user ?? undefined,
         pgExecution: async () => {
           const [trace, observations, scores] = await Promise.all([
-            ctx.prisma.trace.findFirstOrThrow({
+            ctx.prisma.trace.findFirst({
               where: {
                 id: input.traceId,
                 projectId: input.projectId,
@@ -489,6 +517,10 @@ export const traceRouter = createTRPCRouter({
                 calculatedInputCost: true,
                 calculatedOutputCost: true,
                 calculatedTotalCost: true,
+                promptName: true,
+                promptVersion: true,
+                latency: true,
+                updatedAt: true,
               },
               where: {
                 traceId: {
@@ -505,6 +537,14 @@ export const traceRouter = createTRPCRouter({
               },
             }),
           ]);
+
+          if (!trace) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
+          }
+
           const validatedScores = filterAndValidateDbScoreList(
             scores,
             traceException,
@@ -537,7 +577,7 @@ export const traceRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           const [trace, observations, scores] = await Promise.all([
-            getTraceByIdOrThrow(
+            getTraceById(
               input.traceId,
               input.projectId,
               input.timestamp ?? undefined,
@@ -555,6 +595,13 @@ export const traceRouter = createTRPCRouter({
               undefined,
             ),
           ]);
+
+          if (!trace) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
+          }
 
           const validatedScores = filterAndValidateDbScoreList(
             scores,

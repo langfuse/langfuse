@@ -33,3 +33,4 @@ export * from "./instrumentation";
 export * from "./logger";
 export * from "./queries";
 export * from "./repositories";
+export * from "./redis/evalExecutionQueue";

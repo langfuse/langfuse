@@ -387,45 +387,136 @@ async function main() {
       update: {},
     });
 
-    for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
-      for (const projectId of [project1.id, project2.id]) {
-        const dataset = await prisma.dataset.create({
+    await createDatasets(project1, project2, observations);
+  }
+}
+
+main()
+  .then(async () => {
+    await prisma.$disconnect();
+    redis?.disconnect();
+    logger.info("Disconnected from postgres and redis");
+  })
+  .catch(async (e) => {
+    logger.error(e);
+    await prisma.$disconnect();
+    redis?.disconnect();
+    logger.info("Disconnected from postgres and redis");
+    process.exit(1);
+  });
+
+export async function createDatasets(
+  project1: {
+    id: string;
+    orgId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+  },
+  project2: {
+    id: string;
+    orgId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+  },
+  observations: Prisma.ObservationCreateManyInput[],
+) {
+  for (let datasetNumber = 0; datasetNumber < 2; datasetNumber++) {
+    for (const projectId of [project1.id, project2.id]) {
+      const datasetName = `demo-dataset-${datasetNumber}`;
+
+      // check if ds already exists
+      const dataset =
+        (await prisma.dataset.findFirst({
+          where: {
+            projectId,
+            name: datasetName,
+          },
+        })) ??
+        (await prisma.dataset.create({
           data: {
-            name: `demo-dataset-${datasetNumber}`,
+            name: datasetName,
             description:
               datasetNumber === 0 ? "Dataset test description" : undefined,
             projectId,
             metadata: datasetNumber === 0 ? { key: "value" } : undefined,
           },
+        }));
+
+      const datasetItemIds = [];
+      for (let i = 0; i < 18; i++) {
+        const sourceObservation =
+          Math.random() > 0.3
+            ? observations[Math.floor(Math.random() * observations.length)]
+            : undefined;
+        const datasetItem = await prisma.datasetItem.create({
+          data: {
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: sourceObservation?.traceId,
+            sourceObservationId:
+              Math.random() > 0.5 ? sourceObservation?.id : undefined,
+            input:
+              Math.random() > 0.3
+                ? [
+                    {
+                      role: "user",
+                      content: "How can i create a React component?",
+                    },
+                  ]
+                : undefined,
+            expectedOutput:
+              Math.random() > 0.3
+                ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
+                : undefined,
+            metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
+          },
+        });
+        datasetItemIds.push(datasetItem.id);
+      }
+
+      for (let datasetRunNumber = 0; datasetRunNumber < 5; datasetRunNumber++) {
+        const datasetRun = await prisma.datasetRuns.upsert({
+          where: {
+            datasetId_projectId_name: {
+              datasetId: dataset.id,
+              projectId,
+              name: `demo-dataset-run-${datasetRunNumber}`,
+            },
+          },
+          create: {
+            projectId,
+            name: `demo-dataset-run-${datasetRunNumber}`,
+            description: Math.random() > 0.5 ? "Dataset run description" : "",
+            datasetId: dataset.id,
+            metadata: [
+              undefined,
+              "string",
+              100,
+              { key: "value" },
+              ["tag1", "tag2"],
+            ][datasetRunNumber % 5],
+          },
+          update: {},
         });
 
-        const datasetItemIds = [];
-        for (let i = 0; i < 18; i++) {
-          const sourceObservation =
-            Math.random() > 0.3
-              ? observations[Math.floor(Math.random() * observations.length)]
-              : undefined;
-          const datasetItem = await prisma.datasetItem.create({
+        for (const datasetItemId of datasetItemIds) {
+          const relevantObservations = observations.filter(
+            (o) => o.projectId === projectId,
+          );
+          const observation =
+            relevantObservations[
+              Math.floor(Math.random() * relevantObservations.length)
+            ];
+
+          await prisma.datasetRunItems.create({
             data: {
               projectId,
-              datasetId: dataset.id,
-              sourceTraceId: sourceObservation?.traceId,
-              sourceObservationId:
-                Math.random() > 0.5 ? sourceObservation?.id : undefined,
-              input:
-                Math.random() > 0.3
-                  ? [
-                      {
-                        role: "user",
-                        content: "How can i create a React component?",
-                      },
-                    ]
-                  : undefined,
-              expectedOutput:
-                Math.random() > 0.3
-                  ? "Creating a React component can be done in two ways: as a functional component or as a class component. Let's start with a basic example of both."
-                  : undefined,
-              metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
+              datasetItemId,
+              traceId: observation.traceId as string,
+              observationId: Math.random() > 0.5 ? observation.id : undefined,
+              datasetRunId: datasetRun.id,
             },
           });
           datasetItemIds.push(datasetItem.id);
@@ -476,20 +567,6 @@ async function main() {
     }
   }
 }
-
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-    redis?.disconnect();
-    logger.info("Disconnected from postgres and redis");
-  })
-  .catch(async (e) => {
-    logger.error(e);
-    await prisma.$disconnect();
-    redis?.disconnect();
-    logger.info("Disconnected from postgres and redis");
-    process.exit(1);
-  });
 
 async function uploadObjects(
   traces: Prisma.TraceCreateManyInput[],
@@ -1066,6 +1143,7 @@ async function generatePrompts(project: Project) {
           name: prompt.name,
           version: prompt.version,
         },
+        id: prompt.id + project.id,
       },
       create: {
         id: prompt.id + project.id,
@@ -1077,9 +1155,7 @@ async function generatePrompts(project: Project) {
         labels: prompt.labels,
         tags: prompt.tags,
       },
-      update: {
-        id: prompt.id,
-      },
+      update: {},
     });
     promptIds.push(prompt.id);
   }
@@ -1133,6 +1209,7 @@ async function generatePrompts(project: Project) {
           name: version.name,
           version: version.version,
         },
+        id: version.id,
       },
       create: {
         id: version.id,
@@ -1163,6 +1240,7 @@ async function generatePrompts(project: Project) {
           name: promptName,
           version: i,
         },
+        id: promptId,
       },
       create: {
         id: promptId,

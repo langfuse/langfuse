@@ -1,5 +1,4 @@
 import { Redis } from "ioredis";
-import { randomUUID } from "node:crypto";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
@@ -240,6 +239,36 @@ export class IngestionService {
       traceRecords,
     });
 
+    // If the trace has a sessionId, we upsert the corresponding session into Postgres.
+    if (finalTraceRecord.session_id) {
+      try {
+        await this.prisma.traceSession.upsert({
+          where: {
+            id_projectId: {
+              id: finalTraceRecord.session_id,
+              projectId,
+            },
+          },
+          create: {
+            id: finalTraceRecord.session_id,
+            projectId,
+          },
+          update: {},
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          logger.warn(
+            `Failed to upsert session. Session ${finalTraceRecord.session_id} in project ${projectId} already exists`,
+          );
+        } else {
+          throw e;
+        }
+      }
+    }
+
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
   }
 
@@ -264,6 +293,7 @@ export class IngestionService {
       minStartTime === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minStartTime));
+
     const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
       await Promise.all([
         this.getPostgresRecord({
@@ -516,15 +546,28 @@ export class IngestionService {
       },
     });
 
+    logger.debug(
+      `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
+    );
+
     const final_usage_details = this.getUsageUnits(
       observationRecord,
       internalModel,
     );
     const modelPrices = await this.getModelPrices(internalModel?.id);
+
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
       observationRecord,
       final_usage_details.usage_details ?? {},
+    );
+
+    logger.info(
+      `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
+      {
+        cost: final_cost_details.cost_details,
+        usage: final_usage_details.usage_details,
+      },
     );
 
     return {
@@ -566,6 +609,10 @@ export class IngestionService {
         text: observationRecord.output,
         model,
       });
+
+      logger.info(
+        `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
+      );
 
       const newTotalCount =
         newInputCount || newOutputCount

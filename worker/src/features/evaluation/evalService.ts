@@ -15,10 +15,11 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
-  ChatMessageRole,
+  logger,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
+  ChatMessageRole,
   evalTraceTableCols,
   ForbiddenError,
   LangfuseNotFoundError,
@@ -31,9 +32,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
 } from "@langfuse/shared";
-
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
 import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";

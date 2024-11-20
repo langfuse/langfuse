@@ -11,13 +11,13 @@ export function parseTraceAllFilters(input: TableFilters) {
   const filterCondition = tableColumnsToSqlFilterAndPrefix(
     input.filter ?? [],
     tracesTableCols,
-    "traces"
+    "traces",
   );
   const orderByCondition = orderByToPrismaSql(input.orderBy, tracesTableCols);
 
   // to improve query performance, add timeseries filter to observation queries as well
   const timeseriesFilter = input.filter?.find(
-    (f) => f.column === "Timestamp" && f.type === "datetime"
+    (f) => f.column === "Timestamp" && f.type === "datetime",
   );
 
   const observationTimeseriesFilter =
@@ -25,7 +25,7 @@ export function parseTraceAllFilters(input: TableFilters) {
       ? datetimeFilterToPrismaSql(
           "start_time",
           timeseriesFilter.operator,
-          timeseriesFilter.value
+          timeseriesFilter.value,
         )
       : Prisma.empty;
 
@@ -130,6 +130,6 @@ export function createTracesQuery({
     ${filterCondition}
   ${orderByCondition}
   ${limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty}
-  ${page && limit ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
+  ${page !== undefined && limit !== undefined ? Prisma.sql`OFFSET ${page * limit}` : Prisma.empty}
 `;
 }

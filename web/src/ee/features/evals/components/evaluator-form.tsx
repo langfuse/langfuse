@@ -512,13 +512,8 @@ export const InnerEvalConfigForm = (props: {
                         <TabsTrigger value="trace" disabled={props.disabled}>
                           Trace
                         </TabsTrigger>
-                        <TabsTrigger
-                          value="dataset"
-                          disabled={props.disabled || !isFeatureFlagEnabled}
-                        >
-                          {isFeatureFlagEnabled
-                            ? "Dataset"
-                            : "Dataset (coming soon)"}
+                        <TabsTrigger value="dataset" disabled={props.disabled}>
+                          Dataset
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
