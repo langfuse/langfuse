@@ -345,6 +345,20 @@ jobs:
         run: pnpm run build
       - name: Run server
         run: (pnpm run start&)
+      - name: Ensure no unhealthy status
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
+      - name: Check worker health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+      - name: Check server health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
 
