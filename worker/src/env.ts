@@ -121,6 +121,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 });
 
 export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));

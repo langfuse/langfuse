@@ -16,6 +16,7 @@ import {
   EvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
+import { ExperimentCreateQueue } from "./experimentQueue";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};

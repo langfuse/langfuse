@@ -194,6 +194,7 @@ export const experimentsRouter = createTRPCRouter({
 
       if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
         const queue = ExperimentCreateQueue.getInstance();
+
         if (queue) {
           await queue.add(
             QueueName.ExperimentCreate,
@@ -212,7 +213,7 @@ export const experimentsRouter = createTRPCRouter({
               attempts: 3,
               backoff: {
                 type: "exponential",
-                delay: 1000,
+                delay: 0,
               },
             },
           );

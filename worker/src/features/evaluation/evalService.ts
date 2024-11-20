@@ -16,7 +16,7 @@ import {
   redis,
   IngestionQueue,
   logger,
-  fetchLLMCompletion,
+  EvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { JobConfigState } from "@langfuse/shared/src/db";
 import {
@@ -33,16 +33,11 @@ import {
   ZodModelConfig,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
-  ApiError,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
 import { callLLM } from "../utilities";
-import { tokenCount } from "../tokenisation/usage";
-import { decrypt } from "@langfuse/shared/encryption";
-import { EvalTemplate } from "../../../../packages/shared/dist/prisma/generated/types";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -529,8 +524,8 @@ export const evaluate = async ({
   ];
 
   const parsedLLMOutput = await backOff(
-    () =>
-      callLLM(
+    async () =>
+      await callLLM(
         event.jobExecutionId,
         parsedKey.data,
         messages,
@@ -640,60 +635,6 @@ export const evaluate = async ({
     `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
   );
 };
-
-async function callLLM(
-  jeId: string,
-  llmApiKey: z.infer<typeof LLMApiKeySchema>,
-  prompt: string,
-  modelParams: z.infer<typeof ZodModelConfig>,
-  template: EvalTemplate,
-  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
-): Promise<z.infer<typeof evalScoreSchema>> {
-  try {
-    const { completion, processTracedEvents } = await fetchLLMCompletion({
-      streaming: false,
-      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
-      baseURL: llmApiKey.baseURL || undefined,
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          content: "You are an expert at evaluating LLM outputs.",
-        },
-        { role: ChatMessageRole.User, content: prompt },
-      ],
-      modelParams: {
-        provider: template.provider,
-        model: template.model,
-        adapter: llmApiKey.adapter,
-        ...modelParams,
-      },
-      structuredOutputSchema: evalScoreSchema,
-      config: llmApiKey.config,
-      traceParams: {
-        tags: ["langfuse:evaluation:llm-as-a-judge"],
-        traceName: `eval-llm-${jeId.slice(0, 5)}`,
-        traceId: jeId,
-        projectId: template.projectId,
-        authCheck: {
-          validKey: true,
-          scope: {
-            projectId: template.projectId,
-            accessLevel: "all",
-          } as any,
-        },
-        tokenCountDelegate: tokenCount,
-      },
-    });
-
-    await processTracedEvents();
-    return evalScoreSchema.parse(completion);
-  } catch (e) {
-    logger.error(
-      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`,
-    );
-    throw new ApiError(`Failed to call LLM: ${e}`);
-  }
-}
 
 export function compileHandlebarString(
   handlebarString: string,

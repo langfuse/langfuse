@@ -31,7 +31,7 @@ import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
 type ProcessTracedEvents = () => Promise<void>;
 
-type TraceParams = {
+export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
@@ -106,6 +106,7 @@ export async function fetchLLMCompletion(
   if (traceParams) {
     const handler = new CallbackHandler({
       _projectId: traceParams.projectId,
+      _isLocalEventExportEnabled: true,
       tags: traceParams.tags,
     });
 

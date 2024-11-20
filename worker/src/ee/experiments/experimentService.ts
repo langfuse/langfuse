@@ -8,7 +8,7 @@ import {
   PromptContentSchema,
   DatasetRunItemUpsertQueue,
 } from "@langfuse/shared/src/server";
-import { kyselyPrisma, ObservationType, prisma } from "@langfuse/shared/src/db";
+import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
   ForbiddenError,
@@ -21,6 +21,7 @@ import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { v4 } from "uuid";
 
 function getIsCharOrUnderscore(value: string): boolean {
   const charOrUnderscore = /^[A-Za-z_]+$/;
@@ -45,48 +46,6 @@ function extractVariables(mustacheString: string): string[] {
 
   return Array.from(uniqueVariables);
 }
-
-const generateTraceServerSide = async ({
-  projectId,
-  input,
-  output,
-  model,
-  modelParameters,
-  promptId,
-}: {
-  projectId: string;
-  input: any;
-  output: string;
-  model: string;
-  modelParameters: Record<string, any>;
-  promptId: string;
-}) => {
-  const trace = await prisma.trace.create({
-    data: {
-      projectId,
-      name: "langfuse-generated-trace",
-      input,
-      output,
-      tags: ["langfuse-generated"],
-    },
-  });
-
-  await prisma.observation.create({
-    data: {
-      projectId,
-      name: "langfuse-generated-observation",
-      traceId: trace.id,
-      type: ObservationType.GENERATION,
-      model,
-      modelParameters,
-      input,
-      output,
-      promptId,
-    },
-  });
-
-  return trace;
-};
 
 const isValidObject = (input: Prisma.JsonValue): input is Prisma.JsonObject =>
   typeof input === "object" &&
@@ -247,12 +206,41 @@ export const createExperimentJob = async ({
     );
 
     /********************
+     * RUN ITEM CREATION *
+     ********************/
+
+    const newTraceId = v4();
+
+    const runItem = await prisma.datasetRunItems.create({
+      data: {
+        datasetItemId: datasetItem.id,
+        traceId: newTraceId,
+        datasetRunId: runId,
+        projectId,
+      },
+    });
+
+    /********************
      * LLM MODEL CALL *
      ********************/
 
-    const parsedLLMOutput = await backOff(
-      () =>
-        callLLM(
+    const traceParams = {
+      tags: ["langfuse:evaluation:llm-as-a-judge"],
+      traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
+      traceId: newTraceId,
+      projectId: event.projectId,
+      authCheck: {
+        validKey: true as const,
+        scope: {
+          projectId: event.projectId,
+          accessLevel: "all",
+        } as any,
+      },
+    };
+
+    await backOff(
+      async () =>
+        await callLLM(
           datasetItem.id,
           parsedKey.data,
           messages,
@@ -262,37 +250,12 @@ export const createExperimentJob = async ({
           z.object({
             response: z.string(),
           }),
+          traceParams,
         ),
       {
         numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
       },
     );
-
-    /********************
-     * SERVER SIDE TRACES *
-     ********************/
-
-    const trace = await generateTraceServerSide({
-      projectId,
-      input: datasetItem.input,
-      output: parsedLLMOutput.response,
-      model,
-      modelParameters: model_params,
-      promptId: prompt_id,
-    });
-
-    /********************
-     * RUN ITEM CREATION *
-     ********************/
-
-    await prisma.datasetRunItems.create({
-      data: {
-        datasetItemId: datasetItem.id,
-        traceId: trace.id,
-        datasetRunId: runId,
-        projectId,
-      },
-    });
 
     /********************
      * ASYNC RUN ITEM EVAL *
@@ -307,19 +270,19 @@ export const createExperimentJob = async ({
             payload: {
               projectId,
               datasetItemId: datasetItem.id,
-              traceId: trace.id,
+              traceId: newTraceId,
             },
             id: randomUUID(),
             timestamp: new Date(),
             name: QueueJobs.DatasetRunItemUpsert as const,
           },
           {
-            attempts: 3, // retry 3 times
+            attempts: 5, // retry 5 times
             backoff: {
               type: "exponential",
               delay: 1000,
             },
-            delay: 0, // adjust delay after server-side implementation
+            delay: 30_000, // 30 seconds
             removeOnComplete: true,
             removeOnFail: 1_000,
           },
