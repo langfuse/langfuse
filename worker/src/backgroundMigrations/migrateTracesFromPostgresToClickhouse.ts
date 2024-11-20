@@ -87,7 +87,7 @@ export default class MigrateTracesFromPostgresToClickhouse
       );
 
       const insertStart = Date.now();
-      await clickhouseClient.insert({
+      await clickhouseClient().insert({
         table: "traces",
         values: traces.map(convertPostgresTraceToInsert),
         format: "JSONEachRow",

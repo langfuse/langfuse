@@ -160,7 +160,7 @@ export const prepareClickhouse = async (
 
     for (const query of queries) {
       logger.info(`Executing query: ${query}`);
-      await clickhouseClient.command({
+      await clickhouseClient().command({
         query,
         clickhouse_settings: {
           wait_end_of_query: 1,
@@ -174,7 +174,7 @@ export const prepareClickhouse = async (
       FROM traces 
       WHERE session_id IS NOT NULL;
     `;
-    const sessionResult = await clickhouseClient.query({
+    const sessionResult = await clickhouseClient().query({
       query: sessionQuery,
       format: "JSONEachRow",
     });
@@ -212,7 +212,7 @@ export const prepareClickhouse = async (
           ORDER BY count() desc
           `;
 
-    const result = await clickhouseClient.query({
+    const result = await clickhouseClient().query({
       query,
       format: "TabSeparated",
     });
@@ -243,7 +243,7 @@ export const prepareClickhouse = async (
           ORDER BY event_date desc
           `;
 
-    const result = await clickhouseClient.query({
+    const result = await clickhouseClient().query({
       query,
       format: "TabSeparated",
     });
