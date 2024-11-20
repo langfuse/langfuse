@@ -103,10 +103,11 @@ describe("Ingestion Pipeline", () => {
           },
         });
 
-        console.log(
-          await clickhouseClient().query({ query: "SELECT * FROM traces" }),
-        );
-
+        const traces = await clickhouseClient().query({
+          query: "SELECT * FROM traces",
+          format: "TabSeparated",
+        });
+        console.log("traces", await traces.text());
         expect(traceResponse.status).toBe(200);
         expect(traceResponse.body).not.toBeNull();
         expect((await traceResponse.json()).id).toBe(traceId);
