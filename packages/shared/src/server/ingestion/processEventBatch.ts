@@ -1,36 +1,31 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
+import { type Model } from "../../db";
+import { env } from "../../env";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
-} from "@langfuse/shared";
-import {
-  addTracesToTraceUpsertQueue,
-  instrumentSync,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
-
-import { env } from "../../env";
+} from "../../errors";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
   instrumentAsync,
+  instrumentSync,
   recordIncrement,
   traceException,
 } from "../instrumentation";
 import { logger } from "../logger";
-import { LegacyIngestionEventType } from "../queues";
+import { LegacyIngestionEventType, QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { LegacyIngestionQueue } from "../redis/legacyIngestion";
 import { redis } from "../redis/redis";
 import { S3StorageService } from "../services/S3StorageService";
-import { handleBatch } from "./legacy";
+import { addTracesToTraceUpsertQueue, handleBatch } from "./legacy";
 import { getProcessorForEvent } from "./legacy/EventProcessor";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
-import { type Model } from "../../db";
 
 export type TokenCountDelegate = (p: {
   model: Model;
