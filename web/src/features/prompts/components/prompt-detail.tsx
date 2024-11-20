@@ -40,6 +40,19 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useState } from "react";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+
+const handleExperimentSuccess =
+  (projectId: string) => (data: { success: boolean; datasetId: string }) => {
+    showSuccessToast({
+      title: "Experiment run triggered successfully",
+      description: "Your experiment run will be available soon.",
+      link: {
+        href: `/project/${projectId}/datasets/${data.datasetId}`,
+        text: `View experiment "${data.datasetId}"`,
+      },
+    });
+  };
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -154,9 +167,19 @@ export const PromptDetail = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <CreateExperimentsForm
-                      key="create-experiment-form"
+                      key={`create-experiment-form-${prompt.id}`}
                       projectId={projectId as string}
                       setFormOpen={setIsCreateExperimentDialogOpen}
+                      defaultValues={{
+                        promptId: prompt.id,
+                      }}
+                      promptDefault={{
+                        name: prompt.name,
+                        version: prompt.version,
+                      }}
+                      handleOnSuccess={handleExperimentSuccess(
+                        prompt.projectId,
+                      )}
                     />
                   </DialogContent>
                 </Dialog>

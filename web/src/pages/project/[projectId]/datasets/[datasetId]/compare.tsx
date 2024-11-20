@@ -4,9 +4,9 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
-import { FolderKanban } from "lucide-react";
+import { FlaskConical, FolderKanban } from "lucide-react";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
 import {
   Popover,
@@ -14,6 +14,28 @@ import {
   PopoverContent,
 } from "@/src/components/ui/popover";
 import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+
+const handleExperimentSuccess =
+  (projectId: string) => (data: { success: boolean; datasetId: string }) => {
+    showSuccessToast({
+      title: "Experiment run triggered successfully",
+      description: "Your experiment run will be available soon.",
+      link: {
+        href: `/project/${projectId}/datasets/${data.datasetId}`,
+        text: `View experiment "${data.datasetId}"`,
+      },
+    });
+  };
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -22,6 +44,8 @@ export default function DatasetCompare() {
   const [runState, setRunState] = useQueryParams({
     runs: withDefault(ArrayParam, []),
   });
+  const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
+    useState(false);
   const runIds = runState.runs as undefined | string[];
 
   const dataset = api.datasets.byId.useQuery({
@@ -72,6 +96,35 @@ export default function DatasetCompare() {
           description: "Compare your dataset runs side by side",
         }}
         actionButtons={[
+          <Dialog
+            key="create-experiment-dialog"
+            open={isCreateExperimentDialogOpen}
+            onOpenChange={setIsCreateExperimentDialogOpen}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <FlaskConical className="h-4 w-4" />
+                <span className="ml-2">New experiment</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Set up experiment</DialogTitle>
+                <DialogDescription>
+                  Create an experiment to test a prompt version.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateExperimentsForm
+                key={`create-experiment-form-${datasetId}`}
+                projectId={projectId as string}
+                setFormOpen={setIsCreateExperimentDialogOpen}
+                handleOnSuccess={handleExperimentSuccess(projectId)}
+                defaultValues={{
+                  datasetId,
+                }}
+              />
+            </DialogContent>
+          </Dialog>,
           <Popover key="show-dataset-details">
             <PopoverTrigger asChild>
               <Button variant="outline">

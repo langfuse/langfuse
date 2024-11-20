@@ -10,13 +10,36 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
-
+import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { CommandItem } from "@/src/components/ui/command";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { Button } from "@/src/components/ui/button";
+import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+
+const handleExperimentSuccess =
+  (projectId: string) => (data: { success: boolean; datasetId: string }) => {
+    showSuccessToast({
+      title: "Experiment run triggered successfully",
+      description: "Your experiment run will be available soon.",
+      link: {
+        href: `/project/${projectId}/datasets/${data.datasetId}`,
+        text: `View experiment "${data.datasetId}"`,
+      },
+    });
+  };
 
 export default function Dataset() {
   const router = useRouter();
@@ -24,6 +47,8 @@ export default function Dataset() {
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
+  const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
+    useState(false);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -70,6 +95,35 @@ export default function Dataset() {
         }
         actionButtons={
           <>
+            <Dialog
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2">New experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Set up experiment</DialogTitle>
+                  <DialogDescription>
+                    Create an experiment to test a prompt version.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleOnSuccess={handleExperimentSuccess(projectId)}
+                />
+              </DialogContent>
+            </Dialog>
+
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
                 className="max-w-fit"

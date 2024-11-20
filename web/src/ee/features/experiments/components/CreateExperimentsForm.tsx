@@ -105,9 +105,18 @@ const isDatasetTarget = <T extends ZodSchema>(
 export const CreateExperimentsForm = ({
   projectId,
   setFormOpen,
+  handleOnSuccess,
+  defaultValues = {},
+  promptDefault,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
+  handleOnSuccess: (data: { success: boolean; datasetId: string }) => void;
+  defaultValues?: Partial<CreateExperiment>;
+  promptDefault?: {
+    name: string;
+    version: number;
+  };
 }) => {
   const [open, setOpen] = useState(false);
   const [evaluatorOptions, setEvaluatorOptions] = useState<
@@ -116,8 +125,12 @@ export const CreateExperimentsForm = ({
   const [selectedEvaluators, setSelectedEvaluators] = useState<
     { key: string; value: string }[]
   >([]);
-  const [selectedPromptName, setSelectedPromptName] = useState<string>();
-  const [selectedPromptVersion, setSelectedPromptVersion] = useState<number>();
+  const [selectedPromptName, setSelectedPromptName] = useState<string>(
+    promptDefault?.name ?? "",
+  );
+  const [selectedPromptVersion, setSelectedPromptVersion] = useState<
+    number | null
+  >(promptDefault?.version ?? null);
   const {
     modelParams,
     updateModelParamValue,
@@ -132,6 +145,7 @@ export const CreateExperimentsForm = ({
       promptId: "",
       datasetId: "",
       modelConfig: {},
+      ...defaultValues,
     },
   });
 
@@ -228,16 +242,7 @@ export const CreateExperimentsForm = ({
   );
 
   const experimentMutation = api.experiments.createExperiment.useMutation({
-    onSuccess: (data) => {
-      showSuccessToast({
-        title: "Experiment run triggered successfully",
-        description: "Your experiment run will be available soon.",
-        link: {
-          href: `/project/${projectId}/datasets/${data.datasetId}`,
-          text: `View experiment "${data.datasetId}"`,
-        },
-      });
-    },
+    onSuccess: handleOnSuccess,
     onError: (error) => {
       showErrorToast(
         error.message || "Failed to trigger experiment run",
