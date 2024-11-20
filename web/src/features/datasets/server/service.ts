@@ -46,7 +46,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
   const clickhouseSession = v4();
   try {
     const runs = await getDatasetRunsFromPostgres(input);
-    console.log(runs);
+
     await createTempTableInClickhouse(tableName, clickhouseSession);
     await insertPostgresDatasetRunsIntoClickhouse(
       runs,
@@ -74,9 +74,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       clickhouseSession,
     );
 
-    console.log("scores", scores);
-    console.log("obsAgg", obsAgg);
-    console.log("traceAgg", traceAgg);
     await deleteTempTableInClickhouse(tableName);
 
     const enrichedRuns = runs.map(({ run_items, ...run }) => {
