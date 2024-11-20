@@ -198,8 +198,8 @@ importers:
         specifier: ^0.3.6
         version: 0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))
       langfuse-langchain:
-        specifier: 3.30.0
-        version: 3.30.0(langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8)))
+        specifier: 3.30.1
+        version: 3.30.1(langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8)))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -8251,18 +8251,18 @@ packages:
       typeorm:
         optional: true
 
-  langfuse-core@3.30.0:
-    resolution: {integrity: sha512-lHvS0I8stwUyfXQhamzDyZgaCU8oCyep/5OR0An+DT4vY28ZE4NSqjPKv5QjD1r4kfx8l5vS7/CH4qtm2fElrg==}
+  langfuse-core@3.30.1:
+    resolution: {integrity: sha512-tdHPqAKGtn4mhZXQ5RBGQHDccwG0xGlhQ4v3Shyzp09SXARNJ74lgnpp51bv1vHyTiKZvBGUcOoOOkItzj82cw==}
     engines: {node: '>=18'}
 
-  langfuse-langchain@3.30.0:
-    resolution: {integrity: sha512-DHOdSMyLSiT6C4KW7H9e8U7FzOtF5K+qfEsVDLJNMOPFGYADiDSNeaHV9GK1Rj9y/6FqnhFjC+FWzFbBW2MPcA==}
+  langfuse-langchain@3.30.1:
+    resolution: {integrity: sha512-Edqfgtj3jOLbr+1nIzDPDs67//zkYGe/TVGvdFeCHw48AgjTXKB2eBWeQiYegaRZ/0lJm9/zmsk/9jzUZuJV5g==}
     engines: {node: '>=18'}
     peerDependencies:
       langchain: '>=0.0.157 <0.4.0'
 
-  langfuse@3.30.0:
-    resolution: {integrity: sha512-HCl0Afbrw1TyZk02EaRsEhEhPpZHVRWyE7YbQRhnta3r3uv8Y4vguaW2Ti9u0+3TzVCSDltb6Cdv6F1n8FhTUw==}
+  langfuse@3.30.1:
+    resolution: {integrity: sha512-nTJVuT/4Wrzg4OEtTxfywhO8taSdIaJ7Hn4yUu8SqDyxoLSrxEW0sM14EVaGAVfVhUThlKxcXmevmw1+BqnjWw==}
     engines: {node: '>=18'}
 
   langium@3.0.0:
@@ -20991,19 +20991,19 @@ snapshots:
       - encoding
       - openai
 
-  langfuse-core@3.30.0:
+  langfuse-core@3.30.1:
     dependencies:
       mustache: 4.2.0
 
-  langfuse-langchain@3.30.0(langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))):
+  langfuse-langchain@3.30.1(langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))):
     dependencies:
       langchain: 0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))
-      langfuse: 3.30.0
-      langfuse-core: 3.30.0
+      langfuse: 3.30.1
+      langfuse-core: 3.30.1
 
-  langfuse@3.30.0:
+  langfuse@3.30.1:
     dependencies:
-      langfuse-core: 3.30.0
+      langfuse-core: 3.30.1
 
   langium@3.0.0:
     dependencies:
