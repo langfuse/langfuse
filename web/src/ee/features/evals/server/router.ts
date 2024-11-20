@@ -12,12 +12,9 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
-<<<<<<< HEAD
   type JobConfiguration,
   JobConfigState,
   JobType,
-=======
->>>>>>> main
   Prisma,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
