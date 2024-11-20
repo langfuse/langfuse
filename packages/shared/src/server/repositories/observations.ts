@@ -851,7 +851,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
   const query = `
     SELECT
         trace_id,
-        sumMap(cost_details)['total'] AS total_cost,
+        sumMapWithOverflow(cost_details)['total'] AS total_cost,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
     WHERE project_id = {projectId: String} 

@@ -126,7 +126,6 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Total Cost ($)",
     uiTableId: "totalCost",
     clickhouseTableName: "traces",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'total'), cost_details), usage_details['total'], NULL)",
+    clickhouseSelect: "usage_details['total']",
   },
 ];

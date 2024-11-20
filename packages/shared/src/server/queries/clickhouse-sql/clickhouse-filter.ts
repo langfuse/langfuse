@@ -100,8 +100,8 @@ export class NumberFilter implements Filter {
     const uid = randomCharacters();
     const varName = `numberFilter${uid}`;
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Decimal}`,
-      params: { [varName]: this.value },
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Decimal64(12)}`,
+      params: { [varName]: this.value.toString() },
     };
   }
 }
@@ -334,7 +334,7 @@ export class NumberObjectFilter implements Filter {
     const varValueName = `numberObjectValueFilter${randomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
     return {
-      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal})), ${column})) = 0`,
+      query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },
     };
   }

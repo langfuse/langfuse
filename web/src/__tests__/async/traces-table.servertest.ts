@@ -132,9 +132,9 @@ describe("Traces table API test", () => {
       ],
       filterstate: [
         {
-          column: "totalCost",
+          column: "Total Cost ($)",
           operator: ">" as const,
-          value: 0.000002,
+          value: 0.001,
           type: "number" as const,
         },
       ],

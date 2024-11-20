@@ -104,6 +104,7 @@ export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
 }): Promise<T[]> {
+  console.log("queryClickhouse", opts.query, opts.params);
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);

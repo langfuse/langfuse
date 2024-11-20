@@ -61,13 +61,13 @@ export const getObservationsCostGroupedByName = async (
   const query = `
     SELECT 
       provided_model_name as name,
-      sumMap(cost_details)['total'] as sum_cost_details,
-      sumMap(usage_details)['total'] as sum_usage_details
+      sumMapWithOverflow(cost_details)['total'] as sum_cost_details,
+      sumMapWithOverflow(usage_details)['total'] as sum_usage_details
     FROM observations o FINAL ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
     GROUP BY provided_model_name
-    ORDER BY sumMap(cost_details)['total'] DESC
+    ORDER BY sumMapWithOverflow(cost_details)['total'] DESC
     `;
 
   const result = await queryClickhouse<{
@@ -200,8 +200,8 @@ export const getObservationUsageByTime = async (
   const query = `
     SELECT 
       ${selectTimeseriesColumn(groupBy, "start_time", "start_time")},
-      sumMap(usage_details)['total'] as sum_usage_details,
-      sumMap(cost_details)['total'] as sum_cost_details,
+      sumMapWithOverflow(usage_details)['total'] as sum_usage_details,
+      sumMapWithOverflow(cost_details)['total'] as sum_cost_details,
       provided_model_name
     FROM observations o FINAL
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -256,8 +256,8 @@ export const getDistinctModels = async (
       ) as DateTimeFilter | undefined)
     : undefined;
 
-    // No need for final as duplicates are caught by distinct anyway.
-    const query = `
+  // No need for final as duplicates are caught by distinct anyway.
+  const query = `
     SELECT distinct(provided_model_name) as model
     FROM observations o
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -356,8 +356,8 @@ export const getModelUsageByUser = async (
 
   const query = `
     SELECT 
-      sumMap(usage_details)['total'] as sum_usage_details,
-      sumMap(cost_details)['total'] as sum_cost_details,
+      sumMapWithOverflow(usage_details)['total'] as sum_usage_details,
+      sumMapWithOverflow(cost_details)['total'] as sum_cost_details,
       user_id
     FROM observations o FINAL
     JOIN traces t FINAL
