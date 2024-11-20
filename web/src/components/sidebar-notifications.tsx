@@ -32,9 +32,9 @@ const notifications: SidebarNotification[] = [
   },
   {
     id: "lw2-1",
-    title: "Launch Week 2 – Day 1",
-    description: "New side-by-side comparison view for dataset experiment runs",
-    link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
+    title: "Launch Week 2 – Day 2",
+    description: "LLM-as-a-judge Evaluators for Dataset Experiments",
+    link: "https://langfuse.com/changelog/2024-11-19-llm-as-a-judge-for-datasets",
     linkTitle: "Changelog",
   },
   {
