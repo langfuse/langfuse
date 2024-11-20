@@ -37,7 +37,7 @@ describe("Ingestion end-to-end tests", () => {
       redis,
       prisma,
       clickhouseWriter,
-      clickhouseClient,
+      clickhouseClient(),
     );
   });
 
