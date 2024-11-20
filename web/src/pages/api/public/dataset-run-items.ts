@@ -109,7 +109,6 @@ export default withMiddlewares({
        * ASYNC RUN ITEM EVAL *
        ********************/
 
-      // TODO: Move this check to TraceUpsert queue?
       await addDatasetRunItemsToEvalQueue({
         projectId: auth.scope.projectId,
         datasetItemId,

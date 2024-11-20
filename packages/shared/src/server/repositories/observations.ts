@@ -41,12 +41,14 @@ import {
 export const checkObservationExists = async (
   projectId: string,
   id: string,
+  startTime: Date | undefined,
 ): Promise<boolean> => {
   const query = `
     SELECT id, project_id
     FROM observations o
     WHERE project_id = {projectId: String}
     AND id = {id: String}
+    ${startTime ? `AND startTime >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     ORDER BY event_ts DESC
     LIMIT 1 BY id, project_id
   `;
@@ -56,6 +58,9 @@ export const checkObservationExists = async (
     params: {
       id,
       projectId,
+      ...(startTime
+        ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
     },
   });
 

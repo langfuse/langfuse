@@ -75,6 +75,7 @@ export const getTracesTableCount = async (props: {
 export const checkTraceExists = async (
   projectId: string,
   traceId: string,
+  timestamp: Date | undefined,
   filter: FilterState,
 ): Promise<boolean> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
@@ -97,6 +98,7 @@ export const checkTraceExists = async (
     SELECT id, project_id
     FROM traces t
     WHERE ${tracesFilterRes.query}
+    ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
     ORDER BY event_ts DESC
     LIMIT 1 BY id, project_id
   `;
@@ -105,6 +107,9 @@ export const checkTraceExists = async (
     query,
     params: {
       ...tracesFilterRes.params,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 

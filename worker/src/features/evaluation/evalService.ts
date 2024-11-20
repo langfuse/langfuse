@@ -15,11 +15,13 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
-    EvalExecutionQueue,
+  EvalExecutionQueue,
   checkTraceExists,
   checkObservationExists,
   getTraceById,
   getObservationForTraceIdByName,
+  TraceUpsertEventType,
+  DatasetRunItemUpsertEventType,
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
@@ -62,17 +64,17 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
-export const createTraceEvalJobs = async ({
+export const createEvalJobs = async ({
   event,
 }: {
-  event: z.infer<typeof TraceUpsertEventSchema>;
+  event: TraceUpsertEventType | DatasetRunItemUpsertEventType;
 }) => {
+  // Fetch all configs for a given project. Those may be dataset or trace configs.
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
     .where("project_id", "=", event.projectId)
-    .where("target_object", "=", "trace")
     .execute();
 
   if (configs.length === 0) {
@@ -98,6 +100,7 @@ export const createTraceEvalJobs = async ({
       traceExists = await checkTraceExists(
         event.projectId,
         event.traceId,
+        new Date(),
         validatedFilter,
       );
     } else {
@@ -119,16 +122,76 @@ export const createTraceEvalJobs = async ({
       traceExists = traces.length > 0;
     }
 
+    const isDataSetItemRun = "datasetItemId" in event && event.datasetItemId;
+    let datasetItemExists: boolean = true;
+    if (isDataSetItemRun) {
+      const condition = tableColumnsToSqlFilterAndPrefix(
+        validatedFilter,
+        evalDatasetFormFilterCols,
+        "dataset_items",
+      );
+
+      const joinedQuery = Prisma.sql`
+        SELECT id
+        FROM dataset_items as di
+        WHERE project_id = ${event.projectId}
+        AND id = ${event.datasetItemId}
+        ${condition}
+      `;
+
+      const datasetItems =
+        await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+
+      datasetItemExists = datasetItems.length > 0;
+    }
+
+    if (isDataSetItemRun && "observationId" in event && event.observationId) {
+      const observationExists = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+        ? await checkObservationExists(
+            event.projectId,
+            event.observationId,
+            new Date(),
+          )
+        : await kyselyPrisma.$kysely
+            .selectFrom("observations")
+            .select("id")
+            .where("project_id", "=", event.projectId)
+            .where("id", "=", event.observationId)
+            .executeTakeFirst();
+
+      if (!observationExists) {
+        logger.warn(
+          `Observation ${event.observationId} not found, retrying dataset eval later`,
+        );
+        throw new Error(
+          "Observation not found. Rejecting job to use retry-attempts.",
+        );
+      }
+    }
+
     const existingJob = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
       .select("id")
       .where("project_id", "=", event.projectId)
       .where("job_configuration_id", "=", config.id)
       .where("job_input_trace_id", "=", event.traceId)
+      .where(
+        "job_input_dataset_item_id",
+        isDataSetItemRun ? "=" : "is",
+        isDataSetItemRun ? event.datasetItemId : null,
+      )
+      .where(
+        "job_input_observation_id",
+        "observationId" in event && event.observationId ? "=" : "is",
+        "observationId" in event && event.observationId
+          ? event.observationId
+          : null,
+      )
       .execute();
 
-    // if we matched a trace, we might want to create a job
-    if (traceExists) {
+    // If we matched a trace and datasetitem, we might want to create a job
+    // If this is only run for a trace, datasetItemExists always default to true.
+    if (traceExists && datasetItemExists) {
       const jobExecutionId = randomUUID();
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
@@ -141,7 +204,6 @@ export const createTraceEvalJobs = async ({
 
       // apply sampling. Only if the job is sampled, we create a job
       // user supplies a number between 0 and 1, which is the probability of sampling
-
       if (parseFloat(config.sampling) !== 1) {
         const random = Math.random();
         if (random > parseFloat(config.sampling)) {
@@ -164,6 +226,12 @@ export const createTraceEvalJobs = async ({
           jobInputTraceId: event.traceId,
           status: "PENDING",
           startTime: new Date(),
+          ...(isDataSetItemRun
+            ? {
+                jobInputDatasetItemId: event.datasetItemId,
+                jobInputObservationId: event.observationId ?? null,
+              }
+            : {}),
         },
       });
 
@@ -181,14 +249,7 @@ export const createTraceEvalJobs = async ({
           },
         },
         {
-          attempts: 10,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
           delay: config.delay, // milliseconds
-          removeOnComplete: true,
-          removeOnFail: 1_000,
         },
       );
     } else {
@@ -209,198 +270,6 @@ export const createTraceEvalJobs = async ({
     }
   }
 };
-
-// this function is used to determine which eval jobs to create for a given dataset run item
-// there will only be one or no eval jobs to create for a single dataset run item
-export const createDatasetEvalJobs = async ({
-  event,
-}: {
-  event: z.infer<typeof DatasetRunItemUpsertEventSchema>;
-}) => {
-  const configs = await kyselyPrisma.$kysely
-    .selectFrom("job_configurations")
-    .selectAll()
-    .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .where("target_object", "=", "dataset")
-    .execute();
-
-  if (configs.length === 0) {
-    logger.debug("No evaluation jobs found for project", event.projectId);
-    return;
-  }
-
-  logger.debug(
-    `Creating eval jobs for dataset run item ${event.datasetItemId} on project ${event.projectId}`,
-  );
-
-  for (const config of configs) {
-    if (config.status === JobConfigState.INACTIVE) {
-      logger.debug(`Skipping inactive config ${config.id}`);
-      continue;
-    }
-
-    logger.debug("Creating eval job for config", config.id);
-    const validatedFilter = z.array(singleFilter).parse(config.filter);
-
-    const condition = tableColumnsToSqlFilterAndPrefix(
-      validatedFilter,
-      evalDatasetFormFilterCols,
-      "dataset_items",
-    );
-
-    const joinedQuery = Prisma.sql`
-        SELECT id
-        FROM dataset_items as di
-        WHERE project_id = ${event.projectId}
-        AND id = ${event.datasetItemId}
-        ${condition}
-      `;
-
-    const datasetItems =
-      await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
-
-    const existingJob = await kyselyPrisma.$kysely
-      .selectFrom("job_executions")
-      .select("id")
-      .where("project_id", "=", event.projectId)
-      .where("job_configuration_id", "=", config.id)
-      .where("job_input_dataset_item_id", "=", event.datasetItemId)
-      .where("job_input_trace_id", "=", event.traceId)
-      .where(
-        "job_input_observation_id",
-        event.observationId ? "=" : "is",
-        event.observationId ?? null,
-      )
-      .execute();
-
-    // if we matched a dataset item, we might want to create a job
-    if (datasetItems.length > 0) {
-      // check if trace and observation exist, otherwise retry
-      // Verify trace exists before proceeding
-      const traceExists = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
-        ? await checkTraceExists(event.projectId, event.traceId, [])
-        : await kyselyPrisma.$kysely
-            .selectFrom("traces")
-            .select("id")
-            .where("project_id", "=", event.projectId)
-            .where("id", "=", event.traceId)
-            .executeTakeFirst();
-
-      if (!traceExists) {
-        logger.info(
-          `Trace ${event.traceId} not found, retrying dataset eval later`,
-        );
-        throw new Error("Trace not found - initiate retry");
-      }
-
-      if (event.observationId) {
-        const observationExists = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
-          ? await checkObservationExists(event.projectId, event.observationId)
-          : await kyselyPrisma.$kysely
-              .selectFrom("observations")
-              .select("id")
-              .where("project_id", "=", event.projectId)
-              .where("id", "=", event.observationId)
-              .executeTakeFirst();
-
-        if (!observationExists) {
-          logger.info(
-            `Observation ${event.observationId} not found, retrying dataset eval later`,
-          );
-          throw new Error("Observation not found - initiate retry");
-        }
-      }
-
-      logger.debug(
-        `Eval job for config ${config.id} matched dataset run item ids ${JSON.stringify(datasetItems.map((d) => d.id))}`,
-      );
-
-      const jobExecutionId = randomUUID();
-
-      // deduplication: if a job exists already for the given dataset item, trace and observation, we do not create a new one.
-      if (existingJob.length > 0) {
-        logger.debug(
-          `Eval job for config ${config.id}, dataset item ${event.datasetItemId} already exists for the given run`,
-        );
-        continue;
-      }
-
-      // apply sampling. Only if the job is sampled, we create a job
-      // user supplies a number between 0 and 1, which is the probability of sampling
-      if (parseFloat(config.sampling) !== 1) {
-        const random = Math.random();
-        if (random > parseFloat(config.sampling)) {
-          logger.debug(
-            `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
-          );
-          continue;
-        }
-      }
-
-      logger.debug(
-        `Creating eval job for config ${config.id} and trace ${event.traceId}`,
-      );
-
-      await prisma.jobExecution.create({
-        data: {
-          id: jobExecutionId,
-          projectId: event.projectId,
-          jobConfigurationId: config.id,
-          jobInputTraceId: event.traceId,
-          jobInputObservationId: event.observationId ?? null,
-          jobInputDatasetItemId: event.datasetItemId,
-          status: "PENDING",
-          startTime: new Date(),
-        },
-      });
-
-      // add the job to the next queue so that eval can be executed
-      await EvalExecutionQueue.getInstance()?.add(
-        QueueName.EvaluationExecution,
-        {
-          name: QueueJobs.EvaluationExecution,
-          id: randomUUID(),
-          timestamp: new Date(),
-          payload: {
-            projectId: event.projectId,
-            jobExecutionId: jobExecutionId,
-            delay: config.delay,
-          },
-        },
-        {
-          attempts: 10,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-          delay: config.delay, // milliseconds
-          removeOnComplete: true,
-          removeOnFail: 1_000,
-        },
-      );
-    } else {
-      // if we do not have a match, and execution exists, we mark the job as cancelled
-      // we do this, because a second trace event might 'deselect' a trace
-      logger.debug(`Eval job for config ${config.id} did not match trace`);
-      if (existingJob.length > 0) {
-        logger.debug(
-          `Cancelling eval job for config ${config.id} and dataset item ${event.datasetItemId}`,
-        );
-        await kyselyPrisma.$kysely
-          .updateTable("job_executions")
-          .set("status", sql`'CANCELLED'::"JobExecutionStatus"`)
-          .set("end_time", new Date())
-          .where("id", "=", existingJob[0].id)
-          .execute();
-      }
-    }
-  }
-};
-
-// this function is used to determine which eval jobs to create for a given trace or dataset run item
-// there might be multiple eval jobs to create for a single trace
-// there might be 0 or 1 eval jobs to create for a single dataset run item
 
 // for a single eval job, this function is used to evaluate the job
 export const evaluate = async ({

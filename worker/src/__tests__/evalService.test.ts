@@ -1,7 +1,7 @@
 import { expect, test, describe, afterAll, beforeAll, vi } from "vitest";
 import {
   createDatasetEvalJobs,
-  createTraceEvalJobs,
+  createEvalJobs,
   evaluate,
   extractVariables,
 } from "../features/evaluation/evalService";
@@ -67,7 +67,7 @@ describe("create eval jobs", () => {
       traceId: traceId,
     };
 
-    await createTraceEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -195,7 +195,7 @@ describe("create eval jobs", () => {
       traceId: traceId,
     };
 
-    await createTraceEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -250,8 +250,8 @@ describe("create eval jobs", () => {
       traceId: traceId,
     };
 
-    await createTraceEvalJobs({ event: payload });
-    await createTraceEvalJobs({ event: payload }); // calling it twice to check it is only generated once
+    await createEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload }); // calling it twice to check it is only generated once
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -299,7 +299,7 @@ describe("create eval jobs", () => {
       traceId: traceId,
     };
 
-    await createTraceEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -354,7 +354,7 @@ describe("create eval jobs", () => {
       traceId: traceId,
     };
 
-    await createTraceEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
@@ -437,7 +437,7 @@ describe("create eval jobs", () => {
       traceId: traceId,
     };
 
-    await createTraceEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload });
 
     // update the trace to deselect the trace
     await kyselyPrisma.$kysely
@@ -446,7 +446,7 @@ describe("create eval jobs", () => {
       .where("id", "=", traceId)
       .execute();
 
-    await createTraceEvalJobs({
+    await createEvalJobs({
       event: payload,
     }); // calling it twice to check it is only generated once
 
