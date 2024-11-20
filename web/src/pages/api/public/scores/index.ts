@@ -10,8 +10,12 @@ import {
   PostScoresResponse,
 } from "@langfuse/shared";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
-import { eventTypes, logger } from "@langfuse/shared/src/server";
-import { processEventBatch } from "@/src/pages/api/public/ingestion";
+import {
+  eventTypes,
+  logger,
+  processEventBatch,
+} from "@langfuse/shared/src/server";
+import { tokenCount } from "@/src/features/ingest/usage";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -28,7 +32,7 @@ export default withMiddlewares({
       if (!event.body.id) {
         event.body.id = v4();
       }
-      const result = await processEventBatch([event], auth);
+      const result = await processEventBatch([event], auth, tokenCount);
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res

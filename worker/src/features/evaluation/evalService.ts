@@ -40,6 +40,7 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
+import { tokenCount } from "../tokenisation/usage";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -638,7 +639,7 @@ async function callLLM(
   evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
 ): Promise<z.infer<typeof evalScoreSchema>> {
   try {
-    const { completion } = await fetchLLMCompletion({
+    const { completion, processTracedEvents } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
       baseURL: llmApiKey.baseURL || undefined,
@@ -657,7 +658,23 @@ async function callLLM(
       },
       structuredOutputSchema: evalScoreSchema,
       config: llmApiKey.config,
+      traceParams: {
+        tags: ["langfuse:evaluation:llm-as-a-judge"],
+        traceName: `eval-llm-${jeId.slice(0, 5)}`,
+        traceId: jeId,
+        projectId: template.projectId,
+        authCheck: {
+          validKey: true,
+          scope: {
+            projectId: template.projectId,
+            accessLevel: "all",
+          } as any,
+        },
+        tokenCountDelegate: tokenCount,
+      },
     });
+
+    await processTracedEvents();
     return evalScoreSchema.parse(completion);
   } catch (e) {
     logger.error(
