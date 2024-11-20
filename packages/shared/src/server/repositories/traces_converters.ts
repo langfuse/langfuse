@@ -4,7 +4,7 @@ import { TraceRecordReadType } from "./definitions";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { TracesTableReturnType } from "../services/traces-service";
+import { TracesTableReturnType } from "../services/traces-ui-table-service";
 
 export const convertTraceDomainToClickhouse = (
   trace: Trace,

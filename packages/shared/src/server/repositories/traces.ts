@@ -23,7 +23,7 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
-import { FetchTracesTableProps } from "../services/traces-service";
+import { FetchTracesTableProps } from "../services/traces-ui-table-service";
 
 /**
  * Accepts a trace in a Clickhouse-ready format.
@@ -387,8 +387,8 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
               count(*) as obs_count,
               min(o.start_time) as min_start_time,
               max(o.end_time) as max_end_time,
-              sumMapWithOverflow(usage_details) as sum_usage_details,
-              sumMapWithOverflow(cost_details) as sum_cost_details,
+              sumMap(usage_details) as sum_usage_details,
+              sumMap(cost_details) as sum_cost_details,
               anyLast(project_id) as project_id
         FROM observations o FINAL
         WHERE o.project_id = {projectId: String}
@@ -408,14 +408,14 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
             -- Aggregate observations data at session level
             sum(o.obs_count) as total_observations,
             date_diff('milliseconds', min(min_start_time), max(max_end_time)) as duration,
-            sumMapWithOverflow(o.sum_usage_details) as session_usage_details,
-            sumMapWithOverflow(o.sum_cost_details) as session_cost_details,
-            sumMapWithOverflow(o.sum_cost_details)['input'] as session_input_cost,
-            sumMapWithOverflow(o.sum_cost_details)['output'] as session_output_cost,
-            sumMapWithOverflow(o.sum_cost_details)['total'] as session_total_cost,
-            sumMapWithOverflow(o.sum_usage_details)['input'] as session_input_usage,
-            sumMapWithOverflow(o.sum_usage_details)['output'] as session_output_usage,
-            sumMapWithOverflow(o.sum_usage_details)['total'] as session_total_usage
+            sumMap(o.sum_usage_details) as session_usage_details,
+            sumMap(o.sum_cost_details) as session_cost_details,
+            sumMap(o.sum_cost_details)['input'] as session_input_cost,
+            sumMap(o.sum_cost_details)['output'] as session_output_cost,
+            sumMap(o.sum_cost_details)['total'] as session_total_cost,
+            sumMap(o.sum_usage_details)['input'] as session_input_usage,
+            sumMap(o.sum_usage_details)['output'] as session_output_usage,
+            sumMap(o.sum_usage_details)['total'] as session_total_usage
         FROM traces t FINAL
         LEFT JOIN observations_agg o
         ON t.id = o.trace_id AND t.project_id = o.project_id
@@ -550,7 +550,7 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     WITH observations_agg AS (
       SELECT o.trace_id,
              count(*) as obs_count,
-             sumMapWithOverflow(usage_details) as sum_usage_details,
+             sumMap(usage_details) as sum_usage_details,
              sum(total_cost) as sum_total_cost,
              anyLast(project_id) as project_id
       FROM observations o FINAL
@@ -564,9 +564,9 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
              count(*) as trace_count,
              sum(o.obs_count) as total_observations,
              sum(o.sum_total_cost) as session_total_cost,
-             sumMapWithOverflow(o.sum_usage_details)['input'] as session_input_usage,
-             sumMapWithOverflow(o.sum_usage_details)['output'] as session_output_usage,
-             sumMapWithOverflow(o.sum_usage_details)['total'] as session_total_usage
+             sumMap(o.sum_usage_details)['input'] as session_input_usage,
+             sumMap(o.sum_usage_details)['output'] as session_output_usage,
+             sumMap(o.sum_usage_details)['total'] as session_total_usage
       FROM traces t FINAL
       LEFT JOIN observations_agg o
       ON t.id = o.trace_id 

@@ -127,8 +127,14 @@ describe("Traces table API test", () => {
     {
       traceInput: {},
       observationInput: [
-        { cost_details: { total: 0.000001 } },
-        { cost_details: { total: 0.000002 } },
+        {
+          cost_details: { total: 0.000001 },
+          usage_details: { total: 0 },
+        },
+        {
+          cost_details: { total: 0.000002 },
+          usage_details: { total: 0 },
+        },
       ],
       filterstate: [
         {

@@ -188,7 +188,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     WITH observations_stats AS (
       SELECT
         COUNT(*) AS observation_count,
-          sumMapWithOverflow(usage_details) as usage_details,
+          sumMap(usage_details) as usage_details,
           SUM(total_cost) AS total_cost,
           date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
           multiIf(
@@ -197,7 +197,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
             arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
             'DEBUG'
           ) AS level,
-          sumMapWithOverflow(cost_details) as cost_details,
+          sumMap(cost_details) as cost_details,
           trace_id,
           project_id
       FROM observations FINAL
