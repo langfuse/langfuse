@@ -197,6 +197,9 @@ importers:
       langchain:
         specifier: ^0.3.6
         version: 0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))
+      langfuse-langchain:
+        specifier: 3.30.0
+        version: 3.30.0(langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8)))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -8247,6 +8250,20 @@ packages:
         optional: true
       typeorm:
         optional: true
+
+  langfuse-core@3.30.0:
+    resolution: {integrity: sha512-lHvS0I8stwUyfXQhamzDyZgaCU8oCyep/5OR0An+DT4vY28ZE4NSqjPKv5QjD1r4kfx8l5vS7/CH4qtm2fElrg==}
+    engines: {node: '>=18'}
+
+  langfuse-langchain@3.30.0:
+    resolution: {integrity: sha512-DHOdSMyLSiT6C4KW7H9e8U7FzOtF5K+qfEsVDLJNMOPFGYADiDSNeaHV9GK1Rj9y/6FqnhFjC+FWzFbBW2MPcA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      langchain: '>=0.0.157 <0.4.0'
+
+  langfuse@3.30.0:
+    resolution: {integrity: sha512-HCl0Afbrw1TyZk02EaRsEhEhPpZHVRWyE7YbQRhnta3r3uv8Y4vguaW2Ti9u0+3TzVCSDltb6Cdv6F1n8FhTUw==}
+    engines: {node: '>=18'}
 
   langium@3.0.0:
     resolution: {integrity: sha512-+Ez9EoiByeoTu/2BXmEaZ06iPNXM6thWJp02KfBO/raSMyCJ4jw7AkWWa+zBCTm0+Tw1Fj9FOxdqSskyN5nAwg==}
@@ -20973,6 +20990,20 @@ snapshots:
     transitivePeerDependencies:
       - encoding
       - openai
+
+  langfuse-core@3.30.0:
+    dependencies:
+      mustache: 4.2.0
+
+  langfuse-langchain@3.30.0(langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))):
+    dependencies:
+      langchain: 0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/aws@0.1.2(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))(axios@1.7.7)(handlebars@4.7.8)(openai@4.72.0(zod@3.23.8))
+      langfuse: 3.30.0
+      langfuse-core: 3.30.0
+
+  langfuse@3.30.0:
+    dependencies:
+      langfuse-core: 3.30.0
 
   langium@3.0.0:
     dependencies:

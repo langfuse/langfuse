@@ -1,6 +1,6 @@
 import type { ZodSchema } from "zod";
 
-import { CallbackHandler } from "/Users/hassieb/Langfuse/langfuse-js/langfuse-langchain";
+import { CallbackHandler } from "langfuse-langchain";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatBedrockConverse } from "@langchain/aws";
