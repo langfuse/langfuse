@@ -919,15 +919,23 @@ export class IngestionService {
           ? newInputCount + newOutputCount
           : (newInputCount ?? newOutputCount));
 
-      const provided_usage_details: Record<string, number> = {};
+      let provided_usage_details: Record<string, number> = {};
 
+      // Handle legacy usage details (counts) under 'usage' key
       if (newInputCount != null) provided_usage_details.input = newInputCount;
       if (newOutputCount != null)
         provided_usage_details.output = newOutputCount;
       if (newTotalCount != null) provided_usage_details.total = newTotalCount;
 
-      const provided_cost_details: Record<string, number> = {};
+      // Handle new usage details under 'usageDetails' key
+      provided_usage_details = {
+        ...provided_usage_details,
+        ...("usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {}),
+      };
 
+      let provided_cost_details: Record<string, number> = {};
+
+      // Handle legacy cost details under 'usage' key
       if ("usage" in obs.body) {
         const { inputCost, outputCost, totalCost } = obs.body.usage ?? {};
 
@@ -935,6 +943,12 @@ export class IngestionService {
         if (outputCost != null) provided_cost_details.output = outputCost;
         if (totalCost != null) provided_cost_details.total = totalCost;
       }
+
+      // Handle new cost details under 'costDetails' key
+      provided_cost_details = {
+        ...provided_cost_details,
+        ...("costDetails" in obs.body ? (obs.body.costDetails ?? {}) : {}),
+      };
 
       if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
         logger.warn(

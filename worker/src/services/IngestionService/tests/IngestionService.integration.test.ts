@@ -108,29 +108,34 @@ describe("Ingestion end-to-end tests", () => {
         outputCost: 456,
         totalCost: 789,
       },
-      expectedInputUnits: 100,
-      expectedOutputUnits: 200,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        input: 100,
+        output: 200,
+        total: 100,
+      },
+      expectedCostDetails: {
+        input: 123,
+        output: 456,
+        total: 789,
+      },
     },
     {
       usage: {
         total: 100,
         unit: ModelUsageUnit.Characters,
       },
-
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        total: 100,
+      },
     },
     {
       usage: {
         total: 100,
         unit: ModelUsageUnit.Milliseconds,
       },
-
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        total: 100,
+      },
     },
     {
       usage: {
@@ -138,10 +143,11 @@ describe("Ingestion end-to-end tests", () => {
         output: 2,
         unit: ModelUsageUnit.Images,
       },
-
-      expectedInputUnits: 1,
-      expectedOutputUnits: 2,
-      expectedTotalUnits: 3,
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
     },
     {
       usage: {
@@ -150,9 +156,11 @@ describe("Ingestion end-to-end tests", () => {
         unit: ModelUsageUnit.Requests,
       },
 
-      expectedInputUnits: 1,
-      expectedOutputUnits: 2,
-      expectedTotalUnits: 3,
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
     },
     {
       usage: {
@@ -161,36 +169,60 @@ describe("Ingestion end-to-end tests", () => {
         unit: ModelUsageUnit.Seconds,
       },
 
-      expectedInputUnits: 30,
-      expectedOutputUnits: 10,
-      expectedTotalUnits: 40,
+      expectedUsageDetails: {
+        input: 30,
+        output: 10,
+        total: 40,
+      },
     },
     {
       usage: {
         total: 100,
       },
-
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        total: 100,
+      },
     },
     {
       usage: undefined,
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: undefined,
+      expectedUsageDetails: {},
     },
     {
       usage: null,
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: undefined,
+      expectedUsageDetails: {},
     },
     {
-      usage: {},
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: undefined,
+      usage: null,
+      usageDetails: { input: 1, output: 2, cached: 1 },
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        cached: 1,
+      },
+    },
+    {
+      usage: { input: 5, output: 5 },
+      usageDetails: { input: 1, output: 2, cached: 1 },
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        cached: 1,
+      },
+    },
+    {
+      usage: { input: 5, output: 5 },
+      usageDetails: { input: 1, output: 2, cached: 1 },
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        cached: 1,
+      },
+      costDetails: { input: 123, output: 456, cached: 789 },
+      expectedCostDetails: {
+        input: 123,
+        output: 456,
+        cached: 789,
+      },
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
@@ -224,12 +256,11 @@ describe("Ingestion end-to-end tests", () => {
       const generationEventList: ObservationEvent[] = [
         {
           id: randomUUID(),
-          type: "observation-create",
+          type: "generation-create",
           timestamp: new Date().toISOString(),
           body: {
             id: generationId,
             traceId: traceId,
-            type: "GENERATION",
             name: "generation-name",
             startTime: "2021-01-01T00:00:00.000Z",
             endTime: "2021-01-01T00:00:00.000Z",
@@ -241,13 +272,14 @@ describe("Ingestion end-to-end tests", () => {
         },
         {
           id: randomUUID(),
-          type: "observation-update",
+          type: "generation-update",
           timestamp: new Date().toISOString(),
           body: {
             id: generationId,
-            type: "GENERATION",
             output: { key: "this is a great gpt output" },
             usage: testConfig.usage,
+            usageDetails: testConfig["usageDetails"],
+            costDetails: testConfig["costDetails"],
           },
         },
       ];
@@ -340,15 +372,10 @@ describe("Ingestion end-to-end tests", () => {
       expect(parseMetadata(generation.metadata)).toEqual({ key: "value" });
       expect(generation.version).toBe("2.0.0");
       expect(generation.internal_model_id).toBeNull();
-      expect(generation.usage_details.input).toEqual(
-        testConfig.expectedInputUnits,
+      expect(generation.usage_details).toMatchObject(
+        testConfig.expectedUsageDetails,
       );
-      expect(generation.usage_details.output).toEqual(
-        testConfig.expectedOutputUnits,
-      );
-      expect(generation.usage_details.total).toEqual(
-        testConfig.expectedTotalUnits,
-      );
+
       expect(generation.output).toEqual(
         JSON.stringify({
           key: "this is a great gpt output",
