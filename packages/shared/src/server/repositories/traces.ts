@@ -96,7 +96,7 @@ export const checkTraceExists = async (
 
   const query = `
     SELECT id, project_id
-    FROM traces t
+    FROM traces t FINAL
     WHERE ${tracesFilterRes.query}
     ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
     ORDER BY event_ts DESC
