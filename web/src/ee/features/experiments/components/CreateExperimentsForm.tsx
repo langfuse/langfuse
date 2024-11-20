@@ -105,18 +105,22 @@ const isDatasetTarget = <T extends ZodSchema>(
 export const CreateExperimentsForm = ({
   projectId,
   setFormOpen,
-  handleOnSuccess,
   defaultValues = {},
   promptDefault,
+  handleExperimentSettled = async () => {},
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
-  handleOnSuccess: (data: { success: boolean; datasetId: string }) => void;
   defaultValues?: Partial<CreateExperiment>;
   promptDefault?: {
     name: string;
     version: number;
   };
+  handleExperimentSettled?: (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+  }) => Promise<void>;
 }) => {
   const [open, setOpen] = useState(false);
   const [evaluatorOptions, setEvaluatorOptions] = useState<
@@ -242,13 +246,20 @@ export const CreateExperimentsForm = ({
   );
 
   const experimentMutation = api.experiments.createExperiment.useMutation({
-    onSuccess: handleOnSuccess,
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Experiment run triggered successfully",
+        description: "Waiting for experiment to complete...",
+        duration: 28_000,
+      });
+    },
     onError: (error) => {
       showErrorToast(
         error.message || "Failed to trigger experiment run",
         "Please try again.",
       );
     },
+    onSettled: handleExperimentSettled,
   });
 
   // Watch model config changes and update form

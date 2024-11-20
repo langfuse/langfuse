@@ -25,18 +25,6 @@ import {
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
-const handleExperimentSuccess =
-  (projectId: string) => (data: { success: boolean; datasetId: string }) => {
-    showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Your experiment run will be available soon.",
-      link: {
-        href: `/project/${projectId}/datasets/${data.datasetId}`,
-        text: `View experiment "${data.datasetId}"`,
-      },
-    });
-  };
-
 export default function DatasetCompare() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -46,6 +34,9 @@ export default function DatasetCompare() {
   });
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [localRuns, setLocalRuns] = useState<
+    Array<{ key: string; value: string }>
+  >([]);
   const runIds = runState.runs as undefined | string[];
 
   const dataset = api.datasets.byId.useQuery({
@@ -65,14 +56,40 @@ export default function DatasetCompare() {
     },
   );
 
+  const handleExperimentSettled = async (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+  }) => {
+    setIsCreateExperimentDialogOpen(false);
+
+    if (!data) return;
+    setLocalRuns((prev) => [
+      ...prev,
+      { key: data.runId, value: "New Experiment" },
+    ]);
+    setRunState({
+      runs: [...(runIds ?? []), data.runId],
+    });
+
+    // sleep for 30 seconds to allow the experiment to be created
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
+
+    showSuccessToast({
+      title: "Experiment run completed",
+      description: "Your experiment run has completed.",
+    });
+  };
+
   const runs = useMemo(() => {
-    return (
+    const apiRuns =
       runsData.data?.map((run) => ({
         key: run.id,
         value: run.name,
-      })) ?? []
-    );
-  }, [runsData.data]);
+      })) ?? [];
+
+    return [...apiRuns, ...localRuns];
+  }, [runsData.data, localRuns]);
 
   if (!runsData.data || !router.isReady) {
     return <span>Loading...</span>;
@@ -118,10 +135,10 @@ export default function DatasetCompare() {
                 key={`create-experiment-form-${datasetId}`}
                 projectId={projectId as string}
                 setFormOpen={setIsCreateExperimentDialogOpen}
-                handleOnSuccess={handleExperimentSuccess(projectId)}
                 defaultValues={{
                   datasetId,
                 }}
+                handleExperimentSettled={handleExperimentSettled}
               />
             </DialogContent>
           </Dialog>,

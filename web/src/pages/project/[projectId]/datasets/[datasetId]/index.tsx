@@ -119,7 +119,6 @@ export default function Dataset() {
                   defaultValues={{
                     datasetId,
                   }}
-                  handleOnSuccess={handleExperimentSuccess(projectId)}
                 />
               </DialogContent>
             </Dialog>

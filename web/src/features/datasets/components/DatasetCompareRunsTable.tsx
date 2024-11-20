@@ -10,7 +10,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { type Prisma } from "@langfuse/shared";
 import { NumberParam } from "use-query-params";
 import { useQueryParams, withDefault } from "use-query-params";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -24,6 +24,8 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { getQueryKey } from "@trpc/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type RunMetrics = {
   id: string;
@@ -69,6 +71,10 @@ export function DatasetCompareRunsTable(props: {
     traceId: string;
     observationId?: string;
   } | null>(null);
+  const [unchangedCounts, setUnchangedCounts] = useState<
+    Record<string, number>
+  >({});
+  const queryClient = useQueryClient();
 
   const rowHeight = "l";
 
@@ -84,8 +90,40 @@ export function DatasetCompareRunsTable(props: {
     limit: paginationState.pageSize,
   });
   const queryClickhouse = useClickhouse();
-  // Individual queries for each run
-  const runs = (props.runIds ?? []).map((runId) => ({
+
+  // 1. First, separate the run definitions
+  const runQueries = (props.runIds ?? []).map((runId) => ({
+    runId,
+    queryKey: getQueryKey(api.datasets.runitemsByRunIdOrItemId, {
+      projectId: props.projectId,
+      datasetRunId: runId,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      queryClickhouse,
+    }),
+  }));
+
+  // 2. Track changes using onSuccess callback in the queries instead of useEffect
+  const handleQuerySuccess = useCallback(
+    (runId: string, newData: any) => {
+      setUnchangedCounts((prev) => {
+        const prevCount = prev[runId] || 0;
+        const prevData = queryClient.getQueryData(
+          runQueries.find((r) => r.runId === runId)?.queryKey || [],
+        );
+
+        if (prevData && JSON.stringify(newData) === JSON.stringify(prevData)) {
+          return { ...prev, [runId]: prevCount + 1 };
+        } else {
+          return { ...prev, [runId]: 0 };
+        }
+      });
+    },
+    [queryClient, runQueries],
+  );
+
+  // 3. Use the queries with success callback
+  const runs = runQueries.map(({ runId }) => ({
     runId,
     items: api.datasets.runitemsByRunIdOrItemId.useQuery(
       {
@@ -99,8 +137,10 @@ export function DatasetCompareRunsTable(props: {
         refetchOnWindowFocus: false,
         refetchOnMount: false,
         refetchOnReconnect: false,
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: 5 * 60 * 1000,
         enabled: baseDatasetItems.isSuccess,
+        refetchInterval: unchangedCounts[runId] < 2 ? 5000 : false,
+        onSuccess: (data) => handleQuerySuccess(runId, data),
       },
     ),
   }));

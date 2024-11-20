@@ -225,7 +225,7 @@ export const createExperimentJob = async ({
      ********************/
 
     const traceParams = {
-      tags: ["langfuse:evaluation:llm-as-a-judge"],
+      tags: ["langfuse:evaluation:llm-as-a-judge"], // LFE-2917: filter out any trace in trace upsert queue that has this tag set
       traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
       traceId: newTraceId,
       projectId: event.projectId,
@@ -264,29 +264,16 @@ export const createExperimentJob = async ({
     if (redis) {
       const queue = DatasetRunItemUpsertQueue.getInstance();
       if (queue) {
-        await queue.add(
-          QueueJobs.DatasetRunItemUpsert,
-          {
-            payload: {
-              projectId,
-              datasetItemId: datasetItem.id,
-              traceId: newTraceId,
-            },
-            id: randomUUID(),
-            timestamp: new Date(),
-            name: QueueJobs.DatasetRunItemUpsert as const,
+        await queue.add(QueueJobs.DatasetRunItemUpsert, {
+          payload: {
+            projectId,
+            datasetItemId: datasetItem.id,
+            traceId: newTraceId,
           },
-          {
-            attempts: 5, // retry 5 times
-            backoff: {
-              type: "exponential",
-              delay: 1000,
-            },
-            delay: 30_000, // 30 seconds
-            removeOnComplete: true,
-            removeOnFail: 1_000,
-          },
-        );
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.DatasetRunItemUpsert as const,
+        });
       }
     }
   }
