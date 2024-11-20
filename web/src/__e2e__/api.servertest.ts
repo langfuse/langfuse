@@ -98,7 +98,7 @@ describe("Ingestion Pipeline", () => {
             Authorization: userApiKeyAuth,
           },
         });
-        expect(traceResponse.body).toBeNull();
+
         expect(traceResponse.status).toBe(200);
         expect(traceResponse.body).not.toBeNull();
         expect((await traceResponse.json()).id).toBe(traceId);
