@@ -9,10 +9,11 @@ import { usdFormatter } from "../../../utils/numbers";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { CompareDialog } from "@/src/components/ui/CompareDialog";
 import { ListTree } from "lucide-react";
 import {
   getScoreGroupColumnProps,
@@ -22,6 +23,8 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { GitCompareIcon } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -31,6 +34,7 @@ export type DatasetRunItemRowData = {
     traceId: string;
     observationId?: string;
   };
+  comparison?: unknown;
   // i/o not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
@@ -67,6 +71,17 @@ export function DatasetRunItemsTable(
     queryClickhouse: useClickhouse(),
   });
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
+  type ComparisonData = {
+    projectId: string;
+    datasetId: string;
+    datasetItemId: string;
+    traceId: string;
+  };
+
+  const [comparisonData, setComparisonData] = useState<Partial<ComparisonData>>(
+    {},
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (runItems.isSuccess) {
@@ -135,6 +150,36 @@ export function DatasetRunItemsTable(
             icon={<ListTree className="h-4 w-4" />}
           />
         );
+      },
+    },
+    {
+      accessorKey: "comparison",
+      header: "Compare",
+      id: "comparison",
+      size: 60,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const datasetItemId: string = row.getValue("datasetItemId");
+        const trace: DatasetRunItemRowData["trace"] = row.getValue("trace");
+        return datasetItemId && trace ? (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              const datasetItemId: string = row.getValue("datasetItemId");
+              setComparisonData({
+                projectId: props.projectId,
+                datasetId: props.datasetId,
+                datasetItemId,
+                traceId: trace.traceId,
+              });
+              console.log("comparisonData", comparisonData);
+              setDialogOpen(true);
+            }}
+          >
+            <GitCompareIcon className="h-4 w-4" />
+          </Button>
+        ) : null;
       },
     },
     {
@@ -272,6 +317,16 @@ export function DatasetRunItemsTable(
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
+      {comparisonData.projectId &&
+        comparisonData.datasetId &&
+        comparisonData.datasetItemId &&
+        comparisonData.traceId && (
+          <DatasetCompareCell
+            data={comparisonData as ComparisonData}
+            isOpen={dialogOpen}
+            setIsOpen={setDialogOpen}
+          />
+        )}
       <DataTable
         columns={columns}
         data={
@@ -397,6 +452,72 @@ const DatasetItemIOCell = ({
           : datasetItem.data?.input
       }
       singleLine={singleLine}
+    />
+  );
+};
+
+const DatasetCompareCell = ({
+  data,
+  isOpen,
+  setIsOpen,
+}: {
+  data: {
+    projectId: string;
+    datasetId: string;
+    datasetItemId: string;
+    traceId: string;
+  };
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+}) => {
+  if (
+    !data.projectId ||
+    !data.datasetId ||
+    !data.datasetItemId ||
+    !data.traceId
+  ) {
+    return; // Handle cases where data might be incomplete
+  }
+
+  const datasetItem = api.datasets.itemById.useQuery(
+    {
+      projectId: data.projectId,
+      datasetId: data.datasetId,
+      datasetItemId: data.datasetItemId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  const trace = api.traces.byId.useQuery(
+    {
+      traceId: data.traceId,
+      projectId: data.projectId,
+    },
+    {
+      enabled: true,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+    },
+  );
+
+  return (
+    <CompareDialog
+      expectedOutput={datasetItem.data?.expectedOutput}
+      output={trace.data?.output}
+      isLoading={datasetItem.isLoading || trace.isLoading}
+      isOpen={isOpen}
+      setIsOpen={setIsOpen}
     />
   );
 };
