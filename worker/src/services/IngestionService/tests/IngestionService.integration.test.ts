@@ -37,7 +37,7 @@ describe("Ingestion end-to-end tests", () => {
       redis,
       prisma,
       clickhouseWriter,
-      clickhouseClient,
+      clickhouseClient(),
     );
   });
 
@@ -1893,9 +1893,7 @@ describe("Ingestion end-to-end tests", () => {
       output: { b: "b" },
     },
   ].forEach(({ inputs, output }) => {
-    it(`merges metadata ${JSON.stringify(inputs)}, ${JSON.stringify(
-      output,
-    )}`, async () => {
+    it(`merges metadata ${JSON.stringify(inputs)}, ${JSON.stringify(output)}`, async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
 
@@ -1986,7 +1984,7 @@ async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
 ): Promise<RecordReadType<T>> {
-  const query = await clickhouseClient.query({
+  const query = await clickhouseClient().query({
     query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
     format: "JSONEachRow",
   });

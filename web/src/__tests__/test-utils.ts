@@ -27,13 +27,13 @@ export const pruneDatabase = async () => {
     throw new Error("You cannot prune clickhouse unless running on localhost.");
   }
 
-  await clickhouseClient.command({
+  await clickhouseClient().command({
     query: "TRUNCATE TABLE IF EXISTS observations",
   });
-  await clickhouseClient.command({
+  await clickhouseClient().command({
     query: "TRUNCATE TABLE IF EXISTS scores",
   });
-  await clickhouseClient.command({
+  await clickhouseClient().command({
     query: "TRUNCATE TABLE IF EXISTS traces",
   });
 };

@@ -290,7 +290,7 @@ async function main(params: MainParams) {
 
 async function verifyClickhouseObservation(postgresObservation: any) {
   const { id: observationId, project_id: projectId } = postgresObservation;
-  const clickhouseResult = await clickhouseClient.query({
+  const clickhouseResult = await clickhouseClient().query({
     query: `SELECT * FROM observations WHERE project_id = '${projectId}' AND id = '${observationId}' ORDER BY updated_at DESC LIMIT 1`,
     format: "JSONEachRow",
   });
@@ -715,7 +715,7 @@ async function verifyClickhouseObservation(postgresObservation: any) {
 async function verifyClickhouseTrace(postgresTrace: any) {
   const { id: traceId, project_id: projectId } = postgresTrace;
 
-  const clickhouseResult = await clickhouseClient.query({
+  const clickhouseResult = await clickhouseClient().query({
     query: `SELECT * FROM traces WHERE project_id = '${projectId}' AND id = '${traceId}' ORDER BY updated_at DESC LIMIT 1`,
     format: "JSONEachRow",
   });
@@ -879,7 +879,7 @@ async function verifyClickhouseTrace(postgresTrace: any) {
 async function verifyClickhouseScore(postgresScore: any) {
   const { id: scoreId, project_id: projectId } = postgresScore;
 
-  const clickhouseResult = await clickhouseClient.query({
+  const clickhouseResult = await clickhouseClient().query({
     query: `SELECT * FROM scores WHERE project_id = '${projectId}' AND id = '${scoreId}' ORDER BY updated_at DESC LIMIT 1`,
     format: "JSONEachRow",
   });
