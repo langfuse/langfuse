@@ -8,7 +8,9 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { Prisma } from "@langfuse/shared/src/db";
-import { processEventBatch } from "@/src/pages/api/public/ingestion";
+import { processEventBatch } from "@langfuse/shared/src/server";
+import { tokenCount } from "@/src/features/ingest/usage";
+
 import { type Trace } from "@langfuse/shared";
 import {
   eventTypes,
@@ -37,7 +39,7 @@ export default withMiddlewares({
       if (!event.body.id) {
         event.body.id = v4();
       }
-      const result = await processEventBatch([event], auth);
+      const result = await processEventBatch([event], auth, tokenCount);
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
