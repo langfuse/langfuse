@@ -3608,6 +3608,17 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
+        usageDetails:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
         promptName:
           type: string
           nullable: true
@@ -3634,6 +3645,17 @@ components:
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
+          nullable: true
+        usageDetails:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
           nullable: true
         promptName:
           type: string
