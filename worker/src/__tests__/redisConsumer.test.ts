@@ -48,15 +48,19 @@ describe.sequential("handle redis events", () => {
 
     expect(traceUpsertQueue).toBeDefined();
 
-    const job = await traceUpsertQueue?.add(QueueJobs.TraceUpsert, {
-      id: randomUUID(),
-      timestamp: new Date(),
-      payload: {
-        projectId: "project-id",
-        traceId: "trace-id",
+    const job = await traceUpsertQueue?.add(
+      QueueJobs.TraceUpsert,
+      {
+        id: randomUUID(),
+        timestamp: new Date(),
+        payload: {
+          projectId: "project-id",
+          traceId: "trace-id",
+        },
+        name: QueueJobs.TraceUpsert as const,
       },
-      name: QueueJobs.TraceUpsert as const,
-    });
+      { delay: 0 },
+    );
 
     // Wait for 2s
     await new Promise((resolve) => setTimeout(resolve, 2000));
