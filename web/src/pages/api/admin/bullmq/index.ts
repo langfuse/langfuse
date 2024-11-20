@@ -17,10 +17,25 @@ import { type Queue } from "bullmq";
 This API route is used by Langfuse Cloud to retry failed bullmq jobs.
 */
 
-const RetryBullMqJobs = z.object({
-  action: z.literal("retry"),
-  queueNames: z.array(z.string()),
-});
+const ManageBullBody = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("retry"),
+    queueNames: z.array(z.string()),
+  }),
+  z.object({
+    action: z.literal("remove"),
+    queueNames: z.array(z.string()),
+    bullStatus: z.enum([
+      "completed",
+      "failed",
+      "active",
+      "delayed",
+      "prioritized",
+      "paused",
+      "wait",
+    ]),
+  }),
+]);
 
 export default async function handler(
   req: NextApiRequest,
@@ -28,7 +43,7 @@ export default async function handler(
 ) {
   try {
     // allow only POST requests
-    if (req.method !== "POST") {
+    if (req.method !== "POST" && req.method !== "GET") {
       res.status(405).json({ error: "Method Not Allowed" });
       return;
     }
@@ -59,14 +74,68 @@ export default async function handler(
       return;
     }
 
-    const body = RetryBullMqJobs.safeParse(req.body);
+    const body = ManageBullBody.safeParse(req.body);
 
     if (!body.success) {
       res.status(400).json({ error: body.error });
       return;
     }
 
-    if (body.data.action === "retry") {
+    if (req.method === "GET") {
+      const queues = [
+        QueueName.LegacyIngestionQueue,
+        QueueName.BatchExport,
+        QueueName.DatasetRunItemUpsert,
+        QueueName.EvaluationExecution,
+        QueueName.TraceUpsert,
+        QueueName.IngestionQueue,
+      ];
+      const queueCounts = await Promise.all(
+        queues.map(async (queueName) => {
+          const queue = getQueue(queueName);
+          const jobCount = await queue?.getJobCounts();
+          return { queueName, jobCount };
+        }),
+      );
+      return res.status(200).json(queueCounts);
+    }
+
+    if (req.method === "POST" && body.data.action === "remove") {
+      logger.info(
+        `Removing jobs for queues ${body.data.queueNames.join(", ")}`,
+      );
+
+      for (const queueName of body.data.queueNames) {
+        const queue = getQueue(queueName as QueueName);
+
+        let totalCount = 0;
+        let failedCountInLoop;
+        let loopCount = 0;
+        const maxLoops = 200;
+
+        do {
+          if (loopCount >= maxLoops) {
+            logger.warn(
+              `Circuit breaker activated: Stopped after ${maxLoops} iterations for queue ${queueName}`,
+            );
+            break;
+          }
+
+          failedCountInLoop =
+            (await queue?.clean(0, 1000, body.data.bullStatus))?.length ?? 0;
+
+          totalCount += failedCountInLoop;
+
+          loopCount++;
+        } while (failedCountInLoop > 0);
+
+        logger.info(`Removed ${totalCount} jobs for queue ${queueName}`);
+      }
+
+      return res.status(200).json({ message: "Removed all jobs" });
+    }
+
+    if (req.method === "POST" && body.data.action === "retry") {
       logger.info(
         `Retrying jobs for queues ${body.data.queueNames.join(", ")}`,
       );
