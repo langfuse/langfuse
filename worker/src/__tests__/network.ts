@@ -104,7 +104,7 @@ export class OpenAIServer {
 
   setup() {
     this.internalServer.listen({
-      onUnhandledRequest: this.hasActiveKey ? "bypass" : "error",
+      onUnhandledRequest: "bypass",
     });
   }
 
