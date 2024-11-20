@@ -151,19 +151,9 @@ export default withMiddlewares({
             );
           }
 
-          const outObservations = observationsView
-            .map(transformDbToApiObservation)
-            .map((o) => {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const {
-                inputCost,
-                outputCost,
-                totalCost,
-                internalModelId,
-                ...rest
-              } = o;
-              return rest;
-            });
+          const outObservations = observationsView.map(
+            transformDbToApiObservation,
+          );
           const validatedScores = filterAndValidateDbScoreList(
             scores,
             traceException,

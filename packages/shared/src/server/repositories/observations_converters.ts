@@ -12,8 +12,11 @@ import { ObservationRecordReadType } from "./definitions";
 export const convertObservationToView = (
   record: ObservationRecordReadType,
 ): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
+  // eslint-disable-next-line no-unused-vars
+  const { inputCost, outputCost, totalCost, internalModelId, ...rest } =
+    convertObservation(record ?? undefined);
   return {
-    ...convertObservation(record ?? undefined),
+    ...rest,
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
