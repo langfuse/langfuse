@@ -32,6 +32,7 @@ export class TraceUpsertQueue {
               removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
               removeOnFail: 100_000,
               attempts: 5,
+              delay: 10_000, // 10 seconds
               backoff: {
                 type: "exponential",
                 delay: 5000,
@@ -74,15 +75,6 @@ export function convertTraceUpsertEventsToRedisEvents(
           id: randomUUID(),
           timestamp: new Date(),
           name: QueueJobs.TraceUpsert as const,
-        },
-        opts: {
-          removeOnFail: 1_000,
-          removeOnComplete: true,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
         },
       }));
     })
