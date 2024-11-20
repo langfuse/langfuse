@@ -183,7 +183,7 @@ describe("dataset service", () => {
     expect(firstRun.run_metadata).toEqual({});
 
     expect(firstRun.avgLatency).toEqual(10800);
-    expect(firstRun.avgCost.toString()).toStrictEqual("275");
+    expect(firstRun.avgTotalCost.toString()).toStrictEqual("275");
 
     const expectedObject = JSON.stringify({
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -207,7 +207,7 @@ describe("dataset service", () => {
     expect(secondRun.run_description).toBeNull();
     expect(secondRun.run_metadata).toEqual({});
     expect(secondRun.avgLatency).toEqual(1);
-    expect(secondRun.avgCost.toString()).toStrictEqual("300");
+    expect(secondRun.avgTotalCost.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
   });
