@@ -105,7 +105,7 @@ describe("Ingestion Pipeline", () => {
 
         const traces = await clickhouseClient().query({
           query: "SELECT * FROM traces",
-          format: "TabSeparated",
+          format: "JSONEachRow",
         });
         console.log("traces", await traces.text());
         expect(traceResponse.status).toBe(200);
