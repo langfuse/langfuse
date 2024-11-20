@@ -99,11 +99,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         createdAt: run.run_created_at,
         updatedAt: run.run_updated_at,
         avgLatency: trace?.latency ?? observation?.latency ?? 0,
-        avgCost: trace?.cost
-          ? new Decimal(trace.cost)
-          : observation?.cost
-            ? new Decimal(observation.cost)
-            : new Decimal(0),
         scores: aggregateScores(scores.filter((s) => s.run_id === run.run_id)),
       };
     });
