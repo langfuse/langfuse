@@ -99,8 +99,6 @@ export const checkTraceExists = async (
     FROM traces t FINAL
     WHERE ${tracesFilterRes.query}
     ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-    ORDER BY event_ts DESC
-    LIMIT 1 BY id, project_id
   `;
 
   const rows = await queryClickhouse<{ id: string; project_id: string }>({
