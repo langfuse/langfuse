@@ -21,30 +21,17 @@ export const addDatasetRunItemsToEvalQueue = async ({
     const queue = DatasetRunItemUpsertQueue.getInstance();
 
     if (queue) {
-      await queue.add(
-        QueueJobs.DatasetRunItemUpsert,
-        {
-          payload: {
-            projectId,
-            datasetItemId: datasetItemId,
-            traceId,
-            observationId: observationId ?? undefined,
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.DatasetRunItemUpsert as const,
+      await queue.add(QueueJobs.DatasetRunItemUpsert, {
+        payload: {
+          projectId,
+          datasetItemId: datasetItemId,
+          traceId,
+          observationId: observationId ?? undefined,
         },
-        {
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-          delay: 30000, // 30 seconds
-          removeOnComplete: true,
-          removeOnFail: 1_000,
-        },
-      );
+        id: randomUUID(),
+        timestamp: new Date(),
+        name: QueueJobs.DatasetRunItemUpsert as const,
+      });
     }
   }
 };
