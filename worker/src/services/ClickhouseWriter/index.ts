@@ -1,5 +1,5 @@
 import {
-  clickhouseClient,
+  defaultClickhouseClient,
   getCurrentSpan,
   ObservationRecordInsertType,
   recordGauge,
@@ -195,7 +195,7 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await clickhouseClient()
+    await defaultClickhouseClient
       .insert({
         table: params.table,
         format: "JSONEachRow",

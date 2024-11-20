@@ -17,6 +17,7 @@ export const clickhouseClient = (opts?: NodeClickHouseClientConfigOptions) =>
     },
   });
 
+export const defaultClickhouseClient = clickhouseClient();
 /**
  * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
  */
