@@ -189,10 +189,5 @@
   },
   "optionalDependencies": {
     "crisp-sdk-web": "^1.0.25"
-  },
-  "pnpm": {
-    "overrides": {
-      "jsonpath-plus": "10.0.0"
-    }
   }
 }
