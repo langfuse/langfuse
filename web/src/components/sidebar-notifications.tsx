@@ -24,6 +24,14 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw2-3",
+    title: "Launch Week 2 – Day 3",
+    description:
+      "Full multi-modal support including images, audio, and attachments",
+    link: "https://langfuse.com/changelog/2024-11-20-full-multi-modal-images-audio-attachments",
+    linkTitle: "Changelog",
+  },
+  {
     id: "lw2-2",
     title: "Launch Week 2 – Day 2",
     description: "LLM-as-a-Judge Evaluators for Dataset Experiments",
