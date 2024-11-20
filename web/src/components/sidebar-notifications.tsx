@@ -24,10 +24,16 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw2-2",
+    title: "Launch Week 2 – Day 2",
+    description: "LLM-as-a-Judge Evaluators for Dataset Experiments",
+    link: "https://langfuse.com/changelog/2024-11-19-llm-as-a-judge-for-datasets",
+    linkTitle: "Changelog",
+  },
+  {
     id: "lw2-1",
     title: "Launch Week 2 – Day 1",
-    description:
-      "New side-by-side comparison view for dataset experiment runs.",
+    description: "New side-by-side comparison view for dataset experiment runs",
     link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
     linkTitle: "Changelog",
   },
@@ -35,7 +41,7 @@ const notifications: SidebarNotification[] = [
     id: "github-star",
     title: "Star Langfuse",
     description:
-      "See the latest releases and help grow the community on GitHub.",
+      "See the latest releases and help grow the community on GitHub",
     link: "https://github.com/langfuse/langfuse",
     linkContent: (
       // eslint-disable-next-line @next/next/no-img-element
