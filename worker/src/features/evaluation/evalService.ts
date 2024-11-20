@@ -458,7 +458,7 @@ export const evaluate = async ({
   );
 
   // extract the variables which need to be inserted into the prompt
-  const mappingResult = await extractVariables({
+  const mappingResult = await extractVariablesFromTracingData({
     projectId: event.projectId,
     variables: template.vars,
     traceId: job.job_input_trace_id,
@@ -686,7 +686,7 @@ export function compileHandlebarString(
   return template(context);
 }
 
-export async function extractVariables({
+export async function extractVariablesFromTracingData({
   projectId,
   variables,
   traceId,
