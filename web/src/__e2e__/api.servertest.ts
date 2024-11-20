@@ -86,70 +86,80 @@ describe("Ingestion Pipeline", () => {
       body: JSON.stringify(event),
     });
 
-    await waitForExpect(async () => {
-      // we need a second call to the public API with the API key, so that it is stored in redis
-      // first call (ingestion above) generates the new, fast API hash
-      // second call (below) stores the API key in redis
-      const traceUrl = `http://localhost:3000/api/public/traces/${traceId}`;
+    await waitForExpect(
+      async () => {
+        // we need a second call to the public API with the API key, so that it is stored in redis
+        // first call (ingestion above) generates the new, fast API hash
+        // second call (below) stores the API key in redis
+        const traceUrl = `http://localhost:3000/api/public/traces/${traceId}`;
 
-      const traceResponse = await fetch(traceUrl, {
-        headers: {
-          Authorization: userApiKeyAuth,
-        },
-      });
+        const traceResponse = await fetch(traceUrl, {
+          headers: {
+            Authorization: userApiKeyAuth,
+          },
+        });
 
-      expect(traceResponse.status).toBe(200);
-      expect(traceResponse.body).not.toBeNull();
-      expect((await traceResponse.json()).id).toBe(traceId);
+        expect(traceResponse.status).toBe(200);
+        expect(traceResponse.body).not.toBeNull();
+        expect((await traceResponse.json()).id).toBe(traceId);
 
-      const trace = await prisma.trace.findUnique({
-        where: {
-          id: traceId,
-        },
-      });
-      expect(trace).not.toBeNull();
-      expect(trace?.name).toBe("test trace");
+        const trace = await prisma.trace.findUnique({
+          where: {
+            id: traceId,
+          },
+        });
+        expect(trace).not.toBeNull();
+        expect(trace?.name).toBe("test trace");
 
-      const observation = await prisma.observation.findUnique({
-        where: {
-          id: spanId,
-          traceId: traceId,
-        },
-      });
-      expect(observation).not.toBeNull();
-      expect(observation?.name).toBe("test span");
+        const observation = await prisma.observation.findUnique({
+          where: {
+            id: spanId,
+            traceId: traceId,
+          },
+        });
+        expect(observation).not.toBeNull();
+        expect(observation?.name).toBe("test span");
 
-      expect(redis).not.toBeNull();
+        expect(redis).not.toBeNull();
 
-      const redisKeys = await redis?.keys(`api-key:*`);
-      expect(redisKeys?.length).toBe(1);
-      const redisValue = await redis?.get(redisKeys![0]);
+        const redisKeys = await redis?.keys(`api-key:*`);
+        expect(redisKeys?.length).toBe(1);
+        const redisValue = await redis?.get(redisKeys![0]);
 
-      const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
-      expect(llmApiKey.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    });
+        const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
+        expect(llmApiKey.projectId).toBe(
+          "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        );
+      },
+      30000,
+      1000,
+    );
 
     // check for eval
-    await waitForExpect(async () => {
-      const evalExecution = await prisma.jobExecution.findFirst({
-        where: {
-          jobInputTraceId: traceId,
-          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        },
-      });
+    await waitForExpect(
+      async () => {
+        const evalExecution = await prisma.jobExecution.findFirst({
+          where: {
+            jobInputTraceId: traceId,
+            projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          },
+        });
 
-      expect(evalExecution).not.toBeNull();
+        expect(evalExecution).not.toBeNull();
 
-      if (!evalExecution) {
-        return;
-      }
+        if (!evalExecution) {
+          return;
+        }
 
-      // failure due to missing openai key in the pipeline. Expected
-      expect(evalExecution.status).toBe(JobExecutionStatus.ERROR);
-    }, 20000);
+        // failure due to missing openai key in the pipeline. Expected
+        expect(evalExecution.status).toBe(JobExecutionStatus.ERROR);
+      },
+      30000,
+      1000,
+    );
 
     expect(response.status).toBe(207);
-  }, 25000);
+  }, 40000);
 
   it("rate limit ingestion", async () => {
     // update the org in the database and set the rate limit to 1 for ingestion

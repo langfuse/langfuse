@@ -85,19 +85,9 @@ export default withMiddlewares({
         },
         clickhouseExecution: async () => {
           const [trace, observations, scores] = await Promise.all([
-            getTraceById(traceId, auth.scope.projectId, undefined),
-            getObservationsViewForTrace(
-              traceId,
-              auth.scope.projectId,
-              undefined,
-            ),
-            getScoresForTraces(
-              auth.scope.projectId,
-              [traceId],
-              undefined,
-              undefined,
-              undefined,
-            ),
+            getTraceById(traceId, auth.scope.projectId),
+            getObservationsViewForTrace(traceId, auth.scope.projectId),
+            getScoresForTraces(auth.scope.projectId, [traceId]),
           ]);
 
           const uniqueModels: string[] = Array.from(
@@ -147,7 +137,7 @@ export default withMiddlewares({
 
           if (!trace) {
             throw new LangfuseNotFoundError(
-              "Trace not found within authorized project",
+              `Trace ${traceId} not found within authorized project`,
             );
           }
 
