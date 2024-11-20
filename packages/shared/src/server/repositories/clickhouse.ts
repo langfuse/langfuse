@@ -8,6 +8,7 @@ import { instrumentAsync } from "../instrumentation";
 import { S3StorageService } from "../services/S3StorageService";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
+import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -68,7 +69,7 @@ export async function upsertClickhouse<
       );
     }
 
-    const res = await clickhouseClient.insert({
+    const res = await clickhouseClient().insert({
       table: opts.table,
       values: opts.records.map((record) => ({
         ...record,
@@ -106,12 +107,13 @@ export async function upsertClickhouse<
 export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
 }): Promise<T[]> {
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
 
-    const res = await clickhouseClient.query({
+    const res = await clickhouseClient(opts.clickhouseConfigs).query({
       query: opts.query,
       format: "JSONEachRow",
       query_params: opts.params,
@@ -148,12 +150,12 @@ export async function queryClickhouse<T>(opts: {
 export async function commandClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
-
-    const res = await clickhouseClient.command({
+    const res = await clickhouseClient(opts.clickhouseConfigs).command({
       query: opts.query,
       query_params: opts.params,
     });
@@ -186,4 +188,15 @@ export async function commandClickhouse<T>(opts: {
 
 export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
   return new Date(`${dateStr.replace(" ", "T")}Z`);
+}
+
+export function clickhouseCompliantRandomCharacters() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  let result = "";
+  const randomArray = new Uint8Array(5);
+  crypto.getRandomValues(randomArray);
+  randomArray.forEach((number) => {
+    result += chars[number % chars.length];
+  });
+  return result;
 }
