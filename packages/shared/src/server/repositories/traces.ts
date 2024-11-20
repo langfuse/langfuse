@@ -557,7 +557,7 @@ export const getSessionsTable = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 }) => {
   const rows = await getSessionsTableGeneric<SessionDataReturnType>({
     select: `
@@ -583,7 +583,7 @@ export const getSessionsTable = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    page: props.offset,
+    page: props.page,
   });
 
   return rows;
