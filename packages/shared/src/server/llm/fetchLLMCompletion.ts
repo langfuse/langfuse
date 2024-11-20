@@ -1,6 +1,6 @@
 import type { ZodSchema } from "zod";
 
-import { CallbackHandler } from "/Users/hassieb/Langfuse/langfuse-js/langfuse-langchain";
+import { CallbackHandler } from "langfuse-langchain";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatBedrockConverse } from "@langchain/aws";
@@ -113,7 +113,7 @@ export async function fetchLLMCompletion(
 
     processTracedEvents = async () => {
       try {
-        const events = await handler.langfuse._shutdownAdmin(
+        const events = await handler.langfuse._exportLocalEvents(
           traceParams.projectId,
         );
         await processEventBatch(
