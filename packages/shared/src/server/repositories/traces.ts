@@ -299,7 +299,7 @@ export const getSessionsTableCount = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  page?: number;
+  offset?: number;
 }) => {
   const rows = await getSessionsTableGeneric<{ count: string }>({
     select: `
@@ -309,7 +309,7 @@ export const getSessionsTableCount = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    page: props.page,
+    offset: props.offset,
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -320,7 +320,7 @@ export const getSessionsTable = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  page?: number;
+  offset?: number;
 }) => {
   const rows = await getSessionsTableGeneric<SessionDataReturnType>({
     select: `
@@ -346,14 +346,14 @@ export const getSessionsTable = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    page: props.page,
+    offset: props.offset,
   });
 
   return rows;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, page } = props;
+  const { select, projectId, filter, orderBy, limit, offset } = props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "s" });
@@ -428,7 +428,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     FROM session_data s
     WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
-    ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
 
   const obsStartTimeValue = traceTimestampFilter
@@ -440,7 +440,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     params: {
       projectId,
       limit: limit,
-      offset: (limit ?? 0) * (page ?? 0),
+      offset: offset,
       ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
