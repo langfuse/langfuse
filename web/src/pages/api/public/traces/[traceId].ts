@@ -9,9 +9,16 @@ import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   filterAndValidateDbScoreList,
   LangfuseNotFoundError,
+  type ObservationView,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
+import {
+  getObservationsViewForTrace,
+  getScoresForTraces,
+  getTraceById,
+  traceException,
+} from "@langfuse/shared/src/server";
+import Decimal from "decimal.js";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -76,7 +83,125 @@ export default withMiddlewares({
             observations: outObservations,
           };
         },
-        clickhouseExecution() {},
+        clickhouseExecution: async () => {
+          const [trace, observations, scores] = await Promise.all([
+            getTraceById(traceId, auth.scope.projectId, undefined),
+            getObservationsViewForTrace(
+              traceId,
+              auth.scope.projectId,
+              undefined,
+            ),
+            getScoresForTraces(
+              auth.scope.projectId,
+              [traceId],
+              undefined,
+              undefined,
+              undefined,
+            ),
+          ]);
+
+          const uniqueModels: string[] = Array.from(
+            new Set(
+              observations
+                .map((r) => r.modelId)
+                .filter((r): r is string => Boolean(r)),
+            ),
+          );
+
+          const models =
+            uniqueModels.length > 0
+              ? await prisma.model.findMany({
+                  where: {
+                    id: {
+                      in: uniqueModels,
+                    },
+                    OR: [
+                      { projectId: auth.scope.projectId },
+                      { projectId: null },
+                    ],
+                  },
+                  include: {
+                    Price: true,
+                  },
+                })
+              : [];
+
+          const observationsView: ObservationView[] = observations.map((o) => {
+            const model = models.find((m) => m.id === o.modelId);
+            const inputPrice =
+              model?.Price.find((p) => p.usageType === "input")?.price ??
+              new Decimal(0);
+            const outputPrice =
+              model?.Price.find((p) => p.usageType === "output")?.price ??
+              new Decimal(0);
+            const totalPrice =
+              model?.Price.find((p) => p.usageType === "total")?.price ??
+              new Decimal(0);
+            return {
+              ...o,
+              inputPrice,
+              outputPrice,
+              totalPrice,
+            };
+          });
+
+          if (!trace) {
+            throw new LangfuseNotFoundError(
+              "Trace not found within authorized project",
+            );
+          }
+
+          const outObservations = observationsView
+            .map(transformDbToApiObservation)
+            .map((o) => {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const {
+                inputCost,
+                outputCost,
+                totalCost,
+                internalModelId,
+                ...rest
+              } = o;
+              return rest;
+            });
+          const validatedScores = filterAndValidateDbScoreList(
+            scores,
+            traceException,
+          );
+
+          const obsStartTimes = observations
+            .map((o) => o.startTime)
+            .sort((a, b) => a.getTime() - b.getTime());
+          const obsEndTimes = observations
+            .map((o) => o.endTime)
+            .filter((t) => t)
+            .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
+
+          const latencyMs =
+            obsStartTimes.length > 0
+              ? obsEndTimes.length > 0
+                ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+                  obsStartTimes[0]!.getTime()
+                : obsStartTimes.length > 1
+                  ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                    obsStartTimes[0]!.getTime()
+                  : undefined
+              : undefined;
+          return {
+            ...trace,
+            scores: validatedScores,
+            latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
+            observations: outObservations,
+            htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
+            totalCost: observations
+              .reduce(
+                (acc, obs) =>
+                  acc.add(obs.calculatedTotalCost ?? new Decimal(0)),
+                new Decimal(0),
+              )
+              .toNumber(),
+          };
+        },
       });
     },
   }),

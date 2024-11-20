@@ -11,10 +11,7 @@ import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
-): Omit<
-  ObservationView,
-  "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
-> => {
+): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
   return {
     ...convertObservation(record ?? undefined),
     latency: record.end_time
@@ -27,6 +24,7 @@ export const convertObservationToView = (
       : null,
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
+    modelId: record.internal_model_id ?? null,
   };
 };
 

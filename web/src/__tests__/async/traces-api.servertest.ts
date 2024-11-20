@@ -1,5 +1,11 @@
-import { createTrace } from "@/src/__tests__/fixtures/tracing-factory";
-import { createTraces } from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import {
+  createObservation,
+  createTrace,
+} from "@/src/__tests__/fixtures/tracing-factory";
+import {
+  createObservations,
+  createTraces,
+} from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetTraceV1Response } from "@/src/features/public-api/types/traces";
 
@@ -14,7 +20,25 @@ describe("/api/public/traces API Endpoint", () => {
       version: "2.0.0",
     });
 
-    createTraces([createdTrace]);
+    const observations = [
+      createObservation({
+        trace_id: createdTrace.id,
+        project_id: createdTrace.project_id,
+        name: "observation-name",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 1000,
+      }),
+      createObservation({
+        trace_id: createdTrace.id,
+        project_id: createdTrace.project_id,
+        name: "observation-name",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 100000,
+      }),
+    ];
+
+    await createTraces([createdTrace]);
+    await createObservations(observations);
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
@@ -27,5 +51,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.externalId).toBeNull();
     expect(trace.body.version).toBe("2.0.0");
     expect(trace.body.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(trace.body.latency).toBe(100);
+    expect(trace.body.observations.length).toBe(2);
+    expect(trace.body.scores.length).toBe(0);
   });
 });
