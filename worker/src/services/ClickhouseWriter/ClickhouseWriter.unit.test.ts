@@ -11,9 +11,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
   return {
     ...original,
-    ch: {
+    ch: () => ({
       insert: vi.fn(),
-    },
+    }),
     recordHistogram: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
