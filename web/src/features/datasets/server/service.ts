@@ -79,7 +79,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
     console.log("traceAgg", traceAgg);
     await deleteTempTableInClickhouse(tableName);
 
-    const enrichedRuns = runs.map((run) => {
+    const enrichedRuns = runs.map(({ run_items, ...run }) => {
       const observation = obsAgg.find((o) => o.runId === run.run_id);
       const trace = traceAgg.find((t) => t.runId === run.run_id);
       return {
@@ -88,7 +88,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         datasetId: input.datasetId,
         id: run.run_id,
         avgTotalCost: trace?.cost ?? observation?.cost,
-        countRunItems: run.run_items.length,
+        countRunItems: run_items.length,
         name: run.run_name,
         description: run.run_description,
         metadata: run.run_metadata,

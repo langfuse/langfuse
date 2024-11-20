@@ -103,7 +103,7 @@ describe("dataset service", () => {
     await prisma.datasetRunItems.create({
       data: {
         id: datasetRunItemId4,
-        datasetRunId: datasetRunId,
+        datasetRunId: datasetRun2Id,
         observationId: null,
         traceId: traceId4,
         projectId,
@@ -141,7 +141,7 @@ describe("dataset service", () => {
     const observation5 = createObservation({
       trace_id: traceId4,
       project_id: projectId,
-      start_time: new Date().getTime() - 1000 * 60 * 60, // minus 1 min
+      start_time: new Date().getTime() - 1000,
       end_time: new Date().getTime(),
     });
     createObservations([
@@ -170,14 +170,20 @@ describe("dataset service", () => {
 
     console.log("runs", JSON.stringify(runs));
 
-    expect(runs).toHaveLength(1);
-    expect(runs[0].run_id).toEqual(datasetRunId);
+    expect(runs).toHaveLength(2);
 
-    expect(runs[0].run_description).toBeNull();
-    expect(runs[0].run_metadata).toEqual({});
+    const firstRun = runs.find((run) => run.run_id === datasetRunId);
+    expect(firstRun).toBeDefined();
+    if (!firstRun) {
+      throw new Error("first run is not defined");
+    }
+    expect(firstRun.run_id).toEqual(datasetRunId);
 
-    expect(runs[0].avgLatency).toEqual(10800);
-    expect(runs[0].avgCost.toString()).toStrictEqual("275");
+    expect(firstRun.run_description).toBeNull();
+    expect(firstRun.run_metadata).toEqual({});
+
+    expect(firstRun.avgLatency).toEqual(10800);
+    expect(firstRun.avgCost.toString()).toStrictEqual("275");
 
     const expectedObject = JSON.stringify({
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -188,25 +194,21 @@ describe("dataset service", () => {
       },
     });
 
-    expect(JSON.stringify(runs[0].scores)).toEqual(expectedObject);
+    expect(JSON.stringify(firstRun.scores)).toEqual(expectedObject);
 
-    const secondRun = runs[1];
+    const secondRun = runs.find((run) => run.run_id === datasetRun2Id);
+
+    expect(secondRun).toBeDefined();
+    if (!secondRun) {
+      throw new Error("second run is not defined");
+    }
 
     expect(secondRun.run_id).toEqual(datasetRun2Id);
     expect(secondRun.run_description).toBeNull();
     expect(secondRun.run_metadata).toEqual({});
-    expect(secondRun.avgLatency).toEqual(10800);
-    expect(secondRun.avgCost.toString()).toStrictEqual("275");
+    expect(secondRun.avgLatency).toEqual(1);
+    expect(secondRun.avgCost.toString()).toStrictEqual("300");
 
-    const expectedSecondRunScores = JSON.stringify({
-      "f39c8960_69c3_4281_9e87_5892807a30c1-API-NUMERIC": {
-        type: "NUMERIC",
-        values: [100.5],
-        average: 100.5,
-        comment: "comment",
-      },
-    });
-
-    expect(JSON.stringify(secondRun.scores)).toEqual(expectedSecondRunScores);
+    expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
   });
 });

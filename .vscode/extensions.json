@@ -6,5 +6,35 @@
     "unifiedjs.vscode-mdx",
     "yoavbls.pretty-ts-errors",
     "Prisma.prisma"
+  ],
+  "a": [
+    {
+      "run_id": "cef4cb29-53fc-4b6c-b50d-19eccc02428d",
+      "run_name": "3c327634-4e8f-49d4-85f7-0865416fc022",
+      "run_description": null,
+      "run_metadata": {},
+      "run_created_at": "2024-11-20T13:33:51.104Z",
+      "run_updated_at": "2024-11-20T13:33:51.104Z",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "datasetId": "23a7f977-43e8-40a1-8e62-013f0903289c",
+      "id": "cef4cb29-53fc-4b6c-b50d-19eccc02428d",
+      "avgTotalCost": 283.3333333333333,
+      "countRunItems": 4,
+      "name": "3c327634-4e8f-49d4-85f7-0865416fc022",
+      "description": null,
+      "metadata": {},
+      "createdAt": "2024-11-20T13:33:51.104Z",
+      "updatedAt": "2024-11-20T13:33:51.104Z",
+      "avgLatency": 7200.333333333333,
+      "avgCost": "283.3333333333333",
+      "scores": {
+        "b6e0447b_27aa_4b22_8e33_ca51faf8ac65-API-NUMERIC": {
+          "type": "NUMERIC",
+          "values": [100.5],
+          "average": 100.5,
+          "comment": "comment"
+        }
+      }
+    }
   ]
 }
