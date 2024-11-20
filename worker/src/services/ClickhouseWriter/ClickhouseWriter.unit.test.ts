@@ -84,7 +84,7 @@ describe("ClickhouseWriter", () => {
 
   it("should flush when queue reaches batch size", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.clickhouseClient, "insert")
+      .spyOn(serverExports.clickhouseClient(), "insert")
       .mockResolvedValue();
 
     for (let i = 0; i < writer.batchSize; i++) {
@@ -99,7 +99,7 @@ describe("ClickhouseWriter", () => {
 
   it("should flush at regular intervals", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.clickhouseClient, "insert")
+      .spyOn(serverExports.clickhouseClient(), "insert")
       .mockResolvedValue();
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
 
@@ -280,7 +280,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle different types of Clickhouse client errors", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.clickhouseClient, "insert")
+      .spyOn(serverExports.clickhouseClient(), "insert")
       .mockRejectedValueOnce(new Error("Network error"))
       .mockRejectedValueOnce(new Error("Timeout"))
       .mockResolvedValueOnce();
@@ -303,7 +303,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle partial queue flush correctly", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.clickhouseClient, "insert")
+      .spyOn(serverExports.clickhouseClient(), "insert")
       .mockResolvedValue();
     const partialQueueSize = Math.floor(writer.batchSize / 2);
 
@@ -326,7 +326,7 @@ describe("ClickhouseWriter", () => {
 
   it("should continue functioning after encountering an error", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.clickhouseClient, "insert")
+      .spyOn(serverExports.clickhouseClient(), "insert")
       .mockRejectedValueOnce(new Error("DB Error"))
       .mockResolvedValue();
 
