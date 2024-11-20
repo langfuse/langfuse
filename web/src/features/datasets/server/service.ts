@@ -74,8 +74,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       clickhouseSession,
     );
 
-    await deleteTempTableInClickhouse(tableName);
-
     const enrichedRuns = runs.map(({ run_items, ...run }) => {
       const observation = obsAgg.find((o) => o.runId === run.run_id);
       const trace = traceAgg.find((t) => t.runId === run.run_id);
@@ -103,8 +101,9 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
     return enrichedRuns;
   } catch (e) {
     logger.error("Failed to fetch dataset runs from clickhouse", e);
-    await deleteTempTableInClickhouse(tableName);
     throw e;
+  } finally {
+    await deleteTempTableInClickhouse(tableName, clickhouseSession);
   }
 };
 
@@ -156,11 +155,18 @@ export const createTempTableInClickhouse = async (
   });
 };
 
-export const deleteTempTableInClickhouse = async (tableName: string) => {
+export const deleteTempTableInClickhouse = async (
+  tableName: string,
+  sessionId: string,
+) => {
   const query = `
       DROP TABLE IF EXISTS ${tableName}
   `;
-  await commandClickhouse({ query, params: { tableName } });
+  await commandClickhouse({
+    query,
+    params: { tableName },
+    clickhouseConfigs: { session_id: sessionId },
+  });
 };
 
 export const getDatasetRunsFromPostgres = async (
@@ -240,7 +246,7 @@ const getObservationLatencyAndCostForDataset = async (
         run_id,
         dateDiff('milliseconds', start_time, end_time) AS latency_ms,
         total_cost AS cost
-      FROM ${tableName} tmp JOIN observations o 
+      FROM observations o  JOIN ${tableName} tmp
         ON tmp.project_id = o.project_id 
         AND tmp.observation_id = o.id 
         AND tmp.trace_id = o.trace_id
@@ -291,7 +297,7 @@ const getTraceLatencyAndCostForDataset = async (
         run_id,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms,
         sum(total_cost) AS cost
-      FROM ${tableName} tmp JOIN observations o 
+      FROM observations o  JOIN ${tableName} tmp
         ON tmp.project_id = o.project_id 
         AND tmp.trace_id = o.trace_id
       WHERE o.project_id = {projectId: String}
