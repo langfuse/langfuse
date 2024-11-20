@@ -153,7 +153,6 @@ export const traceRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          console.log("clickhouseExecution", JSON.stringify(input, null, 2));
           const res = await getTracesTable(
             ctx.session.projectId,
             input.filter ?? [],

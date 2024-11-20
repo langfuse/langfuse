@@ -244,6 +244,5 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     },
   });
 
-  console.log("getTracesTableGeneric", res);
   return res;
 };
