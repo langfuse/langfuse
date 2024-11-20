@@ -1,4 +1,5 @@
 import {
+  ch,
   clickhouseClient,
   getCurrentSpan,
   ObservationRecordInsertType,

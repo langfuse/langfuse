@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  ch,
   clickhouseClient,
   ObservationEvent,
   observationRecordReadSchema,
@@ -1893,9 +1894,7 @@ describe("Ingestion end-to-end tests", () => {
       output: { b: "b" },
     },
   ].forEach(({ inputs, output }) => {
-    it(`merges metadata ${JSON.stringify(inputs)}, ${JSON.stringify(
-      output,
-    )}`, async () => {
+    it(`merges metadata ${JSON.stringify(inputs)}, ${JSON.stringify(output)}`, async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
 
