@@ -1,6 +1,5 @@
 import { expect, test, describe, afterAll, beforeAll, vi } from "vitest";
 import {
-  createDatasetEvalJobs,
   createEvalJobs,
   evaluate,
   extractVariables,
@@ -18,7 +17,11 @@ import {
 import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
-import { QueueName } from "@langfuse/shared/src/server";
+import {
+  convertDateToClickhouseDateTime,
+  QueueName,
+  upsertTrace,
+} from "@langfuse/shared/src/server";
 import { Worker, Job, ConnectionOptions } from "bullmq";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -146,7 +149,7 @@ describe("create eval jobs", () => {
       observationId: observationId,
     };
 
-    await createDatasetEvalJobs({ event: payload });
+    await createEvalJobs({ event: payload });
 
     const jobs = await kyselyPrisma.$kysely
       .selectFrom("job_executions")

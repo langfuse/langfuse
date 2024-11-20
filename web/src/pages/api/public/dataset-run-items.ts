@@ -51,14 +51,19 @@ export default withMiddlewares({
 
       // Backwards compatibility: historically, dataset run items were linked to observations, not traces
       if (!traceId && observationId) {
-        const observation = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
-          ? await getObservationById(observationId, auth.scope.projectId, true)
-          : await prisma.observation.findUnique({
-              where: {
-                id: observationId,
-                projectId: auth.scope.projectId,
-              },
-            });
+        const observation =
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+            ? await getObservationById(
+                observationId,
+                auth.scope.projectId,
+                true,
+              )
+            : await prisma.observation.findUnique({
+                where: {
+                  id: observationId,
+                  projectId: auth.scope.projectId,
+                },
+              });
 
         if (observationId && !observation) {
           throw new LangfuseNotFoundError("Observation not found");

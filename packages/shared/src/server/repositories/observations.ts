@@ -48,7 +48,7 @@ export const checkObservationExists = async (
     FROM observations o
     WHERE project_id = {projectId: String}
     AND id = {id: String}
-    ${startTime ? `AND startTime >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    ${startTime ? `AND start_time >= {startTime: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     ORDER BY event_ts DESC
     LIMIT 1 BY id, project_id
   `;

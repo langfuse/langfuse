@@ -97,16 +97,16 @@ export const createEvalJobs = async ({
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     let traceExists: boolean = false;
-    if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE) {
+    if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
       traceExists = await checkTraceExists(
         event.projectId,
         event.traceId,
         new Date(),
-        validatedFilter,
+        config.target_object === "trace" ? validatedFilter : [],
       );
     } else {
       const condition = tableColumnsToSqlFilterAndPrefix(
-        validatedFilter,
+        config.target_object === "trace" ? validatedFilter : [],
         evalTraceTableCols,
         "traces",
       );
@@ -127,7 +127,7 @@ export const createEvalJobs = async ({
     let datasetItemExists: boolean = true;
     if (isDataSetItemRun) {
       const condition = tableColumnsToSqlFilterAndPrefix(
-        validatedFilter,
+        config.target_object === "dataset" ? validatedFilter : [],
         evalDatasetFormFilterCols,
         "dataset_items",
       );
@@ -147,18 +147,19 @@ export const createEvalJobs = async ({
     }
 
     if (isDataSetItemRun && "observationId" in event && event.observationId) {
-      const observationExists = env.LANGFUSE_RETURN_FROM_CLICKHOUSE
-        ? await checkObservationExists(
-            event.projectId,
-            event.observationId,
-            new Date(),
-          )
-        : await kyselyPrisma.$kysely
-            .selectFrom("observations")
-            .select("id")
-            .where("project_id", "=", event.projectId)
-            .where("id", "=", event.observationId)
-            .executeTakeFirst();
+      const observationExists =
+        env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? await checkObservationExists(
+              event.projectId,
+              event.observationId,
+              new Date(),
+            )
+          : await kyselyPrisma.$kysely
+              .selectFrom("observations")
+              .select("id")
+              .where("project_id", "=", event.projectId)
+              .where("id", "=", event.observationId)
+              .executeTakeFirst();
 
       if (!observationExists) {
         logger.warn(
@@ -647,7 +648,7 @@ export async function extractVariables({
         }
 
         const trace: Record<string, unknown> | undefined =
-          env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
             ? await getTraceById(traceId, projectId)
             : await kyselyPrisma.$kysely
                 .selectFrom("traces as t")
@@ -696,7 +697,7 @@ export async function extractVariables({
         }
 
         const observation: Record<string, unknown> | undefined =
-          env.LANGFUSE_RETURN_FROM_CLICKHOUSE
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
             ? (
                 await getObservationForTraceIdByName(
                   traceId,
