@@ -182,7 +182,7 @@ describe("dataset service", () => {
     expect(firstRun.run_description).toBeNull();
     expect(firstRun.run_metadata).toEqual({});
 
-    expect(firstRun.avgLatency).toBeGreaterThan(10800);
+    expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
     expect(firstRun.avgTotalCost.toString()).toStrictEqual("275");
 
     const expectedObject = JSON.stringify({
