@@ -87,7 +87,11 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
         projectId: input.projectId,
         datasetId: input.datasetId,
         id: run.run_id,
-        avgTotalCost: trace?.cost ?? observation?.cost,
+        avgTotalCost: trace?.cost
+          ? new Decimal(trace.cost)
+          : observation?.cost
+            ? new Decimal(observation.cost)
+            : new Decimal(0),
         countRunItems: run_items.length,
         name: run.run_name,
         description: run.run_description,
