@@ -521,29 +521,31 @@ export const evalRouter = createTRPCRouter({
 
       // Make a test structured output call to validate the LLM key
       try {
-        await fetchLLMCompletion({
-          streaming: false,
-          apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
-          baseURL: parsedKey.data.baseURL ?? undefined,
-          messages: [
-            {
-              role: ChatMessageRole.System,
-              content: "You are an expert at evaluating LLM outputs.",
+        (
+          await fetchLLMCompletion({
+            streaming: false,
+            apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+            baseURL: parsedKey.data.baseURL ?? undefined,
+            messages: [
+              {
+                role: ChatMessageRole.System,
+                content: "You are an expert at evaluating LLM outputs.",
+              },
+              { role: ChatMessageRole.User, content: input.prompt },
+            ],
+            modelParams: {
+              provider: input.provider,
+              model: input.model,
+              adapter: parsedKey.data.adapter,
+              ...input.modelParams,
             },
-            { role: ChatMessageRole.User, content: input.prompt },
-          ],
-          modelParams: {
-            provider: input.provider,
-            model: input.model,
-            adapter: parsedKey.data.adapter,
-            ...input.modelParams,
-          },
-          structuredOutputSchema: z.object({
-            score: z.string(),
-            reasoning: z.string(),
-          }),
-          config: parsedKey.data.config,
-        });
+            structuredOutputSchema: z.object({
+              score: z.string(),
+              reasoning: z.string(),
+            }),
+            config: parsedKey.data.config,
+          })
+        ).completion;
       } catch (err) {
         logger.error(err);
 
