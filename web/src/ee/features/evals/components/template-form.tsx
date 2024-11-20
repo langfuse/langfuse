@@ -293,7 +293,7 @@ export const InnerEvalTemplateForm = (props: {
   });
 
   const evaluatorsByTemplateNameQuery =
-    api.evals.evaluatorsByTemplateName.useQuery(
+    api.evals.jobConfigsByTemplateName.useQuery(
       {
         projectId: props.projectId,
         evalTemplateName: props.existingEvalTemplateName as string,

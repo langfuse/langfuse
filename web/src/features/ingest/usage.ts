@@ -7,6 +7,7 @@ import {
   encodingForModel,
 } from "js-tiktoken";
 import { z } from "zod";
+import { logger } from "@langfuse/shared/src/server";
 
 const chatModels = [
   "gpt-4",
@@ -125,7 +126,7 @@ export function tokenCount(p: {
   } else if (p.model.tokenizerId === "claude") {
     return claudeTokenCount(p.text);
   } else {
-    console.error(`Unknown tokenizer ${p.model.tokenizerId}`);
+    logger.error(`Unknown tokenizer ${p.model.tokenizerId}`);
     return undefined;
   }
 }
@@ -139,7 +140,7 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    console.error(
+    logger.warn(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
         p.model.tokenizerConfig,
       )}, ${JSON.stringify(config.error)}`,
@@ -155,7 +156,7 @@ function openAiTokenCount(p: { model: Model; text: unknown }) {
       p.model.tokenizerConfig,
     );
     if (!parsedConfig.success) {
-      console.error(
+      logger.error(
         `Invalid tokenizer config for chat model ${
           p.model.id
         }: ${JSON.stringify(p.model.tokenizerConfig)}`,
@@ -228,7 +229,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
 
     encoding = cachedTokenizerByModel[model];
   } catch (KeyError) {
-    console.log("Warning: model not found. Using cl100k_base encoding.");
+    logger.warn("Model not found. Using cl100k_base encoding.");
 
     encoding = getEncoding("cl100k_base");
   }
