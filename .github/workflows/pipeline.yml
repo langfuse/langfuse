@@ -326,14 +326,25 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
+          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.v3preview.yml up
+          docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
       - name: Seed DB
         run: |
+          pnpm run db:migrate
           pnpm run db:seed:examples
+      - name: Build
+        run: pnpm run build
+      - name: Run server
+        run: (pnpm run start&)
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
 
