@@ -133,14 +133,14 @@ describe("dataset service", () => {
 
     console.log("runs", JSON.stringify(runs));
 
-    expect(runs.runs).toHaveLength(1);
-    expect(runs.runs[0].run_id).toEqual(datasetRunId);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].run_id).toEqual(datasetRunId);
 
-    expect(runs.runs[0].run_description).toBeNull();
-    expect(runs.runs[0].run_metadata).toEqual({});
+    expect(runs[0].run_description).toBeNull();
+    expect(runs[0].run_metadata).toEqual({});
 
-    expect(runs.runs[0].avgLatency).toEqual(10800);
-    expect(runs.runs[0].avgCost).toEqual(275);
+    expect(runs[0].avgLatency).toEqual(10800);
+    expect(runs[0].avgCost).toEqual(275);
 
     const expectedObject = JSON.stringify({
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -151,6 +151,6 @@ describe("dataset service", () => {
       },
     });
 
-    expect(JSON.stringify(runs.runs[0].scores)).toEqual(expectedObject);
+    expect(JSON.stringify(runs[0].scores)).toEqual(expectedObject);
   });
 });
