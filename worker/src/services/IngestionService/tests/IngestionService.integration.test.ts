@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  ch,
   clickhouseClient,
   ObservationEvent,
   observationRecordReadSchema,
