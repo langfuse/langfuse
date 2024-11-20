@@ -49,34 +49,3 @@ export class TraceUpsertQueue {
     return TraceUpsertQueue.instance;
   }
 }
-
-export function convertTraceUpsertEventsToRedisEvents(
-  events: TraceUpsertEventType[],
-) {
-  const uniqueTracesPerProject = events.reduce((acc, event) => {
-    if (!acc.get(event.projectId)) {
-      acc.set(event.projectId, new Set());
-    }
-    acc.get(event.projectId)?.add(event.traceId);
-    return acc;
-  }, new Map<string, Set<string>>());
-
-  return [...uniqueTracesPerProject.entries()]
-    .map((tracesPerProject) => {
-      const [projectId, traceIds] = tracesPerProject;
-
-      return [...traceIds].map((traceId) => ({
-        name: QueueJobs.TraceUpsert,
-        data: {
-          payload: {
-            projectId,
-            traceId,
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.TraceUpsert as const,
-        },
-      }));
-    })
-    .flat();
-}

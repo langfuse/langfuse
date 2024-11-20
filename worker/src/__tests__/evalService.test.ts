@@ -1,4 +1,11 @@
-import { expect, test, describe, afterAll, beforeAll, vi } from "vitest";
+import {
+  expect,
+  test,
+  describe,
+  afterAll,
+  beforeAll,
+  beforeEach,
+} from "vitest";
 import {
   createEvalJobs,
   evaluate,
@@ -20,6 +27,7 @@ import { afterEach } from "node:test";
 import {
   convertDateToClickhouseDateTime,
   QueueName,
+  upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
 import { Worker, Job, ConnectionOptions } from "bullmq";
@@ -35,12 +43,15 @@ const openAIServer = new OpenAIServer({
 });
 
 beforeAll(openAIServer.setup);
+beforeEach(async () => {
+  await pruneDatabase();
+  openAIServer.respondWithDefault();
+});
 afterEach(openAIServer.reset);
 afterAll(openAIServer.teardown);
 
 describe("create eval jobs", () => {
   test("creates new 'trace' eval job", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -50,6 +61,14 @@ describe("create eval jobs", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       })
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     await prisma.jobConfiguration.create({
       data: {
@@ -86,7 +105,6 @@ describe("create eval jobs", () => {
   }, 10_000);
 
   test("creates new 'dataset' eval job", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
     const observationId = randomUUID();
     const datasetId = randomUUID();
@@ -100,6 +118,14 @@ describe("create eval jobs", () => {
       })
       .execute();
 
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+
     await kyselyPrisma.$kysely
       .insertInto("observations")
       .values({
@@ -109,6 +135,16 @@ describe("create eval jobs", () => {
         type: sql`'GENERATION'::"ObservationType"`,
       })
       .execute();
+
+    await upsertObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      type: "GENERATION",
+      start_time: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     await kyselyPrisma.$kysely
       .insertInto("datasets")
@@ -167,7 +203,6 @@ describe("create eval jobs", () => {
   }, 10_000);
 
   test("does not create job for inactive config", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -210,7 +245,6 @@ describe("create eval jobs", () => {
   }, 10_000);
 
   test("does not create eval job for existing job execution", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -220,6 +254,14 @@ describe("create eval jobs", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       })
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     await kyselyPrisma.$kysely
       .insertInto("llm_api_keys")
@@ -271,7 +313,6 @@ describe("create eval jobs", () => {
   }, 10_000);
 
   test("does not create job for inactive config", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -314,7 +355,6 @@ describe("create eval jobs", () => {
   }, 10_000);
 
   test("does not create eval job for 0 sample rate", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -369,7 +409,6 @@ describe("create eval jobs", () => {
   }, 10_000);
 
   test("cancels a job if the second event deselects", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -380,6 +419,15 @@ describe("create eval jobs", () => {
         user_id: "a",
       })
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      user_id: "a",
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     await kyselyPrisma.$kysely
       .insertInto("llm_api_keys")
@@ -442,12 +490,23 @@ describe("create eval jobs", () => {
 
     await createEvalJobs({ event: payload });
 
+    // Wait for .5s
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     // update the trace to deselect the trace
     await kyselyPrisma.$kysely
       .updateTable("traces")
       .set("user_id", "b")
       .where("id", "=", traceId)
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     await createEvalJobs({
       event: payload,
@@ -470,7 +529,6 @@ describe("create eval jobs", () => {
 
 describe("execute evals", () => {
   test("evals a valid 'trace' event", async () => {
-    await pruneDatabase();
     openAIServer.respondWithDefault();
     const traceId = randomUUID();
 
@@ -484,6 +542,17 @@ describe("execute evals", () => {
         output: { output: "This is a great response" },
       })
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      user_id: "a",
+      input: { input: "This is a great prompt" },
+      output: { output: "This is a great response" },
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     const templateId = randomUUID();
     await kyselyPrisma.$kysely
@@ -587,7 +656,6 @@ describe("execute evals", () => {
   }, 10_000);
 
   test("fails to eval without llm api key", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -682,7 +750,6 @@ describe("execute evals", () => {
   }, 10_000);
 
   test("evals should cancel if job is cancelled", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -768,7 +835,6 @@ describe("execute evals", () => {
   }, 10_000);
 
   test("evals a valid 'trace' event and inserts score to ingestion pipeline", async () => {
-    await pruneDatabase();
     openAIServer.respondWithDefault();
     const traceId = randomUUID();
 
@@ -905,7 +971,6 @@ describe("execute evals", () => {
 
 describe("test variable extraction", () => {
   test("extracts variables from a dataset item", async () => {
-    await pruneDatabase();
     const datasetId = randomUUID();
     const datasetItemId = randomUUID();
     const traceId = randomUUID();
@@ -975,7 +1040,6 @@ describe("test variable extraction", () => {
   }, 10_000);
 
   test("extracts variables from a trace", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -988,6 +1052,17 @@ describe("test variable extraction", () => {
         output: { output: "This is a great response" },
       })
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      user_id: "a",
+      input: { input: "This is a great prompt" },
+      output: { output: "This is a great response" },
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     const variableMapping = variableMappingList.parse([
       {
@@ -1022,7 +1097,6 @@ describe("test variable extraction", () => {
   }, 10_000);
 
   test("extracts variables from a observation", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -1036,6 +1110,17 @@ describe("test variable extraction", () => {
       })
       .execute();
 
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      user_id: "a",
+      input: { input: "This is a great prompt" },
+      output: { output: "This is a great response" },
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+
     await kyselyPrisma.$kysely
       .insertInto("observations")
       .values({
@@ -1048,6 +1133,19 @@ describe("test variable extraction", () => {
         output: { haha: "This is a great response" },
       })
       .execute();
+
+    await upsertObservation({
+      id: randomUUID(),
+      trace_id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      name: "great-llm-name",
+      type: "GENERATION",
+      input: { huhu: "This is a great prompt" },
+      output: { haha: "This is a great response" },
+      start_time: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     const variableMapping = variableMappingList.parse([
       {
@@ -1084,7 +1182,6 @@ describe("test variable extraction", () => {
   }, 10_000);
 
   test("fails if observation is not present", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -1128,7 +1225,6 @@ describe("test variable extraction", () => {
   }, 10_000);
 
   test("does not fail if observation data is null", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -1142,6 +1238,17 @@ describe("test variable extraction", () => {
       })
       .execute();
 
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      user_id: "a",
+      input: { input: "This is a great prompt" },
+      output: { output: "This is a great response" },
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+
     // fetching input and output for an observation which has NULL values
     await kyselyPrisma.$kysely
       .insertInto("observations")
@@ -1153,6 +1260,17 @@ describe("test variable extraction", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       })
       .execute();
+
+    await upsertObservation({
+      id: randomUUID(),
+      trace_id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      name: "great-llm-name",
+      type: "GENERATION",
+      start_time: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     const variableMapping = variableMappingList.parse([
       {
@@ -1189,7 +1307,6 @@ describe("test variable extraction", () => {
   }, 10_000);
 
   test("extracts variables from a youngest observation", async () => {
-    await pruneDatabase();
     const traceId = randomUUID();
 
     await kyselyPrisma.$kysely
@@ -1202,6 +1319,17 @@ describe("test variable extraction", () => {
         output: { output: "This is a great response" },
       })
       .execute();
+
+    await upsertTrace({
+      id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      user_id: "a",
+      input: { input: "This is a great prompt" },
+      output: { output: "This is a great response" },
+      timestamp: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     await kyselyPrisma.$kysely
       .insertInto("observations")
@@ -1216,6 +1344,22 @@ describe("test variable extraction", () => {
         output: { haha: "This is a great response" },
       })
       .execute();
+
+    await upsertObservation({
+      id: randomUUID(),
+      trace_id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      name: "great-llm-name",
+      type: "GENERATION",
+      input: { huhu: "This is a great prompt" },
+      output: { haha: "This is a great response" },
+      start_time: convertDateToClickhouseDateTime(
+        new Date("2022-01-01T00:00:00.000Z"),
+      ),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+
     await kyselyPrisma.$kysely
       .insertInto("observations")
       .values({
@@ -1229,6 +1373,21 @@ describe("test variable extraction", () => {
         output: { haha: "This is a great response again" },
       })
       .execute();
+
+    await upsertObservation({
+      id: randomUUID(),
+      trace_id: traceId,
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      name: "great-llm-name",
+      type: "GENERATION",
+      input: { huhu: "This is a great prompt again" },
+      output: { haha: "This is a great response again" },
+      start_time: convertDateToClickhouseDateTime(
+        new Date("2022-01-02T00:00:00.000Z"),
+      ),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
 
     const variableMapping = variableMappingList.parse([
       {

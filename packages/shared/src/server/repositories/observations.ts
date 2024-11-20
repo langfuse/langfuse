@@ -2,6 +2,7 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  upsertClickhouse,
 } from "./clickhouse";
 import { Observation, ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
@@ -65,6 +66,29 @@ export const checkObservationExists = async (
   });
 
   return rows.length > 0;
+};
+
+/**
+ * Accepts a trace in a Clickhouse-ready format.
+ * id, project_id, and timestamp must always be provided.
+ */
+export const upsertObservation = async (
+  observation: Partial<ObservationRecordReadType>,
+) => {
+  if (
+    !["id", "project_id", "start_time", "type"].every(
+      (key) => key in observation,
+    )
+  ) {
+    throw new Error(
+      "Identifier fields must be provided to upsert Observation.",
+    );
+  }
+  await upsertClickhouse({
+    table: "observations",
+    records: [observation as ObservationRecordReadType],
+    eventBodyMapper: convertObservation,
+  });
 };
 
 export const getObservationsViewForTrace = async (
