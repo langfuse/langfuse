@@ -81,7 +81,6 @@ export const getTracesTable = async (
   limit?: number,
   page?: number,
 ) => {
-  console.log("getTracesTable", limit, page);
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: `
     t.id, 
