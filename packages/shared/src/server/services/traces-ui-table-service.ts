@@ -46,7 +46,7 @@ export type FetchTracesTableProps = {
   searchQuery?: string;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 };
 
 export const getTracesTableCount = async (props: {
@@ -55,7 +55,7 @@ export const getTracesTableCount = async (props: {
   searchQuery?: string;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 }) => {
   const countRows = await getTracesTableGeneric<{ count: string }>({
     select: "count(*) as count",
@@ -75,7 +75,7 @@ export const getTracesTable = async (
   searchQuery?: string,
   orderBy?: OrderByState,
   limit?: number,
-  offset?: number,
+  page?: number,
 ) => {
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: `
@@ -101,14 +101,14 @@ export const getTracesTable = async (
     searchQuery,
     orderBy,
     limit,
-    offset,
+    page,
   });
 
   return rows.map(convertToDomain);
 };
 
 const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, offset, searchQuery } =
+  const { select, projectId, filter, orderBy, limit, page, searchQuery } =
     props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =
@@ -229,14 +229,14 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     WHERE ${tracesFilterRes.query}
     ${search.query}
     ${orderByToClickhouseSql(orderBy ?? null, tracesTableUiColumnDefinitions)}
-    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
   const res = await queryClickhouse<T>({
     query: query,
     params: {
       limit: limit,
-      offset: offset,
+      offset: limit && page ? limit * page : 0,
       ...tracesFilterRes.params,
       ...observationFilterRes.params,
       ...scoresFilterRes.params,
