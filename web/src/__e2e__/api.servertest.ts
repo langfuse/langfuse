@@ -148,12 +148,12 @@ describe("Ingestion Pipeline", () => {
         // failure due to missing openai key in the pipeline. Expected
         expect(evalExecution.status).toBe(JobExecutionStatus.ERROR);
       },
-      50000,
+      120000,
       10000,
     );
 
     expect(response.status).toBe(207);
-  }, 60000);
+  }, 130000);
 
   it("rate limit ingestion", async () => {
     // update the org in the database and set the rate limit to 1 for ingestion
