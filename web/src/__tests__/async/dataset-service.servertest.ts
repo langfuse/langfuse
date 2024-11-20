@@ -24,9 +24,20 @@ describe("dataset service", () => {
       },
     });
     const datasetRunId = v4();
+    const datasetRun2Id = v4();
     await prisma.datasetRuns.create({
       data: {
         id: datasetRunId,
+        name: v4(),
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    await prisma.datasetRuns.create({
+      data: {
+        id: datasetRun2Id,
         name: v4(),
         datasetId,
         metadata: {},
@@ -48,10 +59,12 @@ describe("dataset service", () => {
     const datasetRunItemId = v4();
     const datasetRunItemId2 = v4();
     const datasetRunItemId3 = v4();
+    const datasetRunItemId4 = v4();
     const observationId = v4();
     const traceId = v4();
     const traceId2 = v4();
     const traceId3 = v4();
+    const traceId4 = v4();
     const scoreId = v4();
     const scoreName = v4();
 
@@ -86,6 +99,18 @@ describe("dataset service", () => {
       },
     });
 
+    // linked to the second run
+    await prisma.datasetRunItems.create({
+      data: {
+        id: datasetRunItemId4,
+        datasetRunId: datasetRunId,
+        observationId: null,
+        traceId: traceId4,
+        projectId,
+        datasetItemId,
+      },
+    });
+
     const observation = createObservation({
       id: observationId,
       trace_id: traceId,
@@ -113,7 +138,19 @@ describe("dataset service", () => {
       end_time: new Date().getTime(),
       total_cost: 50,
     });
-    createObservations([observation, observation2, observation3, observation4]);
+    const observation5 = createObservation({
+      trace_id: traceId4,
+      project_id: projectId,
+      start_time: new Date().getTime() - 1000 * 60 * 60, // minus 1 min
+      end_time: new Date().getTime(),
+    });
+    createObservations([
+      observation,
+      observation2,
+      observation3,
+      observation4,
+      observation5,
+    ]);
     const score = createScore({
       id: scoreId,
       observation_id: observationId,
@@ -140,7 +177,7 @@ describe("dataset service", () => {
     expect(runs[0].run_metadata).toEqual({});
 
     expect(runs[0].avgLatency).toEqual(10800);
-    expect(runs[0].avgCost).toEqual(275);
+    expect(runs[0].avgCost.toString()).toStrictEqual("275");
 
     const expectedObject = JSON.stringify({
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
@@ -152,5 +189,24 @@ describe("dataset service", () => {
     });
 
     expect(JSON.stringify(runs[0].scores)).toEqual(expectedObject);
+
+    const secondRun = runs[1];
+
+    expect(secondRun.run_id).toEqual(datasetRun2Id);
+    expect(secondRun.run_description).toBeNull();
+    expect(secondRun.run_metadata).toEqual({});
+    expect(secondRun.avgLatency).toEqual(10800);
+    expect(secondRun.avgCost.toString()).toStrictEqual("275");
+
+    const expectedSecondRunScores = JSON.stringify({
+      "f39c8960_69c3_4281_9e87_5892807a30c1-API-NUMERIC": {
+        type: "NUMERIC",
+        values: [100.5],
+        average: 100.5,
+        comment: "comment",
+      },
+    });
+
+    expect(JSON.stringify(secondRun.scores)).toEqual(expectedSecondRunScores);
   });
 });
