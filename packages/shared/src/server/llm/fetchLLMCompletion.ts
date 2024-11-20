@@ -112,7 +112,9 @@ export async function fetchLLMCompletion(
 
     processTracedEvents = async () => {
       try {
-        const events = await handler.langfuse._shutdownAdmin();
+        const events = await handler.langfuse._shutdownAdmin(
+          traceParams.projectId,
+        );
         await processEventBatch(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
