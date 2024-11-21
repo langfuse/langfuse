@@ -127,8 +127,6 @@ export function DatasetCompareRunsTable(props: {
   // 2. Track changes using onSuccess callback in the queries instead of useEffect
   const handleQuerySuccess = useCallback(
     (runId: string, newData: any) => {
-      console.log("Success callback - runId:", runId);
-
       setUnchangedCounts((prev) => {
         const prevCount = prev[runId] || 0;
         const queryKey = runQueries.find((r) => r.runId === runId)?.queryKey;
