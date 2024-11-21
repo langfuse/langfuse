@@ -3,7 +3,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
 } from "./clickhouse";
-import { Observation, ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import { prisma } from "../../db";
@@ -99,6 +99,60 @@ export const getObservationById = async (
   projectId: string,
   fetchWithInputOutput: boolean = false,
 ) => {
+  const records = await getObservationByIdInternal(
+    id,
+    projectId,
+    fetchWithInputOutput,
+  );
+  const mapped = records.map(convertObservation);
+
+  if (mapped.length === 0) {
+    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
+  }
+
+  if (mapped.length > 1) {
+    logger.error(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+    throw new InternalServerError(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+  }
+  return mapped.shift();
+};
+
+export const getObservationViewById = async (
+  id: string,
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
+  const records = await getObservationByIdInternal(
+    id,
+    projectId,
+    fetchWithInputOutput,
+  );
+  const mapped = records.map(convertObservationToView);
+
+  if (mapped.length === 0) {
+    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
+  }
+
+  if (mapped.length > 1) {
+    logger.error(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+    throw new InternalServerError(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+  }
+  return mapped.shift();
+};
+
+const getObservationByIdInternal = async (
+  id: string,
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
   const query = `
   SELECT
     id,
@@ -134,26 +188,10 @@ export const getObservationById = async (
   AND project_id = {projectId: String}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
-  const records = await queryClickhouse<ObservationRecordReadType>({
+  return await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { id, projectId },
   });
-
-  const mapped = records.map(convertObservation);
-
-  if (mapped.length === 0) {
-    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
-  }
-
-  if (mapped.length > 1) {
-    logger.error(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-    throw new InternalServerError(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-  }
-  return mapped.shift() as Observation;
 };
 
 export type ObservationTableQuery = {
@@ -242,21 +280,19 @@ export const getObservationsTable = async (
     opts.projectId,
   );
 
-  return await Promise.all(
-    observationRecords.map(async (o) => {
-      const trace = traces.find((t) => t.id === o.trace_id);
-      return {
-        ...convertObservationToView({ ...o, type: "GENERATION" }),
-        latency: o.latency ? Number(o.latency) / 1000 : null,
-        timeToFirstToken: o.time_to_first_token
-          ? Number(o.time_to_first_token) / 1000
-          : null,
-        traceName: trace?.name ?? null,
-        traceTags: trace?.tags ?? [],
-        userId: trace?.userId ?? null,
-      };
-    }),
-  );
+  return observationRecords.map((o) => {
+    const trace = traces.find((t) => t.id === o.trace_id);
+    return {
+      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      latency: o.latency ? Number(o.latency) / 1000 : null,
+      timeToFirstToken: o.time_to_first_token
+        ? Number(o.time_to_first_token) / 1000
+        : null,
+      traceName: trace?.name ?? null,
+      traceTags: trace?.tags ?? [],
+      userId: trace?.userId ?? null,
+    };
+  });
 };
 
 export const getObservationsTableWithModelData = async (
@@ -324,29 +360,27 @@ export const getObservationsTableWithModelData = async (
     ),
   ]);
 
-  return await Promise.all(
-    observationRecords.map(async (o) => {
-      const trace = traces.find((t) => t.id === o.trace_id);
-      const model = models.find((m) => m.id === o.internal_model_id);
-      return {
-        ...convertObservationToView({ ...o, type: "GENERATION" }),
-        latency: o.latency ? Number(o.latency) / 1000 : null,
-        timeToFirstToken: o.time_to_first_token
-          ? Number(o.time_to_first_token) / 1000
-          : null,
-        traceName: trace?.name ?? null,
-        traceTags: trace?.tags ?? [],
-        userId: trace?.userId ?? null,
-        modelId: model?.id ?? null,
-        inputPrice:
-          model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-        outputPrice:
-          model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-        totalPrice:
-          model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
-      };
-    }),
-  );
+  return observationRecords.map((o) => {
+    const trace = traces.find((t) => t.id === o.trace_id);
+    const model = models.find((m) => m.id === o.internal_model_id);
+    return {
+      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      latency: o.latency ? Number(o.latency) / 1000 : null,
+      timeToFirstToken: o.time_to_first_token
+        ? Number(o.time_to_first_token) / 1000
+        : null,
+      traceName: trace?.name ?? null,
+      traceTags: trace?.tags ?? [],
+      userId: trace?.userId ?? null,
+      modelId: model?.id ?? null,
+      inputPrice:
+        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+      outputPrice:
+        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+      totalPrice:
+        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+    };
+  });
 };
 
 const getObservationsTableInternal = async <T>(
