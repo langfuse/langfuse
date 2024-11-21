@@ -11,7 +11,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useState } from "react";
-import { Trash } from "lucide-react";
 import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -20,11 +19,22 @@ import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetada
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { CardDescription } from "@/src/components/ui/card";
+import { EvaluatorStatus } from "@/src/ee/features/evals/types";
+import { Switch } from "@/src/components/ui/switch";
+import { Edit } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   // get the current template by id
   const evaluator = api.evals.configById.useQuery({
@@ -63,79 +73,102 @@ export const EvaluatorDetail = () => {
 
   return (
     <FullScreenPage>
-      <>
-        <Header
-          title={evaluator.data?.id ?? "Loading..."}
-          breadcrumb={[
-            {
-              name: "Evaluators",
-              href: `/project/${router.query.projectId as string}/evals`,
-            },
-            { name: evaluator.data?.id },
-          ]}
-          actionButtons={
-            <>
-              <DeactivateEvaluator
-                projectId={projectId}
-                evaluator={evaluator.data ?? undefined}
-                isLoading={evaluator.isLoading}
+      <Header
+        title={evaluator.data ? `Evaluator ${evaluator.data.id}` : "Loading..."}
+        breadcrumb={[
+          {
+            name: "Evaluators",
+            href: `/project/${router.query.projectId as string}/evals`,
+          },
+          { name: evaluator.data?.id },
+        ]}
+        actionButtons={
+          <>
+            <StatusBadge
+              type={evaluator.data?.status.toLowerCase()}
+              isLive
+              className="max-h-8"
+            />
+            <DeactivateEvaluator
+              projectId={projectId}
+              evaluator={evaluator.data ?? undefined}
+              isLoading={evaluator.isLoading}
+            />
+            {evaluator.data && (
+              <DetailPageNav
+                key="nav"
+                currentId={encodeURIComponent(evaluator.data.id)}
+                path={(entry) =>
+                  `/project/${projectId}/evals/${encodeURIComponent(entry.id)}`
+                }
+                listKey="evals"
               />
-              {evaluator.data && (
-                <DetailPageNav
-                  key="nav"
-                  currentId={encodeURIComponent(evaluator.data.id)}
-                  path={(entry) =>
-                    `/project/${projectId}/evals/${encodeURIComponent(entry.id)}`
-                  }
-                  listKey="evals"
+            )}
+          </>
+        }
+      />
+      {existingEvaluator && (
+        <TableWithMetadataWrapper
+          tableComponent={
+            <EvalLogTable
+              projectId={projectId}
+              jobConfigurationId={existingEvaluator.id}
+            />
+          }
+          cardTitleChildren={
+            <div className="flex w-full flex-row items-center justify-between">
+              <span>Evaluator configuration</span>
+              <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <Edit className="h-5 w-5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-screen-xl">
+                  <DialogTitle>Edit Evaluator</DialogTitle>
+                  <div className="max-h-[80vh] overflow-y-auto">
+                    <EvaluatorForm
+                      key={existingEvaluator.id}
+                      projectId={projectId}
+                      evalTemplates={allTemplates.data?.templates}
+                      existingEvaluator={existingEvaluator}
+                      shouldWrapVariables={true}
+                      mode="edit"
+                      onFormSuccess={() => {
+                        setIsEditOpen(false);
+                        // Force a reload as the form state is not properly updated
+                        void router.reload();
+                      }}
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          }
+          cardContentChildren={
+            <>
+              <CardDescription className="flex items-center justify-between text-sm">
+                <span className="text-sm font-medium">Eval Template</span>
+                <TableLink
+                  path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
+                  value={`${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})`}
+                  className="flex min-h-6 items-center"
                 />
-              )}
+              </CardDescription>
+              <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
+                <EvaluatorForm
+                  key={existingEvaluator.id}
+                  projectId={projectId}
+                  evalTemplates={allTemplates.data?.templates}
+                  existingEvaluator={existingEvaluator}
+                  disabled={true}
+                  shouldWrapVariables={true}
+                />
+              </div>
             </>
           }
         />
-        {existingEvaluator && (
-          <TableWithMetadataWrapper
-            tableComponent={
-              <EvalLogTable
-                projectId={projectId}
-                jobConfigurationId={existingEvaluator.id}
-              />
-            }
-            cardTitleChildren={
-              <div className="flex w-full flex-row items-center justify-between">
-                <span>Evaluator</span>
-                <StatusBadge
-                  type={evaluator.data?.status.toLowerCase()}
-                  isLive
-                  className="max-h-8"
-                />
-              </div>
-            }
-            cardContentChildren={
-              <>
-                <CardDescription className="flex items-center justify-between text-sm">
-                  <span className="text-sm font-medium">Eval Template</span>
-                  <TableLink
-                    path={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplateId}`}
-                    value={`${existingEvaluator.evalTemplate.name} (v${existingEvaluator.evalTemplate.version})`}
-                    className="flex min-h-6 items-center"
-                  />
-                </CardDescription>
-                <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
-                  <EvaluatorForm
-                    key={existingEvaluator.id}
-                    projectId={projectId}
-                    evalTemplates={allTemplates.data?.templates}
-                    existingEvaluator={existingEvaluator}
-                    disabled={true}
-                    shouldWrapVariables={true}
-                  />
-                </div>
-              </>
-            }
-          />
-        )}
-      </>
+      )}
     </FullScreenPage>
   );
 };
@@ -143,7 +176,6 @@ export const EvaluatorDetail = () => {
 export function DeactivateEvaluator({
   projectId,
   evaluator,
-  isLoading,
 }: {
   projectId: string;
   evaluator?: RouterOutputs["evals"]["configById"];
@@ -153,6 +185,7 @@ export function DeactivateEvaluator({
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
+  const isActive = evaluator?.status === EvaluatorStatus.ACTIVE;
 
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
@@ -165,41 +198,50 @@ export function DeactivateEvaluator({
       console.error("Project ID is missing");
       return;
     }
+
+    const prevStatus = evaluator?.status;
+
     mutEvaluator.mutateAsync({
       projectId,
       evalConfigId: evaluator?.id ?? "",
-      updatedStatus: "INACTIVE",
+      config: {
+        status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
+      },
     });
-    capture("eval_config:delete");
+    capture(
+      prevStatus === EvaluatorStatus.ACTIVE
+        ? "eval_config:deactivate"
+        : "eval_config:activate",
+    );
     setIsOpen(false);
   };
 
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size={"icon"}
-          disabled={!hasAccess || evaluator?.status !== "ACTIVE"}
-          loading={isLoading}
-        >
-          <Trash className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center">
+          <Switch
+            disabled={!hasAccess}
+            checked={isActive}
+            className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
+          />
+        </div>
       </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action permanently deactivates the evaluator. No more traces will
-          be evaluated based on this evaluator.
+          {evaluator?.status === "ACTIVE"
+            ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."
+            : "This action will activate the evaluator. New traces will be evaluated based on this evaluator."}
         </p>
         <div className="flex justify-end space-x-4">
           <Button
             type="button"
-            variant="destructive"
+            variant={evaluator?.status === "ACTIVE" ? "destructive" : "default"}
             loading={mutEvaluator.isLoading}
             onClick={onClick}
           >
-            Deactivate evaluator
+            {evaluator?.status === "ACTIVE" ? "Deactivate" : "Activate"}
           </Button>
         </div>
       </PopoverContent>
