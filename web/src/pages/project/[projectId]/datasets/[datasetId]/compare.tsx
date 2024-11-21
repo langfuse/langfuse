@@ -25,6 +25,7 @@ import {
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import Link from "next/link";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -131,6 +132,15 @@ export default function DatasetCompare() {
                   <DialogTitle>Set up experiment</DialogTitle>
                   <DialogDescription>
                     Create an experiment to test a prompt version on a dataset.
+                    See{" "}
+                    <Link
+                      href="https://langfuse.com/docs/datasets/prompt-experiments"
+                      target="_blank"
+                      className="underline"
+                    >
+                      documentation
+                    </Link>{" "}
+                    to learn more.
                   </DialogDescription>
                 </DialogHeader>
                 <CreateExperimentsForm
