@@ -741,6 +741,15 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
+      const filterQuery =
+        input.datasetRunId && input.datasetItemId
+          ? Prisma.sql`AND (dri.dataset_run_id = ${input.datasetRunId} OR dri.dataset_item_id = ${input.datasetItemId})`
+          : input.datasetRunId
+            ? Prisma.sql`AND dri.dataset_run_id = ${input.datasetRunId}`
+            : input.datasetItemId
+              ? Prisma.sql`AND dri.dataset_item_id = ${input.datasetItemId}`
+              : Prisma.sql``;
+
       const runItems = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
@@ -764,16 +773,13 @@ export const datasetRouter = createTRPCRouter({
           dri.updated_at AS "updatedAt",
           dri.project_id AS "projectId",
           dri.dataset_run_id AS "datasetRunId"
-        FROM dataset_items di
-        LEFT JOIN dataset_run_items dri
+        FROM dataset_run_items dri
+        INNER JOIN dataset_items di
           ON dri.dataset_item_id = di.id 
           AND dri.project_id = di.project_id
-          AND (
-            dri.dataset_run_id = ${input.datasetRunId}
-            OR dri.dataset_item_id = ${input.datasetItemId}
-          )
         WHERE 
-          di.project_id = ${input.projectId}
+          dri.project_id = ${input.projectId}
+          ${filterQuery}
         ORDER BY 
           di.created_at DESC
         LIMIT ${input.limit}
