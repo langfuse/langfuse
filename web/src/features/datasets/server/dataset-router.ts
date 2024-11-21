@@ -745,10 +745,13 @@ export const datasetRouter = createTRPCRouter({
         Array<{
           id: string;
           traceId: string;
-          observationId: string;
+          observationId: string | null;
           createdAt: Date;
+          updatedAt: Date;
           datasetItemCreatedAt: Date;
           datasetItemId: string;
+          projectId: string;
+          datasetRunId: string;
         }>
       >`
         SELECT 
@@ -757,7 +760,10 @@ export const datasetRouter = createTRPCRouter({
           dri.id,
           dri.trace_id AS "traceId",
           dri.observation_id AS "observationId",
-          dri.created_at AS "createdAt"
+          dri.created_at AS "createdAt",
+          dri.updated_at AS "updatedAt",
+          dri.project_id AS "projectId",
+          dri.dataset_run_id AS "datasetRunId"
         FROM dataset_items di
         LEFT JOIN dataset_run_items dri
           ON dri.dataset_item_id = di.id 
