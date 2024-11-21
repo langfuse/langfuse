@@ -45,7 +45,7 @@ const validateDatasetItems = (
         return { ...acc, missing: acc.missing + 1 };
       }
 
-      // keys not sufficent, need to ensure that the values assocaited to the keys are strings
+      // keys not sufficient, need to ensure that the values associated to the keys are strings
       const inputKeys = Object.keys(input);
       const hasAllVariables = variables.every((v) => inputKeys.includes(v));
       const hasSomeVariables = variables.some((v) => inputKeys.includes(v));
