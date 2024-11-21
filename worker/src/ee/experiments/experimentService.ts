@@ -40,7 +40,7 @@ const replaceVariablesInPrompt = (
   const processContent = (content: string) =>
     content.replace(/\{\{(\w+)\}\}/g, (_, variable) =>
       variables.includes(variable)
-        ? itemInput[variable] || ""
+        ? (itemInput[variable] ?? "")
         : `{{${variable}}}`,
     );
 
@@ -125,7 +125,7 @@ export const createExperimentJob = async ({
       `Prompt content not in expected format ${prompt_id} not found for project ${projectId}`,
     );
     throw new InternalServerError(
-      `Text prompt ${prompt_id} not found for project ${projectId}`,
+      `Prompt ${prompt_id} not found in expected format for project ${projectId}`,
     );
   }
 
@@ -146,7 +146,7 @@ export const createExperimentJob = async ({
     validateDatasetItem(input, extractedVariables),
   );
 
-  if (!validatedDatasetItems) {
+  if (!validatedDatasetItems.length) {
     logger.error(
       `No Dataset ${datasetId} item input matches expected prompt variable format`,
     );
