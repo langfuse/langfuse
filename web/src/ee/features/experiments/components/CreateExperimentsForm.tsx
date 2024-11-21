@@ -152,12 +152,17 @@ export const CreateExperimentsForm = ({
     },
   });
 
-  const hasReadAccess = useHasProjectAccess({
+  const hasExperimentWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "experiments:CUD",
+  });
+
+  const hasEvalReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:read",
   });
 
-  const hasWriteAccess = useHasProjectAccess({
+  const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
   });
@@ -184,10 +189,10 @@ export const CreateExperimentsForm = ({
   const promptId = form.watch("promptId");
   const datasetId = form.watch("datasetId");
 
-  const evaluators = api.evals.evaluatorsByTarget.useQuery(
+  const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: "dataset" },
     {
-      enabled: hasReadAccess && !!datasetId,
+      enabled: hasEvalReadAccess && !!datasetId,
       trpc: {
         context: {
           skipBatch: true,
@@ -345,10 +350,14 @@ export const CreateExperimentsForm = ({
     [promptMeta.data],
   );
 
+  if (!hasExperimentWriteAccess) {
+    return null;
+  }
+
   if (
     !promptMeta.data ||
     !datasets.data ||
-    (hasReadAccess && !!datasetId && !evaluators.data)
+    (hasEvalReadAccess && !!datasetId && !evaluators.data)
   ) {
     return <Skeleton className="min-h-[70dvh] w-full" />;
   }
@@ -619,7 +628,7 @@ export const CreateExperimentsForm = ({
               placeholder="Value"
               align="end"
               className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
-              disabled={!hasWriteAccess}
+              disabled={!hasEvalWriteAccess}
               onValueChange={handleOnValueChange}
               options={evaluatorOptions}
               values={
@@ -643,7 +652,7 @@ export const CreateExperimentsForm = ({
         ) : (
           <FormItem>
             <FormLabel>Evaluators</FormLabel>
-            {hasReadAccess ? (
+            {hasEvalReadAccess ? (
               <FormDescription>
                 Select a dataset first to set up evaluators.
               </FormDescription>

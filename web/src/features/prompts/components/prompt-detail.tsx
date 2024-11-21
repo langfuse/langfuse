@@ -40,6 +40,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useState } from "react";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -49,11 +50,16 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
+  const hasEntitlement = useHasOrgEntitlement("experiments");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
+  });
+  const hasExperimentWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "experiments:CUD",
   });
   const promptHistory = api.prompts.allVersions.useQuery(
     {
@@ -136,37 +142,42 @@ export const PromptDetail = () => {
           <>
             {hasAccess ? (
               <>
-                <Dialog
-                  open={isCreateExperimentDialogOpen}
-                  onOpenChange={setIsCreateExperimentDialogOpen}
-                >
-                  <DialogTrigger asChild>
-                    <Button>
-                      <FlaskConical className="h-4 w-4" />
-                      <span className="ml-2">New experiment</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Set up experiment</DialogTitle>
-                      <DialogDescription>
-                        Create an experiment to test a prompt version.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <CreateExperimentsForm
-                      key={`create-experiment-form-${prompt.id}`}
-                      projectId={projectId as string}
-                      setFormOpen={setIsCreateExperimentDialogOpen}
-                      defaultValues={{
-                        promptId: prompt.id,
-                      }}
-                      promptDefault={{
-                        name: prompt.name,
-                        version: prompt.version,
-                      }}
-                    />
-                  </DialogContent>
-                </Dialog>
+                {hasEntitlement && (
+                  <Dialog
+                    open={isCreateExperimentDialogOpen}
+                    onOpenChange={setIsCreateExperimentDialogOpen}
+                  >
+                    <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                      <Button
+                        variant="secondary"
+                        disabled={!hasExperimentWriteAccess}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                        <span className="ml-2">New experiment</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Set up experiment</DialogTitle>
+                        <DialogDescription>
+                          Create an experiment to test a prompt version.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <CreateExperimentsForm
+                        key={`create-experiment-form-${prompt.id}`}
+                        projectId={projectId as string}
+                        setFormOpen={setIsCreateExperimentDialogOpen}
+                        defaultValues={{
+                          promptId: prompt.id,
+                        }}
+                        promptDefault={{
+                          name: prompt.name,
+                          version: prompt.version,
+                        }}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                )}
 
                 <Button
                   variant="secondary"

@@ -357,7 +357,7 @@ export const evalRouter = createTRPCRouter({
       }
     }),
 
-  evaluatorsByTarget: protectedProjectProcedure // rename to jobConfigsByTarget
+  jobConfigsByTarget: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), targetObject: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({

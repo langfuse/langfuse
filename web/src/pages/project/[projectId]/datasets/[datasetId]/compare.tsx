@@ -16,14 +16,14 @@ import {
 import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -38,6 +38,12 @@ export default function DatasetCompare() {
     Array<{ key: string; value: string }>
   >([]);
   const runIds = runState.runs as undefined | string[];
+
+  const hasExperimentWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "experiments:CUD",
+  });
+  const hasEntitlement = useHasOrgEntitlement("experiments");
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -107,18 +113,21 @@ export default function DatasetCompare() {
           description: "Compare your dataset runs side by side",
         }}
         actionButtons={[
-          <Dialog
-            key="create-experiment-dialog"
-            open={isCreateExperimentDialogOpen}
-            onOpenChange={setIsCreateExperimentDialogOpen}
-          >
-            <DialogTrigger asChild>
-              <Button>
-                <FlaskConical className="h-4 w-4" />
-                <span className="ml-2">New experiment</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+          hasEntitlement ? (
+            <Dialog
+              key="create-experiment-dialog"
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  variant="secondary"
+                  disabled={!hasExperimentWriteAccess}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2">New experiment</span>
+                </Button>
+              </DialogTrigger>
               <DialogHeader>
                 <DialogTitle>Set up experiment</DialogTitle>
                 <DialogDescription>
@@ -134,8 +143,8 @@ export default function DatasetCompare() {
                 }}
                 handleExperimentSettled={handleExperimentSettled}
               />
-            </DialogContent>
-          </Dialog>,
+            </Dialog>
+          ) : null,
           <Popover key="show-dataset-details">
             <PopoverTrigger asChild>
               <Button variant="outline">

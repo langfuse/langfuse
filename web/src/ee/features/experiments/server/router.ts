@@ -14,7 +14,13 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { type DatasetItem, extractVariables } from "@langfuse/shared";
+import {
+  type DatasetItem,
+  extractVariables,
+  UnauthorizedError,
+} from "@langfuse/shared";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -67,16 +73,16 @@ export const experimentsRouter = createTRPCRouter({
     )
     .output(ConfigResponse)
     .query(async ({ input, ctx }) => {
-      // throwIfNoEntitlement({
-      //   entitlement: "model-based-evaluations",
-      //   projectId: input.projectId,
-      //   sessionUser: ctx.session.user,
-      // });
-      // throwIfNoProjectAccess({
-      //   session: ctx.session,
-      //   projectId: input.projectId,
-      //   scope: "evalJob:read",
-      // });
+      throwIfNoEntitlement({
+        entitlement: "experiments",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "experiments:CUD",
+      });
 
       const prompt = await ctx.prisma.prompt.findFirst({
         where: {
@@ -154,19 +160,20 @@ export const experimentsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      // throwIfNoEntitlement({
-      //   entitlement: "model-based-evaluations",
-      //   projectId: input.projectId,
-      //   sessionUser: ctx.session.user,
-      // });
-      // throwIfNoProjectAccess({
-      //   session: ctx.session,
-      //   projectId: input.projectId,
-      //   scope: "evalJob:read",
-      // });
+      throwIfNoEntitlement({
+        entitlement: "experiments",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "experiments:CUD",
+      });
 
-      // validate all dataset items exist??
-      // TODO: must only pass the items that are valid. can either pass in data or validate here again?
+      if (!redis || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+        throw new UnauthorizedError("Experiment creation failed");
+      }
 
       const metadata: ExperimentMetadata = {
         prompt_id: input.promptId,
@@ -187,32 +194,20 @@ export const experimentsRouter = createTRPCRouter({
         },
       });
 
-      if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-        const queue = ExperimentCreateQueue.getInstance();
+      const queue = ExperimentCreateQueue.getInstance();
 
-        if (queue) {
-          await queue.add(
-            QueueName.ExperimentCreate,
-            {
-              name: QueueJobs.ExperimentCreateJob,
-              id: randomUUID(),
-              timestamp: new Date(),
-              payload: {
-                projectId: input.projectId,
-                datasetId: input.datasetId,
-                runId: datasetRun.id,
-                description: input.description,
-              },
-            },
-            {
-              attempts: 3,
-              backoff: {
-                type: "exponential",
-                delay: 0,
-              },
-            },
-          );
-        }
+      if (queue) {
+        await queue.add(QueueName.ExperimentCreate, {
+          name: QueueJobs.ExperimentCreateJob,
+          id: randomUUID(),
+          timestamp: new Date(),
+          payload: {
+            projectId: input.projectId,
+            datasetId: input.datasetId,
+            runId: datasetRun.id,
+            description: input.description,
+          },
+        });
       }
 
       return {

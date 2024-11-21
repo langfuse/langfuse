@@ -34,6 +34,7 @@ export default function Dataset() {
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
+  const hasExperimentEntitlement = useHasOrgEntitlement("experiments");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
 
@@ -45,6 +46,11 @@ export default function Dataset() {
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJobExecution:read",
+  });
+
+  const hasExperimentWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "experiments:CUD",
   });
 
   const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
@@ -82,33 +88,38 @@ export default function Dataset() {
         }
         actionButtons={
           <>
-            <Dialog
-              open={isCreateExperimentDialogOpen}
-              onOpenChange={setIsCreateExperimentDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button>
-                  <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2">New experiment</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Set up experiment</DialogTitle>
-                  <DialogDescription>
-                    Create an experiment to test a prompt version.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateExperimentsForm
-                  key={`create-experiment-form-${datasetId}`}
-                  projectId={projectId as string}
-                  setFormOpen={setIsCreateExperimentDialogOpen}
-                  defaultValues={{
-                    datasetId,
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
+            {hasExperimentEntitlement && (
+              <Dialog
+                open={isCreateExperimentDialogOpen}
+                onOpenChange={setIsCreateExperimentDialogOpen}
+              >
+                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                  <Button
+                    variant="secondary"
+                    disabled={!hasExperimentWriteAccess}
+                  >
+                    <FlaskConical className="h-4 w-4" />
+                    <span className="ml-2">New experiment</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Set up experiment</DialogTitle>
+                    <DialogDescription>
+                      Create an experiment to test a prompt version.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateExperimentsForm
+                    key={`create-experiment-form-${datasetId}`}
+                    projectId={projectId as string}
+                    setFormOpen={setIsCreateExperimentDialogOpen}
+                    defaultValues={{
+                      datasetId,
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
 
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
