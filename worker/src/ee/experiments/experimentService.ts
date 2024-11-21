@@ -16,6 +16,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   Prisma,
+  extractVariables,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -23,31 +24,9 @@ import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { v4 } from "uuid";
 
-function getIsCharOrUnderscore(value: string): boolean {
-  const charOrUnderscore = /^[A-Za-z_]+$/;
-
-  return charOrUnderscore.test(value);
-}
-
-function extractVariables(mustacheString: string): string[] {
-  const mustacheRegex = /\{\{(.*?)\}\}/g;
-  const uniqueVariables = new Set<string>();
-
-  for (const match of mustacheString.matchAll(mustacheRegex)) {
-    uniqueVariables.add(match[1]);
-  }
-
-  for (const variable of uniqueVariables) {
-    // if validated fails, remove from set
-    if (!getIsCharOrUnderscore(variable)) {
-      uniqueVariables.delete(variable);
-    }
-  }
-
-  return Array.from(uniqueVariables);
-}
-
-const isValidObject = (input: Prisma.JsonValue): input is Prisma.JsonObject =>
+const isValidPrismaJsonObject = (
+  input: Prisma.JsonValue,
+): input is Prisma.JsonObject =>
   typeof input === "object" &&
   input !== null &&
   input !== undefined &&
@@ -79,7 +58,7 @@ const validateDatasetItem = (
   itemInput: Prisma.JsonValue,
   variables: string[],
 ): itemInput is Prisma.JsonObject => {
-  if (!isValidObject(itemInput)) {
+  if (!isValidPrismaJsonObject(itemInput)) {
     return false;
   }
   return variables.some(

@@ -16,9 +16,9 @@ import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlayg
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
+  extractVariables,
   type ChatMessageWithId,
   type PromptVariable,
   type UIModelParams,

@@ -26,9 +26,12 @@ import {
 } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Prompt } from "@langfuse/shared";
+import {
+  type Prompt,
+  extractVariables,
+  getIsCharOrUnderscore,
+} from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
   NewPromptFormSchema,

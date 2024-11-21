@@ -11,7 +11,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { extractVariables } from "@/src/utils/string";
+import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";

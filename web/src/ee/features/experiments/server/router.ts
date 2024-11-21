@@ -12,9 +12,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { extractVariables } from "@/src/utils/string";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { type DatasetItem } from "@langfuse/shared";
+import { type DatasetItem, extractVariables } from "@langfuse/shared";
 import { ExperimentCreateQueue } from "../../../../../../packages/shared/dist/src/server/redis/experimentQueue";
 
 const ValidConfigResponse = z.object({
