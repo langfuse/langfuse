@@ -27,13 +27,17 @@ describe("/api/public/traces API Endpoint", () => {
         name: "observation-name",
         end_time: new Date().getTime(),
         start_time: new Date().getTime() - 1000,
+        input: "input",
+        output: "output",
       }),
       createObservation({
         trace_id: createdTrace.id,
         project_id: createdTrace.project_id,
-        name: "observation-name",
+        name: "observation-name-2",
         end_time: new Date().getTime(),
         start_time: new Date().getTime() - 100000,
+        input: "input-2",
+        output: "output-2",
       }),
     ];
 
@@ -54,5 +58,19 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.latency).toBe(100);
     expect(trace.body.observations.length).toBe(2);
     expect(trace.body.scores.length).toBe(0);
+    expect(trace.body.observations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "observation-name-2",
+          input: "input-2",
+          output: "output-2",
+        }),
+        expect.objectContaining({
+          name: "observation-name",
+          input: "input",
+          output: "output",
+        }),
+      ]),
+    );
   });
 });
