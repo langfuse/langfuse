@@ -565,7 +565,7 @@ export const CreateExperimentsForm = ({
               </FormDescription>
             ) : (
               <FormDescription>
-                ⓘ You don't have access to view evaluators. Please contact your
+                ⓘ You do not have access to view evaluators. Please contact your
                 admin to upgrade your role.
               </FormDescription>
             )}

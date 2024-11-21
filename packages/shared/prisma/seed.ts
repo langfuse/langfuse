@@ -520,48 +520,6 @@ export async function createDatasets(
             },
           });
         }
-
-        for (
-          let datasetRunNumber = 0;
-          datasetRunNumber < 5;
-          datasetRunNumber++
-        ) {
-          const datasetRun = await prisma.datasetRuns.create({
-            data: {
-              projectId,
-              name: `demo-dataset-run-${datasetRunNumber}`,
-              description: Math.random() > 0.5 ? "Dataset run description" : "",
-              datasetId: dataset.id,
-              metadata: [
-                undefined,
-                "string",
-                100,
-                { key: "value" },
-                ["tag1", "tag2"],
-              ][datasetRunNumber % 5],
-            },
-          });
-
-          for (const datasetItemId of datasetItemIds) {
-            const relevantObservations = observations.filter(
-              (o) => o.projectId === projectId,
-            );
-            const observation =
-              relevantObservations[
-                Math.floor(Math.random() * relevantObservations.length)
-              ];
-
-            await prisma.datasetRunItems.create({
-              data: {
-                projectId,
-                datasetItemId,
-                traceId: observation.traceId as string,
-                observationId: Math.random() > 0.5 ? observation.id : undefined,
-                datasetRunId: datasetRun.id,
-              },
-            });
-          }
-        }
       }
     }
   }
