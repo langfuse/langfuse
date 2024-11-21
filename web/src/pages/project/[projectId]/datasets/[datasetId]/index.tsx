@@ -10,13 +10,24 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
-
+import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { CommandItem } from "@/src/components/ui/command";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { Button } from "@/src/components/ui/button";
+import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export default function Dataset() {
   const router = useRouter();
@@ -24,6 +35,9 @@ export default function Dataset() {
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
+  const hasExperimentEntitlement = useHasOrgEntitlement("experiments");
+  const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
+    useState(false);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -33,6 +47,11 @@ export default function Dataset() {
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJobExecution:read",
+  });
+
+  const hasExperimentWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "experiments:CUD",
   });
 
   const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
@@ -53,6 +72,25 @@ export default function Dataset() {
     }));
   }, [evaluators.data]);
 
+  const handleExperimentSuccess = async (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+    runName: string;
+  }) => {
+    setIsCreateExperimentDialogOpen(false);
+    if (!data) return;
+    void utils.datasets.baseRunDataByDatasetId.invalidate();
+    showSuccessToast({
+      title: "Experiment run triggered successfully",
+      description: "Waiting for experiment to complete...",
+      link: {
+        text: "View experiment",
+        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runIds=${data.runId}`,
+      },
+    });
+  };
+
   return (
     <FullScreenPage>
       <Header
@@ -70,6 +108,41 @@ export default function Dataset() {
         }
         actionButtons={
           <>
+            {hasExperimentEntitlement && (
+              <Dialog
+                open={isCreateExperimentDialogOpen}
+                onOpenChange={setIsCreateExperimentDialogOpen}
+              >
+                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                  <Button
+                    variant="secondary"
+                    disabled={!hasExperimentWriteAccess}
+                  >
+                    <FlaskConical className="h-4 w-4" />
+                    <span className="ml-2">New experiment</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Set up experiment</DialogTitle>
+                    <DialogDescription>
+                      Create an experiment to test a prompt version on a
+                      dataset.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CreateExperimentsForm
+                    key={`create-experiment-form-${datasetId}`}
+                    projectId={projectId as string}
+                    setFormOpen={setIsCreateExperimentDialogOpen}
+                    defaultValues={{
+                      datasetId,
+                    }}
+                    handleExperimentSuccess={handleExperimentSuccess}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
                 className="max-w-fit"

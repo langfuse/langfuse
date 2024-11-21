@@ -47,6 +47,7 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -66,6 +67,7 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      onError: () => {},
     },
   );
 
