@@ -27,19 +27,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-
-const handleExperimentSuccess =
-  (projectId: string) => (data: { success: boolean; datasetId: string }) => {
-    showSuccessToast({
-      title: "Experiment run triggered successfully",
-      description: "Your experiment run will be available soon.",
-      link: {
-        href: `/project/${projectId}/datasets/${data.datasetId}`,
-        text: `View experiment "${data.datasetId}"`,
-      },
-    });
-  };
 
 export default function Dataset() {
   const router = useRouter();

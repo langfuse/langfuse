@@ -6,6 +6,7 @@ import {
   QueueName,
   redis,
   ZodModelConfig,
+  ExperimentCreateQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -14,7 +15,6 @@ import {
 } from "@/src/server/api/trpc";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { type DatasetItem, extractVariables } from "@langfuse/shared";
-import { ExperimentCreateQueue } from "../../../../../../packages/shared/dist/src/server/redis/experimentQueue";
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
