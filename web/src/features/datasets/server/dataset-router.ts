@@ -374,7 +374,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetItem.findMany({
+      const datasetItems = await ctx.prisma.datasetItem.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
         select: {
           id: true,
@@ -382,10 +382,22 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: true,
           metadata: true,
         },
-        orderBy: { id: "asc" },
+        orderBy: { createdAt: "desc" },
         take: input.limit,
         skip: input.page * input.limit,
       });
+
+      const count = await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      return {
+        datasetItems,
+        totalCount: count,
+      };
     }),
   updateDatasetItem: protectedProjectProcedure
     .input(

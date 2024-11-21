@@ -143,6 +143,9 @@ export const createExperimentJob = async ({
       datasetId,
       projectId,
     },
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
   const validatedDatasetItems = datasetItems.filter(({ input }) =>
@@ -230,7 +233,7 @@ export const createExperimentJob = async ({
           provider,
           model,
           z.object({
-            response: z.string(),
+            output: z.string(),
           }),
           traceParams,
         ),
