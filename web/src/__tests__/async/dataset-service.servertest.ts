@@ -144,7 +144,7 @@ describe("dataset service", () => {
       start_time: new Date().getTime() - 1000,
       end_time: new Date().getTime(),
     });
-    createObservations([
+    await createObservations([
       observation,
       observation2,
       observation3,
@@ -158,7 +158,7 @@ describe("dataset service", () => {
       project_id: projectId,
       name: scoreName,
     });
-    createScores([score]);
+    await createScores([score]);
 
     const runs = await createDatasetRunsTable({
       projectId,
