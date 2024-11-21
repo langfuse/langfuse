@@ -752,22 +752,22 @@ export const datasetRouter = createTRPCRouter({
         }>
       >`
         SELECT 
+          di.id AS "datasetItemId",
+          di.created_at AS "datasetItemCreatedAt",
           dri.id,
           dri.trace_id AS "traceId",
           dri.observation_id AS "observationId",
-          dri.created_at AS "createdAt",
-          di.created_at AS "datasetItemCreatedAt",
-          di.id AS "datasetItemId"
-        FROM dataset_run_items dri
-        INNER JOIN dataset_items di 
+          dri.created_at AS "createdAt"
+        FROM dataset_items di
+        LEFT JOIN dataset_run_items dri
           ON dri.dataset_item_id = di.id 
           AND dri.project_id = di.project_id
-        WHERE 
-          dri.project_id = ${input.projectId}
           AND (
             dri.dataset_run_id = ${input.datasetRunId}
-            OR dri.dataset_item_id = ${input.datasetItemId}
+            OR di.id = ${input.datasetItemId}
           )
+        WHERE 
+          di.project_id = ${input.projectId}
         ORDER BY 
           di.created_at DESC
         LIMIT ${input.limit}
