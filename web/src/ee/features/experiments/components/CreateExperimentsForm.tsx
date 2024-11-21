@@ -65,8 +65,10 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { Input } from "@/src/components/ui/input";
 
 const CreateExperimentData = z.object({
+  name: z.string().optional(),
   promptId: z.string().min(1, "Please select a prompt"),
   datasetId: z.string().min(1, "Please select a dataset"),
   description: z.string().max(1000).optional(),
@@ -254,12 +256,17 @@ export const CreateExperimentsForm = ({
   );
 
   const experimentMutation = api.experiments.createExperiment.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        title: "Experiment run triggered successfully",
-        description: "Waiting for experiment to complete...",
-        duration: 28_000,
-      });
+    onSuccess: (data) => {
+      if (!handleExperimentSettled) {
+        showSuccessToast({
+          title: "Experiment run triggered successfully",
+          description: "Waiting for experiment to complete...",
+          link: {
+            text: "View experiment",
+            href: `/project/${projectId}/datasets/${datasetId}/compare?runIds=${data.runId}`,
+          },
+        });
+      }
     },
     onError: (error) => {
       showErrorToast(
@@ -299,17 +306,26 @@ export const CreateExperimentsForm = ({
     const evaluator = evaluators.data?.find((e) => e.id === changedValueId);
     if (!evaluator) return;
 
-    const confirmed = window.confirm(
-      `Are you sure you want to archive "${evaluator.scoreName}"? You can always always re-activate the evaluator.`,
-    );
-    if (!confirmed) {
-      return;
+    if (evaluator.status === "INACTIVE") {
+      const confirmed = window.confirm(
+        `Are you sure you want to activate "${evaluator.scoreName}"? You can always always archive the evaluator.`,
+      );
+      if (!confirmed) {
+        return;
+      }
+    } else {
+      const confirmed = window.confirm(
+        `Are you sure you want to archive "${evaluator.scoreName}"? You can always always re-activate the evaluator.`,
+      );
+      if (!confirmed) {
+        return;
+      }
     }
 
     archiveEvaluatorMutation.mutate({
       projectId,
       evalConfigId: changedValueId,
-      updatedStatus: "INACTIVE",
+      updatedStatus: evaluator.status === "INACTIVE" ? "ACTIVE" : "INACTIVE",
     });
 
     setSelectedEvaluators(values);
@@ -340,6 +356,19 @@ export const CreateExperimentsForm = ({
   return (
     <Form {...form}>
       <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Experiment name (optional)</FormLabel>
+              <FormControl>
+                <Input {...field} type="string" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="description"

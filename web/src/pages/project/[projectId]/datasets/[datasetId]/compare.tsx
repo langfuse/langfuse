@@ -73,14 +73,6 @@ export default function DatasetCompare() {
         runs: [...(runIds ?? []), data.runId],
       });
     }
-
-    // sleep for 30 seconds to allow the experiment to be created
-    await new Promise((resolve) => setTimeout(resolve, 30_000));
-
-    showSuccessToast({
-      title: "Experiment run completed",
-      description: "Your experiment run has completed.",
-    });
   };
 
   const runs = useMemo(() => {

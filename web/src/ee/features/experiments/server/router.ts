@@ -142,6 +142,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        name: z.string().optional(),
         promptId: z.string().min(1, "Please select a prompt"),
         datasetId: z.string().min(1, "Please select a dataset"),
         description: z.string().max(1000).optional(),
@@ -173,7 +174,8 @@ export const experimentsRouter = createTRPCRouter({
         model: input.modelConfig.model,
         model_params: input.modelConfig.modelParams,
       };
-      const name = `${input.promptId}-${new Date().toISOString()}`; // TODO: promptname-promptversion-timestamp
+      const name =
+        input.name ?? `${input.promptId}-${new Date().toISOString()}`;
 
       const datasetRun = await ctx.prisma.datasetRuns.create({
         data: {
