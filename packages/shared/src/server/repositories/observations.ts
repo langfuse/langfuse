@@ -243,21 +243,19 @@ export const getObservationsTable = async (
     opts.projectId,
   );
 
-  return await Promise.all(
-    observationRecords.map(async (o) => {
-      const trace = traces.find((t) => t.id === o.trace_id);
-      return {
-        ...convertObservationToView({ ...o, type: "GENERATION" }),
-        latency: o.latency ? Number(o.latency) / 1000 : null,
-        timeToFirstToken: o.time_to_first_token
-          ? Number(o.time_to_first_token) / 1000
-          : null,
-        traceName: trace?.name ?? null,
-        traceTags: trace?.tags ?? [],
-        userId: trace?.userId ?? null,
-      };
-    }),
-  );
+  return observationRecords.map((o) => {
+    const trace = traces.find((t) => t.id === o.trace_id);
+    return {
+      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      latency: o.latency ? Number(o.latency) / 1000 : null,
+      timeToFirstToken: o.time_to_first_token
+        ? Number(o.time_to_first_token) / 1000
+        : null,
+      traceName: trace?.name ?? null,
+      traceTags: trace?.tags ?? [],
+      userId: trace?.userId ?? null,
+    };
+  });
 };
 
 export const getObservationsTableWithModelData = async (
@@ -329,19 +327,21 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...mergeObservationAndModel(
-        convertObservation({ ...o, type: "GENERATION" }),
-        model,
-      ),
+      ...convertObservationToView({ ...o, type: "GENERATION" }),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
         : null,
-      promptName: prompt?.name ?? null,
-      promptVersion: prompt?.version ?? null,
       traceName: trace?.name ?? null,
       traceTags: trace?.tags ?? [],
       userId: trace?.userId ?? null,
+      modelId: model?.id ?? null,
+      inputPrice:
+        model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+      outputPrice:
+        model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
+      totalPrice:
+        model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
     };
   });
 };

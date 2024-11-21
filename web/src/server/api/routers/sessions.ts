@@ -88,7 +88,7 @@ export const sessionRouter = createTRPCRouter({
               projectId: input.projectId,
               filter: finalFilter,
               orderBy: input.orderBy,
-              offset: input.page * input.limit,
+              page: input.page,
               limit: input.limit,
             });
 
@@ -187,8 +187,8 @@ export const sessionRouter = createTRPCRouter({
               projectId: input.projectId,
               filter: finalFilter,
               orderBy: input.orderBy,
-              offset: input.page * input.limit,
-              limit: input.limit,
+              page: 0,
+              limit: 1,
             });
 
             return {

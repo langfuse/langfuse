@@ -13,30 +13,25 @@ import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
-): Omit<
-  ObservationView,
-  "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
-> => {
+): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
+  // these cost are not used from the view. They are in the select statement but not in the
+  // Prisma file. We will not clean this up but keep it as it is for now.
+  // eslint-disable-next-line no-unused-vars
+  const { inputCost, outputCost, totalCost, internalModelId, ...rest } =
+    convertObservation(record ?? undefined);
   return {
-    ...convertObservation(record ?? undefined),
+    ...rest,
+    latency: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+      : null,
+    timeToFirstToken: record.completion_start_time
+      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
+      : null,
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
-  };
-};
-
-export const mergeObservationAndModel = (
-  observation: Omit<Observation, "internalModel">,
-  model?: Model & { Price: Price[] },
-) => {
-  return {
-    ...observation,
-    modelId: model?.id ?? null,
-    inputPrice:
-      model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
-    outputPrice:
-      model?.Price?.find((m) => m.usageType === "output")?.price ?? null,
-    totalPrice:
-      model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+    modelId: record.internal_model_id ?? null,
   };
 };
 

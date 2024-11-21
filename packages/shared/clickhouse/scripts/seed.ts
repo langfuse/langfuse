@@ -65,7 +65,7 @@ async function main() {
   } catch (error) {
     console.error("Error during Clickhouse preparation:", error);
   } finally {
-    await clickhouseClient.close();
+    await clickhouseClient().close();
     await prisma.$disconnect();
     redis?.disconnect();
     console.log("Disconnected from Clickhouse.");

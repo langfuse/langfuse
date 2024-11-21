@@ -15,7 +15,9 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
+  EvalExecutionQueue,
 } from "@langfuse/shared/src/server";
+import { JobConfigState } from "@langfuse/shared/src/db";
 import {
   ApiError,
   availableTraceEvalVariables,
@@ -36,10 +38,9 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
-import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { JobConfigState } from "../../../../packages/shared/dist/prisma/generated/types";
+import { tokenCount } from "../tokenisation/usage";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -457,7 +458,7 @@ export const evaluate = async ({
   );
 
   // extract the variables which need to be inserted into the prompt
-  const mappingResult = await extractVariables({
+  const mappingResult = await extractVariablesFromTracingData({
     projectId: event.projectId,
     variables: template.vars,
     traceId: job.job_input_trace_id,
@@ -470,11 +471,20 @@ export const evaluate = async ({
   );
 
   // compile the prompt and send out the LLM request
-  const prompt = compileHandlebarString(template.prompt, {
-    ...Object.fromEntries(
-      mappingResult.map(({ var: key, value }) => [key, value]),
-    ),
-  });
+  let prompt;
+  try {
+    prompt = compileHandlebarString(template.prompt, {
+      ...Object.fromEntries(
+        mappingResult.map(({ var: key, value }) => [key, value]),
+      ),
+    });
+  } catch (e) {
+    // in case of a compilation error, we use the original prompt without adding variables.
+    logger.error(
+      `Evaluating job ${event.jobExecutionId} failed to compile prompt. Eval will fail. ${e}`,
+    );
+    prompt = template.prompt;
+  }
 
   logger.debug(
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
@@ -638,7 +648,7 @@ async function callLLM(
   evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
 ): Promise<z.infer<typeof evalScoreSchema>> {
   try {
-    const completion = await fetchLLMCompletion({
+    const { completion } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
       baseURL: llmApiKey.baseURL || undefined,
@@ -658,6 +668,7 @@ async function callLLM(
       structuredOutputSchema: evalScoreSchema,
       config: llmApiKey.config,
     });
+
     return evalScoreSchema.parse(completion);
   } catch (e) {
     logger.error(
@@ -671,11 +682,11 @@ export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>,
 ): string {
-  const template = Handlebars.compile(handlebarString, { noEscape: true });
+  const template = Handlebars.compile(handlebarString);
   return template(context);
 }
 
-export async function extractVariables({
+export async function extractVariablesFromTracingData({
   projectId,
   variables,
   traceId,
