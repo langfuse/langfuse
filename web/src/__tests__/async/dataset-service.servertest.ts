@@ -298,8 +298,8 @@ describe("Fetch datasets for UI presentation", () => {
 
     const result = await fetchDatasetItems(input);
 
-    expect(result.totalDatasetItems).toEqual(2);
-    expect(result.datasetItems).toHaveLength(2);
+    expect(result.totalDatasetItems).toEqual(3);
+    expect(result.datasetItems).toHaveLength(3);
 
     const firstDatasetItem = result.datasetItems.find(
       (item) => item.id === datasetItemId,
