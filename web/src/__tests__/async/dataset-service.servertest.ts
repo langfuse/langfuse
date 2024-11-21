@@ -257,6 +257,16 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
+    const datasetItemId3 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId3,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
     const observation = createObservation({
       id: observationId2,
       trace_id: traceId2,
@@ -310,5 +320,15 @@ describe("Fetch datasets for UI presentation", () => {
     }
     expect(secondDatasetItem.sourceTraceId).toEqual(traceId2);
     expect(secondDatasetItem.sourceObservationId).toEqual(observationId2);
+
+    const thirdDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId3,
+    );
+    expect(thirdDatasetItem).toBeDefined();
+    if (!thirdDatasetItem) {
+      throw new Error("thirdDatasetItem is not defined");
+    }
+    expect(thirdDatasetItem.sourceTraceId).toBeNull();
+    expect(thirdDatasetItem.sourceObservationId).toBeNull();
   });
 });
