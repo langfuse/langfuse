@@ -24,6 +24,13 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw2-4",
+    title: "Launch Week 2 – Day 4",
+    description: "All new docs for datasets, experiments, and evaluations",
+    link: "https://langfuse.com/changelog/2024-11-21-all-new-datasets-and-evals-documentation",
+    linkTitle: "Changelog",
+  },
+  {
     id: "lw2-3",
     title: "Launch Week 2 – Day 3",
     description:
