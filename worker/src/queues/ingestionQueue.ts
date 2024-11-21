@@ -83,7 +83,7 @@ export const ingestionQueueProcessor: Processor = async (
       redis,
       prisma,
       ClickhouseWriter.getInstance(),
-      clickhouseClient,
+      clickhouseClient(),
     ).mergeAndWrite(
       getClickhouseEntityType(events[0].type),
       job.data.payload.authCheck.scope.projectId,

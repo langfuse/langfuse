@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 export const createTraces = async (trace: TraceRecordInsertType[]) => {
-  return await clickhouseClient.insert({
+  return await clickhouseClient().insert({
     table: "traces",
     format: "JSONEachRow",
     values: trace,
@@ -16,7 +16,7 @@ export const createTraces = async (trace: TraceRecordInsertType[]) => {
 export const createObservation = async (
   observation: ObservationRecordInsertType,
 ) => {
-  return await clickhouseClient.insert({
+  return await clickhouseClient().insert({
     table: "observations",
     format: "JSONEachRow",
     values: [observation],
@@ -26,7 +26,7 @@ export const createObservation = async (
 export const createObservations = async (
   observations: ObservationRecordInsertType[],
 ) => {
-  return await clickhouseClient.insert({
+  return await clickhouseClient().insert({
     table: "observations",
     format: "JSONEachRow",
     values: observations,
@@ -34,7 +34,7 @@ export const createObservations = async (
 };
 
 export const createScores = async (scores: ScoreRecordInsertType[]) => {
-  return await clickhouseClient.insert({
+  return await clickhouseClient().insert({
     table: "scores",
     format: "JSONEachRow",
     values: scores,

@@ -82,7 +82,7 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.0"
+      "jsonpath-plus": "10.0.7"
     }
   }
 }
