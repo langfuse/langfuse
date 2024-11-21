@@ -143,7 +143,9 @@ export default async function handler(
       for (const queueName of body.data.queueNames) {
         const queue = getQueue(queueName as QueueName);
         const jobCount = await queue?.getJobCounts("failed");
-        logger.info(`Retrying ${jobCount} jobs for queue ${queueName}`);
+        logger.info(
+          `Retrying ${JSON.stringify(jobCount)} jobs for queue ${queueName}`,
+        );
 
         let count = 0;
         let failed;
