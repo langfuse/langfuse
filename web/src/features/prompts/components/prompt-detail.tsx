@@ -183,7 +183,15 @@ export const PromptDetail = () => {
                         <DialogTitle>Set up experiment</DialogTitle>
                         <DialogDescription>
                           Create an experiment to test a prompt version on a
-                          dataset.
+                          dataset. See{" "}
+                          <Link
+                            href="https://langfuse.com/docs/datasets/prompt-experiments"
+                            target="_blank"
+                            className="underline"
+                          >
+                            documentation
+                          </Link>{" "}
+                          to learn more.
                         </DialogDescription>
                       </DialogHeader>
                       <CreateExperimentsForm
