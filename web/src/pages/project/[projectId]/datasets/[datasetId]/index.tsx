@@ -80,6 +80,7 @@ export default function Dataset() {
   }) => {
     setIsCreateExperimentDialogOpen(false);
     if (!data) return;
+    void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
       title: "Experiment run triggered successfully",

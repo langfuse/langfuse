@@ -105,6 +105,7 @@ export const PromptDetail = () => {
     setIsCreateExperimentDialogOpen(false);
     if (!data) return;
     void utils.datasets.baseRunDataByDatasetId.invalidate();
+    void utils.datasets.runsByDatasetId.invalidate();
     showSuccessToast({
       title: "Experiment run triggered successfully",
       description: "Waiting for experiment to complete...",

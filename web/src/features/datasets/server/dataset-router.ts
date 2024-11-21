@@ -374,7 +374,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetItem.findMany({
+      const datasetItems = await ctx.prisma.datasetItem.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
         select: {
           id: true,
@@ -382,10 +382,22 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: true,
           metadata: true,
         },
-        orderBy: { id: "asc" },
+        orderBy: { createdAt: "desc" },
         take: input.limit,
         skip: input.page * input.limit,
       });
+
+      const count = await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      return {
+        datasetItems,
+        totalCount: count,
+      };
     }),
   updateDatasetItem: protectedProjectProcedure
     .input(
@@ -729,18 +741,44 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      const runItems = await ctx.prisma.datasetRunItems.findMany({
-        where: {
-          projectId: input.projectId,
-          datasetRunId: input.datasetRunId,
-          datasetItemId: input.datasetItemId,
-        },
-        orderBy: {
-          datasetItemId: "asc", // Order by dataset item ID instead of createdAt
-        },
-        take: input.limit,
-        skip: input.page * input.limit,
-      });
+      const runItems = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          traceId: string;
+          observationId: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+          datasetItemCreatedAt: Date;
+          datasetItemId: string;
+          projectId: string;
+          datasetRunId: string;
+        }>
+      >`
+        SELECT 
+          di.id AS "datasetItemId",
+          di.created_at AS "datasetItemCreatedAt",
+          dri.id,
+          dri.trace_id AS "traceId",
+          dri.observation_id AS "observationId",
+          dri.created_at AS "createdAt",
+          dri.updated_at AS "updatedAt",
+          dri.project_id AS "projectId",
+          dri.dataset_run_id AS "datasetRunId"
+        FROM dataset_items di
+        LEFT JOIN dataset_run_items dri
+          ON dri.dataset_item_id = di.id 
+          AND dri.project_id = di.project_id
+          AND (
+            dri.dataset_run_id = ${input.datasetRunId}
+            OR di.id = ${input.datasetItemId}
+          )
+        WHERE 
+          di.project_id = ${input.projectId}
+        ORDER BY 
+          di.created_at DESC
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `;
 
       if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
 

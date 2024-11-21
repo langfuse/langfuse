@@ -205,7 +205,7 @@ export function DatasetCompareRunsTable(props: {
       {},
     );
 
-    return baseDatasetItems.data?.map(
+    return baseDatasetItems.data?.datasetItems.map(
       (item): DatasetCompareRunRowData => ({
         id: item.id,
         input: item.input ?? "null",
@@ -422,7 +422,7 @@ export function DatasetCompareRunsTable(props: {
                 }
         }
         pagination={{
-          totalCount: baseDatasetItems.data?.length ?? null,
+          totalCount: baseDatasetItems.data?.totalCount ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}
