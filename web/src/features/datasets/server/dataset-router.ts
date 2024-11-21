@@ -775,8 +775,7 @@ export const datasetRouter = createTRPCRouter({
             OR dri.dataset_item_id = ${input.datasetItemId}
           )
         ORDER BY 
-          di.created_at DESC,
-          dri.created_at DESC
+          di.created_at DESC
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
       `;
