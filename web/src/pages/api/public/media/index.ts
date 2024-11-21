@@ -118,7 +118,7 @@ export default withMiddlewares({
 
               if (
                 !(
-                  env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED &&
+                  env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED === "true" &&
                   env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
                 )
               )
