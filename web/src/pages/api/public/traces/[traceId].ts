@@ -86,7 +86,12 @@ export default withMiddlewares({
         clickhouseExecution: async () => {
           const [trace, observations, scores] = await Promise.all([
             getTraceById(traceId, auth.scope.projectId),
-            getObservationsViewForTrace(traceId, auth.scope.projectId),
+            getObservationsViewForTrace(
+              traceId,
+              auth.scope.projectId,
+              undefined,
+              true,
+            ),
             getScoresForTraces(auth.scope.projectId, [traceId]),
           ]);
 

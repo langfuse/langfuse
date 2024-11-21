@@ -18,6 +18,8 @@ describe("/api/public/observations API Endpoint", () => {
         trace_id: traceId,
         internal_model_id: "b9854a5c92dc496b997d99d21",
         provided_model_name: "gpt-4o-2024-05-13",
+        input: "input",
+        output: "output",
       });
 
       await createObservations([observation]);
@@ -33,6 +35,8 @@ describe("/api/public/observations API Endpoint", () => {
         type: observation.type,
         modelId: observation.internal_model_id,
         inputPrice: 0.000005,
+        input: observation.input,
+        output: observation.output,
       });
     });
   });
