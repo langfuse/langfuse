@@ -154,7 +154,13 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return ctx.prisma.datasetRuns.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
-        select: { name: true, id: true, metadata: true, description: true },
+        select: {
+          name: true,
+          id: true,
+          metadata: true,
+          description: true,
+          createdAt: true,
+        },
       });
     }),
   runsByDatasetId: protectedProjectProcedure

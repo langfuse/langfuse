@@ -17,14 +17,19 @@ export const constructDatasetRunAggregateColumns = ({
   selectedMetrics,
   cellsLoading = false,
 }: {
-  runAggregateColumnProps: { id: string; name: string; description?: string }[];
+  runAggregateColumnProps: {
+    id: string;
+    name: string;
+    description?: string;
+    createdAt?: Date;
+  }[];
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
   selectedMetrics: DatasetRunMetric[];
   cellsLoading?: boolean;
 }): LangfuseColumnDef<DatasetCompareRunRowData>[] => {
   return runAggregateColumnProps.map((col) => {
-    const { id, name, description } = col;
+    const { id, name, description, createdAt } = col;
 
     return {
       id,
@@ -40,7 +45,12 @@ export const constructDatasetRunAggregateColumns = ({
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
         const runData: RunAggregate = row.getValue("runs") ?? {};
 
-        if (cellsLoading) return <Skeleton className="h-3 w-1/2" />;
+        // if cell is loading or if run created at timestamp is less than 5 seconds ago, show skelton
+        if (
+          cellsLoading ||
+          (createdAt && createdAt.getTime() + 5000 > Date.now())
+        )
+          return <Skeleton className="h-full min-h-0 w-full" />;
 
         if (!Boolean(Object.keys(runData).length)) return null;
         if (!runData.hasOwnProperty(id)) return null;

@@ -62,6 +62,7 @@ export default function DatasetCompare() {
       refetchOnMount: false,
     },
   );
+  const utils = api.useUtils();
 
   const handleExperimentSettled = async (data?: {
     success: boolean;
@@ -70,8 +71,8 @@ export default function DatasetCompare() {
     runName: string;
   }) => {
     setIsCreateExperimentDialogOpen(false);
-
     if (!data) return;
+    void utils.datasets.baseRunDataByDatasetId.invalidate();
     setLocalRuns((prev) => [...prev, { key: data.runId, value: data.runName }]);
     setRunState({
       runs: [...(runIds ?? []), data.runId],
@@ -129,7 +130,7 @@ export default function DatasetCompare() {
                 <DialogHeader>
                   <DialogTitle>Set up experiment</DialogTitle>
                   <DialogDescription>
-                    Create an experiment to test a prompt version.
+                    Create an experiment to test a prompt version on a dataset.
                   </DialogDescription>
                 </DialogHeader>
                 <CreateExperimentsForm
@@ -187,10 +188,12 @@ export default function DatasetCompare() {
                   setRunState({
                     runs: [...(runIds ?? []), changedValueId],
                   });
+                  setLocalRuns([]);
                 } else {
                   setRunState({
                     runs: runIds?.filter((id) => id !== changedValueId) ?? [],
                   });
+                  setLocalRuns([]);
                 }
               }
             }}

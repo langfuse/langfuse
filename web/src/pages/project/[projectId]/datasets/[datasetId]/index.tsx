@@ -80,6 +80,7 @@ export default function Dataset() {
   }) => {
     setIsCreateExperimentDialogOpen(false);
     if (!data) return;
+    void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
       title: "Experiment run triggered successfully",
       description: "Waiting for experiment to complete...",
@@ -125,7 +126,8 @@ export default function Dataset() {
                   <DialogHeader>
                     <DialogTitle>Set up experiment</DialogTitle>
                     <DialogDescription>
-                      Create an experiment to test a prompt version.
+                      Create an experiment to test a prompt version on a
+                      dataset.
                     </DialogDescription>
                   </DialogHeader>
                   <CreateExperimentsForm

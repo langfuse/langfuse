@@ -47,9 +47,7 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
-      onError: () => {
-        // console.error("Error fetching trace");
-      },
+      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -69,9 +67,7 @@ const DatasetAggregateCell = ({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
-      onError: () => {
-        // console.error("Error fetching observation");
-      },
+      onError: () => {},
     },
   );
 
