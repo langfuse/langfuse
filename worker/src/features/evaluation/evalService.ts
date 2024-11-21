@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import Handlebars from "handlebars";
 import { sql } from "kysely";
 import { z } from "zod";
 import { ScoreSource } from "@prisma/client";
@@ -37,7 +36,7 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { callLLM } from "../utilities";
+import { callLLM, compileHandlebarString } from "../utilities";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -644,14 +643,6 @@ export const evaluate = async ({
     `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
   );
 };
-
-export function compileHandlebarString(
-  handlebarString: string,
-  context: Record<string, any>,
-): string {
-  const template = Handlebars.compile(handlebarString);
-  return template(context);
-}
 
 export async function extractVariablesFromTracingData({
   projectId,

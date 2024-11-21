@@ -8,6 +8,7 @@ import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
 import { z, ZodSchema } from "zod";
 import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
+import Handlebars from "handlebars";
 
 export async function callLLM<T extends ZodSchema>(
   jeId: string,
@@ -47,4 +48,12 @@ export async function callLLM<T extends ZodSchema>(
     logger.error(`Job ${jeId} failed to call LLM. Eval will fail. ${e}`);
     throw new ApiError(`Failed to call LLM: ${e}`);
   }
+}
+
+export function compileHandlebarString(
+  handlebarString: string,
+  context: Record<string, any>,
+): string {
+  const template = Handlebars.compile(handlebarString);
+  return template(context);
 }

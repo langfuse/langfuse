@@ -23,6 +23,7 @@ import { callLLM } from "../../features/utilities";
 import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { v4 } from "uuid";
+import { compileHandlebarString } from "../../features/utilities";
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,
@@ -37,12 +38,14 @@ const replaceVariablesInPrompt = (
   itemInput: Record<string, any>,
   variables: string[],
 ): { role: string; content: string }[] => {
-  const processContent = (content: string) =>
-    content.replace(/\{\{(\w+)\}\}/g, (_, variable) =>
-      variables.includes(variable)
-        ? (itemInput[variable] ?? "")
-        : `{{${variable}}}`,
+  const processContent = (content: string) => {
+    // Only include the variables that are in the variables array
+    const filteredContext = Object.fromEntries(
+      Object.entries(itemInput).filter(([key]) => variables.includes(key)),
     );
+
+    return compileHandlebarString(content, filteredContext);
+  };
 
   if (typeof prompt === "string") {
     return [{ role: ChatMessageRole.System, content: processContent(prompt) }];
@@ -120,7 +123,7 @@ export const createExperimentJob = async ({
 
   const validatePromptContent = PromptContentSchema.safeParse(prompt.prompt);
 
-  if (validatePromptContent.error) {
+  if (!validatePromptContent.success) {
     logger.error(
       `Prompt content not in expected format ${prompt_id} not found for project ${projectId}`,
     );
