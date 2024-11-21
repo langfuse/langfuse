@@ -664,28 +664,20 @@ export const CreateExperimentsForm = ({
                 </CardTitle>
                 <div className="text-sm">
                   Matches between dataset items and prompt variables
-                  <ul className="ml-2 list-inside list-disc">
-                    {validationResult.data?.includesAll > 0 && (
-                      <li key="includesAll">
-                        Including all variables:{" "}
-                        {validationResult.data?.includesAll} /{" "}
-                        {validationResult.data?.totalItems}
+                  <ul className="my-2 ml-2 list-inside list-disc">
+                    {Object.entries(
+                      validationResult.data.variablesMap ?? {},
+                    ).map(([variable, count]) => (
+                      <li key={variable}>
+                        <strong>{variable}:</strong> {count} /{" "}
+                        {validationResult.data?.isValid
+                          ? validationResult.data.totalItems
+                          : "unknown"}
                       </li>
-                    )}
-                    {validationResult.data?.includesSome > 0 && (
-                      <li key="includesSome">
-                        Includes some variables:{" "}
-                        {validationResult.data?.includesSome}
-                      </li>
-                    )}
-                    {validationResult.data?.missing > 0 && (
-                      <li key="missing">
-                        Missing variables: {validationResult.data?.missing}
-                      </li>
-                    )}
+                    ))}
                   </ul>
-                  {validationResult.data?.missing > 0 &&
-                    "Items missing all prompt variables will be excluded from the experiment."}
+                  Items missing all prompt variables will be excluded from the
+                  experiment.
                 </div>
               </CardHeader>
             </Card>

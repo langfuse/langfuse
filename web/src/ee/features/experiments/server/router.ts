@@ -19,9 +19,7 @@ import { type DatasetItem, extractVariables } from "@langfuse/shared";
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
   totalItems: z.number(),
-  includesAll: z.number(),
-  includesSome: z.number(),
-  missing: z.number(),
+  variablesMap: z.record(z.string(), z.number()),
 });
 
 const InvalidConfigResponse = z.object({
@@ -37,27 +35,25 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
 const validateDatasetItems = (
   datasetItems: DatasetItem[],
   variables: string[],
-) => {
-  return datasetItems.reduce(
-    (acc, { input }) => {
-      if (!input) {
-        return { ...acc, missing: acc.missing + 1 };
+): Record<string, number> => {
+  const variableMap: Record<string, number> = {};
+
+  for (const { input } of datasetItems) {
+    if (!input) {
+      continue;
+    }
+
+    const inputKeys = Object.keys(input);
+
+    // For each variable, increment its count if it exists in this item
+    for (const variable of variables) {
+      if (inputKeys.includes(variable)) {
+        variableMap[variable] = (variableMap[variable] || 0) + 1;
       }
+    }
+  }
 
-      // keys not sufficient, need to ensure that the values associated to the keys are strings
-      const inputKeys = Object.keys(input);
-      const hasAllVariables = variables.every((v) => inputKeys.includes(v));
-      const hasSomeVariables = variables.some((v) => inputKeys.includes(v));
-
-      return {
-        includesAll: acc.includesAll + Number(hasAllVariables),
-        includesSome:
-          acc.includesSome + Number(!hasAllVariables && hasSomeVariables),
-        missing: acc.missing + Number(!hasAllVariables && !hasSomeVariables),
-      };
-    },
-    { includesAll: 0, includesSome: 0, missing: 0 },
-  );
+  return variableMap;
 };
 
 export const experimentsRouter = createTRPCRouter({
@@ -123,24 +119,22 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const { includesAll, includesSome, missing } = validateDatasetItems(
+      const variablesMap = validateDatasetItems(
         datasetItems,
         extractedVariables,
       );
 
-      if (missing === datasetItems.length) {
+      if (!Boolean(Object.keys(variablesMap).length)) {
         return {
           isValid: false,
-          message: "No dataset item contains all variables.",
+          message: "No dataset item contains any variables.",
         };
       }
 
       return {
         isValid: true,
         totalItems: datasetItems.length,
-        includesAll,
-        includesSome,
-        missing,
+        variablesMap: variablesMap,
       };
     }),
 
