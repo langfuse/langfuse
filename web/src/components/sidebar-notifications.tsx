@@ -11,8 +11,8 @@ import { X } from "lucide-react";
 import useLocalStorage from "./useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import ProductHuntBadgeLight from "./images/Product_Hunt_Badge_Light.svg";
-import ProductHuntBadgeDark from "./images/Product_Hunt_Badge_Dark.svg";
+import ProductHuntBadgeLight from "./images/product_hunt_badge_light.svg";
+import ProductHuntBadgeDark from "./images/product_hunt_badge_dark.svg";
 import Image from "next/image";
 
 type SidebarNotification = {
