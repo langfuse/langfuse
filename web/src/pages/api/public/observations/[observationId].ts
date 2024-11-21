@@ -8,8 +8,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import { getObservationById } from "@langfuse/shared/src/server";
-import { mergeObservationAndModel } from "@langfuse/shared/src/server";
+import { getObservationViewById } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -31,7 +30,7 @@ export default withMiddlewares({
           });
         },
         clickhouseExecution: async () => {
-          const observation = await getObservationById(
+          const observation = await getObservationViewById(
             observationId,
             auth.scope.projectId,
           );
@@ -41,12 +40,12 @@ export default withMiddlewares({
             );
           }
 
-          const model = observation.internalModelId
+          const model = observation.modelId
             ? await prisma.model.findFirst({
                 where: {
                   AND: [
                     {
-                      id: observation.internalModelId,
+                      id: observation.modelId,
                     },
                     {
                       OR: [
@@ -72,20 +71,19 @@ export default withMiddlewares({
               })
             : undefined;
 
-          const mergedObservation = mergeObservationAndModel(
-            observation,
-            model ?? undefined,
-          );
-
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const {
-            inputCost,
-            outputCost,
-            totalCost,
-            internalModelId,
-            ...cleanedObservation
-          } = mergedObservation;
-          return cleanedObservation;
+
+          return {
+            ...observation,
+            modelId: model?.id ?? null,
+            inputPrice:
+              model?.Price?.find((m) => m.usageType === "input")?.price ?? null,
+            outputPrice:
+              model?.Price?.find((m) => m.usageType === "output")?.price ??
+              null,
+            totalPrice:
+              model?.Price?.find((m) => m.usageType === "total")?.price ?? null,
+          };
         },
       });
 

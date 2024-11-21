@@ -3,8 +3,6 @@ import {
   ObservationView,
   ObservationType,
   ObservationLevel,
-  Price,
-  Model,
 } from "@prisma/client";
 import Decimal from "decimal.js";
 import { jsonSchema } from "../../utils/zod";
