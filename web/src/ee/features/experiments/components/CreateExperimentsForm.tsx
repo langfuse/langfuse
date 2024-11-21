@@ -105,7 +105,8 @@ export const CreateExperimentsForm = ({
   setFormOpen,
   defaultValues = {},
   promptDefault,
-  handleExperimentSettled = async () => {},
+  handleExperimentSettled,
+  handleExperimentSuccess,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
@@ -114,6 +115,12 @@ export const CreateExperimentsForm = ({
     name: string;
     version: number;
   };
+  handleExperimentSuccess?: (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+    runName: string;
+  }) => Promise<void>;
   handleExperimentSettled?: (data?: {
     success: boolean;
     datasetId: string;
@@ -262,25 +269,14 @@ export const CreateExperimentsForm = ({
   );
 
   const experimentMutation = api.experiments.createExperiment.useMutation({
-    onSuccess: (data) => {
-      if (!handleExperimentSettled) {
-        showSuccessToast({
-          title: "Experiment run triggered successfully",
-          description: "Waiting for experiment to complete...",
-          link: {
-            text: "View experiment",
-            href: `/project/${projectId}/datasets/${datasetId}/compare?runIds=${data.runId}`,
-          },
-        });
-      }
-    },
+    onSuccess: handleExperimentSuccess ?? (() => {}),
     onError: (error) => {
       showErrorToast(
         error.message || "Failed to trigger experiment run",
         "Please try again.",
       );
     },
-    onSettled: handleExperimentSettled,
+    onSettled: handleExperimentSettled ?? (() => {}),
   });
 
   const archiveEvaluatorMutation = api.evals.updateEvalJob.useMutation();

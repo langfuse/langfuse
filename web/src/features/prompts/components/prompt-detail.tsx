@@ -41,6 +41,7 @@ import {
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useState } from "react";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -93,6 +94,24 @@ export const PromptDetail = () => {
       );
     }
   }
+
+  const handleExperimentSuccess = async (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+    runName: string;
+  }) => {
+    setIsCreateExperimentDialogOpen(false);
+    if (!data) return;
+    showSuccessToast({
+      title: "Experiment run triggered successfully",
+      description: "Waiting for experiment to complete...",
+      link: {
+        text: "View experiment",
+        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runIds=${data.runId}`,
+      },
+    });
+  };
 
   const allTags = (
     api.prompts.filterOptions.useQuery(
@@ -174,6 +193,7 @@ export const PromptDetail = () => {
                           name: prompt.name,
                           version: prompt.version,
                         }}
+                        handleExperimentSuccess={handleExperimentSuccess}
                       />
                     </DialogContent>
                   </Dialog>

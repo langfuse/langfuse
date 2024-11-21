@@ -16,6 +16,7 @@ import {
 import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
 import {
   Dialog,
+  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -126,21 +127,23 @@ export default function DatasetCompare() {
                   <span className="ml-2">New experiment</span>
                 </Button>
               </DialogTrigger>
-              <DialogHeader>
-                <DialogTitle>Set up experiment</DialogTitle>
-                <DialogDescription>
-                  Create an experiment to test a prompt version.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateExperimentsForm
-                key={`create-experiment-form-${datasetId}`}
-                projectId={projectId as string}
-                setFormOpen={setIsCreateExperimentDialogOpen}
-                defaultValues={{
-                  datasetId,
-                }}
-                handleExperimentSettled={handleExperimentSettled}
-              />
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Set up experiment</DialogTitle>
+                  <DialogDescription>
+                    Create an experiment to test a prompt version.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSettled={handleExperimentSettled}
+                />
+              </DialogContent>
             </Dialog>
           ) : null,
           <Popover key="show-dataset-details">

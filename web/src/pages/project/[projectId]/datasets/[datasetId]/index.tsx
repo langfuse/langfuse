@@ -27,6 +27,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export default function Dataset() {
   const router = useRouter();
@@ -70,6 +71,24 @@ export default function Dataset() {
       value: evaluator.scoreName,
     }));
   }, [evaluators.data]);
+
+  const handleExperimentSuccess = async (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+    runName: string;
+  }) => {
+    setIsCreateExperimentDialogOpen(false);
+    if (!data) return;
+    showSuccessToast({
+      title: "Experiment run triggered successfully",
+      description: "Waiting for experiment to complete...",
+      link: {
+        text: "View experiment",
+        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runIds=${data.runId}`,
+      },
+    });
+  };
 
   return (
     <FullScreenPage>
@@ -116,6 +135,7 @@ export default function Dataset() {
                     defaultValues={{
                       datasetId,
                     }}
+                    handleExperimentSuccess={handleExperimentSuccess}
                   />
                 </DialogContent>
               </Dialog>
