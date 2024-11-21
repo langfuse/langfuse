@@ -28,6 +28,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
+import {
+  createDatasetRunsTable,
+  datasetRunsTableSchema,
+} from "@/src/features/datasets/server/service";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -154,14 +158,7 @@ export const datasetRouter = createTRPCRouter({
       });
     }),
   runsByDatasetId: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-        queryClickhouse: z.boolean().optional().default(false),
-        ...paginationZod,
-      }),
-    )
+    .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
       return await measureAndReturnApi({
         input,
@@ -319,177 +316,18 @@ export const datasetRouter = createTRPCRouter({
           // hence, we pull the trace_ids and observation_ids separately for all run items
           // afterwards, we aggregate them per run
 
-          const runs = await ctx.prisma.$queryRaw<
-            {
-              run_id: string;
-              run_name: string;
-              run_description: string;
-              run_metadata: Prisma.JsonValue;
-              run_created_at: Date;
-              run_updated_at: Date;
-              run_items: {
-                trace_id: string;
-                observation_id: string;
-                ri_id: string;
-              }[];
-            }[]
-          >(
-            Prisma.sql`
-            SELECT
-              runs.id as run_id,
-              runs.name as run_name,
-              runs.description as run_description,
-              runs.metadata as run_metadata,
-              runs.created_at as run_created_at,
-              runs.updated_at as run_updated_at,
-              JSON_AGG(JSON_BUILD_OBJECT(
-                'trace_id', ri.trace_id,
-                'observation_id', ri.observation_id,
-                'ri_id', ri.id
-              )) AS run_items
-            FROM
-              datasets d
-              JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
-              JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
-                AND ri.project_id = runs.project_id
-            WHERE
-              d.id = ${input.datasetId}
-              AND d.project_id = ${input.projectId}
-            GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
-            LIMIT ${input.limit}
-            OFFSET ${input.page * input.limit}
-          `,
-          );
+          const runs = await createDatasetRunsTable(input);
 
-          async function getTraceAggregates() {
-            const traceOnlyRunItems = runs
-              .flatMap((r) => r.run_items)
-              .filter((runItem) => runItem.observation_id === null);
-
-            const traceData =
-              await getLatencyAndTotalCostForObservationsByTraces(
-                input.projectId,
-                traceOnlyRunItems.map((ri) => ri.trace_id),
-              );
-
-            return traceOnlyRunItems.map((ri) => {
-              const data = traceData.find((d) => d.traceId === ri.trace_id);
-              return {
-                runItemId: ri.ri_id,
-                latency: data?.latency,
-                totalCost: data?.totalCost,
-              };
-            });
-          }
-
-          async function getObservationAggregates() {
-            const observationRunItems = runs
-              .flatMap((r) => r.run_items)
-              .filter((runItem) => runItem.observation_id !== null);
-
-            const observationData = await getLatencyAndTotalCostForObservations(
-              input.projectId,
-              observationRunItems.map((ri) => ri.observation_id),
-            );
-            return observationRunItems.map((ri) => {
-              const data = observationData.find(
-                (d) => d.id === ri.observation_id,
-              );
-              return {
-                runItemId: ri.ri_id,
-                latency: data?.latency,
-                totalCost: data?.totalCost,
-              };
-            });
-          }
-
-          const [
-            traceScores,
-            observationScores,
-            totalRuns,
-            traceAggregate,
-            observationAggregate,
-          ] = await Promise.all([
-            getScoresForTraces(
-              input.projectId,
-              Array.from(
-                new Set(
-                  runs
-                    .flatMap((r) => r.run_items)
-                    .map((i) => i.trace_id)
-                    .filter(Boolean),
-                ),
-              ),
-            ),
-            getScoresForObservations(
-              input.projectId,
-              Array.from(
-                new Set(
-                  runs
-                    .flatMap((r) => r.run_items)
-                    .map((i) => i.observation_id)
-                    .filter(Boolean),
-                ),
-              ),
-            ),
-            ctx.prisma.datasetRuns.count({
-              where: {
-                datasetId: input.datasetId,
-                projectId: input.projectId,
-              },
-            }),
-            getTraceAggregates(),
-            getObservationAggregates(),
-          ]);
-
-          const joinedScores = traceScores.concat(observationScores);
+          const totalRuns = await ctx.prisma.datasetRuns.count({
+            where: {
+              datasetId: input.datasetId,
+              projectId: input.projectId,
+            },
+          });
 
           return {
             totalRuns,
-            runs: runs.map((run) => {
-              const agg = run.run_items.map((ri) => {
-                if (ri.observation_id) {
-                  return observationAggregate.find(
-                    (a) => a.runItemId === ri.ri_id,
-                  );
-                } else {
-                  return traceAggregate.find((a) => a.runItemId === ri.ri_id);
-                }
-              });
-
-              const validAgg = agg.filter((a) => a !== undefined);
-
-              const avgLatency =
-                validAgg.length > 0
-                  ? validAgg.reduce((sum, a) => sum + (a?.latency ?? 0), 0) /
-                    validAgg.length
-                  : 0;
-
-              const avgTotalCost =
-                validAgg.length > 0
-                  ? validAgg.reduce((sum, a) => sum + (a?.totalCost || 0), 0) /
-                    validAgg.length
-                  : 0;
-
-              return {
-                id: run.run_id,
-                projectId: input.projectId,
-                datasetId: input.datasetId,
-                name: run.run_name,
-                description: run.run_description,
-                metadata: run.run_metadata,
-                createdAt: run.run_created_at,
-                updatedAt: run.run_updated_at,
-                countRunItems: run.run_items.length,
-                avgLatency: avgLatency,
-                avgTotalCost: new Decimal(avgTotalCost),
-                scores: aggregateScores(
-                  joinedScores.filter((s) =>
-                    run.run_items.map((i) => i.trace_id).includes(s.traceId),
-                  ),
-                ),
-              };
-            }),
+            runs,
           };
         },
       });

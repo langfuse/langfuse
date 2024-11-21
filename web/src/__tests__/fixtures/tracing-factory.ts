@@ -1,4 +1,5 @@
 import {
+  type ScoreRecordInsertType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -66,5 +67,25 @@ export const createObservation = (
     end_time: Date.now(),
     completion_start_time: Date.now(),
     ...observation,
+  };
+};
+
+export const createScore = (score: Partial<ScoreRecordInsertType>) => {
+  return {
+    id: v4(),
+    project_id: v4(),
+    trace_id: v4(),
+    observation_id: v4(),
+    name: "test-score" + v4(),
+    timestamp: Date.now(),
+    value: 100.5,
+    source: "API",
+    comment: "comment",
+    data_type: "NUMERIC" as const,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    event_ts: Date.now(),
+    is_deleted: 0,
+    ...score,
   };
 };

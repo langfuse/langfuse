@@ -1,15 +1,5 @@
 import { filterOperators } from "../../../interfaces/filters";
-
-function randomCharacters() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  let result = "";
-  const randomArray = new Uint8Array(5);
-  crypto.getRandomValues(randomArray);
-  randomArray.forEach((number) => {
-    result += chars[number % chars.length];
-  });
-  return result;
-}
+import { clickhouseCompliantRandomCharacters } from "../../repositories";
 
 export interface Filter {
   apply(): ClickhouseFilter;
@@ -44,7 +34,7 @@ export class StringFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varName = `stringFilter${randomCharacters()}`;
+    const varName = `stringFilter${clickhouseCompliantRandomCharacters()}`;
 
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
     let query: string;
@@ -97,7 +87,7 @@ export class NumberFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const uid = randomCharacters();
+    const uid = clickhouseCompliantRandomCharacters();
     const varName = `numberFilter${uid}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Decimal64(12)}`,
@@ -128,7 +118,7 @@ export class DateTimeFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const uid = randomCharacters();
+    const uid = clickhouseCompliantRandomCharacters();
     const varName = `dateTimeFilter${uid}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
@@ -159,7 +149,7 @@ export class StringOptionsFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const uid = randomCharacters();
+    const uid = clickhouseCompliantRandomCharacters();
     const varName = `stringOptionsFilter${uid}`;
     return {
       query:
@@ -198,8 +188,8 @@ export class StringObjectFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varKeyName = `stringObjectKeyFilter${randomCharacters()}`;
-    const varValueName = `stringObjectValueFilter${randomCharacters()}`;
+    const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
+    const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
 
     //  const query: `${column}['{varKeyName: String}'] ${this.operator} {${varValueName}: String}`,
@@ -254,7 +244,7 @@ export class ArrayOptionsFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const uid = randomCharacters();
+    const uid = clickhouseCompliantRandomCharacters();
     const varName = `arrayOptionsFilter${uid}`;
     let query: string;
 
@@ -330,8 +320,8 @@ export class NumberObjectFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const varKeyName = `numberObjectKeyFilter${randomCharacters()}`;
-    const varValueName = `numberObjectValueFilter${randomCharacters()}`;
+    const varKeyName = `numberObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
+    const varValueName = `numberObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
     return {
       query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
@@ -362,7 +352,7 @@ export class BooleanFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
-    const uid = randomCharacters();
+    const uid = clickhouseCompliantRandomCharacters();
     const varName = `booleanFilter${uid}`;
     return {
       query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Boolean}`,

@@ -83,7 +83,7 @@
     "@remixicon/react": "^4.2.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@sentry/nextjs": "^8.33.1",
+    "@sentry/nextjs": "^8.39.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",
@@ -192,7 +192,7 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.0"
+      "jsonpath-plus": "10.0.7"
     }
   }
 }
