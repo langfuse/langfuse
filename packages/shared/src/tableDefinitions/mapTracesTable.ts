@@ -112,21 +112,18 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Input Cost ($)",
     uiTableId: "inputCost",
     clickhouseTableName: "traces",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'input'), cost_details), usage_details['input'], NULL)",
+    clickhouseSelect: "cost_details['input']",
   },
   {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "traces",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'output'), cost_details), usage_details['output'], NULL)",
+    clickhouseSelect: "cost_details['output']",
   },
   {
     uiTableName: "Total Cost ($)",
     uiTableId: "totalCost",
     clickhouseTableName: "traces",
-    clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'total'), cost_details), usage_details['total'], NULL)",
+    clickhouseSelect: "cost_details['total']",
   },
 ];
