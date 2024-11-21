@@ -1,4 +1,4 @@
-import { paginationZod, Prisma } from "@langfuse/shared";
+import { paginationZod, Prisma, type PrismaClient } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
@@ -8,11 +8,14 @@ import {
   commandClickhouse,
   convertToScore,
   type FetchScoresReturnType,
+  getObservationsById,
+  getTracesByIds,
   logger,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -332,4 +335,148 @@ const getTraceLatencyAndCostForDataset = async (
     latency: Number(row.avg_latency_ms) / 1000,
     cost: Number(row.avg_total_cost),
   }));
+};
+
+export type DatasetRunItemsTableInput = {
+  projectId: string;
+  datasetId: string;
+  limit: number;
+  page: number;
+  prisma: PrismaClient;
+};
+
+export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
+  const dataset = await input.prisma.dataset.findUnique({
+    where: {
+      id_projectId: {
+        id: input.datasetId,
+        projectId: input.projectId,
+      },
+    },
+    include: {
+      datasetItems: {
+        orderBy: [
+          {
+            status: "asc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
+        take: input.limit,
+        skip: input.page * input.limit,
+      },
+    },
+  });
+  const datasetItems = dataset?.datasetItems ?? [];
+
+  const totalDatasetItems = await input.prisma.datasetItem.count({
+    where: {
+      dataset: {
+        id: input.datasetId,
+        projectId: input.projectId,
+      },
+      projectId: input.projectId,
+    },
+  });
+
+  // check in clickhouse if the traces already exist. They arrive delayed.
+  const tracingData = await measureAndReturnApi({
+    input: { queryClickhouse: false, projectId: input.projectId },
+    operation: "datasets.itemsByDatasetId",
+    user: null,
+    pgExecution: async () => {
+      const traces = await input.prisma.trace.findMany({
+        where: {
+          id: {
+            in: datasetItems
+              .map((item) => item.sourceTraceId)
+              .filter((id): id is string => Boolean(id)),
+          },
+          projectId: input.projectId,
+        },
+      });
+
+      const observations = await input.prisma.observation.findMany({
+        where: {
+          id: {
+            in: datasetItems
+              .map((item) => item.sourceObservationId)
+              .filter((id): id is string => Boolean(id)),
+          },
+          projectId: input.projectId,
+        },
+      });
+
+      return {
+        traceIds: traces.map((t) => t.id),
+        observationIds: observations.map((o) => ({
+          id: o.id,
+          traceId: o.traceId,
+        })),
+      };
+    },
+    clickhouseExecution: async () => {
+      const traces = await getTracesByIds(
+        datasetItems
+          .map((item) => item.sourceTraceId)
+          .filter((id): id is string => Boolean(id)),
+        input.projectId,
+      );
+
+      const observations = await getObservationsById(
+        datasetItems
+          .map((item) => item.sourceObservationId)
+          .filter((id): id is string => Boolean(id)),
+        input.projectId,
+      );
+
+      return {
+        traceIds: traces.map((t) => t.id),
+        observationIds: observations.map((o) => ({
+          id: o.id,
+          traceId: o.traceId,
+        })),
+      };
+    },
+  });
+
+  return {
+    totalDatasetItems,
+    datasetItems: datasetItems.map((item) => {
+      if (!item.sourceTraceId) {
+        return {
+          ...item,
+          sourceTraceId: null,
+          sourceObservationId: null,
+        };
+      }
+      const traceIdExists = tracingData.traceIds.includes(item.sourceTraceId);
+      const observationIdExists = tracingData.observationIds.some(
+        (obs) =>
+          obs.id === item.sourceObservationId &&
+          obs.traceId === item.sourceTraceId,
+      );
+
+      if (observationIdExists) {
+        return {
+          ...item,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: item.sourceObservationId,
+        };
+      } else if (traceIdExists) {
+        return {
+          ...item,
+          sourceTraceId: item.sourceTraceId,
+          sourceObservationId: null,
+        };
+      } else {
+        return {
+          ...item,
+          sourceTraceId: null,
+          sourceObservationId: null,
+        };
+      }
+    }),
+  };
 };
