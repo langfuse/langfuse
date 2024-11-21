@@ -218,7 +218,7 @@ describe("Fetch datasets for UI presentation", () => {
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
   });
 
-  it("should fetch dataset runs for UI in case of trace only without observation", async () => {
+  it("should fetch dataset runs for UI with missing tracing data", async () => {
     const datasetId = v4();
 
     await prisma.dataset.create({
@@ -262,26 +262,34 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
-    const trace = createTrace({
-      id: traceId,
-      project_id: projectId,
-    });
+    const traceId2 = v4();
+    const observationId = v4();
+    const datasetRunItemId2 = v4();
 
-    await createTraces([trace]);
+    await prisma.datasetRunItems.create({
+      data: {
+        id: datasetRunItemId2,
+        datasetRunId: datasetRunId,
+        traceId: traceId2,
+        projectId,
+        datasetItemId,
+        observationId,
+      },
+    });
 
     const runs = await getRunItemsByRunIdOrItemId(
       projectId,
       // fetch directly from the db to have realistic data.
       await prisma.datasetRunItems.findMany({
         where: {
-          id: datasetRunItemId,
+          id: {
+            in: [datasetRunItemId, datasetRunItemId2],
+          },
         },
       }),
     );
 
-    console.log("runs", JSON.stringify(runs));
-
-    expect(runs).toHaveLength(1);
+    expect(runs).toHaveLength(2);
 
     const firstRun = runs.find((run) => run.id === datasetRunItemId);
     expect(firstRun).toBeDefined();
@@ -294,6 +302,17 @@ describe("Fetch datasets for UI presentation", () => {
     expect(firstRun.observation).toBeUndefined();
     expect(firstRun.trace).toBeDefined();
     expect(firstRun.trace?.id).toEqual(traceId);
+
+    const secondRun = runs.find((run) => run.id === datasetRunItemId2);
+    expect(secondRun).toBeDefined();
+    if (!secondRun) {
+      throw new Error("secondRun is not defined");
+    }
+
+    expect(secondRun.id).toEqual(datasetRunItemId2);
+    expect(secondRun.datasetItemId).toEqual(datasetItemId);
+    expect(secondRun.trace?.id).toEqual(traceId2);
+    expect(secondRun.observation?.id).toEqual(observationId);
   });
 
   it("should fetch dataset items correctly", async () => {

@@ -549,17 +549,29 @@ export const getRunItemsByRunIdOrItemId = async (
       duration: 0,
     };
 
-    return {
-      id: ri.id,
-      createdAt: ri.createdAt,
-      datasetItemId: ri.datasetItemId,
-      observation: observationAggregates
+    const observation =
+      observationAggregates
         .map((o) => ({
           id: o.id,
           latency: o.latency,
           calculatedTotalCost: new Decimal(o.totalCost),
         }))
-        .find((o) => o.id === ri.observationId),
+        .find((o) => o.id === ri.observationId) ??
+      (ri.observationId
+        ? // we default to the observationId provided. The observationId must not be missing
+          // in case it is on the dataset run item.
+          {
+            id: ri.observationId,
+            calculatedTotalCost: new Decimal(0),
+            latency: 0,
+          }
+        : undefined);
+
+    return {
+      id: ri.id,
+      createdAt: ri.createdAt,
+      datasetItemId: ri.datasetItemId,
+      observation,
       trace,
       scores: aggregateScores([
         ...validatedTraceScores.filter(
