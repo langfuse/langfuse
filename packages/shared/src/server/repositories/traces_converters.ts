@@ -1,10 +1,10 @@
 import { ObservationLevel, Trace } from "@prisma/client";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { TraceRecordReadType } from "./definitions";
-import { TracesTableReturnType } from "./traces";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { TracesTableReturnType } from "../services/traces-ui-table-service";
 
 export const convertTraceDomainToClickhouse = (
   trace: Trace,
