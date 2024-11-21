@@ -338,20 +338,41 @@ jobs:
           echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
           echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Ensure Docker dependencies are healthy
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
+          pnpm --filter=shared run ch:up
           pnpm run db:seed:examples
           pnpm run --filter=shared ch:up
       - name: Build
         run: pnpm run build
       - name: Run server
         run: (pnpm run start&)
+      - name: Check worker health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+      - name: Check server health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
 
