@@ -171,6 +171,7 @@ export default function DatasetCompare() {
             title="Select runs"
             placeholder="Select runs to compare"
             className="w-fit"
+            hideClearButton
             options={runs.map((run) => ({
               key: run.key,
               value: run.value,
@@ -178,7 +179,7 @@ export default function DatasetCompare() {
             }))}
             values={runs.filter((run) => runIds?.includes(run.key))}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
-              if (values.length === 0) return; // TODO: hide clear button
+              if (values.length === 0) return;
               if (changedValueId) {
                 if (selectedValueKeys?.has(changedValueId)) {
                   setRunState({
@@ -199,6 +200,7 @@ export default function DatasetCompare() {
         datasetId={datasetId}
         runsData={runsData.data}
         runIds={runIds ?? []}
+        localExperiments={localRuns}
       />
     </FullScreenPage>
   );
