@@ -52,22 +52,18 @@ import {
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionContent,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import {
   type ColumnDefinition,
   datasetCol,
+  extractVariables,
   type FilterCondition,
   stringOptionsFilter,
   ZodModelConfig,
 } from "@langfuse/shared";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 const CreateExperimentData = z.object({
@@ -164,7 +160,7 @@ export const CreateExperimentsForm = ({
     scope: "evalJob:CUD",
   });
 
-  const promptNamesAndVersions = api.prompts.allNamesAndVersions.useQuery({
+  const promptMeta = api.prompts.allPromptMeta.useQuery({
     projectId,
   });
 
@@ -200,6 +196,17 @@ export const CreateExperimentsForm = ({
       refetchOnReconnect: false,
     },
   );
+
+  const expectedColumns = useMemo(() => {
+    const prompt = promptMeta.data?.find((p) => p.id === promptId);
+    if (!prompt) return [];
+
+    return extractVariables(
+      prompt.type === PromptType.Text
+        ? (prompt?.prompt?.toString() ?? "")
+        : JSON.stringify(prompt?.prompt),
+    );
+  }, [promptId, promptMeta.data]);
 
   useEffect(() => {
     if (evaluators.data) {
@@ -310,7 +317,7 @@ export const CreateExperimentsForm = ({
 
   const promptsByName = useMemo(
     () =>
-      promptNamesAndVersions.data?.reduce<
+      promptMeta.data?.reduce<
         Record<string, Array<{ version: number; id: string }>>
       >((acc, prompt) => {
         if (!acc[prompt.name]) {
@@ -319,11 +326,11 @@ export const CreateExperimentsForm = ({
         acc[prompt.name].push({ version: prompt.version, id: prompt.id });
         return acc;
       }, {}),
-    [promptNamesAndVersions.data],
+    [promptMeta.data],
   );
 
   if (
-    !promptNamesAndVersions.data ||
+    !promptMeta.data ||
     !datasets.data ||
     (hasReadAccess && !!datasetId && !evaluators.data)
   ) {
@@ -481,31 +488,20 @@ export const CreateExperimentsForm = ({
           name="modelConfig"
           render={() => (
             <FormItem>
-              <Accordion type="single" collapsible>
-                <AccordionItem value="item-1" className="border-none">
-                  <div className="sticky top-0 z-10 border-b bg-background">
-                    <AccordionTrigger>
-                      <span className="text-sm">Model config</span>
-                    </AccordionTrigger>
-                  </div>
-                  <AccordionContent className="mt-4">
-                    <Card className="p-4">
-                      <ModelParameters
-                        {...{
-                          modelParams,
-                          availableModels,
-                          availableProviders,
-                          updateModelParamValue: updateModelParamValue,
-                          setModelParamEnabled,
-                          modelParamsDescription:
-                            "Select a model which supports function calling.",
-                        }}
-                        evalModelsOnly
-                      />
-                    </Card>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+              <Card className="p-4">
+                <ModelParameters
+                  {...{
+                    modelParams,
+                    availableModels,
+                    availableProviders,
+                    updateModelParamValue: updateModelParamValue,
+                    setModelParamEnabled,
+                    modelParamsDescription:
+                      "Select a model which supports function calling.",
+                  }}
+                  evalModelsOnly
+                />
+              </Card>
               {form.formState.errors.modelConfig && (
                 <p
                   id="modelConfig"
@@ -526,7 +522,44 @@ export const CreateExperimentsForm = ({
           name="datasetId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Dataset</FormLabel>
+              <div className="flex items-center gap-2">
+                <FormLabel>Dataset</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <span className="cursor-pointer text-xs text-muted-foreground">
+                      (expected columns)
+                    </span>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80">
+                    <div className="flex flex-col space-y-2">
+                      <h4 className="text-sm font-medium leading-none">
+                        Expected columns
+                      </h4>
+                      <span className="text-sm text-muted-foreground">
+                        {promptId ? (
+                          <div>
+                            <span>
+                              Given current prompt, dataset item input must
+                              contain at least one of these first-level JSON
+                              keys, mapped to a string value:
+                            </span>
+                            <ul className="my-2 ml-2 list-inside list-disc">
+                              {expectedColumns.map((col) => (
+                                <li key={col}>{col}</li>
+                              ))}
+                            </ul>
+                            <span>
+                              These will be used as the input to your prompt.
+                            </span>
+                          </div>
+                        ) : (
+                          "Please select a prompt first"
+                        )}
+                      </span>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>

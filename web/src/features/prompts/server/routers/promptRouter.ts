@@ -603,7 +603,7 @@ export const promptRouter = createTRPCRouter({
         logger.error(error);
       }
     }),
-  allNamesAndVersions: protectedProjectProcedure
+  allPromptMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -617,6 +617,8 @@ export const promptRouter = createTRPCRouter({
           id: true,
           name: true,
           version: true,
+          type: true,
+          prompt: true,
         },
         where: {
           projectId: input.projectId,
