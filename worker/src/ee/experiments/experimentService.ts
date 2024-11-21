@@ -155,15 +155,15 @@ export const createExperimentJob = async ({
     );
   }
 
-  for (const datasetItem of validatedDatasetItems) {
-    const apiKey = await prisma.llmApiKeys.findFirst({
-      where: {
-        projectId: event.projectId,
-        provider,
-      },
-    });
-    const parsedKey = LLMApiKeySchema.safeParse(apiKey);
+  const apiKey = await prisma.llmApiKeys.findFirst({
+    where: {
+      projectId: event.projectId,
+      provider,
+    },
+  });
+  const parsedKey = LLMApiKeySchema.safeParse(apiKey);
 
+  for (const datasetItem of validatedDatasetItems) {
     if (!parsedKey.success) {
       // this will fail the eval execution if a user deletes the API key.
       logger.error(
