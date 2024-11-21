@@ -7,6 +7,7 @@ export enum EventName {
   EvaluationExecution = "EvaluationExecution",
   LegacyIngestion = "LegacyIngestion",
   CloudUsageMetering = "CloudUsageMetering",
+  ExperimentCreate = "ExperimentCreate",
 }
 
 export const LegacyIngestionEventFull = z.object({
@@ -78,6 +79,13 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 
+export const ExperimentCreateEventSchema = z.object({
+  projectId: z.string(),
+  datasetId: z.string(),
+  runId: z.string(),
+  description: z.string().optional(),
+});
+
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceUpsertEventType = z.infer<typeof TraceUpsertEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
@@ -86,6 +94,9 @@ export type DatasetRunItemUpsertEventType = z.infer<
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type LegacyIngestionEventType = z.infer<typeof LegacyIngestionEvent>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
+export type ExperimentCreateEventType = z.infer<
+  typeof ExperimentCreateEventSchema
+>;
 
 export const EventBodySchema = z.union([
   z.object({
@@ -100,6 +111,10 @@ export const EventBodySchema = z.union([
     name: z.literal(EventName.BatchExport),
     payload: BatchExportJobSchema,
   }),
+  z.object({
+    name: z.literal(EventName.ExperimentCreate),
+    payload: ExperimentCreateEventSchema,
+  }),
 ]);
 export type EventBodyType = z.infer<typeof EventBodySchema>;
 
@@ -111,6 +126,7 @@ export enum QueueName {
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
+  ExperimentCreate = "experiment-create-queue",
 }
 
 export enum QueueJobs {
@@ -122,6 +138,7 @@ export enum QueueJobs {
   LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   IngestionJob = "ingestion-job",
+  ExperimentCreateJob = "experiment-create-job",
 }
 
 export type TQueueJobTypes = {
@@ -160,5 +177,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: IngestionEventQueueType;
     name: QueueJobs.IngestionJob;
+  };
+  [QueueName.ExperimentCreate]: {
+    timestamp: Date;
+    id: string;
+    payload: ExperimentCreateEventType;
+    name: QueueJobs.ExperimentCreateJob;
   };
 };
