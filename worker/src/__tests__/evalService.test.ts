@@ -1,6 +1,5 @@
 import { expect, test, describe, afterAll, beforeAll, vi } from "vitest";
 import {
-  compileHandlebarString,
   createDatasetEvalJobs,
   createTraceEvalJobs,
   evaluate,
@@ -21,6 +20,7 @@ import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 import { QueueName } from "@langfuse/shared/src/server";
 import { Worker, Job, ConnectionOptions } from "bullmq";
+import { compileHandlebarString } from "../features/utilities";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);

@@ -45,7 +45,7 @@ export const constructDatasetRunAggregateColumns = ({
       cell: ({ row }: { row: Row<DatasetCompareRunRowData> }) => {
         const runData: RunAggregate = row.getValue("runs") ?? {};
 
-        // if cell is loading or if run created at timestamp is less than 5 seconds ago, show skelton
+        // if cell is loading or if run created at timestamp is less than 5 seconds ago, show skeleton
         if (
           cellsLoading ||
           (createdAt && createdAt.getTime() + 5000 > Date.now())
