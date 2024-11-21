@@ -140,7 +140,7 @@ describe("Traces table API test", () => {
         {
           column: "Total Cost ($)",
           operator: ">" as const,
-          value: 0.001,
+          value: 0.000002,
           type: "number" as const,
         },
       ],
