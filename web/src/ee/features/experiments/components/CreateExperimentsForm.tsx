@@ -135,6 +135,7 @@ export const CreateExperimentsForm = ({
   const [selectedPromptVersion, setSelectedPromptVersion] = useState<
     number | null
   >(promptDefault?.version ?? null);
+
   const {
     modelParams,
     updateModelParamValue,
@@ -262,6 +263,8 @@ export const CreateExperimentsForm = ({
     onSettled: handleExperimentSettled,
   });
 
+  const archiveEvaluatorMutation = api.evals.updateEvalJob.useMutation();
+
   // Watch model config changes and update form
   useEffect(() => {
     form.setValue("modelConfig", {
@@ -272,8 +275,6 @@ export const CreateExperimentsForm = ({
   }, [modelParams, form]);
 
   const onSubmit = async (data: CreateExperiment) => {
-    // TODO: MUST re-attach evaluators in the form, show warning that this edit will happen on dataset level
-
     const experiment = {
       ...data,
       projectId,
@@ -283,7 +284,27 @@ export const CreateExperimentsForm = ({
     setFormOpen(false);
   };
 
-  const handleOnValueChange = (values: { key: string; value: string }[]) => {
+  const handleOnValueChange = (
+    values: { key: string; value: string }[],
+    changedValueId?: string,
+  ) => {
+    if (!changedValueId) return;
+    const evaluator = evaluators.data?.find((e) => e.id === changedValueId);
+    if (!evaluator) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to archive "${evaluator.scoreName}"? You can always always re-activate the evaluator.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    archiveEvaluatorMutation.mutate({
+      projectId,
+      evalConfigId: changedValueId,
+      updatedStatus: "INACTIVE",
+    });
+
     setSelectedEvaluators(values);
   };
 
@@ -529,7 +550,7 @@ export const CreateExperimentsForm = ({
           <FormItem>
             <FormLabel>Evaluators</FormLabel>
             <FormDescription>
-              Select evaluators to run against your experiment results.
+              Will run against your experiment results.
             </FormDescription>
             <MultiSelectKeyValues
               key={datasetId}
@@ -545,6 +566,7 @@ export const CreateExperimentsForm = ({
                   key: string;
                 }[]
               }
+              hideClearButton
               controlButtons={
                 <CommandItem
                   onSelect={() => {

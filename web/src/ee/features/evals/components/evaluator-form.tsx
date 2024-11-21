@@ -71,7 +71,7 @@ const formSchema = z.object({
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
   mapping: z.array(wipVariableMapping),
-  sampling: z.coerce.number().gte(0).lte(1),
+  sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().optional().default(10),
 });
 
