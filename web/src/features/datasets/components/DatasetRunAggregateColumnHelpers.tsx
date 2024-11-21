@@ -48,7 +48,7 @@ export const constructDatasetRunAggregateColumns = ({
         // if cell is loading or if run created at timestamp is less than 5 seconds ago, show skeleton
         if (
           cellsLoading ||
-          (createdAt && createdAt.getTime() + 5000 > Date.now())
+          (createdAt && createdAt.getTime() + 10000 > Date.now())
         )
           return <Skeleton className="h-full min-h-0 w-full" />;
 
