@@ -66,14 +66,12 @@ export default function DatasetCompare() {
     success: boolean;
     datasetId: string;
     runId: string;
+    runName: string;
   }) => {
     setIsCreateExperimentDialogOpen(false);
 
     if (!data) return;
-    setLocalRuns((prev) => [
-      ...prev,
-      { key: data.runId, value: "New Experiment" },
-    ]);
+    setLocalRuns((prev) => [...prev, { key: data.runId, value: data.runName }]);
     if (runsData.data?.some((run) => run.id === data.runId)) {
       setRunState({
         runs: [...(runIds ?? []), data.runId],

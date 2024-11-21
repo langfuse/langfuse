@@ -118,6 +118,7 @@ export const CreateExperimentsForm = ({
     success: boolean;
     datasetId: string;
     runId: string;
+    runName: string;
   }) => Promise<void>;
 }) => {
   const [open, setOpen] = useState(false);

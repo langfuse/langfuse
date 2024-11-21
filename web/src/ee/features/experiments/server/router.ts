@@ -214,6 +214,7 @@ export const experimentsRouter = createTRPCRouter({
         success: true,
         datasetId: input.datasetId,
         runId: datasetRun.id,
+        runName: name,
       };
     }),
 });

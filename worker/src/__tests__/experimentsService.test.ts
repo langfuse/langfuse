@@ -9,6 +9,10 @@ import { callLLM } from "../features/utilities";
 
 vi.mock("../features/utilities", () => ({
   callLLM: vi.fn().mockResolvedValue({ id: "test-id" }),
+  compileHandlebarString: vi.fn().mockImplementation((str, context) => {
+    // Simple mock that replaces handlebars variables with their values
+    return str.replace(/\{\{(\w+)\}\}/g, (_, key) => context[key] || "");
+  }),
 }));
 
 describe("create experiment jobs", () => {
