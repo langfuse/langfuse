@@ -18,21 +18,14 @@ import {
   paginationZod,
 } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  getLatencyAndTotalCostForObservations,
-  getLatencyAndTotalCostForObservationsByTraces,
-  getScoresForObservations,
-  getScoresForTraces,
-  traceException,
-} from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import Decimal from "decimal.js";
 import {
   createDatasetRunsTable,
   datasetRunsTableSchema,
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
+import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
