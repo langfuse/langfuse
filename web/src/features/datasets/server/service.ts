@@ -1,4 +1,10 @@
-import { paginationZod, Prisma, type PrismaClient } from "@langfuse/shared";
+import {
+  filterAndValidateDbScoreList,
+  paginationZod,
+  Prisma,
+  type PrismaClient,
+  type DatasetRunItems,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
@@ -8,10 +14,15 @@ import {
   commandClickhouse,
   convertToScore,
   type FetchScoresReturnType,
+  getLatencyAndTotalCostForObservations,
+  getLatencyAndTotalCostForObservationsByTraces,
   getObservationsById,
+  getScoresForObservations,
+  getScoresForTraces,
   getTracesByIds,
   logger,
   queryClickhouse,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
@@ -479,4 +490,98 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       }
     }),
   };
+};
+
+export const getRunItemsByRunIdOrItemId = async (
+  projectId: string,
+  runItems: DatasetRunItems[],
+) => {
+  const [
+    traceScores,
+    observationScores,
+    observationAggregates,
+    traceAggregate,
+  ] = await Promise.all([
+    getScoresForTraces(
+      projectId,
+      runItems
+        .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
+        .map((ri) => ri.traceId),
+    ),
+    getScoresForObservations(
+      projectId,
+      runItems
+        .filter((ri) => ri.observationId !== null)
+        .map((ri) => ri.observationId) as string[],
+    ),
+    getLatencyAndTotalCostForObservations(
+      projectId,
+      runItems
+        .filter((ri) => ri.observationId !== null)
+        .map((ri) => ri.observationId) as string[],
+    ),
+    getLatencyAndTotalCostForObservationsByTraces(
+      projectId,
+      runItems.map((ri) => ri.traceId),
+    ),
+  ]);
+
+  const validatedTraceScores = filterAndValidateDbScoreList(
+    traceScores,
+    traceException,
+  );
+  const validatedObservationScores = filterAndValidateDbScoreList(
+    observationScores,
+    traceException,
+  );
+
+  return runItems.map((ri) => {
+    const trace = traceAggregate
+      .map((t) => ({
+        id: t.traceId,
+        duration: t.latency,
+        totalCost: t.totalCost,
+      }))
+      .find((t) => t.id === ri.traceId) ?? {
+      // we default to the traceId provided. The traceId must not be missing.
+      id: ri.traceId,
+      totalCost: 0,
+      duration: 0,
+    };
+
+    const observation =
+      observationAggregates
+        .map((o) => ({
+          id: o.id,
+          latency: o.latency,
+          calculatedTotalCost: new Decimal(o.totalCost),
+        }))
+        .find((o) => o.id === ri.observationId) ??
+      (ri.observationId
+        ? // we default to the observationId provided. The observationId must not be missing
+          // in case it is on the dataset run item.
+          {
+            id: ri.observationId,
+            calculatedTotalCost: new Decimal(0),
+            latency: 0,
+          }
+        : undefined);
+
+    return {
+      id: ri.id,
+      createdAt: ri.createdAt,
+      datasetItemId: ri.datasetItemId,
+      observation,
+      trace,
+      scores: aggregateScores([
+        ...validatedTraceScores.filter(
+          (s) => s.traceId === ri.traceId && ri.observationId === null,
+        ),
+        ...validatedObservationScores.filter(
+          (s) =>
+            s.observationId === ri.observationId && s.traceId === ri.traceId,
+        ),
+      ]),
+    };
+  });
 };
