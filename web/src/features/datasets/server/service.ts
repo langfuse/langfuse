@@ -137,7 +137,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TEMPORARY TABLE IF NOT EXISTS ${tableName}
+      CREATE TABLE IF NOT EXISTS ${tableName}
       (
           project_id String,    
           run_id String,  
