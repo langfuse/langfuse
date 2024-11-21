@@ -68,9 +68,11 @@ export default function DatasetCompare() {
       ...prev,
       { key: data.runId, value: "New Experiment" },
     ]);
-    setRunState({
-      runs: [...(runIds ?? []), data.runId],
-    });
+    if (runsData.data?.some((run) => run.id === data.runId)) {
+      setRunState({
+        runs: [...(runIds ?? []), data.runId],
+      });
+    }
 
     // sleep for 30 seconds to allow the experiment to be created
     await new Promise((resolve) => setTimeout(resolve, 30_000));
@@ -200,7 +202,9 @@ export default function DatasetCompare() {
         datasetId={datasetId}
         runsData={runsData.data}
         runIds={runIds ?? []}
-        localExperiments={localRuns}
+        localExperiments={localRuns.filter((localRun) =>
+          runsData.data.some((run) => run.id === localRun.key),
+        )}
       />
     </FullScreenPage>
   );

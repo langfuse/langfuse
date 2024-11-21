@@ -334,7 +334,7 @@ export const CreateExperimentsForm = ({
     !datasets.data ||
     (hasReadAccess && !!datasetId && !evaluators.data)
   ) {
-    return <Skeleton className="min-h-10 w-full" />;
+    return <Skeleton className="min-h-[70dvh] w-full" />;
   }
 
   return (
