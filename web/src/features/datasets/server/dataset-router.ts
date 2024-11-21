@@ -18,20 +18,14 @@ import {
   paginationZod,
 } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  getLatencyAndTotalCostForObservations,
-  getLatencyAndTotalCostForObservationsByTraces,
-  getScoresForObservations,
-  getScoresForTraces,
-  traceException,
-} from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import Decimal from "decimal.js";
 import {
   createDatasetRunsTable,
   datasetRunsTableSchema,
   fetchDatasetItems,
+  getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
+import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -904,81 +898,13 @@ export const datasetRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          const [
-            traceScores,
-            observationScores,
-            observationAggregates,
-            traceAggregate,
-          ] = await Promise.all([
-            getScoresForTraces(
-              input.projectId,
-              runItems
-                .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-                .map((ri) => ri.traceId),
-            ),
-            getScoresForObservations(
-              input.projectId,
-              runItems
-                .filter((ri) => ri.observationId !== null)
-                .map((ri) => ri.observationId) as string[],
-            ),
-            getLatencyAndTotalCostForObservations(
-              input.projectId,
-              runItems
-                .filter((ri) => ri.observationId !== null)
-                .map((ri) => ri.observationId) as string[],
-            ),
-            getLatencyAndTotalCostForObservationsByTraces(
-              input.projectId,
-              runItems.map((ri) => ri.traceId),
-            ),
-          ]);
-
-          const validatedTraceScores = filterAndValidateDbScoreList(
-            traceScores,
-            traceException,
-          );
-          const validatedObservationScores = filterAndValidateDbScoreList(
-            observationScores,
-            traceException,
-          );
-
-          const items = runItems.map((ri) => {
-            return {
-              id: ri.id,
-              createdAt: ri.createdAt,
-              datasetItemId: ri.datasetItemId,
-              observation: observationAggregates
-                .map((o) => ({
-                  id: o.id,
-                  latency: o.latency,
-                  calculatedTotalCost: new Decimal(o.totalCost),
-                }))
-                .find((o) => o.id === ri.observationId),
-              trace: traceAggregate
-                .map((t) => ({
-                  id: t.traceId,
-                  duration: t.latency,
-                  totalCost: t.totalCost,
-                }))
-                .find((t) => t.id === ri.traceId),
-              scores: aggregateScores([
-                ...validatedTraceScores.filter(
-                  (s) => s.traceId === ri.traceId && ri.observationId === null,
-                ),
-                ...validatedObservationScores.filter(
-                  (s) =>
-                    s.observationId === ri.observationId &&
-                    s.traceId === ri.traceId,
-                ),
-              ]),
-            };
-          });
-
           // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
           return {
             totalRunItems,
-            runItems: items,
+            runItems: await getRunItemsByRunIdOrItemId(
+              input.projectId,
+              runItems,
+            ),
           };
         },
       });
