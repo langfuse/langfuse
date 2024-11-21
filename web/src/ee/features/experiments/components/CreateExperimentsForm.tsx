@@ -49,7 +49,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
@@ -68,7 +67,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { Input } from "@/src/components/ui/input";
 
 const CreateExperimentData = z.object({
-  name: z.string().optional(),
+  name: z.string().min(1, "Please enter a name").optional(),
   promptId: z.string().min(1, "Please select a prompt"),
   datasetId: z.string().min(1, "Please select a dataset"),
   description: z.string().max(1000).optional(),

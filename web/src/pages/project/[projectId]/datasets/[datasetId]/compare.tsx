@@ -73,11 +73,9 @@ export default function DatasetCompare() {
 
     if (!data) return;
     setLocalRuns((prev) => [...prev, { key: data.runId, value: data.runName }]);
-    if (runsData.data?.some((run) => run.id === data.runId)) {
-      setRunState({
-        runs: [...(runIds ?? []), data.runId],
-      });
-    }
+    setRunState({
+      runs: [...(runIds ?? []), data.runId],
+    });
   };
 
   const runs = useMemo(() => {
@@ -127,7 +125,7 @@ export default function DatasetCompare() {
                   <span className="ml-2">New experiment</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Set up experiment</DialogTitle>
                   <DialogDescription>
@@ -200,13 +198,12 @@ export default function DatasetCompare() {
         ]}
       />
       <DatasetCompareRunsTable
+        key={runIds?.join(",") ?? "empty"}
         projectId={projectId}
         datasetId={datasetId}
         runsData={runsData.data}
         runIds={runIds ?? []}
-        localExperiments={localRuns.filter((localRun) =>
-          runsData.data.some((run) => run.id === localRun.key),
-        )}
+        localExperiments={localRuns}
       />
     </FullScreenPage>
   );
