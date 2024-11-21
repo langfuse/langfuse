@@ -121,6 +121,53 @@ export const getObservationById = async (
   return mapped.shift();
 };
 
+export const getObservationsById = async (
+  ids: string[],
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
+  const query = `
+  SELECT
+    id,
+    trace_id,
+    project_id,
+    type,
+    parent_observation_id,
+    start_time,
+    end_time,
+    name,
+    metadata,
+    level,
+    status_message,
+    version,
+    ${fetchWithInputOutput ? "input, output," : ""}
+    provided_model_name,
+    internal_model_id,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    created_at,
+    updated_at,
+    event_ts
+  FROM observations
+  WHERE id IN ({ids: Array(String)})
+  AND project_id = {projectId: String}
+  ORDER BY event_ts desc
+  LIMIT 1 by id, project_id`;
+  const records = await queryClickhouse<ObservationRecordReadType>({
+    query,
+    params: { ids, projectId },
+  });
+  return records.map(convertObservation);
+};
+
 export const getObservationViewById = async (
   id: string,
   projectId: string,

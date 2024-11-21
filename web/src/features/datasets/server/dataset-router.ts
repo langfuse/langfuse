@@ -24,13 +24,13 @@ import {
   getScoresForObservations,
   getScoresForTraces,
   traceException,
-  getTracesByIds,
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
 import {
   createDatasetRunsTable,
   datasetRunsTableSchema,
+  fetchDatasetItems,
 } from "@/src/features/datasets/server/service";
 
 export const datasetRouter = createTRPCRouter({
@@ -357,59 +357,13 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        include: {
-          datasetItems: {
-            orderBy: [
-              {
-                status: "asc",
-              },
-              {
-                createdAt: "desc",
-              },
-            ],
-            take: input.limit,
-            skip: input.page * input.limit,
-          },
-        },
+      return fetchDatasetItems({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        limit: input.limit,
+        page: input.page,
+        prisma: ctx.prisma,
       });
-      const datasetItems = dataset?.datasetItems ?? [];
-
-      const totalDatasetItems = await ctx.prisma.datasetItem.count({
-        where: {
-          dataset: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-          projectId: input.projectId,
-        },
-      });
-
-      // check in clickhouse if the traces already exist. They arrive delayed.
-      const traces = await getTracesByIds(
-        datasetItems
-          .map((item) => item.sourceTraceId)
-          .filter((id): id is string => Boolean(id)),
-        input.projectId,
-      );
-
-      return {
-        totalDatasetItems,
-        datasetItems: datasetItems.map((item) => {
-          const trace = traces.find((t) => t.id === item.sourceTraceId);
-          return {
-            ...item,
-            sourceTraceId: trace?.id ?? null,
-            sourceObservationId: trace?.id ? item.sourceObservationId : null,
-          };
-        }),
-      };
     }),
   baseDatasetItemByDatasetId: protectedProjectProcedure
     .input(

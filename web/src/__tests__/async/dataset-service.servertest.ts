@@ -1,21 +1,26 @@
 import {
   createObservations,
   createScores,
+  createTraces,
 } from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createObservation,
   createScore,
+  createTrace,
 } from "@/src/__tests__/fixtures/tracing-factory";
-import { createDatasetRunsTable } from "@/src/features/datasets/server/service";
+import {
+  createDatasetRunsTable,
+  fetchDatasetItems,
+} from "@/src/features/datasets/server/service";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-describe("dataset service", () => {
-  it("should be able to fetch data for dataset run UI", async () => {
+describe("Fetch datasets for UI presentation", () => {
+  it("should fetch dataset runs for UI", async () => {
     const datasetId = v4();
-    console.log("datasetId", datasetId);
+
     await prisma.dataset.create({
       data: {
         id: datasetId,
@@ -210,5 +215,120 @@ describe("dataset service", () => {
     expect(secondRun.avgTotalCost.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
+  });
+
+  it("should fetch dataset items correctly", async () => {
+    // Create test data in the database
+
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+
+    const traceId1 = v4();
+    const traceId2 = v4();
+    const observationId2 = v4();
+
+    const datasetItemId = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId,
+        datasetId,
+        metadata: {},
+        projectId,
+        sourceTraceId: traceId1,
+      },
+    });
+
+    const datasetItemId2 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId2,
+        datasetId,
+        metadata: {},
+        projectId,
+        sourceTraceId: traceId2,
+        sourceObservationId: observationId2,
+      },
+    });
+
+    const datasetItemId3 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId3,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    const observation = createObservation({
+      id: observationId2,
+      trace_id: traceId2,
+      project_id: projectId,
+      start_time: new Date().getTime() - 1000 * 60 * 60, // minus 1 min
+      end_time: new Date().getTime(),
+    });
+
+    await createObservations([observation]);
+
+    const trace1 = createTrace({
+      id: traceId1,
+      project_id: projectId,
+    });
+    const trace2 = createTrace({
+      id: traceId2,
+      project_id: projectId,
+    });
+
+    await createTraces([trace1, trace2]);
+
+    const input = {
+      projectId: projectId,
+      datasetId: datasetId,
+      limit: 10,
+      page: 0,
+      prisma: prisma,
+    };
+
+    const result = await fetchDatasetItems(input);
+
+    expect(result.totalDatasetItems).toEqual(3);
+    expect(result.datasetItems).toHaveLength(3);
+
+    const firstDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId,
+    );
+    expect(firstDatasetItem).toBeDefined();
+    if (!firstDatasetItem) {
+      throw new Error("firstDatasetItem is not defined");
+    }
+    expect(firstDatasetItem.sourceTraceId).toEqual(traceId1);
+    expect(firstDatasetItem.sourceObservationId).toBeNull();
+
+    const secondDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId2,
+    );
+    expect(secondDatasetItem).toBeDefined();
+    if (!secondDatasetItem) {
+      throw new Error("secondDatasetItem is not defined");
+    }
+    expect(secondDatasetItem.sourceTraceId).toEqual(traceId2);
+    expect(secondDatasetItem.sourceObservationId).toEqual(observationId2);
+
+    const thirdDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId3,
+    );
+    expect(thirdDatasetItem).toBeDefined();
+    if (!thirdDatasetItem) {
+      throw new Error("thirdDatasetItem is not defined");
+    }
+    expect(thirdDatasetItem.sourceTraceId).toBeNull();
+    expect(thirdDatasetItem.sourceObservationId).toBeNull();
   });
 });
