@@ -174,14 +174,14 @@ export const deleteTempTableInClickhouse = async (
   tableName: string,
   sessionId: string,
 ) => {
-  // const query = `
-  //     DROP TABLE IF EXISTS ${tableName}
-  // `;
-  // await commandClickhouse({
-  //   query,
-  //   params: { tableName },
-  //   clickhouseConfigs: { session_id: sessionId },
-  // });
+  const query = `
+      DROP TABLE IF EXISTS ${tableName}
+  `;
+  await commandClickhouse({
+    query,
+    params: { tableName },
+    clickhouseConfigs: { session_id: sessionId },
+  });
 };
 
 export const getDatasetRunsFromPostgres = async (
