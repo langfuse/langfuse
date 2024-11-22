@@ -197,15 +197,17 @@ export async function fetchLLMCompletion(
     throw new Error("This model provider is not supported.");
   }
 
+  const runConfig = {
+    callbacks: finalCallbacks,
+    runId: traceParams?.traceId,
+    runName: traceParams?.traceName,
+  };
+
   if (params.structuredOutputSchema) {
     return {
       completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
         .withStructuredOutput(params.structuredOutputSchema)
-        .invoke(finalMessages, {
-          callbacks: finalCallbacks,
-          runId: traceParams?.traceId,
-          runName: traceParams?.traceName,
-        }),
+        .invoke(finalMessages, runConfig),
       processTracedEvents,
     };
   }
@@ -239,6 +241,7 @@ export async function fetchLLMCompletion(
         .pipe(new StringOutputParser())
         .invoke(
           finalMessages.filter((message) => message._getType() !== "system"),
+          runConfig,
         ),
       processTracedEvents,
     };
@@ -248,15 +251,15 @@ export async function fetchLLMCompletion(
     return {
       completion: await chatModel
         .pipe(new BytesOutputParser())
-        .stream(finalMessages),
+        .stream(finalMessages, runConfig),
       processTracedEvents,
     };
   }
 
   return {
     completion: await chatModel
-      .pipe(new StringOutputParser())
-      .invoke(finalMessages),
+      //.pipe(new StringOutputParser())
+      .invoke(finalMessages, runConfig),
     processTracedEvents,
   };
 }
