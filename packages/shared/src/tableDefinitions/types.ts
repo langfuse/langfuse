@@ -3,6 +3,7 @@ export type UiColumnMapping = {
   uiTableId: string;
   clickhouseTableName: string;
   clickhouseSelect: string;
+  clickhouseTypeOverwrite?: string;
   queryPrefix?: string;
 };
 

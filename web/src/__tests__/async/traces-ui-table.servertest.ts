@@ -163,6 +163,19 @@ describe("Traces table API test", () => {
       ],
       expected: [],
     },
+    {
+      traceInput: {},
+      observationInput: [],
+      filterstate: [
+        {
+          column: "Latency (s)",
+          operator: ">" as const,
+          value: 100,
+          type: "number" as const,
+        },
+      ],
+      expected: [],
+    },
   ].forEach(async (testConfig: TestCase) => {
     it(`should get a correct trace with filters ${JSON.stringify(testConfig)}`, async () => {
       const project_id = v4();

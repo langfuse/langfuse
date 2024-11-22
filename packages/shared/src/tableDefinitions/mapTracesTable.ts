@@ -106,7 +106,8 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Latency (s)",
     uiTableId: "latency",
     clickhouseTableName: "traces",
-    clickhouseSelect: "latency_milliseconds",
+    clickhouseSelect: "latency_milliseconds / 1000",
+    clickhouseTypeOverwrite: "UInt64",
   },
   {
     uiTableName: "Input Cost ($)",
