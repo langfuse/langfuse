@@ -20,7 +20,7 @@ services:
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
     container_name: azurite
-    command: azurite-blob
+    command: azurite-blob --blobHost 0.0.0.0
     ports:
       - "10000:10000"
     volumes:
