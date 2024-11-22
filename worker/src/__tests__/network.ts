@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, passthrough } from "msw";
 import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
@@ -53,10 +53,13 @@ function JsonCompletionHandler(data: object) {
 
 function MinioCompletionHandler() {
   return http.all("http://localhost:9090*", async (request) => {
-    if ((request.params[0] as string).startsWith("/langfuse/events/")) {
-      return new HttpResponse("Success");
-    }
-    throw new Error("Unexpected path");
+    return passthrough();
+  });
+}
+
+function AzuriteCompletionHandler() {
+  return http.all("http://localhost:10000*", async (request) => {
+    return passthrough();
   });
 }
 
@@ -112,6 +115,7 @@ export class OpenAIServer {
     this.internalServer.use(
       JsonCompletionHandler(data),
       MinioCompletionHandler(),
+      AzuriteCompletionHandler(),
     );
   }
 
