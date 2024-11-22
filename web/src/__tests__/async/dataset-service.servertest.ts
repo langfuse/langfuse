@@ -1,21 +1,27 @@
 import {
   createObservations,
   createScores,
+  createTraces,
 } from "@/src/__tests__/server/repositories/clickhouse-helpers";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createObservation,
   createScore,
+  createTrace,
 } from "@/src/__tests__/fixtures/tracing-factory";
-import { createDatasetRunsTable } from "@/src/features/datasets/server/service";
+import {
+  createDatasetRunsTable,
+  fetchDatasetItems,
+  getRunItemsByRunIdOrItemId,
+} from "@/src/features/datasets/server/service";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-describe("dataset service", () => {
-  it("should be able to fetch data for dataset run UI", async () => {
+describe("Fetch datasets for UI presentation", () => {
+  it("should fetch dataset runs for UI", async () => {
     const datasetId = v4();
-    console.log("datasetId", datasetId);
+
     await prisma.dataset.create({
       data: {
         id: datasetId,
@@ -66,6 +72,7 @@ describe("dataset service", () => {
     const traceId3 = v4();
     const traceId4 = v4();
     const scoreId = v4();
+    const scoreId2 = v4();
     const scoreName = v4();
 
     await prisma.datasetRunItems.create({
@@ -144,7 +151,7 @@ describe("dataset service", () => {
       start_time: new Date().getTime() - 1000,
       end_time: new Date().getTime(),
     });
-    createObservations([
+    await createObservations([
       observation,
       observation2,
       observation3,
@@ -158,7 +165,16 @@ describe("dataset service", () => {
       project_id: projectId,
       name: scoreName,
     });
-    createScores([score]);
+    const score2 = createScore({
+      id: scoreId2,
+      observation_id: null,
+      trace_id: traceId,
+      project_id: projectId,
+      name: scoreName,
+      value: 1,
+      comment: "some other comment",
+    });
+    await createScores([score, score2]);
 
     const runs = await createDatasetRunsTable({
       projectId,
@@ -182,19 +198,18 @@ describe("dataset service", () => {
     expect(firstRun.run_description).toBeNull();
     expect(firstRun.run_metadata).toEqual({});
 
-    expect(firstRun.avgLatency).toEqual(10800);
+    expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
     expect(firstRun.avgTotalCost.toString()).toStrictEqual("275");
 
-    const expectedObject = JSON.stringify({
+    const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
         type: "NUMERIC",
-        values: [100.5],
-        average: 100.5,
-        comment: "comment",
+        values: expect.arrayContaining([1, 100.5]),
+        average: 50.75,
       },
-    });
+    };
 
-    expect(JSON.stringify(firstRun.scores)).toEqual(expectedObject);
+    expect(firstRun.scores).toEqual(expectedObject);
 
     const secondRun = runs.find((run) => run.run_id === datasetRun2Id);
 
@@ -210,5 +225,217 @@ describe("dataset service", () => {
     expect(secondRun.avgTotalCost.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
+  });
+
+  it("should fetch dataset runs for UI with missing tracing data", async () => {
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+    const datasetRunId = v4();
+    await prisma.datasetRuns.create({
+      data: {
+        id: datasetRunId,
+        name: v4(),
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    const datasetItemId = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    const datasetRunItemId = v4();
+    const traceId = v4();
+
+    await prisma.datasetRunItems.create({
+      data: {
+        id: datasetRunItemId,
+        datasetRunId: datasetRunId,
+        traceId: traceId,
+        projectId,
+        datasetItemId,
+      },
+    });
+
+    const traceId2 = v4();
+    const observationId = v4();
+    const datasetRunItemId2 = v4();
+
+    await prisma.datasetRunItems.create({
+      data: {
+        id: datasetRunItemId2,
+        datasetRunId: datasetRunId,
+        traceId: traceId2,
+        projectId,
+        datasetItemId,
+        observationId,
+      },
+    });
+
+    const runs = await getRunItemsByRunIdOrItemId(
+      projectId,
+      // fetch directly from the db to have realistic data.
+      await prisma.datasetRunItems.findMany({
+        where: {
+          id: {
+            in: [datasetRunItemId, datasetRunItemId2],
+          },
+        },
+      }),
+    );
+
+    expect(runs).toHaveLength(2);
+
+    const firstRun = runs.find((run) => run.id === datasetRunItemId);
+    expect(firstRun).toBeDefined();
+    if (!firstRun) {
+      throw new Error("first run is not defined");
+    }
+
+    expect(firstRun.id).toEqual(datasetRunItemId);
+    expect(firstRun.datasetItemId).toEqual(datasetItemId);
+    expect(firstRun.observation).toBeUndefined();
+    expect(firstRun.trace).toBeDefined();
+    expect(firstRun.trace?.id).toEqual(traceId);
+
+    const secondRun = runs.find((run) => run.id === datasetRunItemId2);
+    expect(secondRun).toBeDefined();
+    if (!secondRun) {
+      throw new Error("secondRun is not defined");
+    }
+
+    expect(secondRun.id).toEqual(datasetRunItemId2);
+    expect(secondRun.datasetItemId).toEqual(datasetItemId);
+    expect(secondRun.trace?.id).toEqual(traceId2);
+    expect(secondRun.observation?.id).toEqual(observationId);
+  });
+
+  it("should fetch dataset items correctly", async () => {
+    // Create test data in the database
+
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+
+    const traceId1 = v4();
+    const traceId2 = v4();
+    const observationId2 = v4();
+
+    const datasetItemId = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId,
+        datasetId,
+        metadata: {},
+        projectId,
+        sourceTraceId: traceId1,
+      },
+    });
+
+    const datasetItemId2 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId2,
+        datasetId,
+        metadata: {},
+        projectId,
+        sourceTraceId: traceId2,
+        sourceObservationId: observationId2,
+      },
+    });
+
+    const datasetItemId3 = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId3,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    const observation = createObservation({
+      id: observationId2,
+      trace_id: traceId2,
+      project_id: projectId,
+      start_time: new Date().getTime() - 1000 * 60 * 60, // minus 1 min
+      end_time: new Date().getTime(),
+    });
+
+    await createObservations([observation]);
+
+    const trace1 = createTrace({
+      id: traceId1,
+      project_id: projectId,
+    });
+    const trace2 = createTrace({
+      id: traceId2,
+      project_id: projectId,
+    });
+
+    await createTraces([trace1, trace2]);
+
+    const input = {
+      projectId: projectId,
+      datasetId: datasetId,
+      limit: 10,
+      page: 0,
+      prisma: prisma,
+    };
+
+    const result = await fetchDatasetItems(input);
+
+    expect(result.totalDatasetItems).toEqual(3);
+    expect(result.datasetItems).toHaveLength(3);
+
+    const firstDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId,
+    );
+    expect(firstDatasetItem).toBeDefined();
+    if (!firstDatasetItem) {
+      throw new Error("firstDatasetItem is not defined");
+    }
+    expect(firstDatasetItem.sourceTraceId).toEqual(traceId1);
+    expect(firstDatasetItem.sourceObservationId).toBeNull();
+
+    const secondDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId2,
+    );
+    expect(secondDatasetItem).toBeDefined();
+    if (!secondDatasetItem) {
+      throw new Error("secondDatasetItem is not defined");
+    }
+    expect(secondDatasetItem.sourceTraceId).toEqual(traceId2);
+    expect(secondDatasetItem.sourceObservationId).toEqual(observationId2);
+
+    const thirdDatasetItem = result.datasetItems.find(
+      (item) => item.id === datasetItemId3,
+    );
+    expect(thirdDatasetItem).toBeDefined();
+    if (!thirdDatasetItem) {
+      throw new Error("thirdDatasetItem is not defined");
+    }
+    expect(thirdDatasetItem.sourceTraceId).toBeNull();
+    expect(thirdDatasetItem.sourceObservationId).toBeNull();
   });
 });

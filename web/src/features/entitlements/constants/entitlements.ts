@@ -9,6 +9,7 @@ const entitlements = [
   "integration-posthog",
   "batch-export",
   "annotation-queues",
+  "experiments",
 ] as const;
 
 export type Entitlement = (typeof entitlements)[number];
@@ -20,6 +21,7 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "integration-posthog",
   "batch-export",
   "annotation-queues",
+  "experiments",
 ];
 
 export const entitlementAccess: Record<Plan, Entitlement[]> = {

@@ -12,6 +12,9 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  type JobConfiguration,
+  JobConfigState,
+  JobType,
   Prisma,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -24,6 +27,46 @@ import {
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
+import { traceException } from "@langfuse/shared/src/server";
+
+const APIEvaluatorSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  evalTemplateId: z.string(),
+  scoreName: z.string(),
+  targetObject: z.string(),
+  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  variableMapping: z.array(variableMapping),
+  sampling: z.instanceof(Prisma.Decimal),
+  delay: z.number(),
+  status: z.nativeEnum(JobConfigState),
+  jobType: z.nativeEnum(JobType),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+type APIEvaluator = z.infer<typeof APIEvaluatorSchema>;
+
+/**
+ * Use this function when pulling a list of evaluators from the database before using in the application to ensure type safety.
+ * All evaluators are expected to pass the validation. If an evaluator fails validation, it will be logged to Otel.
+ * @param evaluators
+ * @returns list of validated evaluators
+ */
+const filterAndValidateDbEvaluatorList = (
+  evaluators: JobConfiguration[],
+  onParseError?: (error: z.ZodError) => void,
+): APIEvaluator[] =>
+  evaluators.reduce((acc, ts) => {
+    const result = APIEvaluatorSchema.safeParse(ts);
+    if (result.success) {
+      acc.push(result.data);
+    } else {
+      console.error("Evaluator parsing error: ", result.error);
+      onParseError?.(result.error);
+    }
+    return acc;
+  }, [] as APIEvaluator[]);
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -333,6 +376,31 @@ export const evalRouter = createTRPCRouter({
           message: "Fetching eval jobs for template failed.",
         });
       }
+    }),
+
+  jobConfigsByTarget: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), targetObject: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const evaluators = await ctx.prisma.jobConfiguration.findMany({
+        where: {
+          projectId: input.projectId,
+          targetObject: input.targetObject,
+          status: "ACTIVE",
+        },
+      });
+
+      return filterAndValidateDbEvaluatorList(evaluators, traceException);
     }),
 
   jobConfigsByTemplateName: protectedProjectProcedure

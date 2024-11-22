@@ -11,12 +11,14 @@ import { ObservationRecordReadType } from "./definitions";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
-): Omit<
-  ObservationView,
-  "inputPrice" | "outputPrice" | "totalPrice" | "modelId"
-> => {
+): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
+  // these cost are not used from the view. They are in the select statement but not in the
+  // Prisma file. We will not clean this up but keep it as it is for now.
+  // eslint-disable-next-line no-unused-vars
+  const { inputCost, outputCost, totalCost, internalModelId, ...rest } =
+    convertObservation(record ?? undefined);
   return {
-    ...convertObservation(record ?? undefined),
+    ...rest,
     latency: record.end_time
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
@@ -27,12 +29,18 @@ export const convertObservationToView = (
       : null,
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
+    modelId: record.internal_model_id ?? null,
   };
 };
 
 export const convertObservation = (
   record: ObservationRecordReadType,
-): Omit<Observation, "internalModel"> => {
+): Omit<Observation, "internalModel"> & {
+  promptName: string | null;
+  promptVersion: number | null;
+  latency: number | null;
+  timeToFirstToken: number | null;
+} => {
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -87,5 +95,15 @@ export const convertObservation = (
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     unit: "TOKENS", // to be removed.
+    promptName: record.prompt_name ?? null,
+    promptVersion: record.prompt_version ?? null,
+    latency: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+      : null,
+    timeToFirstToken: record.completion_start_time
+      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
+      : null,
   };
 };
