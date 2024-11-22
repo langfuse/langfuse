@@ -4,7 +4,7 @@ import {
   queryClickhouse,
   upsertClickhouse,
 } from "./clickhouse";
-import { Observation, ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import { prisma } from "../../db";
@@ -211,6 +211,107 @@ export const getObservationById = async (
   projectId: string,
   fetchWithInputOutput: boolean = false,
 ) => {
+  const records = await getObservationByIdInternal(
+    id,
+    projectId,
+    fetchWithInputOutput,
+  );
+  const mapped = records.map(convertObservation);
+
+  if (mapped.length === 0) {
+    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
+  }
+
+  if (mapped.length > 1) {
+    logger.error(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+    throw new InternalServerError(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+  }
+  return mapped.shift();
+};
+
+export const getObservationsById = async (
+  ids: string[],
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
+  const query = `
+  SELECT
+    id,
+    trace_id,
+    project_id,
+    type,
+    parent_observation_id,
+    start_time,
+    end_time,
+    name,
+    metadata,
+    level,
+    status_message,
+    version,
+    ${fetchWithInputOutput ? "input, output," : ""}
+    provided_model_name,
+    internal_model_id,
+    model_parameters,
+    provided_usage_details,
+    usage_details,
+    provided_cost_details,
+    cost_details,
+    total_cost,
+    completion_start_time,
+    prompt_id,
+    prompt_name,
+    prompt_version,
+    created_at,
+    updated_at,
+    event_ts
+  FROM observations
+  WHERE id IN ({ids: Array(String)})
+  AND project_id = {projectId: String}
+  ORDER BY event_ts desc
+  LIMIT 1 by id, project_id`;
+  const records = await queryClickhouse<ObservationRecordReadType>({
+    query,
+    params: { ids, projectId },
+  });
+  return records.map(convertObservation);
+};
+
+export const getObservationViewById = async (
+  id: string,
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
+  const records = await getObservationByIdInternal(
+    id,
+    projectId,
+    fetchWithInputOutput,
+  );
+  const mapped = records.map(convertObservationToView);
+
+  if (mapped.length === 0) {
+    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
+  }
+
+  if (mapped.length > 1) {
+    logger.error(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+    throw new InternalServerError(
+      `Multiple observations found for id ${id} and project ${projectId}`,
+    );
+  }
+  return mapped.shift();
+};
+
+const getObservationByIdInternal = async (
+  id: string,
+  projectId: string,
+  fetchWithInputOutput: boolean = false,
+) => {
   const query = `
   SELECT
     id,
@@ -246,26 +347,10 @@ export const getObservationById = async (
   AND project_id = {projectId: String}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
-  const records = await queryClickhouse<ObservationRecordReadType>({
+  return await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { id, projectId },
   });
-
-  const mapped = records.map(convertObservation);
-
-  if (mapped.length === 0) {
-    throw new LangfuseNotFoundError(`Observation with id ${id} not found`);
-  }
-
-  if (mapped.length > 1) {
-    logger.error(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-    throw new InternalServerError(
-      `Multiple observations found for id ${id} and project ${projectId}`,
-    );
-  }
-  return mapped.shift() as Observation;
 };
 
 export type ObservationTableQuery = {

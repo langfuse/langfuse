@@ -7,7 +7,6 @@ import {
   beforeEach,
 } from "vitest";
 import {
-  compileHandlebarString,
   createEvalJobs,
   evaluate,
   extractVariablesFromTracingData,
@@ -32,6 +31,7 @@ import {
   upsertTrace,
 } from "@langfuse/shared/src/server";
 import { Worker, Job, ConnectionOptions } from "bullmq";
+import { compileHandlebarString } from "../features/utilities";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);

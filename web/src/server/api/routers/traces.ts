@@ -210,7 +210,7 @@ export const traceRouter = createTRPCRouter({
             filter: input.filter ?? [],
             searchQuery: input.searchQuery ?? undefined,
             limit: 1,
-            offset: 0,
+            page: 0,
           });
 
           return {

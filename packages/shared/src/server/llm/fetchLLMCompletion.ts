@@ -31,7 +31,7 @@ import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
 type ProcessTracedEvents = () => Promise<void>;
 
-type TraceParams = {
+export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
@@ -106,6 +106,7 @@ export async function fetchLLMCompletion(
   if (traceParams) {
     const handler = new CallbackHandler({
       _projectId: traceParams.projectId,
+      _isLocalEventExportEnabled: true,
       tags: traceParams.tags,
     });
 
@@ -196,15 +197,17 @@ export async function fetchLLMCompletion(
     throw new Error("This model provider is not supported.");
   }
 
+  const runConfig = {
+    callbacks: finalCallbacks,
+    runId: traceParams?.traceId,
+    runName: traceParams?.traceName,
+  };
+
   if (params.structuredOutputSchema) {
     return {
       completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
         .withStructuredOutput(params.structuredOutputSchema)
-        .invoke(finalMessages, {
-          callbacks: finalCallbacks,
-          runId: traceParams?.traceId,
-          runName: traceParams?.traceName,
-        }),
+        .invoke(finalMessages, runConfig),
       processTracedEvents,
     };
   }
@@ -238,6 +241,7 @@ export async function fetchLLMCompletion(
         .pipe(new StringOutputParser())
         .invoke(
           finalMessages.filter((message) => message._getType() !== "system"),
+          runConfig,
         ),
       processTracedEvents,
     };
@@ -247,7 +251,7 @@ export async function fetchLLMCompletion(
     return {
       completion: await chatModel
         .pipe(new BytesOutputParser())
-        .stream(finalMessages),
+        .stream(finalMessages, runConfig),
       processTracedEvents,
     };
   }
@@ -255,7 +259,7 @@ export async function fetchLLMCompletion(
   return {
     completion: await chatModel
       .pipe(new StringOutputParser())
-      .invoke(finalMessages),
+      .invoke(finalMessages, runConfig),
     processTracedEvents,
   };
 }

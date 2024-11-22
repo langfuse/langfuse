@@ -3,6 +3,7 @@ export * from "./services/email/organizationInvitation/sendMembershipInvitationE
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/PromptService";
+export * from "./services/traces-ui-table-service";
 export * from "./auth/apiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./llm/fetchLLMCompletion";
@@ -24,6 +25,7 @@ export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/legacyIngestion";
 export * from "./redis/ingestionQueue";
+export * from "./redis/experimentCreateQueue";
 export * from "./auth/types";
 export * from "./ingestion/legacy/index";
 export * from "./queues";
