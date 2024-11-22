@@ -493,7 +493,7 @@ export const InnerEvalConfigForm = (props: {
   }
 
   return (
-    <Form {...form} key={props.existingEvaluator?.updatedAt?.toISOString()}>
+    <Form {...form}>
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
