@@ -34,7 +34,7 @@ const notifications: SidebarNotification[] = [
         We are launching <strong>Prompt Experiments</strong> on Product Hunt
         today.
         <br />
-        Please support the launch to help grow the community!
+        Support the launch to help grow the community!
       </span>
     ),
     link: "https://langfuse.com/ph",
