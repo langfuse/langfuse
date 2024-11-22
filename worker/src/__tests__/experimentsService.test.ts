@@ -402,7 +402,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
       expect.any(String),
       expect.any(Object),
       expect.objectContaining({
-        tags: ["langfuse:evaluation:llm-as-a-judge"],
+        tags: ["langfuse-prompt-experiment"],
         traceName: expect.stringMatching(/^dataset-run-item-/),
         traceId: expect.any(String),
         projectId: mockEvent.projectId,
