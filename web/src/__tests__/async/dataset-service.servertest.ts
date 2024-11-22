@@ -72,6 +72,7 @@ describe("Fetch datasets for UI presentation", () => {
     const traceId3 = v4();
     const traceId4 = v4();
     const scoreId = v4();
+    const scoreId2 = v4();
     const scoreName = v4();
 
     await prisma.datasetRunItems.create({
@@ -164,7 +165,16 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
       name: scoreName,
     });
-    await createScores([score]);
+    const score2 = createScore({
+      id: scoreId2,
+      observation_id: null,
+      trace_id: traceId,
+      project_id: projectId,
+      name: scoreName,
+      value: 1,
+      comment: "some other comment",
+    });
+    await createScores([score, score2]);
 
     const runs = await createDatasetRunsTable({
       projectId,
@@ -191,16 +201,15 @@ describe("Fetch datasets for UI presentation", () => {
     expect(firstRun.avgLatency).toBeGreaterThanOrEqual(10800);
     expect(firstRun.avgTotalCost.toString()).toStrictEqual("275");
 
-    const expectedObject = JSON.stringify({
+    const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
         type: "NUMERIC",
-        values: [100.5],
-        average: 100.5,
-        comment: "comment",
+        values: expect.arrayContaining([1, 100.5]),
+        average: 50.75,
       },
-    });
+    };
 
-    expect(JSON.stringify(firstRun.scores)).toEqual(expectedObject);
+    expect(firstRun.scores).toEqual(expectedObject);
 
     const secondRun = runs.find((run) => run.run_id === datasetRun2Id);
 
