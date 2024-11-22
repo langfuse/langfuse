@@ -258,7 +258,7 @@ export async function fetchLLMCompletion(
 
   return {
     completion: await chatModel
-      //.pipe(new StringOutputParser())
+      .pipe(new StringOutputParser())
       .invoke(finalMessages, runConfig),
     processTracedEvents,
   };
