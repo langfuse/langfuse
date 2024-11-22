@@ -53,12 +53,14 @@ function JsonCompletionHandler(data: object) {
 
 function MinioCompletionHandler() {
   return http.all("http://localhost:9090*", async (request) => {
+    logger.info("handle minio");
     return passthrough();
   });
 }
 
 function AzuriteCompletionHandler() {
   return http.all("http://localhost:10000*", async (request) => {
+    logger.info("handle azurite");
     return passthrough();
   });
 }
