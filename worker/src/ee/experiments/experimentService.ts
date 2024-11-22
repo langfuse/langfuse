@@ -232,9 +232,6 @@ export const createExperimentJob = async ({
           model_params,
           provider,
           model,
-          z.object({
-            output: z.string(),
-          }),
           traceParams,
         ),
       {

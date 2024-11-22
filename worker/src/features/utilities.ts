@@ -10,7 +10,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
 import Handlebars from "handlebars";
 
-export async function callLLM<T extends ZodSchema>(
+export async function callStructuredLLM<T extends ZodSchema>(
   jeId: string,
   llmApiKey: z.infer<typeof LLMApiKeySchema>,
   messages: ChatMessage[],
@@ -44,6 +44,44 @@ export async function callLLM<T extends ZodSchema>(
     }
 
     return structuredOutputSchema.parse(completion);
+  } catch (e) {
+    logger.error(`Job ${jeId} failed to call LLM. Eval will fail. ${e}`);
+    throw new ApiError(`Failed to call LLM: ${e}`);
+  }
+}
+
+export async function callLLM(
+  jeId: string,
+  llmApiKey: z.infer<typeof LLMApiKeySchema>,
+  messages: ChatMessage[],
+  modelParams: z.infer<typeof ZodModelConfig>,
+  provider: string,
+  model: string,
+  traceParams?: Omit<TraceParams, "tokenCountDelegate">,
+): Promise<string> {
+  try {
+    const { completion, processTracedEvents } = await fetchLLMCompletion({
+      streaming: false,
+      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
+      baseURL: llmApiKey.baseURL || undefined,
+      messages,
+      modelParams: {
+        provider,
+        model,
+        adapter: llmApiKey.adapter,
+        ...modelParams,
+      },
+      config: llmApiKey.config,
+      traceParams: traceParams
+        ? { ...traceParams, tokenCountDelegate: tokenCount }
+        : undefined,
+    });
+
+    if (traceParams) {
+      await processTracedEvents();
+    }
+
+    return completion;
   } catch (e) {
     logger.error(`Job ${jeId} failed to call LLM. Eval will fail. ${e}`);
     throw new ApiError(`Failed to call LLM: ${e}`);
