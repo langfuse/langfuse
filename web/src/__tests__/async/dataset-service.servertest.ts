@@ -73,6 +73,7 @@ describe("Fetch datasets for UI presentation", () => {
     const traceId4 = v4();
     const scoreId = v4();
     const scoreId2 = v4();
+    const scoreId3 = v4();
     const scoreName = v4();
 
     await prisma.datasetRunItems.create({
@@ -174,8 +175,20 @@ describe("Fetch datasets for UI presentation", () => {
       value: 1,
       comment: "some other comment",
     });
-    await createScores([score, score2]);
+    const observationId2 = v4(); // this one is not related to a run
+    const anotherScoreName = v4();
 
+    const score3 = createScore({
+      id: scoreId3,
+      observation_id: observationId2,
+      trace_id: traceId,
+      project_id: projectId,
+      name: anotherScoreName,
+      value: 1,
+      comment: "some other comment for non run related score",
+    });
+    await createScores([score, score2, score3]);
+    console.log("createdscores", JSON.stringify([score, score2, score3]));
     const runs = await createDatasetRunsTable({
       projectId,
       datasetId,
@@ -206,6 +219,12 @@ describe("Fetch datasets for UI presentation", () => {
         type: "NUMERIC",
         values: expect.arrayContaining([1, 100.5]),
         average: 50.75,
+      },
+      [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        type: "NUMERIC",
+        values: expect.arrayContaining([1]),
+        average: 1,
+        comment: "some other comment for non run related score",
       },
     };
 

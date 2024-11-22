@@ -174,14 +174,14 @@ export const deleteTempTableInClickhouse = async (
   tableName: string,
   sessionId: string,
 ) => {
-  const query = `
-      DROP TABLE IF EXISTS ${tableName}
-  `;
-  await commandClickhouse({
-    query,
-    params: { tableName },
-    clickhouseConfigs: { session_id: sessionId },
-  });
+  // const query = `
+  //     DROP TABLE IF EXISTS ${tableName}
+  // `;
+  // await commandClickhouse({
+  //   query,
+  //   params: { tableName },
+  //   clickhouseConfigs: { session_id: sessionId },
+  // });
 };
 
 export const getDatasetRunsFromPostgres = async (
@@ -231,7 +231,6 @@ const getScoresFromTempTable = async (
       WHERE s.project_id = {projectId: String}
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
-      AND (tmp.observation_id = s.observation_id OR s.observation_id IS NULL)
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
   `;
@@ -247,6 +246,7 @@ const getScoresFromTempTable = async (
     clickhouseConfigs: { session_id: clickhouseSession },
   });
 
+  console.log("scoresreturned", rows);
   return rows.map((row) => ({ ...convertToScore(row), run_id: row.run_id }));
 };
 
