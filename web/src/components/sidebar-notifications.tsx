@@ -11,6 +11,9 @@ import { X } from "lucide-react";
 import useLocalStorage from "./useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import ProductHuntBadgeLight from "./images/product_hunt_badge_light.svg";
+import ProductHuntBadgeDark from "./images/product_hunt_badge_dark.svg";
+import Image from "next/image";
 
 type SidebarNotification = {
   id: string; // Add unique ID for each notification
@@ -24,48 +27,78 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
-    id: "lw2-4",
-    title: "Launch Week 2 – Day 4",
-    description: "All new docs for datasets, experiments, and evaluations",
-    link: "https://langfuse.com/changelog/2024-11-21-all-new-datasets-and-evals-documentation",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-3",
-    title: "Launch Week 2 – Day 3",
-    description:
-      "Full multi-modal support including images, audio, and attachments",
-    link: "https://langfuse.com/changelog/2024-11-20-full-multi-modal-images-audio-attachments",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-2",
-    title: "Launch Week 2 – Day 2",
-    description: "LLM-as-a-Judge Evaluators for Dataset Experiments",
-    link: "https://langfuse.com/changelog/2024-11-19-llm-as-a-judge-for-datasets",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-1",
-    title: "Launch Week 2 – Day 1",
-    description: "New side-by-side comparison view for dataset experiment runs",
-    link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "github-star",
-    title: "Star Langfuse",
-    description:
-      "See the latest releases and help grow the community on GitHub",
-    link: "https://github.com/langfuse/langfuse",
+    id: "lw2-5-producthunt",
+    title: "Launch Week 2 – Day 5",
+    description: (
+      <span>
+        We are launching <strong>Prompt Experiments</strong> on Product Hunt
+        today.
+        <br />
+        Support the launch to help grow the community!
+      </span>
+    ),
+    link: "https://langfuse.com/ph",
+    linkTitle: "Product Hunt",
     linkContent: (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        alt="Langfuse Github stars"
-        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
-      />
+      <>
+        <Image
+          src={ProductHuntBadgeDark}
+          alt="Product Hunt"
+          width={160}
+          className="mt-1 hidden dark:block"
+        />
+        <Image
+          src={ProductHuntBadgeLight}
+          alt="Product Hunt"
+          width={160}
+          className="mt-1 dark:hidden"
+        />
+      </>
     ),
   },
+  // {
+  //   id: "lw2-4",
+  //   title: "Launch Week 2 – Day 4",
+  //   description: "All new docs for datasets, experiments, and evaluations",
+  //   link: "https://langfuse.com/changelog/2024-11-21-all-new-datasets-and-evals-documentation",
+  //   linkTitle: "Changelog",
+  // },
+  // {
+  //   id: "lw2-3",
+  //   title: "Launch Week 2 – Day 3",
+  //   description:
+  //     "Full multi-modal support including images, audio, and attachments",
+  //   link: "https://langfuse.com/changelog/2024-11-20-full-multi-modal-images-audio-attachments",
+  //   linkTitle: "Changelog",
+  // },
+  // {
+  //   id: "lw2-2",
+  //   title: "Launch Week 2 – Day 2",
+  //   description: "LLM-as-a-Judge Evaluators for Dataset Experiments",
+  //   link: "https://langfuse.com/changelog/2024-11-19-llm-as-a-judge-for-datasets",
+  //   linkTitle: "Changelog",
+  // },
+  // {
+  //   id: "lw2-1",
+  //   title: "Launch Week 2 – Day 1",
+  //   description: "New side-by-side comparison view for dataset experiment runs",
+  //   link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
+  //   linkTitle: "Changelog",
+  // },
+  // {
+  //   id: "github-star",
+  //   title: "Star Langfuse",
+  //   description:
+  //     "See the latest releases and help grow the community on GitHub",
+  //   link: "https://github.com/langfuse/langfuse",
+  //   linkContent: (
+  //     // eslint-disable-next-line @next/next/no-img-element
+  //     <img
+  //       alt="Langfuse Github stars"
+  //       src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
+  //     />
+  //   ),
+  // },
 ];
 
 const STORAGE_KEY = "dismissed-sidebar-notifications";
@@ -105,11 +138,11 @@ export function SidebarNotifications() {
   const currentNotification = notifications[currentNotificationIndex];
 
   return (
-    <Card className="relative max-h-44 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
+    <Card className="relative max-h-60 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
       <Button
         variant="ghost"
         size="sm"
-        className="absolute right-2 top-2 h-6 w-6 p-0"
+        className="right-2 top-2 hidden h-6 w-6 p-0"
         onClick={() => {
           capture("notification:dismiss_notification", {
             notification_id: currentNotification.id,
@@ -148,7 +181,7 @@ export function SidebarNotifications() {
                 });
               }}
             >
-              {currentNotification.linkTitle ?? "Learn more"}
+              {currentNotification.linkTitle ?? "Learn more"} &rarr;
             </Link>
           </Button>
         )}
