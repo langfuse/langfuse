@@ -142,6 +142,7 @@ jobs:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
+        blob-provider: ["", "-azure"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -172,11 +173,11 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          cp .env.dev.example .env
-          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          cp .env.dev${{ matrix.blob-provider }}.example .env
+          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
         env:
@@ -210,6 +211,7 @@ jobs:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
+        blob-provider: ["", "-azure"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -240,12 +242,12 @@ jobs:
           which migrate
       - name: Load default env
         run: |
-          cp .env.dev.example .env
-          cp .env.dev.example web/.env
-          cp .env.dev.example worker/.env
+          cp .env.dev${{ matrix.blob-provider }}.example .env
+          cp .env.dev${{ matrix.blob-provider }}.example web/.env
+          cp .env.dev${{ matrix.blob-provider }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
       - name: Ensure no unhealthy status
