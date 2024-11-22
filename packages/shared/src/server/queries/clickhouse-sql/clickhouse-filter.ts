@@ -94,7 +94,7 @@ export class NumberFilter implements Filter {
     const varName = `numberFilter${uid}`;
     const type = this.clickhouseTypeOverwrite ?? "Decimal64(12)";
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: ${type}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: ${type}}`,
       params: { [varName]: this.value.toString() },
     };
   }
