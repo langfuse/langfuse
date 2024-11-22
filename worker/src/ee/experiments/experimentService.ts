@@ -210,7 +210,7 @@ export const createExperimentJob = async ({
      ********************/
 
     const traceParams = {
-      tags: ["langfuse:evaluation:llm-as-a-judge"], // LFE-2917: filter out any trace in trace upsert queue that has this tag set
+      tags: ["langfuse-prompt-experiment"], // LFE-2917: filter out any trace in trace upsert queue that has this tag set
       traceName: `dataset-run-item-${runItem.id.slice(0, 5)}`,
       traceId: newTraceId,
       projectId: event.projectId,
