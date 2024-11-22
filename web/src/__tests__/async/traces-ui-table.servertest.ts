@@ -43,7 +43,7 @@ describe("Traces table API test", () => {
     expect(tableRows[0].userId).toEqual(trace.user_id);
     expect(tableRows[0].sessionId).toEqual(trace.session_id);
     expect(tableRows[0].public).toEqual(trace.public);
-    expect(tableRows[0].latencyMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(tableRows[0].latency).toBeGreaterThanOrEqual(0);
     expect(tableRows[0].usageDetails).toEqual({});
     expect(tableRows[0].costDetails).toEqual({});
     expect(tableRows[0].level).toBeDefined();
@@ -82,7 +82,7 @@ describe("Traces table API test", () => {
     expect(tableRows[0].userId).toEqual(trace.user_id);
     expect(tableRows[0].sessionId).toEqual(trace.session_id);
     expect(tableRows[0].public).toEqual(trace.public);
-    expect(tableRows[0].latencyMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(tableRows[0].latency).toBeGreaterThanOrEqual(0);
     expect(tableRows[0].usageDetails).toEqual({
       input: (obs1.usage_details.input + obs2.usage_details.input).toString(),
       output: (
@@ -170,7 +170,7 @@ describe("Traces table API test", () => {
         {
           column: "Latency (s)",
           operator: ">" as const,
-          value: 100,
+          value: 5_000_000, // Verify that we can pass large values
           type: "number" as const,
         },
       ],
@@ -247,10 +247,8 @@ describe("Traces table API test", () => {
         if (expectedTrace.public !== undefined) {
           expect(tableRows[index].public).toEqual(expectedTrace.public);
         }
-        if (expectedTrace.latency_milliseconds !== undefined) {
-          expect(tableRows[index].latencyMilliseconds).toEqual(
-            expectedTrace.latency_milliseconds,
-          );
+        if (expectedTrace.latency !== undefined) {
+          expect(tableRows[index].latency).toEqual(expectedTrace.latency);
         }
         if (expectedTrace.usage_details !== undefined) {
           expect(tableRows[index].usageDetails).toEqual(
