@@ -121,7 +121,7 @@ export const EvaluatorDetail = () => {
               <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="flex items-center gap-2">
-                    <Edit className="h-5 w-5" />
+                    <Edit className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-screen-xl">

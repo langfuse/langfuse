@@ -50,16 +50,15 @@ const CreateEvalJobSchema = z.object({
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
   mapping: z.array(variableMapping),
-  sampling: z.number().gte(0).lte(1),
+  sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
 });
 
 const UpdateEvalJobSchema = z.object({
   scoreName: z.string().min(1).optional(),
-  target: z.string().optional(),
   filter: z.array(singleFilter).optional(),
   variableMapping: z.array(variableMapping).optional(),
-  sampling: z.number().gte(0).lte(1).optional(),
+  sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.nativeEnum(EvaluatorStatus).optional(),
 });
