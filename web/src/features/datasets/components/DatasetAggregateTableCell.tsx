@@ -83,7 +83,10 @@ const DatasetAggregateCell = ({
       {variant === "peek" && actionButtons}
       <div className="flex flex-row items-center justify-center gap-1">
         <IOTableCell
-          isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
+          isLoading={
+            (!!!observationId ? trace.isLoading : observation.isLoading) ||
+            !data
+          }
           data={data?.output}
           className={"bg-accent-light-green"}
           singleLine={singleLine}

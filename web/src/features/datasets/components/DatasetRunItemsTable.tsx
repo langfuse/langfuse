@@ -328,6 +328,7 @@ const TraceObservationIOCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -344,6 +345,7 @@ const TraceObservationIOCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      onError: () => {},
     },
   );
 
@@ -351,7 +353,9 @@ const TraceObservationIOCell = ({
 
   return (
     <IOTableCell
-      isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
+      isLoading={
+        (!!!observationId ? trace.isLoading : observation.isLoading) || !data
+      }
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}
