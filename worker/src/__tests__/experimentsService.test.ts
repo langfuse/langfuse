@@ -400,7 +400,6 @@ describe("create experiment job calls with langfuse server side tracing", async 
       expect.any(Object),
       expect.any(String),
       expect.any(String),
-      expect.any(Object),
       expect.objectContaining({
         tags: ["langfuse-prompt-experiment"],
         traceName: expect.stringMatching(/^dataset-run-item-/),
