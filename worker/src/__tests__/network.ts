@@ -54,7 +54,10 @@ function JsonCompletionHandler(data: object) {
 function MinioCompletionHandler() {
   return http.all("http://localhost:9090*", async (request) => {
     logger.info("handle minio");
-    return passthrough();
+    if ((request.params[0] as string).startsWith("/langfuse/events/")) {
+      return new HttpResponse("Success");
+    }
+    throw new Error("Unexpected path");
   });
 }
 
