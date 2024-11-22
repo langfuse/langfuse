@@ -231,7 +231,6 @@ const getScoresFromTempTable = async (
       WHERE s.project_id = {projectId: String}
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
-      AND (tmp.observation_id = s.observation_id OR s.observation_id IS NULL)
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
   `;
