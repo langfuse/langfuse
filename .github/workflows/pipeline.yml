@@ -137,7 +137,7 @@ jobs:
   tests-web-async:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
         node-version: [20]
@@ -206,7 +206,7 @@ jobs:
   tests-worker:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
         node-version: [20]
