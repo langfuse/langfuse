@@ -77,6 +77,7 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       tableName,
       clickhouseSession,
     );
+
     const obsAgg = await getObservationLatencyAndCostForDataset(
       input,
       tableName,
@@ -226,11 +227,11 @@ const getScoresFromTempTable = async (
         tmp.run_id
       FROM ${tableName} tmp JOIN scores s 
         ON tmp.project_id = s.project_id 
-        AND tmp.observation_id = s.observation_id 
         AND tmp.trace_id = s.trace_id
       WHERE s.project_id = {projectId: String}
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
+      AND (tmp.observation_id = s.observation_id OR s.observation_id IS NULL)
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
   `;
