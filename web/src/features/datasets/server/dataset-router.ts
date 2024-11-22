@@ -18,20 +18,14 @@ import {
   paginationZod,
 } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  getLatencyAndTotalCostForObservations,
-  getLatencyAndTotalCostForObservationsByTraces,
-  getScoresForObservations,
-  getScoresForTraces,
-  traceException,
-  getTracesByIds,
-} from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import Decimal from "decimal.js";
 import {
   createDatasetRunsTable,
   datasetRunsTableSchema,
+  fetchDatasetItems,
+  getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
+import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -154,7 +148,13 @@ export const datasetRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       return ctx.prisma.datasetRuns.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
-        select: { name: true, id: true, metadata: true, description: true },
+        select: {
+          name: true,
+          id: true,
+          metadata: true,
+          description: true,
+          createdAt: true,
+        },
       });
     }),
   runsByDatasetId: protectedProjectProcedure
@@ -357,59 +357,13 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        include: {
-          datasetItems: {
-            orderBy: [
-              {
-                status: "asc",
-              },
-              {
-                createdAt: "desc",
-              },
-            ],
-            take: input.limit,
-            skip: input.page * input.limit,
-          },
-        },
+      return fetchDatasetItems({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        limit: input.limit,
+        page: input.page,
+        prisma: ctx.prisma,
       });
-      const datasetItems = dataset?.datasetItems ?? [];
-
-      const totalDatasetItems = await ctx.prisma.datasetItem.count({
-        where: {
-          dataset: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-          projectId: input.projectId,
-        },
-      });
-
-      // check in clickhouse if the traces already exist. They arrive delayed.
-      const traces = await getTracesByIds(
-        datasetItems
-          .map((item) => item.sourceTraceId)
-          .filter((id): id is string => Boolean(id)),
-        input.projectId,
-      );
-
-      return {
-        totalDatasetItems,
-        datasetItems: datasetItems.map((item) => {
-          const trace = traces.find((t) => t.id === item.sourceTraceId);
-          return {
-            ...item,
-            sourceTraceId: trace?.id ?? null,
-            sourceObservationId: trace?.id ? item.sourceObservationId : null,
-          };
-        }),
-      };
     }),
   baseDatasetItemByDatasetId: protectedProjectProcedure
     .input(
@@ -420,7 +374,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetItem.findMany({
+      const datasetItems = await ctx.prisma.datasetItem.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
         select: {
           id: true,
@@ -428,10 +382,22 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: true,
           metadata: true,
         },
-        orderBy: { id: "asc" },
+        orderBy: { createdAt: "desc" },
         take: input.limit,
         skip: input.page * input.limit,
       });
+
+      const count = await ctx.prisma.datasetItem.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      return {
+        datasetItems,
+        totalCount: count,
+      };
     }),
   updateDatasetItem: protectedProjectProcedure
     .input(
@@ -775,18 +741,50 @@ export const datasetRouter = createTRPCRouter({
         ),
     )
     .query(async ({ input, ctx }) => {
-      const runItems = await ctx.prisma.datasetRunItems.findMany({
-        where: {
-          projectId: input.projectId,
-          datasetRunId: input.datasetRunId,
-          datasetItemId: input.datasetItemId,
-        },
-        orderBy: {
-          datasetItemId: "asc", // Order by dataset item ID instead of createdAt
-        },
-        take: input.limit,
-        skip: input.page * input.limit,
-      });
+      const filterQuery =
+        input.datasetRunId && input.datasetItemId
+          ? Prisma.sql`AND (dri.dataset_run_id = ${input.datasetRunId} OR dri.dataset_item_id = ${input.datasetItemId})`
+          : input.datasetRunId
+            ? Prisma.sql`AND dri.dataset_run_id = ${input.datasetRunId}`
+            : input.datasetItemId
+              ? Prisma.sql`AND dri.dataset_item_id = ${input.datasetItemId}`
+              : Prisma.sql``;
+
+      const runItems = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          traceId: string;
+          observationId: string | null;
+          createdAt: Date;
+          updatedAt: Date;
+          datasetItemCreatedAt: Date;
+          datasetItemId: string;
+          projectId: string;
+          datasetRunId: string;
+        }>
+      >`
+        SELECT 
+          di.id AS "datasetItemId",
+          di.created_at AS "datasetItemCreatedAt",
+          dri.id,
+          dri.trace_id AS "traceId",
+          dri.observation_id AS "observationId",
+          dri.created_at AS "createdAt",
+          dri.updated_at AS "updatedAt",
+          dri.project_id AS "projectId",
+          dri.dataset_run_id AS "datasetRunId"
+        FROM dataset_run_items dri
+        INNER JOIN dataset_items di
+          ON dri.dataset_item_id = di.id 
+          AND dri.project_id = di.project_id
+        WHERE 
+          dri.project_id = ${input.projectId}
+          ${filterQuery}
+        ORDER BY 
+          di.created_at DESC
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `;
 
       if (runItems.length === 0) return { totalRunItems: 0, runItems: [] };
 
@@ -912,81 +910,13 @@ export const datasetRouter = createTRPCRouter({
           };
         },
         clickhouseExecution: async () => {
-          const [
-            traceScores,
-            observationScores,
-            observationAggregates,
-            traceAggregate,
-          ] = await Promise.all([
-            getScoresForTraces(
-              input.projectId,
-              runItems
-                .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-                .map((ri) => ri.traceId),
-            ),
-            getScoresForObservations(
-              input.projectId,
-              runItems
-                .filter((ri) => ri.observationId !== null)
-                .map((ri) => ri.observationId) as string[],
-            ),
-            getLatencyAndTotalCostForObservations(
-              input.projectId,
-              runItems
-                .filter((ri) => ri.observationId !== null)
-                .map((ri) => ri.observationId) as string[],
-            ),
-            getLatencyAndTotalCostForObservationsByTraces(
-              input.projectId,
-              runItems.map((ri) => ri.traceId),
-            ),
-          ]);
-
-          const validatedTraceScores = filterAndValidateDbScoreList(
-            traceScores,
-            traceException,
-          );
-          const validatedObservationScores = filterAndValidateDbScoreList(
-            observationScores,
-            traceException,
-          );
-
-          const items = runItems.map((ri) => {
-            return {
-              id: ri.id,
-              createdAt: ri.createdAt,
-              datasetItemId: ri.datasetItemId,
-              observation: observationAggregates
-                .map((o) => ({
-                  id: o.id,
-                  latency: o.latency,
-                  calculatedTotalCost: new Decimal(o.totalCost),
-                }))
-                .find((o) => o.id === ri.observationId),
-              trace: traceAggregate
-                .map((t) => ({
-                  id: t.traceId,
-                  duration: t.latency,
-                  totalCost: t.totalCost,
-                }))
-                .find((t) => t.id === ri.traceId),
-              scores: aggregateScores([
-                ...validatedTraceScores.filter(
-                  (s) => s.traceId === ri.traceId && ri.observationId === null,
-                ),
-                ...validatedObservationScores.filter(
-                  (s) =>
-                    s.observationId === ri.observationId &&
-                    s.traceId === ri.traceId,
-                ),
-              ]),
-            };
-          });
-
           // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
           return {
             totalRunItems,
-            runItems: items,
+            runItems: await getRunItemsByRunIdOrItemId(
+              input.projectId,
+              runItems,
+            ),
           };
         },
       });

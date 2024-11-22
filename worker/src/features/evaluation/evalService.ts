@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import Handlebars from "handlebars";
 import { sql } from "kysely";
 import { z } from "zod";
 import { ScoreSource } from "@prisma/client";
@@ -15,11 +14,11 @@ import {
   eventTypes,
   redis,
   IngestionQueue,
+  logger,
   EvalExecutionQueue,
 } from "@langfuse/shared/src/server";
 import { JobConfigState } from "@langfuse/shared/src/db";
 import {
-  ApiError,
   availableTraceEvalVariables,
   ChatMessageRole,
   evalTraceTableCols,
@@ -31,16 +30,13 @@ import {
   InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
-  EvalTemplate,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
 } from "@langfuse/shared";
-import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { tokenCount } from "../tokenisation/usage";
+import { callStructuredLLM, compileHandlebarString } from "../utilities";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -527,14 +523,23 @@ export const evaluate = async ({
     );
   }
 
+  const messages = [
+    {
+      role: ChatMessageRole.System,
+      content: "You are an expert at evaluating LLM outputs.",
+    },
+    { role: ChatMessageRole.User, content: prompt },
+  ];
+
   const parsedLLMOutput = await backOff(
-    () =>
-      callLLM(
+    async () =>
+      await callStructuredLLM(
         event.jobExecutionId,
         parsedKey.data,
-        prompt,
+        messages,
         modelParams,
-        template,
+        template.provider,
+        template.model,
         evalScoreSchema,
       ),
     {
@@ -638,53 +643,6 @@ export const evaluate = async ({
     `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
   );
 };
-
-async function callLLM(
-  jeId: string,
-  llmApiKey: z.infer<typeof LLMApiKeySchema>,
-  prompt: string,
-  modelParams: z.infer<typeof ZodModelConfig>,
-  template: EvalTemplate,
-  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
-): Promise<z.infer<typeof evalScoreSchema>> {
-  try {
-    const { completion } = await fetchLLMCompletion({
-      streaming: false,
-      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
-      baseURL: llmApiKey.baseURL || undefined,
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          content: "You are an expert at evaluating LLM outputs.",
-        },
-        { role: ChatMessageRole.User, content: prompt },
-      ],
-      modelParams: {
-        provider: template.provider,
-        model: template.model,
-        adapter: llmApiKey.adapter,
-        ...modelParams,
-      },
-      structuredOutputSchema: evalScoreSchema,
-      config: llmApiKey.config,
-    });
-
-    return evalScoreSchema.parse(completion);
-  } catch (e) {
-    logger.error(
-      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`,
-    );
-    throw new ApiError(`Failed to call LLM: ${e}`);
-  }
-}
-
-export function compileHandlebarString(
-  handlebarString: string,
-  context: Record<string, any>,
-): string {
-  const template = Handlebars.compile(handlebarString);
-  return template(context);
-}
 
 export async function extractVariablesFromTracingData({
   projectId,

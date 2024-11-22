@@ -33,6 +33,7 @@ export default withMiddlewares({
           const observation = await getObservationViewById(
             observationId,
             auth.scope.projectId,
+            true,
           );
           if (!observation) {
             throw new LangfuseNotFoundError(
