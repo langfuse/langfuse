@@ -36,7 +36,7 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { callLLM, compileHandlebarString } from "../utilities";
+import { callStructuredLLM, compileHandlebarString } from "../utilities";
 
 let s3StorageServiceClient: S3StorageService;
 
@@ -533,7 +533,7 @@ export const evaluate = async ({
 
   const parsedLLMOutput = await backOff(
     async () =>
-      await callLLM(
+      await callStructuredLLM(
         event.jobExecutionId,
         parsedKey.data,
         messages,
