@@ -7,8 +7,6 @@ import {
   QueueName,
   EvalExecutionEvent,
   tableColumnsToSqlFilterAndPrefix,
-  TraceUpsertEventSchema,
-  DatasetRunItemUpsertEventSchema,
   traceException,
   S3StorageService,
   eventTypes,
