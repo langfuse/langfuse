@@ -246,7 +246,6 @@ const getScoresFromTempTable = async (
     clickhouseConfigs: { session_id: clickhouseSession },
   });
 
-  console.log("scoresreturned", rows);
   return rows.map((row) => ({ ...convertToScore(row), run_id: row.run_id }));
 };
 

@@ -188,7 +188,7 @@ describe("Fetch datasets for UI presentation", () => {
       comment: "some other comment for non run related score",
     });
     await createScores([score, score2, score3]);
-    console.log("createdscores", JSON.stringify([score, score2, score3]));
+
     const runs = await createDatasetRunsTable({
       projectId,
       datasetId,
