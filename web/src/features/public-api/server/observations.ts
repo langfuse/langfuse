@@ -12,6 +12,7 @@ export type QueryType = {
   page: number;
   limit: number;
   projectId: string;
+  traceId?: string;
   userId?: string;
   name?: string;
   type?: string;
@@ -22,7 +23,8 @@ export type QueryType = {
 };
 
 export const generateObservationsForPublicApi = async (props: QueryType) => {
-  const filter = generateFilter(props).apply();
+  const filter = generateFilter(props);
+  const appliedFilter = filter.apply();
 
   const query = `
         SELECT
@@ -57,8 +59,8 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         event_ts
       FROM observations o
       WHERE project_id = {projectId: String}
-      AND ${filter.query}
-      ORDER BY event_ts desc
+      AND ${appliedFilter.query}
+      ORDER BY start_time desc
       LIMIT 1 by id, project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -66,7 +68,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: {
-      ...filter.params,
+      ...appliedFilter.params,
       projectId: props.projectId,
       ...(props.limit !== undefined ? { limit: props.limit } : {}),
       ...(props.page !== undefined
@@ -107,6 +109,7 @@ const generateFilter = (filter: QueryType) => {
 
   const filterParams = [
     { key: "userId", field: "user_id" },
+    { key: "traceId", field: "trace_id" },
     { key: "name", field: "name" },
     { key: "type", field: "type" },
     { key: "parentObservationId", field: "parent_observation_id" },
@@ -120,7 +123,7 @@ const generateFilter = (filter: QueryType) => {
       key: "toStartTime",
       field: "start_time",
       isDate: true,
-      operator: "<=" as const,
+      operator: "<" as const,
     },
     { key: "version", field: "version" },
   ];

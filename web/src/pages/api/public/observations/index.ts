@@ -143,6 +143,7 @@ export default withMiddlewares({
               projectId: auth.scope.projectId,
               page: query.page ?? undefined,
               limit: query.limit ?? undefined,
+              traceId: query.traceId ?? undefined,
               userId: query.userId ?? undefined,
               name: query.name ?? undefined,
               type: query.type ?? undefined,
@@ -155,6 +156,7 @@ export default withMiddlewares({
               projectId: auth.scope.projectId,
               page: query.page ?? undefined,
               limit: query.limit ?? undefined,
+              traceId: query.traceId ?? undefined,
               userId: query.userId ?? undefined,
               name: query.name ?? undefined,
               type: query.type ?? undefined,
@@ -196,10 +198,6 @@ export default withMiddlewares({
                 const model = models.find((m) => m.id === i.modelId);
                 return {
                   ...i,
-                  input:
-                    typeof i.input === "string" ? JSON.parse(i.input) : null,
-                  output:
-                    typeof i.output === "string" ? JSON.parse(i.output) : null,
                   modelId: model?.id ?? null,
                   inputPrice:
                     model?.Price?.find((m) => m.usageType === "input")?.price ??
