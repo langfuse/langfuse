@@ -225,6 +225,8 @@ const getScoresFromTempTable = async (
   tableName: string,
   clickhouseSession: string,
 ) => {
+  // adds a setting to read data once it is replicated from the writer node.
+  // Only then, we can guarantee that the created mergetree before was replicated.
   const query = `
       SELECT 
         s.*,
@@ -237,6 +239,7 @@ const getScoresFromTempTable = async (
       AND tmp.dataset_id = {datasetId: String}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
+      SETTINGS select_sequential_consistency = 1;
   `;
 
   const rows = await queryClickhouse<
