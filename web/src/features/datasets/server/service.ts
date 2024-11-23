@@ -153,7 +153,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
       (
           project_id String,    
           run_id String,  
@@ -163,7 +163,7 @@ export const createTempTableInClickhouse = async (
           observation_id Nullable(String)
       )  
       ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
-      PRIMARY KEY project_id, dataset_id, run_id, trace_id
+      PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
 
 
   `;
