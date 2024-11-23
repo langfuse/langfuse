@@ -119,6 +119,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
+    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
@@ -373,6 +374,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
+    CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
