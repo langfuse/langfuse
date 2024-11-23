@@ -4,6 +4,7 @@ import {
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
+  env,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -160,7 +161,10 @@ export const createTempTableInClickhouse = async (
           dataset_id String,      
           trace_id String,
           observation_id Nullable(String)
-      )  ENGINE = Memory
+      )  
+      ENGINE = ${env.CLICKHOUSE_CLUSTER_MODE ? "ReplicatedMergeTree()" : "MergeTree()"} 
+      PRIMARY KEY project_id, dataset_id, run_id, trace_id
+
 
   `;
   await commandClickhouse({
