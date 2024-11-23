@@ -4,7 +4,6 @@ import {
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
-  env,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -28,6 +27,7 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import { env } from "@/src/env.mjs";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -162,7 +162,7 @@ export const createTempTableInClickhouse = async (
           trace_id String,
           observation_id Nullable(String)
       )  
-      ENGINE = ${env.CLICKHOUSE_CLUSTER_MODE ? "ReplicatedMergeTree()" : "MergeTree()"} 
+      ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
       PRIMARY KEY project_id, dataset_id, run_id, trace_id
 
 
