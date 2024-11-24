@@ -194,7 +194,6 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async () => {
-          console.log("clickhouseExecution");
           const [items, count] = await Promise.all([
             generateScoresForPublicApi({
               projectId: auth.scope.projectId,

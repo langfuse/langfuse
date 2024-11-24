@@ -66,8 +66,6 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
-  console.log(query);
-
   const records = await queryClickhouse<
     ScoreRecordReadType & { tags: string[]; user_id: string }
   >({
@@ -104,7 +102,6 @@ export const getScoresCountForPublicApi = async (props: ScoreQueryType) => {
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
-  console.log(appliedScoresFilter.params, appliedTracesFilter.params);
   const records = await queryClickhouse<{ count: string }>({
     query,
     params: {
