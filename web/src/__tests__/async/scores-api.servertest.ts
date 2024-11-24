@@ -8,17 +8,20 @@ import {
   createScores,
   createTraces,
 } from "@/src/__tests__/server/repositories/clickhouse-helpers";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  createOrgProjectAndApiKey,
+  makeZodVerifiedAPICall,
+} from "@/src/__tests__/test-utils";
 import { GetScoreResponse, GetScoresResponse } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { commandClickhouse } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { z } from "zod";
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
     it("should GET a score", async () => {
-      const projectId = v4();
+      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
+
       const scoreId = v4();
       const traceId = v4();
       const score = {
@@ -44,6 +47,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoreResponse,
         "GET",
         `/api/public/scores/${scoreId}`,
+        undefined,
+        auth,
       );
 
       expect(getScore.status).toBe(200);
@@ -64,7 +69,8 @@ describe("/api/public/scores API Endpoint", () => {
 describe("/api/public/scores API Endpoint", () => {
   it("should create score for a trace", async () => {
     const traceId = v4();
-    const projectId = v4();
+
+    const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
 
     const trace = createTrace({
       id: traceId,
@@ -90,6 +96,8 @@ describe("/api/public/scores API Endpoint", () => {
       GetScoreResponse,
       "GET",
       `/api/public/scores/${scoreId}`,
+      undefined,
+      auth,
     );
 
     expect(fetchedScore.body?.id).toBe(scoreId);
@@ -99,13 +107,13 @@ describe("/api/public/scores API Endpoint", () => {
     expect(fetchedScore.body?.observationId).toBeNull();
     expect(fetchedScore.body?.comment).toBe("comment");
     expect(fetchedScore.body?.source).toBe("API");
-    expect(fetchedScore.body?.projectId).toBe(
-      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-    );
+    expect(fetchedScore.body?.projectId).toBe(projectId);
   });
   it("should GET score with minimal score data and minimal trace data", async () => {
+    const { projectId, auth } = await createOrgProjectAndApiKey();
+
     const minimalTraceId = v4();
-    const projectId = v4();
+
     const trace = createTrace({
       id: minimalTraceId,
       project_id: projectId,
@@ -130,6 +138,8 @@ describe("/api/public/scores API Endpoint", () => {
       GetScoreResponse,
       "GET",
       `/api/public/scores/${minimalScoreId}`,
+      undefined,
+      auth,
     );
 
     expect(fetchedScore.status).toBe(200);
@@ -150,39 +160,31 @@ describe("/api/public/scores API Endpoint", () => {
     const scoreId_3 = v4();
     const scoreId_4 = v4();
     const scoreId_5 = v4();
+    let authentication: string;
+    let newProjectId: string;
 
     beforeEach(async () => {
-      const projectId = v4();
-      const org = await prisma.organization.create({
-        data: {
-          id: v4(),
-          name: v4(),
-        },
-      });
-      await prisma.project.create({
-        data: {
-          id: projectId,
-          name: v4(),
-          orgId: org.id,
-        },
-      });
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      authentication = auth;
+      newProjectId = projectId;
+
       const trace = createTrace({
         id: traceId,
-        project_id: projectId,
+        project_id: newProjectId,
         user_id: userId,
         tags: traceTags,
       });
 
       const trace_2 = createTrace({
         id: traceId_2,
-        project_id: projectId,
+        project_id: newProjectId,
         user_id: userId,
         tags: traceTags_2,
       });
 
       const trace_3 = createTrace({
         id: traceId_3,
-        project_id: projectId,
+        project_id: newProjectId,
         user_id: userId,
         tags: ["staging"],
       });
@@ -191,7 +193,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const generation = createObservation({
         id: generationId,
-        project_id: projectId,
+        project_id: newProjectId,
         type: "GENERATION",
       });
 
@@ -202,7 +204,7 @@ describe("/api/public/scores API Endpoint", () => {
           name: scoreName,
           dataType: "NUMERIC",
           maxValue: 100,
-          projectId: projectId,
+          projectId: newProjectId,
         },
       });
 
@@ -210,7 +212,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const score1 = createScore({
         id: scoreId_1,
-        project_id: projectId,
+        project_id: newProjectId,
         trace_id: traceId,
         name: scoreName,
         value: 10.5,
@@ -222,7 +224,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const score2 = createScore({
         id: scoreId_2,
-        project_id: projectId,
+        project_id: newProjectId,
         trace_id: traceId,
         name: scoreName,
         value: 50.5,
@@ -233,7 +235,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const score3 = createScore({
         id: scoreId_3,
-        project_id: projectId,
+        project_id: newProjectId,
         trace_id: traceId,
         name: scoreName,
         value: 100.8,
@@ -244,7 +246,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const score4 = createScore({
         id: scoreId_4,
-        project_id: projectId,
+        project_id: newProjectId,
         trace_id: traceId_2,
         name: "other-score-name",
         value: 0,
@@ -255,7 +257,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       const score5 = createScore({
         id: scoreId_5,
-        project_id: projectId,
+        project_id: newProjectId,
         trace_id: traceId_3,
         name: "other-score-name",
         value: 0,
@@ -272,6 +274,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}`,
+        undefined,
+        authentication,
       );
       expect(getAllScore.status).toBe(200);
       expect(getAllScore.body.meta).toMatchObject({
@@ -293,6 +297,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?configId=${configId}`,
+        undefined,
+        authentication,
       );
 
       expect(getAllScore.status).toBe(200);
@@ -316,6 +322,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?dataType=NUMERIC`,
+        undefined,
+        authentication,
       );
 
       expect(getAllScore.status).toBe(200);
@@ -339,6 +347,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?traceTags=prod`,
+        undefined,
+        authentication,
       );
 
       expect(getAllScore.status).toBe(200);
@@ -361,6 +371,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?traceTags=${["staging", "dev"]}`,
+        undefined,
+        authentication,
       );
 
       expect(getAllScore.status).toBe(200);
@@ -387,10 +399,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         beforeEach(async () => {
           queueId = v4();
-          const projectId = v4();
           const score = createScore({
             id: v4(),
-            project_id: projectId,
+            project_id: newProjectId,
             trace_id: traceId,
             name: "score-name",
             value: 100.5,
@@ -401,7 +412,7 @@ describe("/api/public/scores API Endpoint", () => {
           });
           const score2 = createScore({
             id: v4(),
-            project_id: projectId,
+            project_id: newProjectId,
             trace_id: traceId,
             name: "score-name",
             value: 75.0,
@@ -419,6 +430,8 @@ describe("/api/public/scores API Endpoint", () => {
             GetScoresResponse,
             "GET",
             `/api/public/scores?queueId=${queueId}`,
+            undefined,
+            authentication,
           );
           expect(getAllScore.status).toBe(200);
           expect(getAllScore.body.meta).toMatchObject({
@@ -444,6 +457,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -459,6 +474,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&value=0.8`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -474,6 +491,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<&value=50`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -495,6 +514,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=>&value=100`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -516,6 +537,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -524,24 +547,28 @@ describe("/api/public/scores API Endpoint", () => {
         totalItems: 2,
         totalPages: 1,
       });
-      expect(getScore.body.data).toMatchObject([
-        {
-          id: scoreId_2,
-          name: scoreName,
-          value: 50.5,
-        },
-        {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
-        },
-      ]);
+      expect(getScore.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: scoreId_2,
+            name: scoreName,
+            value: 50.5,
+          }),
+          expect.objectContaining({
+            id: scoreId_1,
+            name: scoreName,
+            value: 10.5,
+          }),
+        ]),
+      );
     });
     it("test operator >=", async () => {
       const getScore = await makeZodVerifiedAPICall(
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -570,6 +597,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -598,6 +627,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({
@@ -624,6 +655,8 @@ describe("/api/public/scores API Endpoint", () => {
           }),
           "GET",
           `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+          undefined,
+          authentication,
         );
       } catch (error) {
         expect((error as Error).message).toBe(
@@ -640,6 +673,8 @@ describe("/api/public/scores API Endpoint", () => {
           }),
           "GET",
           `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+          undefined,
+          authentication,
         );
       } catch (error) {
         expect((error as Error).message).toBe(
@@ -653,6 +688,8 @@ describe("/api/public/scores API Endpoint", () => {
         GetScoresResponse,
         "GET",
         `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
+        undefined,
+        authentication,
       );
       expect(getScore.status).toBe(200);
       expect(getScore.body.meta).toMatchObject({

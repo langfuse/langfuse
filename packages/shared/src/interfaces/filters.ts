@@ -5,7 +5,7 @@ export const filterOperators = {
   string: ["=", "contains", "does not contain", "starts with", "ends with"],
   stringOptions: ["any of", "none of"],
   arrayOptions: ["any of", "none of", "all of"],
-  number: ["=", ">", "<", ">=", "<="],
+  number: ["=", ">", "<", ">=", "<=", "!="],
   stringObject: [
     "=",
     "contains",

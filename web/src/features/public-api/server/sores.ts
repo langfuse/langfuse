@@ -203,6 +203,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
 
   secureFilterOptions.forEach((secureFilterOption) => {
     const value = filter[secureFilterOption.key as keyof ScoreQueryType];
+
     if (value) {
       let filterInstance;
       switch (secureFilterOption.filterType) {
@@ -255,10 +256,18 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           }
           break;
         case "NumberFilter":
-          const availableOperatorsNum = z.enum(["=", ">", "<", ">=", "<="]);
+          const availableOperatorsNum = z.enum([
+            "=",
+            ">",
+            "<",
+            ">=",
+            "<=",
+            "!=",
+          ]);
           const parsedOperator = availableOperatorsNum.safeParse(
-            secureFilterOption.operator,
+            filter.operator,
           );
+
           if (parsedOperator.success) {
             filterInstance = new NumberFilter({
               clickhouseTable: secureFilterOption.table,
