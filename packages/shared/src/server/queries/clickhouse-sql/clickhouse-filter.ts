@@ -300,13 +300,13 @@ export class NumberObjectFilter implements Filter {
   public field: string;
   public key: string;
   public value: number;
-  public operator: (typeof filterOperators)["numberObject"][number];
+  public operator: (typeof filterOperators)["numberObject"][number] | "!=";
   protected tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["numberObject"][number];
+    operator: (typeof filterOperators)["numberObject"][number] | "!=";
     key: string;
     value: number;
     tablePrefix?: string;
