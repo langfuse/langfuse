@@ -10,6 +10,11 @@ import {
   GetObservationsV1Response,
   transformDbToApiObservation,
 } from "@/src/features/public-api/types/observations";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import {
+  generateObservationsForPublicApi,
+  getObservationsCountForPublicApi,
+} from "@/src/features/public-api/server/observations";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -17,39 +22,44 @@ export default withMiddlewares({
     querySchema: GetObservationsV1Query,
     responseSchema: GetObservationsV1Response,
     fn: async ({ query, auth }) => {
-      const userIdCondition = query.userId
-        ? Prisma.sql`AND traces."user_id" = ${query.userId}`
-        : Prisma.empty;
+      return await measureAndReturnApi({
+        input: { projectId: auth.scope.projectId, queryClickhouse: false },
+        operation: "api/public/observations",
+        user: null,
+        pgExecution: async () => {
+          const userIdCondition = query.userId
+            ? Prisma.sql`AND traces."user_id" = ${query.userId}`
+            : Prisma.empty;
 
-      const nameCondition = query.name
-        ? Prisma.sql`AND o."name" = ${query.name}`
-        : Prisma.empty;
+          const nameCondition = query.name
+            ? Prisma.sql`AND o."name" = ${query.name}`
+            : Prisma.empty;
 
-      const observationTypeCondition = query.type
-        ? Prisma.sql`AND o."type" = ${query.type}::"ObservationType"`
-        : Prisma.empty;
+          const observationTypeCondition = query.type
+            ? Prisma.sql`AND o."type" = ${query.type}::"ObservationType"`
+            : Prisma.empty;
 
-      const traceIdCondition = query.traceId
-        ? Prisma.sql`AND o."trace_id" = ${query.traceId}`
-        : Prisma.empty;
+          const traceIdCondition = query.traceId
+            ? Prisma.sql`AND o."trace_id" = ${query.traceId}`
+            : Prisma.empty;
 
-      const parentObservationIdCondition = query.parentObservationId
-        ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
-        : Prisma.empty;
+          const parentObservationIdCondition = query.parentObservationId
+            ? Prisma.sql`AND o."parent_observation_id" = ${query.parentObservationId}`
+            : Prisma.empty;
 
-      const fromStartTimeCondition = query.fromStartTime
-        ? Prisma.sql`AND o."start_time" >= ${query.fromStartTime}::timestamp with time zone at time zone 'UTC'`
-        : Prisma.empty;
+          const fromStartTimeCondition = query.fromStartTime
+            ? Prisma.sql`AND o."start_time" >= ${query.fromStartTime}::timestamp with time zone at time zone 'UTC'`
+            : Prisma.empty;
 
-      const toStartTimeCondition = query.toStartTime
-        ? Prisma.sql`AND o."start_time" < ${query.toStartTime}::timestamp with time zone at time zone 'UTC'`
-        : Prisma.empty;
+          const toStartTimeCondition = query.toStartTime
+            ? Prisma.sql`AND o."start_time" < ${query.toStartTime}::timestamp with time zone at time zone 'UTC'`
+            : Prisma.empty;
 
-      const versionCondition = query.version
-        ? Prisma.sql`AND o."version" = ${query.version}`
-        : Prisma.empty;
+          const versionCondition = query.version
+            ? Prisma.sql`AND o."version" = ${query.version}`
+            : Prisma.empty;
 
-      const observations = await prisma.$queryRaw<ObservationView[]>`
+          const observations = await prisma.$queryRaw<ObservationView[]>`
           SELECT 
             o."id",
             o."name",
@@ -100,7 +110,7 @@ export default withMiddlewares({
           OFFSET ${(query.page - 1) * query.limit}
           LIMIT ${query.limit}
         `;
-      const countRes = await prisma.$queryRaw<{ count: bigint }[]>`
+          const countRes = await prisma.$queryRaw<{ count: bigint }[]>`
           SELECT COUNT(*) FROM observations o LEFT JOIN traces ON o."trace_id" = traces."id"
           WHERE o."project_id" = ${auth.scope.projectId}
           ${observationTypeCondition}
@@ -112,20 +122,104 @@ export default withMiddlewares({
           ${fromStartTimeCondition}
           ${toStartTimeCondition}
       `;
-      if (countRes.length !== 1) {
-        throw new InternalServerError("Unexpected totalItems result");
-      }
-      const totalItems = Number(countRes[0].count);
+          if (countRes.length !== 1) {
+            throw new InternalServerError("Unexpected totalItems result");
+          }
+          const totalItems = Number(countRes[0].count);
 
-      return {
-        data: observations.map(transformDbToApiObservation),
-        meta: {
-          page: query.page,
-          limit: query.limit,
-          totalItems,
-          totalPages: Math.ceil(totalItems / query.limit),
+          return {
+            data: observations.map(transformDbToApiObservation),
+            meta: {
+              page: query.page,
+              limit: query.limit,
+              totalItems,
+              totalPages: Math.ceil(totalItems / query.limit),
+            },
+          };
         },
-      };
+        clickhouseExecution: async () => {
+          const [items, count] = await Promise.all([
+            generateObservationsForPublicApi({
+              projectId: auth.scope.projectId,
+              page: query.page ?? undefined,
+              limit: query.limit ?? undefined,
+              traceId: query.traceId ?? undefined,
+              userId: query.userId ?? undefined,
+              name: query.name ?? undefined,
+              type: query.type ?? undefined,
+              parentObservationId: query.parentObservationId ?? undefined,
+              fromStartTime: query.fromStartTime ?? undefined,
+              toStartTime: query.toStartTime ?? undefined,
+              version: query.version ?? undefined,
+            }),
+            getObservationsCountForPublicApi({
+              projectId: auth.scope.projectId,
+              page: query.page ?? undefined,
+              limit: query.limit ?? undefined,
+              traceId: query.traceId ?? undefined,
+              userId: query.userId ?? undefined,
+              name: query.name ?? undefined,
+              type: query.type ?? undefined,
+              parentObservationId: query.parentObservationId ?? undefined,
+              fromStartTime: query.fromStartTime ?? undefined,
+              toStartTime: query.toStartTime ?? undefined,
+              version: query.version ?? undefined,
+            }),
+          ]);
+          const uniqueModels: string[] = Array.from(
+            new Set(
+              items
+                .map((r) => r.modelId)
+                .filter((r): r is string => Boolean(r)),
+            ),
+          );
+
+          const models =
+            uniqueModels.length > 0
+              ? await prisma.model.findMany({
+                  where: {
+                    id: {
+                      in: uniqueModels,
+                    },
+                    OR: [
+                      { projectId: auth.scope.projectId },
+                      { projectId: null },
+                    ],
+                  },
+                  include: {
+                    Price: true,
+                  },
+                })
+              : [];
+
+          return {
+            data: items
+              .map((i) => {
+                const model = models.find((m) => m.id === i.modelId);
+                return {
+                  ...i,
+                  modelId: model?.id ?? null,
+                  inputPrice:
+                    model?.Price?.find((m) => m.usageType === "input")?.price ??
+                    null,
+                  outputPrice:
+                    model?.Price?.find((m) => m.usageType === "output")
+                      ?.price ?? null,
+                  totalPrice:
+                    model?.Price?.find((m) => m.usageType === "total")?.price ??
+                    null,
+                };
+              })
+              .map(transformDbToApiObservation),
+            meta: {
+              page: query.page,
+              limit: query.limit,
+              totalItems: count ?? 0,
+              totalPages: Math.ceil(count ?? 0 / query.limit),
+            },
+          };
+        },
+      });
     },
   }),
 });
