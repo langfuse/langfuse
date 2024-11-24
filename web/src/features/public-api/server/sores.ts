@@ -201,7 +201,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
     },
   ];
 
-  const availableOperators = z.enum(["=", ">", "<", ">=", "<="]);
+  const availableOperators = z.enum(["=", ">", "<", ">=", "<=", "!="]);
 
   secureFilterOptions.forEach((secureFilterOption) => {
     const value = filter[secureFilterOption.key as keyof ScoreQueryType];
