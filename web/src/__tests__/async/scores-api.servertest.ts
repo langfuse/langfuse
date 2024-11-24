@@ -14,7 +14,9 @@ import {
 } from "@/src/__tests__/test-utils";
 import { GetScoreResponse, GetScoresResponse } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { commandClickhouse } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { z } from "zod";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -151,6 +153,10 @@ describe("/api/public/scores API Endpoint", () => {
     const scoreId_3 = v4();
     const scoreId_4 = v4();
     const scoreId_5 = v4();
+
+    afterAll(async () => {
+      await pruneDatabase();
+    });
 
     beforeAll(async () => {
       await pruneDatabase();
@@ -402,6 +408,12 @@ describe("/api/public/scores API Endpoint", () => {
           await createScores([score, score2]);
         });
 
+        afterEach(async () => {
+          await commandClickhouse({
+            query: `DELETE FROM scores WHERE queue_id = '${queueId}'`,
+          });
+        });
+
         it("get all scores for queueId", async () => {
           const getAllScore = await makeZodVerifiedAPICall(
             GetScoresResponse,
@@ -553,7 +565,7 @@ describe("/api/public/scores API Endpoint", () => {
         ]),
       );
     });
-    it.only("test operator !=", async () => {
+    it("test operator !=", async () => {
       const getScore = await makeZodVerifiedAPICall(
         GetScoresResponse,
         "GET",
@@ -566,137 +578,103 @@ describe("/api/public/scores API Endpoint", () => {
         totalItems: 2,
         totalPages: 1,
       });
+      expect(getScore.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: scoreId_3,
+            name: scoreName,
+            value: 100.8,
+          }),
+          expect.objectContaining({
+            id: scoreId_1,
+            name: scoreName,
+            value: 10.5,
+          }),
+        ]),
+      );
+    });
+    it("test operator =", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
       expect(getScore.body.data).toMatchObject([
         {
-          id: scoreId_3,
+          id: scoreId_2,
           name: scoreName,
-          value: 100.8,
-        },
-        {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
+          value: 50.5,
         },
       ]);
     });
-    //   it("test operator =", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator==&value=50.5`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 1,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_2,
-    //         name: scoreName,
-    //         value: 50.5,
-    //       },
-    //     ]);
-    //   });
-    //   it("should GET ALL scores with minimal score data and minimal trace data", async () => {
-    //     const minimalTraceId = uuidv4();
-    //     await makeAPICall("POST", "/api/public/traces", {
-    //       id: minimalTraceId,
-    //       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-    //     });
-    //     const dbTrace = await prisma.trace.findMany({
-    //       where: {
-    //         id: minimalTraceId,
-    //       },
-    //     });
 
-    //     expect(dbTrace.length).toBeGreaterThan(0);
-    //     expect(dbTrace[0]?.id).toBe(minimalTraceId);
+    it("test invalid operator", async () => {
+      try {
+        await makeZodVerifiedAPICall(
+          z.object({
+            message: z.string(),
+            error: z.array(z.object({})),
+          }),
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+        );
+      } catch (error) {
+        expect((error as Error).message).toBe(
+          `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
+        );
+      }
+    });
+    it("test invalid value", async () => {
+      try {
+        await makeZodVerifiedAPICall(
+          z.object({
+            message: z.string(),
+            error: z.array(z.object({})),
+          }),
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+        );
+      } catch (error) {
+        expect((error as Error).message).toBe(
+          'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+        );
+      }
+    });
 
-    //     const createScore = await makeAPICall("POST", "/api/public/scores", {
-    //       name: "score-name",
-    //       value: 100,
-    //       traceId: minimalTraceId,
-    //     });
-
-    //     expect(createScore.status).toBe(200);
-
-    //     const fetchedScores = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores`,
-    //     );
-
-    //     expect(fetchedScores.status).toBe(200);
-    //     expect(fetchedScores.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 6,
-    //       totalPages: 1,
-    //     });
-    //     expect(fetchedScores.body.data.length).toBe(6);
-    //   });
-
-    //   it("test invalid operator", async () => {
-    //     try {
-    //       await makeZodVerifiedAPICall(
-    //         z.object({
-    //           message: z.string(),
-    //           error: z.array(z.object({})),
-    //         }),
-    //         "GET",
-    //         `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
-    //       );
-    //     } catch (error) {
-    //       expect((error as Error).message).toBe(
-    //         `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
-    //       );
-    //     }
-    //   });
-    //   it("test invalid value", async () => {
-    //     try {
-    //       await makeZodVerifiedAPICall(
-    //         z.object({
-    //           message: z.string(),
-    //           error: z.array(z.object({})),
-    //         }),
-    //         "GET",
-    //         `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
-    //       );
-    //     } catch (error) {
-    //       expect((error as Error).message).toBe(
-    //         'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
-    //       );
-    //     }
-    //   });
-
-    //   it("should filter scores by score IDs", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 2,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_2,
-    //         name: scoreName,
-    //         value: 50.5,
-    //       },
-    //       {
-    //         id: scoreId_1,
-    //         name: scoreName,
-    //         value: 10.5,
-    //       },
-    //     ]);
-    //   });
+    it("should filter scores by score IDs", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: scoreId_2,
+            name: scoreName,
+            value: 50.5,
+          }),
+          expect.objectContaining({
+            id: scoreId_1,
+            name: scoreName,
+            value: 10.5,
+          }),
+        ]),
+      );
+    });
   });
 });

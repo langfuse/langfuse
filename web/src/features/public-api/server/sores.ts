@@ -7,6 +7,7 @@ import {
   DateTimeFilter,
   ArrayOptionsFilter,
   convertToScore,
+  StringOptionsFilter,
 } from "@langfuse/shared/src/server";
 
 export type ScoreQueryType = {
@@ -128,16 +129,32 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
   const tracesFilter = new FilterList();
 
   const filterParams = [
-    { key: "userId", field: "user_id", table: "traces" },
-    { key: "traceId", field: "trace_id", table: "scores" },
-    { key: "name", field: "name", table: "scores" },
-    { key: "source", field: "source", table: "scores" },
+    {
+      key: "userId",
+      field: "user_id",
+      table: "traces",
+      filterType: "StringFilter",
+    },
+    {
+      key: "traceId",
+      field: "trace_id",
+      table: "scores",
+      filterType: "StringFilter",
+    },
+    { key: "name", field: "name", table: "scores", filterType: "StringFilter" },
+    {
+      key: "source",
+      field: "source",
+      table: "scores",
+      filterType: "StringFilter",
+    },
     {
       key: "fromTimestamp",
       field: "timestamp",
       isDate: true,
       operator: ">=" as const,
       table: "scores",
+      filterType: "DateTimeFilter",
     },
     {
       key: "toTimestamp",
@@ -145,59 +162,114 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
       isDate: true,
       operator: "<" as const,
       table: "scores",
+      filterType: "DateTimeFilter",
     },
-    { key: "value", field: "value", table: "scores" },
-    { key: "scoreId", field: "id", table: "scores" },
-    { key: "configId", field: "config_id", table: "scores" },
-    { key: "queueId", field: "queue_id", table: "scores" },
-    { key: "traceTags", field: "tags", isArray: true, table: "traces" },
-    { key: "dataType", field: "data_type", table: "scores" },
+    {
+      key: "value",
+      field: "value",
+      table: "scores",
+      filterType: "NumberFilter",
+    },
+    {
+      key: "scoreIds",
+      field: "id",
+      table: "scores",
+      filterType: "StringOptionsFilter",
+    },
+    {
+      key: "configId",
+      field: "config_id",
+      table: "scores",
+      filterType: "StringFilter",
+    },
+    {
+      key: "queueId",
+      field: "queue_id",
+      table: "scores",
+      filterType: "StringFilter",
+    },
+    {
+      key: "traceTags",
+      field: "tags",
+      isArray: true,
+      table: "traces",
+      filterType: "ArrayOptionsFilter",
+    },
+    {
+      key: "dataType",
+      field: "data_type",
+      table: "scores",
+      filterType: "StringFilter",
+    },
   ];
 
   filterParams.forEach((param) => {
     const value = filter[param.key as keyof ScoreQueryType];
     if (value) {
       let filterInstance;
-      if (param.isDate && typeof value === "string") {
-        filterInstance = new DateTimeFilter({
-          clickhouseTable: param.table,
-          field: param.field,
-          operator: param.operator || ("=" as const),
-          value: new Date(value),
-          tablePrefix: param.table === "scores" ? "s" : "t",
-        });
-      } else if (
-        Array.isArray(value) ||
-        (param.field === "tags" && typeof value === "string")
-      ) {
-        filterInstance = new ArrayOptionsFilter({
-          clickhouseTable: param.table,
-          field: param.field,
-          operator: "all of",
-          values: Array.isArray(value) ? value : value.split(","),
-          tablePrefix: param.table === "scores" ? "s" : "t",
-        });
-      } else if (typeof value === "string") {
-        filterInstance = new StringFilter({
-          clickhouseTable: param.table,
-          field: param.field,
-          operator: "=",
-          value: value,
-          tablePrefix: param.table === "scores" ? "s" : "t",
-        });
-      } else {
-        const operatorValue = filter.operator as string | undefined;
-
-        filterInstance =
-          operatorValue && ["=", ">", "<", ">=", "<="].includes(operatorValue)
-            ? new NumberFilter({
+      switch (param.filterType) {
+        case "DateTimeFilter":
+          typeof value === "string" &&
+          param.operator &&
+          ["=", ">", "<", ">=", "<="].includes(param.operator)
+            ? (filterInstance = new DateTimeFilter({
                 clickhouseTable: param.table,
                 field: param.field,
-                operator: operatorValue as "=" | ">" | "<" | ">=" | "<=",
-                value: Number(value),
+                operator: param.operator || ("=" as const),
+                value: new Date(value),
                 tablePrefix: param.table === "scores" ? "s" : "t",
-              })
+              }))
             : undefined;
+
+          break;
+        case "ArrayOptionsFilter":
+          if (Array.isArray(value) || typeof value === "string") {
+            filterInstance = new ArrayOptionsFilter({
+              clickhouseTable: param.table,
+              field: param.field,
+              operator: "all of",
+              values: Array.isArray(value) ? value : value.split(","),
+              tablePrefix: param.table === "scores" ? "s" : "t",
+            });
+          }
+          break;
+        case "StringOptionsFilter":
+          if (Array.isArray(value) || typeof value === "string") {
+            filterInstance = new StringOptionsFilter({
+              clickhouseTable: param.table,
+              field: param.field,
+              operator: "any of",
+              values: Array.isArray(value) ? value : value.split(","),
+              tablePrefix: param.table === "scores" ? "s" : "t",
+            });
+          }
+          break;
+        case "StringFilter":
+          if (typeof value === "string") {
+            filterInstance = new StringFilter({
+              clickhouseTable: param.table,
+              field: param.field,
+              operator: "=",
+              value: value,
+              tablePrefix: param.table === "scores" ? "s" : "t",
+            });
+          }
+          break;
+        case "NumberFilter":
+          const operatorValue = filter.operator;
+          if (
+            operatorValue &&
+            ["=", ">", "<", ">=", "<=", "!="].includes(operatorValue)
+          ) {
+            filterInstance = new NumberFilter({
+              clickhouseTable: param.table,
+              field: param.field,
+              operator: operatorValue as "=" | ">" | "<" | ">=" | "<=",
+              value: Number(value),
+              tablePrefix: param.table === "scores" ? "s" : "t",
+            });
+          }
+          break;
       }
 
       if (filterInstance) {

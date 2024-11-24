@@ -234,9 +234,6 @@ export default withMiddlewares({
 
           const finalCount = count ? count : 0;
 
-          console.log("items", JSON.stringify(items));
-          console.log("count", count);
-
           return {
             data: legacyFilterAndValidateV1GetScoreList(items),
             meta: {
