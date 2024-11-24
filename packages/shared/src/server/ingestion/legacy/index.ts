@@ -3,7 +3,7 @@ import z from "zod";
 import { ForbiddenError, UnauthorizedError } from "../../../errors";
 import { eventTypes, ingestionApiSchema, IngestionEventType } from "../types";
 import { getProcessorForEvent } from "./EventProcessor";
-import { TraceUpsertEventType } from "../../queues";
+import { TraceQueueEventType } from "../../queues";
 import {
   convertTraceUpsertEventsToRedisEvents,
   TraceUpsertQueue,
@@ -174,7 +174,7 @@ export const addTracesToTraceUpsertQueue = async (
   batchResults: BatchResult[],
   projectId: string,
 ): Promise<void> => {
-  const traceEvents: TraceUpsertEventType[] = batchResults
+  const traceEvents: TraceQueueEventType[] = batchResults
     .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
     .map((result) =>
       result.result &&

@@ -3,7 +3,7 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
-  TraceUpsertEventType,
+  TraceQueueEventType,
 } from "../queues";
 import { Queue } from "bullmq";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
@@ -50,7 +50,7 @@ export class TraceUpsertQueue {
 }
 
 export function convertTraceUpsertEventsToRedisEvents(
-  events: TraceUpsertEventType[],
+  events: TraceQueueEventType[],
 ) {
   const uniqueTracesPerProject = events.reduce((acc, event) => {
     if (!acc.get(event.projectId)) {

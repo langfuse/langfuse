@@ -7,7 +7,7 @@ import {
   QueueName,
   EvalExecutionEvent,
   tableColumnsToSqlFilterAndPrefix,
-  TraceUpsertEventSchema,
+  TraceQueueEventSchema,
   DatasetRunItemUpsertEventSchema,
   traceException,
   S3StorageService,
@@ -59,7 +59,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 export const createTraceEvalJobs = async ({
   event,
 }: {
-  event: z.infer<typeof TraceUpsertEventSchema>;
+  event: z.infer<typeof TraceQueueEventSchema>;
 }) => {
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
