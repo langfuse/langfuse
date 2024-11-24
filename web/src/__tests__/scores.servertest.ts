@@ -7,12 +7,7 @@ import {
   pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4 } from "uuid";
-import {
-  DeleteScoreResponse,
-  GetScoreResponse,
-  GetScoresResponse,
-} from "@langfuse/shared";
-import { z } from "zod";
+import { DeleteScoreResponse, GetScoreResponse } from "@langfuse/shared";
 import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 
 const traceId = "de98afa2-89dc-47e9-9924-33f1490fdaf4";
