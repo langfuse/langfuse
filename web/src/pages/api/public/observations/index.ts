@@ -191,6 +191,7 @@ export default withMiddlewares({
                   },
                 })
               : [];
+          if (!count) throw new InternalServerError("Failed to get count");
 
           return {
             data: items
@@ -214,8 +215,8 @@ export default withMiddlewares({
             meta: {
               page: query.page,
               limit: query.limit,
-              totalItems: count ?? 0,
-              totalPages: Math.ceil(count ?? 0 / query.limit),
+              totalItems: count,
+              totalPages: Math.ceil(count / query.limit),
             },
           };
         },

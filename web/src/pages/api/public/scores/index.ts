@@ -5,6 +5,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoresQuery,
   GetScoresResponse,
+  InternalServerError,
   legacyFilterAndValidateV1GetScoreList,
   PostScoresBody,
   PostScoresResponse,
@@ -17,6 +18,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { tokenCount } from "@/src/features/ingest/usage";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import {
+  generateScoresForPublicApi,
+  getScoresCountForPublicApi,
+} from "@/src/features/public-api/server/sores";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -49,7 +54,7 @@ export default withMiddlewares({
     },
   }),
   GET: createAuthedAPIRoute({
-    name: "Get Scores",
+    name: "/api/public/scores",
     querySchema: GetScoresQuery,
     responseSchema: GetScoresResponse,
     fn: async ({ query, auth }) => {
@@ -190,7 +195,54 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async () => {
-          throw new Error("Not implemented");
+          console.log("clickhouseExecution");
+          const [items, count] = await Promise.all([
+            generateScoresForPublicApi({
+              projectId: auth.scope.projectId,
+              page: query.page ?? undefined,
+              limit: query.limit ?? undefined,
+              userId: query.userId ?? undefined,
+              name: query.name ?? undefined,
+              configId: query.configId ?? undefined,
+              queueId: query.queueId ?? undefined,
+              traceTags: query.traceTags ?? undefined,
+              dataType: query.dataType ?? undefined,
+              fromTimestamp: query.fromTimestamp ?? undefined,
+              toTimestamp: query.toTimestamp ?? undefined,
+              source: query.source ?? undefined,
+              value: query.value ?? undefined,
+              operator: query.operator ?? undefined,
+              scoreIds: query.scoreIds ?? undefined,
+            }),
+            getScoresCountForPublicApi({
+              projectId: auth.scope.projectId,
+              page: query.page ?? undefined,
+              limit: query.limit ?? undefined,
+              userId: query.userId ?? undefined,
+              name: query.name ?? undefined,
+              configId: query.configId ?? undefined,
+              queueId: query.queueId ?? undefined,
+              traceTags: query.traceTags ?? undefined,
+              dataType: query.dataType ?? undefined,
+              fromTimestamp: query.fromTimestamp ?? undefined,
+              toTimestamp: query.toTimestamp ?? undefined,
+              source: query.source ?? undefined,
+              value: query.value ?? undefined,
+              operator: query.operator ?? undefined,
+              scoreIds: query.scoreIds ?? undefined,
+            }),
+          ]);
+          if (!count) throw new InternalServerError("Failed to get count");
+
+          return {
+            data: legacyFilterAndValidateV1GetScoreList(items),
+            meta: {
+              page: query.page,
+              limit: query.limit,
+              totalItems: count,
+              totalPages: Math.ceil(count / query.limit),
+            },
+          };
         },
       });
     },

@@ -36,27 +36,40 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
 
   const query = `
         SELECT
-        s.id,
-        s.trace_id,
-        s.project_id,
-        s.name,
-        s.source,
-        s.timestamp,
-        s.value,
-        s.metadata,
-        s.created_at,
-        s.updated_at
+          s.id,
+          s.timestamp,
+          s.name,
+          s.value,
+          s.string_value,
+          s.author_user_id,
+          s.project_id,
+          s.created_at,  
+          s.updated_at,  
+          s.source,
+          s.comment,
+          s.data_type,
+          s.config_id,
+          s.queue_id,
+          s.trace_id,
+          s.observation_id,
+          t.user_id,
+          t.tags
       FROM scores s
-      ${tracesFilter.length() > 0 ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
+        JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
       WHERE s.project_id = {projectId: String}
-      AND ${appliedScoresFilter.query}
+      AND t.project_id = {projectId: String}
+      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY s.timestamp desc
       LIMIT 1 by s.id, s.project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
-  const records = await queryClickhouse<ScoreRecordReadType>({
+  console.log(query);
+
+  const records = await queryClickhouse<
+    ScoreRecordReadType & { tags: string[]; user_id: string }
+  >({
     query,
     params: {
       ...appliedScoresFilter.params,
@@ -68,7 +81,10 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
         : {}),
     },
   });
-  return records.map(convertToScore);
+  return records.map((record) => ({
+    ...convertToScore(record),
+    trace: { userId: record.user_id, tags: record.tags },
+  }));
 };
 
 export const getScoresCountForPublicApi = async (props: ScoreQueryType) => {
@@ -77,12 +93,13 @@ export const getScoresCountForPublicApi = async (props: ScoreQueryType) => {
   const appliedTracesFilter = tracesFilter.apply();
 
   const query = `
-        SELECT
+      SELECT
         count() as count
       FROM scores s
-      ${tracesFilter.length() > 0 ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
+        JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
       WHERE s.project_id = {projectId: String}
-      AND ${appliedScoresFilter.query}
+      AND t.project_id = {projectId: String}
+      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
@@ -146,6 +163,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           field: param.field,
           operator: param.operator || ("=" as const),
           value: new Date(value),
+          tablePrefix: param.table === "scores" ? "s" : "t",
         });
       } else if (typeof value === "string") {
         filterInstance = new StringFilter({
@@ -153,6 +171,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           field: param.field,
           operator: "=",
           value: value,
+          tablePrefix: param.table === "scores" ? "s" : "t",
         });
       } else if (Array.isArray(value)) {
         filterInstance = new ArrayOptionsFilter({
@@ -160,6 +179,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           field: param.field,
           operator: "any of",
           values: value,
+          tablePrefix: param.table === "scores" ? "s" : "t",
         });
       } else {
         filterInstance = new NumberFilter({
@@ -167,6 +187,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           field: param.field,
           operator: "=",
           value: value,
+          tablePrefix: param.table === "scores" ? "s" : "t",
         });
       }
 

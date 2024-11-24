@@ -1,6 +1,19 @@
-import { createScores } from "@/src/__tests__/server/repositories/clickhouse-helpers";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { GetScoreResponse } from "@langfuse/shared";
+import {
+  createObservation,
+  createScore,
+  createTrace,
+} from "@/src/__tests__/fixtures/tracing-factory";
+import {
+  createObservations,
+  createScores,
+  createTraces,
+} from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import {
+  makeZodVerifiedAPICall,
+  pruneDatabase,
+} from "@/src/__tests__/test-utils";
+import { GetScoreResponse, GetScoresResponse } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -47,5 +60,648 @@ describe("/api/public/scores API Endpoint", () => {
         dataType: "NUMERIC",
       });
     });
+  });
+});
+
+describe("/api/public/scores API Endpoint", () => {
+  it("should create score for a trace", async () => {
+    const traceId = v4();
+
+    const trace = createTrace({
+      id: traceId,
+      project_id: projectId,
+    });
+    await createTraces([trace]);
+
+    const scoreId = v4();
+
+    const score = createScore({
+      id: scoreId,
+      project_id: projectId,
+      trace_id: traceId,
+      name: "score-name",
+      value: 100.5,
+      source: "API",
+      comment: "comment",
+      observation_id: null,
+    });
+    await createScores([score]);
+
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${scoreId}`,
+    );
+
+    expect(fetchedScore.body?.id).toBe(scoreId);
+    expect(fetchedScore.body?.traceId).toBe(traceId);
+    expect(fetchedScore.body?.name).toBe("score-name");
+    expect(fetchedScore.body?.value).toBe(100.5);
+    expect(fetchedScore.body?.observationId).toBeNull();
+    expect(fetchedScore.body?.comment).toBe("comment");
+    expect(fetchedScore.body?.source).toBe("API");
+    expect(fetchedScore.body?.projectId).toBe(
+      "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    );
+  });
+  it("should GET score with minimal score data and minimal trace data", async () => {
+    const minimalTraceId = v4();
+
+    const trace = createTrace({
+      id: minimalTraceId,
+      project_id: projectId,
+    });
+    await createTraces([trace]);
+
+    const minimalScoreId = v4();
+
+    const score = createScore({
+      id: minimalScoreId,
+      project_id: projectId,
+      trace_id: minimalTraceId,
+      name: "score-name",
+      value: 100.5,
+      source: "API",
+      comment: null,
+      observation_id: null,
+    });
+    await createScores([score]);
+
+    const fetchedScore = await makeZodVerifiedAPICall(
+      GetScoreResponse,
+      "GET",
+      `/api/public/scores/${minimalScoreId}`,
+    );
+
+    expect(fetchedScore.status).toBe(200);
+  });
+  describe("should Filter scores", () => {
+    let configId = "";
+    const userId = "user-name";
+    const traceTags = ["prod", "test"];
+    const traceTags_2 = ["staging", "dev"];
+    const scoreName = "score-name";
+    const queryUserName = `userId=${userId}&name=${scoreName}`;
+    const traceId = v4();
+    const traceId_2 = v4();
+    const traceId_3 = v4();
+    const generationId = v4();
+    const scoreId_1 = v4();
+    const scoreId_2 = v4();
+    const scoreId_3 = v4();
+    const scoreId_4 = v4();
+    const scoreId_5 = v4();
+
+    beforeAll(async () => {
+      await pruneDatabase();
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+        user_id: userId,
+        tags: traceTags,
+      });
+
+      const trace_2 = createTrace({
+        id: traceId_2,
+        project_id: projectId,
+        user_id: userId,
+        tags: traceTags_2,
+      });
+
+      const trace_3 = createTrace({
+        id: traceId_3,
+        project_id: projectId,
+        user_id: userId,
+        tags: ["staging"],
+      });
+
+      await createTraces([trace, trace_2, trace_3]);
+
+      const generation = createObservation({
+        id: generationId,
+        project_id: projectId,
+        type: "GENERATION",
+      });
+
+      await createObservations([generation]);
+
+      const config = await prisma.scoreConfig.create({
+        data: {
+          name: scoreName,
+          dataType: "NUMERIC",
+          maxValue: 100,
+          projectId: projectId,
+        },
+      });
+
+      configId = config.id;
+
+      const score1 = createScore({
+        id: scoreId_1,
+        project_id: projectId,
+        trace_id: traceId,
+        name: scoreName,
+        value: 10.5,
+        observation_id: generationId,
+        config_id: config.id,
+        comment: "comment",
+      });
+
+      const score2 = createScore({
+        id: scoreId_2,
+        project_id: projectId,
+        trace_id: traceId,
+        name: scoreName,
+        value: 50.5,
+        observation_id: generationId,
+        comment: "comment",
+      });
+
+      const score3 = createScore({
+        id: scoreId_3,
+        project_id: projectId,
+        trace_id: traceId,
+        name: scoreName,
+        value: 100.8,
+        observation_id: generationId,
+        comment: "comment",
+      });
+
+      const score4 = createScore({
+        id: scoreId_4,
+        project_id: projectId,
+        trace_id: traceId_2,
+        name: "other-score-name",
+        value: 0,
+        string_value: "best",
+        comment: "comment",
+      });
+
+      const score5 = createScore({
+        id: scoreId_5,
+        project_id: projectId,
+        trace_id: traceId_3,
+        name: "other-score-name",
+        value: 0,
+        string_value: "test",
+        comment: "comment",
+      });
+
+      await createScores([score1, score2, score3, score4, score5]);
+    });
+    afterAll(async () => {
+      await pruneDatabase();
+    });
+
+    it.only("get all scores", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}`,
+      );
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          observationId: generationId,
+        });
+      }
+    });
+
+    //   it("get all scores for config", async () => {
+    //     const getAllScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?configId=${configId}`,
+    //     );
+
+    //     expect(getAllScore.status).toBe(200);
+    //     expect(getAllScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 1,
+    //       totalPages: 1,
+    //     });
+    //     for (const val of getAllScore.body.data) {
+    //       expect(val).toMatchObject({
+    //         traceId: traceId,
+    //         observationId: generationId,
+    //         configId: configId,
+    //       });
+    //     }
+    //   });
+
+    //   it("get all scores for numeric data type", async () => {
+    //     const getAllScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?dataType=${"NUMERIC"}`,
+    //     );
+
+    //     expect(getAllScore.status).toBe(200);
+    //     expect(getAllScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 3,
+    //       totalPages: 1,
+    //     });
+    //     for (const val of getAllScore.body.data) {
+    //       expect(val).toMatchObject({
+    //         traceId: traceId,
+    //         observationId: generationId,
+    //         dataType: "NUMERIC",
+    //       });
+    //     }
+    //   });
+
+    //   it("get all scores for trace tag 'prod'", async () => {
+    //     const getAllScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?traceTags=${"prod"}`,
+    //     );
+
+    //     expect(getAllScore.status).toBe(200);
+    //     expect(getAllScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 3,
+    //       totalPages: 1,
+    //     });
+    //     for (const val of getAllScore.body.data) {
+    //       expect(val).toMatchObject({
+    //         traceId: traceId,
+    //         trace: { tags: ["prod", "test"], userId: "user-name" },
+    //       });
+    //     }
+    //   });
+
+    //   it("get all scores for trace tags 'staging' and 'dev'", async () => {
+    //     const getAllScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?traceTags=${["staging", "dev"]}`,
+    //     );
+
+    //     expect(getAllScore.status).toBe(200);
+    //     expect(getAllScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 1,
+    //       totalPages: 1,
+    //     });
+    //     for (const val of getAllScore.body.data) {
+    //       expect(val).toMatchObject({
+    //         traceId: traceId_2,
+    //         trace: { tags: ["dev", "staging"], userId: "user-name" },
+    //       });
+    //     }
+    //   });
+
+    //   describe("should Filter scores by queueId", () => {
+    //     describe("queueId filtering", () => {
+    //       let queueId: string;
+    //       const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+    //       beforeEach(async () => {
+    //         queueId = uuidv4();
+
+    //         await Promise.all([
+    //           prisma.score.create({
+    //             data: {
+    //               observationId: generationId,
+    //               name: "annotation-score-1",
+    //               value: 100.5,
+    //               traceId: traceId,
+    //               comment: "comment 1",
+    //               queueId,
+    //               source: "ANNOTATION",
+    //               project: { connect: { id: projectId } },
+    //               dataType: "NUMERIC",
+    //             },
+    //           }),
+    //           prisma.score.create({
+    //             data: {
+    //               observationId: generationId,
+    //               name: "annotation-score-2",
+    //               value: 75.0,
+    //               traceId: traceId,
+    //               comment: "comment 2",
+    //               queueId,
+    //               source: "ANNOTATION",
+    //               project: { connect: { id: projectId } },
+    //               dataType: "NUMERIC",
+    //             },
+    //           }),
+    //         ]);
+    //       });
+
+    //       afterEach(async () => {
+    //         await prisma.score.deleteMany({
+    //           where: { queueId, projectId },
+    //         });
+    //       });
+
+    //       it("get all scores for queueId", async () => {
+    //         const getAllScore = await makeZodVerifiedAPICall(
+    //           GetScoresResponse,
+    //           "GET",
+    //           `/api/public/scores?queueId=${queueId}`,
+    //         );
+
+    //         expect(getAllScore.status).toBe(200);
+    //         expect(getAllScore.body.meta).toMatchObject({
+    //           page: 1,
+    //           limit: 50,
+    //           totalItems: 2,
+    //           totalPages: 1,
+    //         });
+    //         for (const val of getAllScore.body.data) {
+    //           expect(val).toMatchObject({
+    //             traceId: traceId,
+    //             observationId: generationId,
+    //             queueId: queueId,
+    //             source: "ANNOTATION",
+    //           });
+    //         }
+    //       });
+    //     });
+    //   });
+
+    //   it("test only operator", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator=<`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 3,
+    //       totalPages: 1,
+    //     });
+    //   });
+
+    //   it("test only value", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&value=0.8`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 3,
+    //       totalPages: 1,
+    //     });
+    //   });
+
+    //   it("test operator <", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator=<&value=50`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 1,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_1,
+    //         name: scoreName,
+    //         value: 10.5,
+    //       },
+    //     ]);
+    //   });
+    //   it("test operator >", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator=>&value=100`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 1,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_3,
+    //         name: scoreName,
+    //         value: 100.8,
+    //       },
+    //     ]);
+    //   });
+    //   it("test operator <=", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 2,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_2,
+    //         name: scoreName,
+    //         value: 50.5,
+    //       },
+    //       {
+    //         id: scoreId_1,
+    //         name: scoreName,
+    //         value: 10.5,
+    //       },
+    //     ]);
+    //   });
+    //   it("test operator >=", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 2,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_3,
+    //         name: scoreName,
+    //         value: 100.8,
+    //       },
+    //       {
+    //         id: scoreId_2,
+    //         name: scoreName,
+    //         value: 50.5,
+    //       },
+    //     ]);
+    //   });
+    //   it("test operator !=", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 2,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_3,
+    //         name: scoreName,
+    //         value: 100.8,
+    //       },
+    //       {
+    //         id: scoreId_1,
+    //         name: scoreName,
+    //         value: 10.5,
+    //       },
+    //     ]);
+    //   });
+    //   it("test operator =", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 1,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_2,
+    //         name: scoreName,
+    //         value: 50.5,
+    //       },
+    //     ]);
+    //   });
+    //   it("should GET ALL scores with minimal score data and minimal trace data", async () => {
+    //     const minimalTraceId = uuidv4();
+    //     await makeAPICall("POST", "/api/public/traces", {
+    //       id: minimalTraceId,
+    //       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    //     });
+    //     const dbTrace = await prisma.trace.findMany({
+    //       where: {
+    //         id: minimalTraceId,
+    //       },
+    //     });
+
+    //     expect(dbTrace.length).toBeGreaterThan(0);
+    //     expect(dbTrace[0]?.id).toBe(minimalTraceId);
+
+    //     const createScore = await makeAPICall("POST", "/api/public/scores", {
+    //       name: "score-name",
+    //       value: 100,
+    //       traceId: minimalTraceId,
+    //     });
+
+    //     expect(createScore.status).toBe(200);
+
+    //     const fetchedScores = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores`,
+    //     );
+
+    //     expect(fetchedScores.status).toBe(200);
+    //     expect(fetchedScores.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 6,
+    //       totalPages: 1,
+    //     });
+    //     expect(fetchedScores.body.data.length).toBe(6);
+    //   });
+
+    //   it("test invalid operator", async () => {
+    //     try {
+    //       await makeZodVerifiedAPICall(
+    //         z.object({
+    //           message: z.string(),
+    //           error: z.array(z.object({})),
+    //         }),
+    //         "GET",
+    //         `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+    //       );
+    //     } catch (error) {
+    //       expect((error as Error).message).toBe(
+    //         `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
+    //       );
+    //     }
+    //   });
+    //   it("test invalid value", async () => {
+    //     try {
+    //       await makeZodVerifiedAPICall(
+    //         z.object({
+    //           message: z.string(),
+    //           error: z.array(z.object({})),
+    //         }),
+    //         "GET",
+    //         `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+    //       );
+    //     } catch (error) {
+    //       expect((error as Error).message).toBe(
+    //         'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+    //       );
+    //     }
+    //   });
+
+    //   it("should filter scores by score IDs", async () => {
+    //     const getScore = await makeZodVerifiedAPICall(
+    //       GetScoresResponse,
+    //       "GET",
+    //       `/api/public/scores?scoreIds=${scoreId_1},${scoreId_2}`,
+    //     );
+    //     expect(getScore.status).toBe(200);
+    //     expect(getScore.body.meta).toMatchObject({
+    //       page: 1,
+    //       limit: 50,
+    //       totalItems: 2,
+    //       totalPages: 1,
+    //     });
+    //     expect(getScore.body.data).toMatchObject([
+    //       {
+    //         id: scoreId_2,
+    //         name: scoreName,
+    //         value: 50.5,
+    //       },
+    //       {
+    //         id: scoreId_1,
+    //         name: scoreName,
+    //         value: 10.5,
+    //       },
+    //     ]);
+    //   });
   });
 });
