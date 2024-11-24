@@ -27,6 +27,7 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import { env } from "@/src/env.mjs";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -152,7 +153,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
       (
           project_id String,    
           run_id String,  
@@ -160,7 +161,10 @@ export const createTempTableInClickhouse = async (
           dataset_id String,      
           trace_id String,
           observation_id Nullable(String)
-      )  ENGINE = Memory
+      )  
+      ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
+      PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
+
 
   `;
   await commandClickhouse({
@@ -221,6 +225,8 @@ const getScoresFromTempTable = async (
   tableName: string,
   clickhouseSession: string,
 ) => {
+  // adds a setting to read data once it is replicated from the writer node.
+  // Only then, we can guarantee that the created mergetree before was replicated.
   const query = `
       SELECT 
         s.*,
@@ -231,9 +237,9 @@ const getScoresFromTempTable = async (
       WHERE s.project_id = {projectId: String}
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
-      AND (tmp.observation_id = s.observation_id OR s.observation_id IS NULL)
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
+      SETTINGS select_sequential_consistency = 1;
   `;
 
   const rows = await queryClickhouse<
