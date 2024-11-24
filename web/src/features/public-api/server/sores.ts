@@ -126,7 +126,7 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
 
   const tracesFilter = new FilterList();
 
-  const filterParams = [
+  const secureFilterOptions = [
     {
       key: "userId",
       field: "user_id",
@@ -203,21 +203,21 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
 
   const availableOperators = z.enum(["=", ">", "<", ">=", "<="]);
 
-  filterParams.forEach((param) => {
-    const value = filter[param.key as keyof ScoreQueryType];
+  secureFilterOptions.forEach((secureFilterOption) => {
+    const value = filter[secureFilterOption.key as keyof ScoreQueryType];
     if (value) {
       let filterInstance;
-      switch (param.filterType) {
+      switch (secureFilterOption.filterType) {
         case "DateTimeFilter":
           typeof value === "string" &&
-          param.operator &&
-          availableOperators.safeParse(param.operator).success
+          secureFilterOption.operator &&
+          availableOperators.safeParse(secureFilterOption.operator).success
             ? (filterInstance = new DateTimeFilter({
-                clickhouseTable: param.table,
-                field: param.field,
-                operator: param.operator,
+                clickhouseTable: secureFilterOption.table,
+                field: secureFilterOption.field,
+                operator: secureFilterOption.operator,
                 value: new Date(value),
-                tablePrefix: param.table === "scores" ? "s" : "t",
+                tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
               }))
             : undefined;
 
@@ -225,54 +225,56 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
         case "ArrayOptionsFilter":
           if (Array.isArray(value) || typeof value === "string") {
             filterInstance = new ArrayOptionsFilter({
-              clickhouseTable: param.table,
-              field: param.field,
+              clickhouseTable: secureFilterOption.table,
+              field: secureFilterOption.field,
               operator: "all of",
               values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix: param.table === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
             });
           }
           break;
         case "StringOptionsFilter":
           if (Array.isArray(value) || typeof value === "string") {
             filterInstance = new StringOptionsFilter({
-              clickhouseTable: param.table,
-              field: param.field,
+              clickhouseTable: secureFilterOption.table,
+              field: secureFilterOption.field,
               operator: "any of",
               values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix: param.table === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
             });
           }
           break;
         case "StringFilter":
           if (typeof value === "string") {
             filterInstance = new StringFilter({
-              clickhouseTable: param.table,
-              field: param.field,
+              clickhouseTable: secureFilterOption.table,
+              field: secureFilterOption.field,
               operator: "=",
               value: value,
-              tablePrefix: param.table === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
             });
           }
           break;
         case "NumberFilter":
-          const parsedOperator = availableOperators.safeParse(param.operator);
+          const parsedOperator = availableOperators.safeParse(
+            secureFilterOption.operator,
+          );
           if (parsedOperator.success) {
             filterInstance = new NumberFilter({
-              clickhouseTable: param.table,
-              field: param.field,
+              clickhouseTable: secureFilterOption.table,
+              field: secureFilterOption.field,
               operator: parsedOperator.data,
               value: Number(value),
-              tablePrefix: param.table === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
             });
           }
           break;
       }
 
       if (filterInstance) {
-        if (param.table === "scores") {
+        if (secureFilterOption.table === "scores") {
           scoresFilter.push(filterInstance);
-        } else if (param.table === "traces") {
+        } else if (secureFilterOption.table === "traces") {
           tracesFilter.push(filterInstance);
         }
       }
