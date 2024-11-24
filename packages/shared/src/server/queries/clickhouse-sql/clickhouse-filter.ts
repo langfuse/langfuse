@@ -1,12 +1,13 @@
 import { filterOperators } from "../../../interfaces/filters";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
 
+export type ClickhouseOperator =
+  | (typeof filterOperators)[keyof typeof filterOperators][number]
+  | "!=";
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
-  operator:
-    | (typeof filterOperators)[keyof typeof filterOperators][number]
-    | "!=";
+  operator: ClickhouseOperator;
   field: string;
 }
 type ClickhouseFilter = {
