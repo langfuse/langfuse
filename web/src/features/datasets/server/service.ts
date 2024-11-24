@@ -13,7 +13,6 @@ import {
   clickhouseCompliantRandomCharacters,
   commandClickhouse,
   convertToScore,
-  type FetchScoresReturnType,
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsById,
@@ -22,6 +21,7 @@ import {
   getTracesByIds,
   logger,
   queryClickhouse,
+  type ScoreRecordReadType,
   traceException,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -242,9 +242,7 @@ const getScoresFromTempTable = async (
       SETTINGS select_sequential_consistency = 1;
   `;
 
-  const rows = await queryClickhouse<
-    FetchScoresReturnType & { run_id: string }
-  >({
+  const rows = await queryClickhouse<ScoreRecordReadType & { run_id: string }>({
     query: query,
     params: {
       projectId: input.projectId,
