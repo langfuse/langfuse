@@ -153,6 +153,19 @@ describe("/api/public/scores API Endpoint", () => {
 
     beforeEach(async () => {
       const projectId = v4();
+      const org = await prisma.organization.create({
+        data: {
+          id: v4(),
+          name: v4(),
+        },
+      });
+      await prisma.project.create({
+        data: {
+          id: projectId,
+          name: v4(),
+          orgId: org.id,
+        },
+      });
       const trace = createTrace({
         id: traceId,
         project_id: projectId,
@@ -399,12 +412,6 @@ describe("/api/public/scores API Endpoint", () => {
           });
 
           await createScores([score, score2]);
-        });
-
-        afterEach(async () => {
-          await commandClickhouse({
-            query: `DELETE FROM scores WHERE queue_id = '${queueId}'`,
-          });
         });
 
         it("get all scores for queueId", async () => {
