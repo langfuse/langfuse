@@ -37,7 +37,6 @@ export function convertApiProvidedFilterToClickhouseFilter(
           // validate that the user provided operator is in the list of available operators
           const availableOperators = z.enum(filterOperators.datetime);
           const parsedOperator = availableOperators.safeParse(filter.operator);
-          console.log("parsedOperator", parsedOperator);
 
           // otherwise fall back to the operator provided in the column mapping
           const finalOperator = parsedOperator.success
