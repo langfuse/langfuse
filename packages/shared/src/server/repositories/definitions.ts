@@ -1,4 +1,3 @@
-import { timeStamp } from "console";
 import z from "zod";
 
 export const clickhouseStringDateSchema = z

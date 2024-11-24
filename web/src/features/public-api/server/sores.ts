@@ -62,7 +62,7 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
       ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY s.timestamp desc
-      LIMIT 1 by s.id, s.project_id
+      LIMIT 1 BY s.id, s.project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
