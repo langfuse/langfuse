@@ -1,15 +1,13 @@
 import {
-  FilterList,
-  StringFilter,
-  NumberFilter,
-  type ScoreRecordReadType,
-  queryClickhouse,
-  DateTimeFilter,
-  ArrayOptionsFilter,
+  type ApiColumnMapping,
+  convertApiProvidedFilterToClickhouseFilter,
+} from "@/src/features/public-api/server/filter-builder";
+import {
   convertToScore,
-  StringOptionsFilter,
+  queryClickhouse,
+  StringFilter,
+  type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
-import { z } from "zod";
 
 export type ScoreQueryType = {
   page: number;
@@ -114,181 +112,117 @@ export const getScoresCountForPublicApi = async (props: ScoreQueryType) => {
   return records.map((record) => Number(record.count)).shift();
 };
 
+const secureScoreFilterOptions: ApiColumnMapping[] = [
+  {
+    id: "traceId",
+    clickhouseSelect: "trace_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "name",
+    clickhouseSelect: "name",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "source",
+    clickhouseSelect: "source",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "fromTimestamp",
+    clickhouseSelect: "timestamp",
+    operator: ">=" as const,
+    clickhouseTable: "scores",
+    filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "toTimestamp",
+    clickhouseSelect: "timestamp",
+    operator: "<" as const,
+    clickhouseTable: "scores",
+    filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "value",
+    clickhouseSelect: "value",
+    clickhouseTable: "scores",
+    filterType: "NumberFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "scoreIds",
+    clickhouseSelect: "id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "configId",
+    clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "queueId",
+    clickhouseSelect: "queue_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+
+  {
+    id: "dataType",
+    clickhouseSelect: "data_type",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+];
+
+const secureTraceFilterOptions = [
+  {
+    id: "traceTags",
+    clickhouseSelect: "tags",
+    clickhouseTable: "traces",
+    filterType: "ArrayOptionsFilter",
+    clickhousePrefix: "t",
+  },
+  {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    clickhouseTable: "traces",
+    filterType: "StringFilter",
+    clickhousePrefix: "t",
+  },
+];
+
 const generateScoreFilter = (filter: ScoreQueryType) => {
-  const scoresFilter = new FilterList([
+  const scoresFilter = convertApiProvidedFilterToClickhouseFilter(
+    filter,
+    secureScoreFilterOptions,
+  );
+  scoresFilter.push(
     new StringFilter({
       clickhouseTable: "scores",
       field: "project_id",
       operator: "=",
       value: filter.projectId,
     }),
-  ]);
+  );
 
-  const tracesFilter = new FilterList();
-
-  const secureFilterOptions = [
-    {
-      key: "userId",
-      field: "user_id",
-      table: "traces",
-      filterType: "StringFilter",
-    },
-    {
-      key: "traceId",
-      field: "trace_id",
-      table: "scores",
-      filterType: "StringFilter",
-    },
-    { key: "name", field: "name", table: "scores", filterType: "StringFilter" },
-    {
-      key: "source",
-      field: "source",
-      table: "scores",
-      filterType: "StringFilter",
-    },
-    {
-      key: "fromTimestamp",
-      field: "timestamp",
-      isDate: true,
-      operator: ">=" as const,
-      table: "scores",
-      filterType: "DateTimeFilter",
-    },
-    {
-      key: "toTimestamp",
-      field: "timestamp",
-      isDate: true,
-      operator: "<" as const,
-      table: "scores",
-      filterType: "DateTimeFilter",
-    },
-    {
-      key: "value",
-      field: "value",
-      table: "scores",
-      filterType: "NumberFilter",
-    },
-    {
-      key: "scoreIds",
-      field: "id",
-      table: "scores",
-      filterType: "StringOptionsFilter",
-    },
-    {
-      key: "configId",
-      field: "config_id",
-      table: "scores",
-      filterType: "StringFilter",
-    },
-    {
-      key: "queueId",
-      field: "queue_id",
-      table: "scores",
-      filterType: "StringFilter",
-    },
-    {
-      key: "traceTags",
-      field: "tags",
-      isArray: true,
-      table: "traces",
-      filterType: "ArrayOptionsFilter",
-    },
-    {
-      key: "dataType",
-      field: "data_type",
-      table: "scores",
-      filterType: "StringFilter",
-    },
-  ];
-
-  secureFilterOptions.forEach((secureFilterOption) => {
-    const value = filter[secureFilterOption.key as keyof ScoreQueryType];
-
-    if (value) {
-      let filterInstance;
-      switch (secureFilterOption.filterType) {
-        case "DateTimeFilter":
-          const availableOperators = z.enum(["=", ">", "<", ">=", "<=", "!="]);
-          typeof value === "string" &&
-          secureFilterOption.operator &&
-          availableOperators.safeParse(secureFilterOption.operator).success
-            ? (filterInstance = new DateTimeFilter({
-                clickhouseTable: secureFilterOption.table,
-                field: secureFilterOption.field,
-                operator: secureFilterOption.operator,
-                value: new Date(value),
-                tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
-              }))
-            : undefined;
-
-          break;
-        case "ArrayOptionsFilter":
-          if (Array.isArray(value) || typeof value === "string") {
-            filterInstance = new ArrayOptionsFilter({
-              clickhouseTable: secureFilterOption.table,
-              field: secureFilterOption.field,
-              operator: "all of",
-              values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
-            });
-          }
-          break;
-        case "StringOptionsFilter":
-          if (Array.isArray(value) || typeof value === "string") {
-            filterInstance = new StringOptionsFilter({
-              clickhouseTable: secureFilterOption.table,
-              field: secureFilterOption.field,
-              operator: "any of",
-              values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
-            });
-          }
-          break;
-        case "StringFilter":
-          if (typeof value === "string") {
-            filterInstance = new StringFilter({
-              clickhouseTable: secureFilterOption.table,
-              field: secureFilterOption.field,
-              operator: "=",
-              value: value,
-              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
-            });
-          }
-          break;
-        case "NumberFilter":
-          const availableOperatorsNum = z.enum([
-            "=",
-            ">",
-            "<",
-            ">=",
-            "<=",
-            "!=",
-          ]);
-          const parsedOperator = availableOperatorsNum.safeParse(
-            filter.operator,
-          );
-
-          if (parsedOperator.success) {
-            filterInstance = new NumberFilter({
-              clickhouseTable: secureFilterOption.table,
-              field: secureFilterOption.field,
-              operator: parsedOperator.data,
-              value: Number(value),
-              tablePrefix: secureFilterOption.table === "scores" ? "s" : "t",
-            });
-          }
-          break;
-      }
-
-      if (filterInstance) {
-        if (secureFilterOption.table === "scores") {
-          scoresFilter.push(filterInstance);
-        } else if (secureFilterOption.table === "traces") {
-          tracesFilter.push(filterInstance);
-        }
-      }
-    }
-  });
+  const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
+    filter,
+    secureTraceFilterOptions,
+  );
 
   return { scoresFilter, tracesFilter };
 };
