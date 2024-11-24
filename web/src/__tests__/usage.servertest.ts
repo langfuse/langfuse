@@ -53,6 +53,14 @@ describe("Token Count Functions", () => {
       expect(result).toBeUndefined();
     });
 
+    it("should return token count for strings with special characters", () => {
+      const result = tokenCount({
+        model: generateModel("gpt-4-1106-preview", "openai"),
+        text: "Hello <|endoftext|> World!",
+      });
+      expect(result).toBeUndefined();
+    });
+
     it("check extensive openai chat message", () => {
       const result = tokenCount({
         model: generateModel("gpt-3.5-turbo", "openai"),

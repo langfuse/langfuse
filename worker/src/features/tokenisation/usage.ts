@@ -194,8 +194,8 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   const cleandedText = unicodeToBytesInString(text);
 
   logger.debug(`Tokenized data for model: ${model}`);
-
   return encoding?.encode(cleandedText).length;
+  // return encoding?.encode(cleandedText, "all").length;
 };
 
 interface Tokenizer {
