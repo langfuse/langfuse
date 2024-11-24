@@ -1,4 +1,5 @@
 import { type ScoreQueryType } from "@/src/features/public-api/server/sores";
+import { filterOperators } from "@langfuse/shared";
 import {
   FilterList,
   DateTimeFilter,
@@ -31,14 +32,15 @@ export function convertApiProvidedFilterToClickhouseFilter(
       let filterInstance;
       switch (secureFilterOption.filterType) {
         case "DateTimeFilter":
-          const availableOperators = z.enum(["=", ">", "<", ">=", "<=", "!="]);
+          const availableOperators = z.enum(filterOperators.datetime);
+          const parsedOperator = availableOperators.safeParse(filter.operator);
           typeof value === "string" &&
           secureFilterOption.operator &&
-          availableOperators.safeParse(secureFilterOption.operator).success
+          parsedOperator.success
             ? (filterInstance = new DateTimeFilter({
                 clickhouseTable: secureFilterOption.clickhouseTable,
                 field: secureFilterOption.clickhouseSelect,
-                operator: secureFilterOption.operator,
+                operator: parsedOperator.data,
                 value: new Date(value),
                 tablePrefix:
                   secureFilterOption.clickhouseTable === "scores" ? "s" : "t",
@@ -91,15 +93,15 @@ export function convertApiProvidedFilterToClickhouseFilter(
             "<=",
             "!=",
           ]);
-          const parsedOperator = availableOperatorsNum.safeParse(
+          const parsedOperatorNum = availableOperatorsNum.safeParse(
             filter.operator,
           );
 
-          if (parsedOperator.success) {
+          if (parsedOperatorNum.success) {
             filterInstance = new NumberFilter({
               clickhouseTable: secureFilterOption.clickhouseTable,
               field: secureFilterOption.clickhouseSelect,
-              operator: parsedOperator.data,
+              operator: parsedOperatorNum.data,
               value: Number(value),
               tablePrefix:
                 secureFilterOption.clickhouseTable === "scores" ? "s" : "t",

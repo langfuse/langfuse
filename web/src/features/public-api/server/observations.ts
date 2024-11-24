@@ -1,3 +1,4 @@
+import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
   FilterList,
   StringFilter,
@@ -97,63 +98,50 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   return records.map((record) => Number(record.count)).shift();
 };
 
+const filterParams = [
+  { id: "userId", clickhouseSelect: "user_id", filterType: "StringFilter" },
+  { id: "traceId", clickhouseSelect: "trace_id", filterType: "StringFilter" },
+  { id: "name", clickhouseSelect: "name", filterType: "StringFilter" },
+  { id: "type", clickhouseSelect: "type", filterType: "StringFilter" },
+  {
+    id: "parentObservationId",
+    clickhouseSelect: "parent_observation_id",
+    filterType: "StringFilter",
+  },
+  {
+    id: "fromStartTime",
+    clickhouseSelect: "start_time",
+    operator: ">=" as const,
+    filterType: "DateTimeFilter",
+  },
+  {
+    id: "toStartTime",
+    clickhouseSelect: "start_time",
+    operator: "<" as const,
+    filterType: "DateTimeFilter",
+  },
+  { id: "version", clickhouseSelect: "version", filterType: "StringFilter" },
+];
+
 const generateFilter = (filter: QueryType) => {
-  const observationsFilter = new FilterList([
+  const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
+    filter,
+    filterParams.map((param) => ({
+      id: param.id,
+      clickhouseSelect: param.clickhouseSelect,
+      clickhouseTable: "observations",
+      filterType: param.operator ? "DateTimeFilter" : "StringFilter",
+      operator: param.operator,
+    })),
+  );
+
+  observationsFilter.push(
     new StringFilter({
       clickhouseTable: "observations",
       field: "project_id",
       operator: "=",
       value: filter.projectId,
     }),
-  ]);
-
-  const filterParams = [
-    { key: "userId", field: "user_id" },
-    { key: "traceId", field: "trace_id" },
-    { key: "name", field: "name" },
-    { key: "type", field: "type" },
-    { key: "parentObservationId", field: "parent_observation_id" },
-    {
-      key: "fromStartTime",
-      field: "start_time",
-      isDate: true,
-      operator: ">=" as const,
-    },
-    {
-      key: "toStartTime",
-      field: "start_time",
-      isDate: true,
-      operator: "<" as const,
-    },
-    { key: "version", field: "version" },
-  ];
-
-  filterParams.forEach((param) => {
-    const value = filter[param.key as keyof QueryType];
-    if (value) {
-      observationsFilter.push(
-        param.isDate
-          ? new DateTimeFilter({
-              clickhouseTable: "observations",
-              field: param.field,
-              operator: param.operator || ("=" as const),
-              value: new Date(value),
-            })
-          : typeof value === "string"
-            ? new StringFilter({
-                clickhouseTable: "observations",
-                field: param.field,
-                operator: "=",
-                value: value,
-              })
-            : new NumberFilter({
-                clickhouseTable: "observations",
-                field: param.field,
-                operator: "=",
-                value: value,
-              }),
-      );
-    }
-  });
+  );
   return observationsFilter;
 };
