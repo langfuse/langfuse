@@ -1,5 +1,5 @@
 import { ScoreSource, ScoreDataType } from "@prisma/client";
-import { FetchScoresReturnType } from "./scores";
+import { ScoreRecordReadType } from "./definitions";
 
 export type ScoreAggregation = {
   id: string;
@@ -11,7 +11,7 @@ export type ScoreAggregation = {
   comment: string | null;
 };
 
-export const convertToScore = (row: FetchScoresReturnType) => {
+export const convertToScore = (row: ScoreRecordReadType) => {
   return {
     id: row.id,
     timestamp: new Date(row.timestamp),

@@ -364,7 +364,7 @@ export class BooleanFilter implements Filter {
 export class FilterList {
   private filters: Filter[];
 
-  constructor(filters: Filter[]) {
+  constructor(filters: Filter[] = []) {
     this.filters = filters;
   }
 
@@ -374,6 +374,10 @@ export class FilterList {
 
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
+  }
+
+  length() {
+    return this.filters.length;
   }
 
   public apply(): ClickhouseFilter {
