@@ -256,7 +256,7 @@ export class ArrayOptionsFilter implements Filter {
         query = `hasAny({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`;
         break;
       case "all of":
-        query = `arrayAll(x -> has({${varName}: Array(String)}, x), ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`;
+        query = `hasAll(${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}, {${varName}: Array(String)}) = True`;
         break;
       default:
         throw new Error(`Unsupported operator: ${this.operator}`);

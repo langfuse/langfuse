@@ -202,6 +202,7 @@ describe("/api/public/scores API Endpoint", () => {
         trace_id: traceId,
         name: scoreName,
         value: 10.5,
+        data_type: "NUMERIC",
         observation_id: generationId,
         config_id: config.id,
         comment: "comment",
@@ -213,6 +214,7 @@ describe("/api/public/scores API Endpoint", () => {
         trace_id: traceId,
         name: scoreName,
         value: 50.5,
+        data_type: "NUMERIC",
         observation_id: generationId,
         comment: "comment",
       });
@@ -223,6 +225,7 @@ describe("/api/public/scores API Endpoint", () => {
         trace_id: traceId,
         name: scoreName,
         value: 100.8,
+        data_type: "NUMERIC",
         observation_id: generationId,
         comment: "comment",
       });
@@ -234,6 +237,7 @@ describe("/api/public/scores API Endpoint", () => {
         name: "other-score-name",
         value: 0,
         string_value: "best",
+        data_type: "CATEGORICAL",
         comment: "comment",
       });
 
@@ -243,17 +247,15 @@ describe("/api/public/scores API Endpoint", () => {
         trace_id: traceId_3,
         name: "other-score-name",
         value: 0,
+        data_type: "CATEGORICAL",
         string_value: "test",
         comment: "comment",
       });
 
       await createScores([score1, score2, score3, score4, score5]);
     });
-    afterAll(async () => {
-      await pruneDatabase();
-    });
 
-    it.only("get all scores", async () => {
+    it("get all scores", async () => {
       const getAllScore = await makeZodVerifiedAPICall(
         GetScoresResponse,
         "GET",
@@ -274,316 +276,309 @@ describe("/api/public/scores API Endpoint", () => {
       }
     });
 
-    //   it("get all scores for config", async () => {
-    //     const getAllScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?configId=${configId}`,
-    //     );
+    it("get all scores for config", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?configId=${configId}`,
+      );
 
-    //     expect(getAllScore.status).toBe(200);
-    //     expect(getAllScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 1,
-    //       totalPages: 1,
-    //     });
-    //     for (const val of getAllScore.body.data) {
-    //       expect(val).toMatchObject({
-    //         traceId: traceId,
-    //         observationId: generationId,
-    //         configId: configId,
-    //       });
-    //     }
-    //   });
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          observationId: generationId,
+          configId: configId,
+        });
+      }
+    });
 
-    //   it("get all scores for numeric data type", async () => {
-    //     const getAllScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?dataType=${"NUMERIC"}`,
-    //     );
+    it("get all scores for numeric data type", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?dataType=NUMERIC`,
+      );
 
-    //     expect(getAllScore.status).toBe(200);
-    //     expect(getAllScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 3,
-    //       totalPages: 1,
-    //     });
-    //     for (const val of getAllScore.body.data) {
-    //       expect(val).toMatchObject({
-    //         traceId: traceId,
-    //         observationId: generationId,
-    //         dataType: "NUMERIC",
-    //       });
-    //     }
-    //   });
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          observationId: generationId,
+          dataType: "NUMERIC",
+        });
+      }
+    });
 
-    //   it("get all scores for trace tag 'prod'", async () => {
-    //     const getAllScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?traceTags=${"prod"}`,
-    //     );
+    it("get all scores for trace tag 'prod'", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?traceTags=prod`,
+      );
 
-    //     expect(getAllScore.status).toBe(200);
-    //     expect(getAllScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 3,
-    //       totalPages: 1,
-    //     });
-    //     for (const val of getAllScore.body.data) {
-    //       expect(val).toMatchObject({
-    //         traceId: traceId,
-    //         trace: { tags: ["prod", "test"], userId: "user-name" },
-    //       });
-    //     }
-    //   });
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId,
+          trace: { tags: ["prod", "test"], userId: "user-name" },
+        });
+      }
+    });
 
-    //   it("get all scores for trace tags 'staging' and 'dev'", async () => {
-    //     const getAllScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?traceTags=${["staging", "dev"]}`,
-    //     );
+    it("get all scores for trace tags 'staging' and 'dev'", async () => {
+      const getAllScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?traceTags=${["staging", "dev"]}`,
+      );
 
-    //     expect(getAllScore.status).toBe(200);
-    //     expect(getAllScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 1,
-    //       totalPages: 1,
-    //     });
-    //     for (const val of getAllScore.body.data) {
-    //       expect(val).toMatchObject({
-    //         traceId: traceId_2,
-    //         trace: { tags: ["dev", "staging"], userId: "user-name" },
-    //       });
-    //     }
-    //   });
+      expect(getAllScore.status).toBe(200);
+      expect(getAllScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
+      for (const val of getAllScore.body.data) {
+        expect(val).toMatchObject({
+          traceId: traceId_2,
+          trace: {
+            tags: expect.arrayContaining(["dev", "staging"]),
+            userId: "user-name",
+          },
+        });
+      }
+    });
 
-    //   describe("should Filter scores by queueId", () => {
-    //     describe("queueId filtering", () => {
-    //       let queueId: string;
-    //       const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+    describe("should Filter scores by queueId", () => {
+      describe("queueId filtering", () => {
+        let queueId: string;
+        const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+        beforeEach(async () => {
+          queueId = v4();
 
-    //       beforeEach(async () => {
-    //         queueId = uuidv4();
+          const score = createScore({
+            id: v4(),
+            project_id: projectId,
+            trace_id: traceId,
+            name: "score-name",
+            value: 100.5,
+            source: "ANNOTATION",
+            comment: "comment",
+            observation_id: generationId,
+            queue_id: queueId,
+          });
+          const score2 = createScore({
+            id: v4(),
+            project_id: projectId,
+            trace_id: traceId,
+            name: "score-name",
+            value: 75.0,
+            source: "ANNOTATION",
+            comment: "comment",
+            observation_id: generationId,
+            queue_id: queueId,
+          });
 
-    //         await Promise.all([
-    //           prisma.score.create({
-    //             data: {
-    //               observationId: generationId,
-    //               name: "annotation-score-1",
-    //               value: 100.5,
-    //               traceId: traceId,
-    //               comment: "comment 1",
-    //               queueId,
-    //               source: "ANNOTATION",
-    //               project: { connect: { id: projectId } },
-    //               dataType: "NUMERIC",
-    //             },
-    //           }),
-    //           prisma.score.create({
-    //             data: {
-    //               observationId: generationId,
-    //               name: "annotation-score-2",
-    //               value: 75.0,
-    //               traceId: traceId,
-    //               comment: "comment 2",
-    //               queueId,
-    //               source: "ANNOTATION",
-    //               project: { connect: { id: projectId } },
-    //               dataType: "NUMERIC",
-    //             },
-    //           }),
-    //         ]);
-    //       });
+          await createScores([score, score2]);
+        });
 
-    //       afterEach(async () => {
-    //         await prisma.score.deleteMany({
-    //           where: { queueId, projectId },
-    //         });
-    //       });
+        it("get all scores for queueId", async () => {
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponse,
+            "GET",
+            `/api/public/scores?queueId=${queueId}`,
+          );
+          expect(getAllScore.status).toBe(200);
+          expect(getAllScore.body.meta).toMatchObject({
+            page: 1,
+            limit: 50,
+            totalItems: 2,
+            totalPages: 1,
+          });
+          for (const val of getAllScore.body.data) {
+            expect(val).toMatchObject({
+              traceId: traceId,
+              observationId: generationId,
+              queueId: queueId,
+              source: "ANNOTATION",
+            });
+          }
+        });
+      });
+    });
 
-    //       it("get all scores for queueId", async () => {
-    //         const getAllScore = await makeZodVerifiedAPICall(
-    //           GetScoresResponse,
-    //           "GET",
-    //           `/api/public/scores?queueId=${queueId}`,
-    //         );
+    it("test only operator", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+    });
 
-    //         expect(getAllScore.status).toBe(200);
-    //         expect(getAllScore.body.meta).toMatchObject({
-    //           page: 1,
-    //           limit: 50,
-    //           totalItems: 2,
-    //           totalPages: 1,
-    //         });
-    //         for (const val of getAllScore.body.data) {
-    //           expect(val).toMatchObject({
-    //             traceId: traceId,
-    //             observationId: generationId,
-    //             queueId: queueId,
-    //             source: "ANNOTATION",
-    //           });
-    //         }
-    //       });
-    //     });
-    //   });
+    it("test only value", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&value=0.8`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 3,
+        totalPages: 1,
+      });
+    });
 
-    //   it("test only operator", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator=<`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 3,
-    //       totalPages: 1,
-    //     });
-    //   });
-
-    //   it("test only value", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&value=0.8`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 3,
-    //       totalPages: 1,
-    //     });
-    //   });
-
-    //   it("test operator <", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator=<&value=50`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 1,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_1,
-    //         name: scoreName,
-    //         value: 10.5,
-    //       },
-    //     ]);
-    //   });
-    //   it("test operator >", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator=>&value=100`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 1,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_3,
-    //         name: scoreName,
-    //         value: 100.8,
-    //       },
-    //     ]);
-    //   });
-    //   it("test operator <=", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 2,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_2,
-    //         name: scoreName,
-    //         value: 50.5,
-    //       },
-    //       {
-    //         id: scoreId_1,
-    //         name: scoreName,
-    //         value: 10.5,
-    //       },
-    //     ]);
-    //   });
-    //   it("test operator >=", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 2,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_3,
-    //         name: scoreName,
-    //         value: 100.8,
-    //       },
-    //       {
-    //         id: scoreId_2,
-    //         name: scoreName,
-    //         value: 50.5,
-    //       },
-    //     ]);
-    //   });
-    //   it("test operator !=", async () => {
-    //     const getScore = await makeZodVerifiedAPICall(
-    //       GetScoresResponse,
-    //       "GET",
-    //       `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
-    //     );
-    //     expect(getScore.status).toBe(200);
-    //     expect(getScore.body.meta).toMatchObject({
-    //       page: 1,
-    //       limit: 50,
-    //       totalItems: 2,
-    //       totalPages: 1,
-    //     });
-    //     expect(getScore.body.data).toMatchObject([
-    //       {
-    //         id: scoreId_3,
-    //         name: scoreName,
-    //         value: 100.8,
-    //       },
-    //       {
-    //         id: scoreId_1,
-    //         name: scoreName,
-    //         value: 10.5,
-    //       },
-    //     ]);
-    //   });
+    it("test operator <", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<&value=50`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+      ]);
+    });
+    it("test operator >", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=>&value=100`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 1,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_3,
+          name: scoreName,
+          value: 100.8,
+        },
+      ]);
+    });
+    it("test operator <=", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_2,
+          name: scoreName,
+          value: 50.5,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+      ]);
+    });
+    it("test operator >=", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: scoreId_3,
+            name: scoreName,
+            value: 100.8,
+          }),
+          expect.objectContaining({
+            id: scoreId_2,
+            name: scoreName,
+            value: 50.5,
+          }),
+        ]),
+      );
+    });
+    it.only("test operator !=", async () => {
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoresResponse,
+        "GET",
+        `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+      );
+      expect(getScore.status).toBe(200);
+      expect(getScore.body.meta).toMatchObject({
+        page: 1,
+        limit: 50,
+        totalItems: 2,
+        totalPages: 1,
+      });
+      expect(getScore.body.data).toMatchObject([
+        {
+          id: scoreId_3,
+          name: scoreName,
+          value: 100.8,
+        },
+        {
+          id: scoreId_1,
+          name: scoreName,
+          value: 10.5,
+        },
+      ]);
+    });
     //   it("test operator =", async () => {
     //     const getScore = await makeZodVerifiedAPICall(
     //       GetScoresResponse,

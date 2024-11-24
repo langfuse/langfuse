@@ -130,7 +130,7 @@ export const scoreRecordBaseSchema = z.object({
   project_id: z.string(),
   trace_id: z.string(),
   observation_id: z.string().nullish(),
-  name: z.string().nullish(),
+  name: z.string(),
   value: z.union([z.number(), z.string()]).nullish(),
   source: z.string(),
   comment: z.string().nullish(),

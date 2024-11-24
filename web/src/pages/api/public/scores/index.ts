@@ -5,7 +5,6 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import {
   GetScoresQuery,
   GetScoresResponse,
-  InternalServerError,
   legacyFilterAndValidateV1GetScoreList,
   PostScoresBody,
   PostScoresResponse,
@@ -232,15 +231,19 @@ export default withMiddlewares({
               scoreIds: query.scoreIds ?? undefined,
             }),
           ]);
-          if (!count) throw new InternalServerError("Failed to get count");
+
+          const finalCount = count ? count : 0;
+
+          console.log("items", JSON.stringify(items));
+          console.log("count", count);
 
           return {
             data: legacyFilterAndValidateV1GetScoreList(items),
             meta: {
               page: query.page,
               limit: query.limit,
-              totalItems: count,
-              totalPages: Math.ceil(count / query.limit),
+              totalItems: finalCount,
+              totalPages: Math.ceil(finalCount / query.limit),
             },
           };
         },

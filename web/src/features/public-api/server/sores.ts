@@ -103,6 +103,7 @@ export const getScoresCountForPublicApi = async (props: ScoreQueryType) => {
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
+  console.log(appliedScoresFilter.params, appliedTracesFilter.params);
   const records = await queryClickhouse<{ count: string }>({
     query,
     params: {
@@ -165,6 +166,17 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           value: new Date(value),
           tablePrefix: param.table === "scores" ? "s" : "t",
         });
+      } else if (
+        Array.isArray(value) ||
+        (param.field === "tags" && typeof value === "string")
+      ) {
+        filterInstance = new ArrayOptionsFilter({
+          clickhouseTable: param.table,
+          field: param.field,
+          operator: "all of",
+          values: Array.isArray(value) ? value : value.split(","),
+          tablePrefix: param.table === "scores" ? "s" : "t",
+        });
       } else if (typeof value === "string") {
         filterInstance = new StringFilter({
           clickhouseTable: param.table,
@@ -173,28 +185,27 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           value: value,
           tablePrefix: param.table === "scores" ? "s" : "t",
         });
-      } else if (Array.isArray(value)) {
-        filterInstance = new ArrayOptionsFilter({
-          clickhouseTable: param.table,
-          field: param.field,
-          operator: "any of",
-          values: value,
-          tablePrefix: param.table === "scores" ? "s" : "t",
-        });
       } else {
-        filterInstance = new NumberFilter({
-          clickhouseTable: param.table,
-          field: param.field,
-          operator: "=",
-          value: value,
-          tablePrefix: param.table === "scores" ? "s" : "t",
-        });
+        const operatorValue = filter.operator as string | undefined;
+
+        filterInstance =
+          operatorValue && ["=", ">", "<", ">=", "<="].includes(operatorValue)
+            ? new NumberFilter({
+                clickhouseTable: param.table,
+                field: param.field,
+                operator: operatorValue as "=" | ">" | "<" | ">=" | "<=",
+                value: Number(value),
+                tablePrefix: param.table === "scores" ? "s" : "t",
+              })
+            : undefined;
       }
 
-      if (param.table === "scores") {
-        scoresFilter.push(filterInstance);
-      } else if (param.table === "traces") {
-        tracesFilter.push(filterInstance);
+      if (filterInstance) {
+        if (param.table === "scores") {
+          scoresFilter.push(filterInstance);
+        } else if (param.table === "traces") {
+          tracesFilter.push(filterInstance);
+        }
       }
     }
   });
