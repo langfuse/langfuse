@@ -1,12 +1,9 @@
 import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
-  FilterList,
   StringFilter,
-  NumberFilter,
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservationToView,
-  DateTimeFilter,
 } from "@langfuse/shared/src/server";
 
 export type QueryType = {
