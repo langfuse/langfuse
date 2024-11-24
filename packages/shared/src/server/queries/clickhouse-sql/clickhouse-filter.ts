@@ -71,13 +71,13 @@ export class NumberFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public value: number;
-  public operator: (typeof filterOperators)["number"][number];
+  public operator: (typeof filterOperators)["number"][number] | "!=";
   protected tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["number"][number];
+    operator: (typeof filterOperators)["number"][number] | "!=";
     value: number;
     tablePrefix?: string;
   }) {
