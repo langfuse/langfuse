@@ -148,7 +148,7 @@ describe("/api/public/observations API Endpoint", () => {
     expect(fetchedObservations.body.data[0]?.type).toEqual("GENERATION");
   });
 
-  it.only("GET /observations with timestamp filters and pagination", async () => {
+  it("GET /observations with timestamp filters and pagination", async () => {
     const traceId = v4();
     const obs1 = createObservationObject({
       id: "observation-2021-01-01",
