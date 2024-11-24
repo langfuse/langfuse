@@ -97,6 +97,12 @@ export const projectsRouter = createTRPCRouter({
           id: input.projectId,
         },
       });
+      if (!beforeProject) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
       await auditLog({
         session: ctx.session,
         resourceType: "project",
@@ -105,6 +111,9 @@ export const projectsRouter = createTRPCRouter({
         action: "delete",
       });
 
+      // TODO: Set deleted_at to current timestamp instead of deleting the project
+      // Afterwards, send message to ProjectDelete queue for asynchronous cleanup.
+      // Do we want to remove all corresponding trace information or does that happen automatically using Prisma cascade?
       await ctx.prisma.project.delete({
         where: {
           id: input.projectId,
@@ -144,13 +153,15 @@ export const projectsRouter = createTRPCRouter({
       const project = await ctx.prisma.project.findUnique({
         where: {
           id: input.projectId,
+          deletedAt: null,
         },
       });
-      if (!project)
+      if (!project) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Project not found",
         });
+      }
 
       await auditLog({
         session: ctx.session,
