@@ -83,7 +83,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   const query = `
         SELECT
         count() as count
-      FROM observations
+      FROM observations o
       WHERE project_id = {projectId: String}
       AND ${filter.query}
       `;

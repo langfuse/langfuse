@@ -26,24 +26,33 @@ export function convertApiProvidedFilterToClickhouseFilter(
 ) {
   const filterList = new FilterList();
 
-  columnMapping.forEach((secureFilterOption) => {
-    const value = filter[secureFilterOption.id as keyof ScoreQueryType];
+  columnMapping.forEach((columnMapping) => {
+    const value = filter[columnMapping.id as keyof ScoreQueryType];
 
     if (value) {
       let filterInstance;
-      switch (secureFilterOption.filterType) {
+      switch (columnMapping.filterType) {
         case "DateTimeFilter":
+          // get filter options from the filterOperators
+          // validate that the user provided operator is in the list of available operators
           const availableOperators = z.enum(filterOperators.datetime);
           const parsedOperator = availableOperators.safeParse(filter.operator);
+          console.log("parsedOperator", parsedOperator);
+
+          // otherwise fall back to the operator provided in the column mapping
+          const finalOperator = parsedOperator.success
+            ? parsedOperator.data
+            : columnMapping.operator;
+
+          finalOperator &&
           typeof value === "string" &&
-          secureFilterOption.operator &&
-          parsedOperator.success
+          ["<", "<=", ">", ">="].includes(finalOperator)
             ? (filterInstance = new DateTimeFilter({
-                clickhouseTable: secureFilterOption.clickhouseTable,
-                field: secureFilterOption.clickhouseSelect,
-                operator: parsedOperator.data,
+                clickhouseTable: columnMapping.clickhouseTable,
+                field: columnMapping.clickhouseSelect,
+                operator: finalOperator as "<" | "<=" | ">" | ">=",
                 value: new Date(value),
-                tablePrefix: secureFilterOption.clickhousePrefix,
+                tablePrefix: columnMapping.clickhousePrefix,
               }))
             : undefined;
 
@@ -51,33 +60,33 @@ export function convertApiProvidedFilterToClickhouseFilter(
         case "ArrayOptionsFilter":
           if (Array.isArray(value) || typeof value === "string") {
             filterInstance = new ArrayOptionsFilter({
-              clickhouseTable: secureFilterOption.clickhouseTable,
-              field: secureFilterOption.clickhouseSelect,
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
               operator: "all of",
               values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix: secureFilterOption.clickhousePrefix,
+              tablePrefix: columnMapping.clickhousePrefix,
             });
           }
           break;
         case "StringOptionsFilter":
           if (Array.isArray(value) || typeof value === "string") {
             filterInstance = new StringOptionsFilter({
-              clickhouseTable: secureFilterOption.clickhouseTable,
-              field: secureFilterOption.clickhouseSelect,
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
               operator: "any of",
               values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix: secureFilterOption.clickhousePrefix,
+              tablePrefix: columnMapping.clickhousePrefix,
             });
           }
           break;
         case "StringFilter":
           if (typeof value === "string") {
             filterInstance = new StringFilter({
-              clickhouseTable: secureFilterOption.clickhouseTable,
-              field: secureFilterOption.clickhouseSelect,
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
               operator: "=",
               value: value,
-              tablePrefix: secureFilterOption.clickhousePrefix,
+              tablePrefix: columnMapping.clickhousePrefix,
             });
           }
           break;
@@ -92,11 +101,11 @@ export function convertApiProvidedFilterToClickhouseFilter(
 
           if (parsedOperatorNum.success) {
             filterInstance = new NumberFilter({
-              clickhouseTable: secureFilterOption.clickhouseTable,
-              field: secureFilterOption.clickhouseSelect,
+              clickhouseTable: columnMapping.clickhouseTable,
+              field: columnMapping.clickhouseSelect,
               operator: parsedOperatorNum.data,
               value: Number(value),
-              tablePrefix: secureFilterOption.clickhousePrefix,
+              tablePrefix: columnMapping.clickhousePrefix,
             });
           }
           break;
@@ -105,5 +114,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
       filterInstance && filterList.push(filterInstance);
     }
   });
+
+  console.log("filterList", filterList);
   return filterList;
 }
