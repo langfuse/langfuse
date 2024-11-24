@@ -96,40 +96,70 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
 };
 
 const filterParams = [
-  { id: "userId", clickhouseSelect: "user_id", filterType: "StringFilter" },
-  { id: "traceId", clickhouseSelect: "trace_id", filterType: "StringFilter" },
-  { id: "name", clickhouseSelect: "name", filterType: "StringFilter" },
-  { id: "type", clickhouseSelect: "type", filterType: "StringFilter" },
+  {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "traceId",
+    clickhouseSelect: "trace_id",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "name",
+    clickhouseSelect: "name",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "type",
+    clickhouseSelect: "type",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
   {
     id: "parentObservationId",
     clickhouseSelect: "parent_observation_id",
     filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
   },
   {
     id: "fromStartTime",
     clickhouseSelect: "start_time",
     operator: ">=" as const,
     filterType: "DateTimeFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
   },
   {
     id: "toStartTime",
     clickhouseSelect: "start_time",
     operator: "<" as const,
     filterType: "DateTimeFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
   },
-  { id: "version", clickhouseSelect: "version", filterType: "StringFilter" },
+  {
+    id: "version",
+    clickhouseSelect: "version",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
 ];
 
 const generateFilter = (filter: QueryType) => {
   const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
     filter,
-    filterParams.map((param) => ({
-      id: param.id,
-      clickhouseSelect: param.clickhouseSelect,
-      clickhouseTable: "observations",
-      filterType: param.operator ? "DateTimeFilter" : "StringFilter",
-      operator: param.operator,
-    })),
+    filterParams,
   );
 
   observationsFilter.push(

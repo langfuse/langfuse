@@ -118,18 +118,21 @@ const secureScoreFilterOptions: ApiColumnMapping[] = [
     clickhouseSelect: "trace_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "name",
     clickhouseSelect: "name",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "source",
     clickhouseSelect: "source",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "fromTimestamp",
@@ -137,6 +140,7 @@ const secureScoreFilterOptions: ApiColumnMapping[] = [
     operator: ">=" as const,
     clickhouseTable: "scores",
     filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "toTimestamp",
@@ -144,30 +148,35 @@ const secureScoreFilterOptions: ApiColumnMapping[] = [
     operator: "<" as const,
     clickhouseTable: "scores",
     filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "value",
     clickhouseSelect: "value",
     clickhouseTable: "scores",
     filterType: "NumberFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "scoreIds",
     clickhouseSelect: "id",
     clickhouseTable: "scores",
     filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "configId",
     clickhouseSelect: "config_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
   },
   {
     id: "queueId",
     clickhouseSelect: "queue_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
   },
 
   {
@@ -175,6 +184,7 @@ const secureScoreFilterOptions: ApiColumnMapping[] = [
     clickhouseSelect: "data_type",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
   },
 ];
 
@@ -184,12 +194,14 @@ const secureTraceFilterOptions = [
     clickhouseSelect: "tags",
     clickhouseTable: "traces",
     filterType: "ArrayOptionsFilter",
+    clickhousePrefix: "t",
   },
   {
     id: "userId",
     clickhouseSelect: "user_id",
     clickhouseTable: "traces",
     filterType: "StringFilter",
+    clickhousePrefix: "t",
   },
 ];
 

@@ -17,6 +17,7 @@ export type ApiColumnMapping = {
   clickhouseTable: string;
   filterType: string;
   operator?: ClickhouseOperator;
+  clickhousePrefix?: string;
 };
 
 export function convertApiProvidedFilterToClickhouseFilter(
@@ -42,8 +43,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
                 field: secureFilterOption.clickhouseSelect,
                 operator: parsedOperator.data,
                 value: new Date(value),
-                tablePrefix:
-                  secureFilterOption.clickhouseTable === "scores" ? "s" : "t",
+                tablePrefix: secureFilterOption.clickhousePrefix,
               }))
             : undefined;
 
@@ -55,8 +55,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
               field: secureFilterOption.clickhouseSelect,
               operator: "all of",
               values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix:
-                secureFilterOption.clickhouseTable === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.clickhousePrefix,
             });
           }
           break;
@@ -67,8 +66,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
               field: secureFilterOption.clickhouseSelect,
               operator: "any of",
               values: Array.isArray(value) ? value : value.split(","),
-              tablePrefix:
-                secureFilterOption.clickhouseTable === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.clickhousePrefix,
             });
           }
           break;
@@ -79,8 +77,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
               field: secureFilterOption.clickhouseSelect,
               operator: "=",
               value: value,
-              tablePrefix:
-                secureFilterOption.clickhouseTable === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.clickhousePrefix,
             });
           }
           break;
@@ -99,8 +96,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
               field: secureFilterOption.clickhouseSelect,
               operator: parsedOperatorNum.data,
               value: Number(value),
-              tablePrefix:
-                secureFilterOption.clickhouseTable === "scores" ? "s" : "t",
+              tablePrefix: secureFilterOption.clickhousePrefix,
             });
           }
           break;
