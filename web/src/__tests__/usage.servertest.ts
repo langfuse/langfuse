@@ -58,7 +58,8 @@ describe("Token Count Functions", () => {
         model: generateModel("gpt-4-1106-preview", "openai"),
         text: "Hello <|endoftext|> World!",
       });
-      expect(result).toBeUndefined();
+      expect(result).toBeDefined();
+      expect(result).toBeGreaterThan(0);
     });
 
     it("check extensive openai chat message", () => {
@@ -138,6 +139,7 @@ describe("Token Count Functions", () => {
       });
       expect(result).toBeUndefined();
     });
+
     it("should return undefined for undefined text input", () => {
       const result = tokenCount({
         model: generateModel("gpt-4", "openai"),
