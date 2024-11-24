@@ -4,7 +4,9 @@ import { clickhouseCompliantRandomCharacters } from "../../repositories";
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
-  operator: (typeof filterOperators)[keyof typeof filterOperators][number];
+  operator:
+    | (typeof filterOperators)[keyof typeof filterOperators][number]
+    | "!=";
   field: string;
 }
 type ClickhouseFilter = {
