@@ -201,14 +201,13 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
     },
   ];
 
-  const availableOperators = z.enum(["=", ">", "<", ">=", "<=", "!="]);
-
   secureFilterOptions.forEach((secureFilterOption) => {
     const value = filter[secureFilterOption.key as keyof ScoreQueryType];
     if (value) {
       let filterInstance;
       switch (secureFilterOption.filterType) {
         case "DateTimeFilter":
+          const availableOperators = z.enum(["=", ">", "<", ">=", "<=", "!="]);
           typeof value === "string" &&
           secureFilterOption.operator &&
           availableOperators.safeParse(secureFilterOption.operator).success
@@ -256,7 +255,8 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           }
           break;
         case "NumberFilter":
-          const parsedOperator = availableOperators.safeParse(
+          const availableOperatorsNum = z.enum(["=", ">", "<", ">=", "<="]);
+          const parsedOperator = availableOperatorsNum.safeParse(
             secureFilterOption.operator,
           );
           if (parsedOperator.success) {
