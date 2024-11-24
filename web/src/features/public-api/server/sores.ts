@@ -9,6 +9,7 @@ import {
   convertToScore,
   StringOptionsFilter,
 } from "@langfuse/shared/src/server";
+import { z } from "zod";
 
 export type ScoreQueryType = {
   page: number;
@@ -200,6 +201,8 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
     },
   ];
 
+  const availableOperators = z.enum(["=", ">", "<", ">=", "<="]);
+
   filterParams.forEach((param) => {
     const value = filter[param.key as keyof ScoreQueryType];
     if (value) {
@@ -208,11 +211,11 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
         case "DateTimeFilter":
           typeof value === "string" &&
           param.operator &&
-          ["=", ">", "<", ">=", "<="].includes(param.operator)
+          availableOperators.safeParse(param.operator).success
             ? (filterInstance = new DateTimeFilter({
                 clickhouseTable: param.table,
                 field: param.field,
-                operator: param.operator || ("=" as const),
+                operator: param.operator,
                 value: new Date(value),
                 tablePrefix: param.table === "scores" ? "s" : "t",
               }))
@@ -253,15 +256,12 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
           }
           break;
         case "NumberFilter":
-          const operatorValue = filter.operator;
-          if (
-            operatorValue &&
-            ["=", ">", "<", ">=", "<=", "!="].includes(operatorValue)
-          ) {
+          const parsedOperator = availableOperators.safeParse(param.operator);
+          if (parsedOperator.success) {
             filterInstance = new NumberFilter({
               clickhouseTable: param.table,
               field: param.field,
-              operator: operatorValue as "=" | ">" | "<" | ">=" | "<=",
+              operator: parsedOperator.data,
               value: Number(value),
               tablePrefix: param.table === "scores" ? "s" : "t",
             });
