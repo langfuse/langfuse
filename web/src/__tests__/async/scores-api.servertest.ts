@@ -8,21 +8,17 @@ import {
   createScores,
   createTraces,
 } from "@/src/__tests__/server/repositories/clickhouse-helpers";
-import {
-  makeZodVerifiedAPICall,
-  pruneDatabase,
-} from "@/src/__tests__/test-utils";
+import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetScoreResponse, GetScoresResponse } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { commandClickhouse } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { z } from "zod";
 
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
     it("should GET a score", async () => {
+      const projectId = v4();
       const scoreId = v4();
       const traceId = v4();
       const score = {
@@ -68,6 +64,7 @@ describe("/api/public/scores API Endpoint", () => {
 describe("/api/public/scores API Endpoint", () => {
   it("should create score for a trace", async () => {
     const traceId = v4();
+    const projectId = v4();
 
     const trace = createTrace({
       id: traceId,
@@ -108,7 +105,7 @@ describe("/api/public/scores API Endpoint", () => {
   });
   it("should GET score with minimal score data and minimal trace data", async () => {
     const minimalTraceId = v4();
-
+    const projectId = v4();
     const trace = createTrace({
       id: minimalTraceId,
       project_id: projectId,
@@ -154,12 +151,8 @@ describe("/api/public/scores API Endpoint", () => {
     const scoreId_4 = v4();
     const scoreId_5 = v4();
 
-    afterAll(async () => {
-      await pruneDatabase();
-    });
-
-    beforeAll(async () => {
-      await pruneDatabase();
+    beforeEach(async () => {
+      const projectId = v4();
       const trace = createTrace({
         id: traceId,
         project_id: projectId,
@@ -378,10 +371,10 @@ describe("/api/public/scores API Endpoint", () => {
     describe("should Filter scores by queueId", () => {
       describe("queueId filtering", () => {
         let queueId: string;
-        const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
         beforeEach(async () => {
           queueId = v4();
-
+          const projectId = v4();
           const score = createScore({
             id: v4(),
             project_id: projectId,
