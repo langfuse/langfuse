@@ -86,11 +86,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
           break;
         case "NumberFilter":
           const availableOperatorsNum = z.enum([
-            "=",
-            ">",
-            "<",
-            ">=",
-            "<=",
+            ...filterOperators.number,
             "!=",
           ]);
           const parsedOperatorNum = availableOperatorsNum.safeParse(
