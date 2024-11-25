@@ -102,7 +102,7 @@ export default withMiddlewares({
 
       const runItem = await prisma.datasetRunItems.create({
         data: {
-          datasetItemId: datasetItemId,
+          datasetItemId,
           traceId: finalTraceId,
           observationId,
           datasetRunId: run.id,

@@ -221,6 +221,7 @@ describe("eval service tests", () => {
       const traceId = randomUUID();
       const datasetId = randomUUID();
       const datasetItemId = randomUUID();
+      const datasetRunId = randomUUID();
 
       await kyselyPrisma.$kysely
         .insertInto("datasets")
@@ -237,7 +238,27 @@ describe("eval service tests", () => {
           id: datasetItemId,
           project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           dataset_id: datasetId,
-          source_trace_id: traceId,
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_runs")
+        .values({
+          id: datasetRunId,
+          name: randomUUID(),
+          dataset_id: datasetId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_run_items")
+        .values({
+          id: randomUUID(),
+          dataset_item_id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_run_id: datasetRunId,
+          trace_id: traceId,
         })
         .execute();
 

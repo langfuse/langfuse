@@ -142,15 +142,15 @@ export const createEvalJobs = async ({
         `);
         datasetItem = datasetItems.shift();
       } else {
-        // Otherwise, try to find the dataset item based on the traceId.
-        // We expect only one item to be found for a given trace.
+        // Otherwise, try to find the dataset item id from datasetRunItems.
+        // Here, we can search for the traceId and projectId and should only get one result.
         const datasetItems = await prisma.$queryRaw<
           Array<{ id: string; sourceObservationId: string | undefined }>
         >(Prisma.sql`
-          SELECT id, source_observation_id as "sourceObservationId"
-          FROM dataset_items as di
+          SELECT dataset_item_id as id, observation_id as "sourceObservationId"
+          FROM dataset_run_items as dri
           WHERE project_id = ${event.projectId}
-          AND source_trace_id = ${event.traceId}
+          AND trace_id = ${event.traceId}
         `);
         datasetItem = datasetItems.shift();
       }
