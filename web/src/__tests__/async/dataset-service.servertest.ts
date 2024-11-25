@@ -317,7 +317,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     await createTraces([trace1, trace2]);
 
-    const obervation = createObservation({
+    const observation = createObservation({
       id: observationId,
       trace_id: traceId2,
       project_id: projectId,
@@ -329,7 +329,7 @@ describe("Fetch datasets for UI presentation", () => {
       trace_id: traceId,
     });
 
-    await createObservations([obervation]);
+    await createObservations([observation]);
 
     const score = createScore({
       observation_id: observation2.id,
