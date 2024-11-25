@@ -118,7 +118,7 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared ch:up
       - name: Build
-        run: pnpm run build
+        run: pnpm --filter=web... run build
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -186,7 +186,7 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared ch:up
       - name: Build
-        run: pnpm run build
+        run: pnpm --filter=web... run build
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
