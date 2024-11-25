@@ -74,7 +74,6 @@ export class NumberFilter implements Filter {
   public value: number;
   public operator: (typeof filterOperators)["number"][number] | "!=";
   public clickhouseTypeOverwrite?: string;
-  public operator: (typeof filterOperators)["number"][number] | "!=";
   protected tablePrefix?: string;
 
   constructor(opts: {
