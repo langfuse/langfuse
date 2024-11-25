@@ -2,12 +2,11 @@ import { parseDbOrg, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
-import { logger } from "@langfuse/shared/src/server";
+import { CloudUsageMeteringQueue, logger } from "@langfuse/shared/src/server";
 import {
   cloudUsageMeteringDbCronJobName,
   CloudUsageMeteringDbCronJobStates,
 } from "./constants";
-import { CloudUsageMeteringQueue } from "../../queues/CloudUsageMeteringQueue.1";
 import {
   QueueJobs,
   recordGauge,
