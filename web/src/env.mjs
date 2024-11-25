@@ -119,6 +119,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
+    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
@@ -196,6 +197,7 @@ export const env = createEnv({
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
     LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
     LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
+    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS: z.string().optional(),
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
       .enum(["true", "false"])
       .default("false"),
@@ -264,6 +266,8 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS:
+      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS,
     LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
       process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
@@ -373,6 +377,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
+    CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,

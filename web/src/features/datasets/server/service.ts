@@ -13,20 +13,20 @@ import {
   clickhouseCompliantRandomCharacters,
   commandClickhouse,
   convertToScore,
-  type FetchScoresReturnType,
   getLatencyAndTotalCostForObservations,
   getLatencyAndTotalCostForObservationsByTraces,
   getObservationsById,
-  getScoresForObservations,
   getScoresForTraces,
   getTracesByIds,
   logger,
   queryClickhouse,
+  type ScoreRecordReadType,
   traceException,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import { env } from "@/src/env.mjs";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
@@ -152,7 +152,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
       (
           project_id String,    
           run_id String,  
@@ -160,7 +160,10 @@ export const createTempTableInClickhouse = async (
           dataset_id String,      
           trace_id String,
           observation_id Nullable(String)
-      )  ENGINE = Memory
+      )  
+      ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
+      PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
+
 
   `;
   await commandClickhouse({
@@ -221,6 +224,8 @@ const getScoresFromTempTable = async (
   tableName: string,
   clickhouseSession: string,
 ) => {
+  // adds a setting to read data once it is replicated from the writer node.
+  // Only then, we can guarantee that the created mergetree before was replicated.
   const query = `
       SELECT 
         s.*,
@@ -231,14 +236,12 @@ const getScoresFromTempTable = async (
       WHERE s.project_id = {projectId: String}
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
-      AND (tmp.observation_id = s.observation_id OR s.observation_id IS NULL)
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
+      SETTINGS select_sequential_consistency = 1;
   `;
 
-  const rows = await queryClickhouse<
-    FetchScoresReturnType & { run_id: string }
-  >({
+  const rows = await queryClickhouse<ScoreRecordReadType & { run_id: string }>({
     query: query,
     params: {
       projectId: input.projectId,
@@ -497,42 +500,26 @@ export const getRunItemsByRunIdOrItemId = async (
   projectId: string,
   runItems: DatasetRunItems[],
 ) => {
-  const [
-    traceScores,
-    observationScores,
-    observationAggregates,
-    traceAggregate,
-  ] = await Promise.all([
-    getScoresForTraces(
-      projectId,
-      runItems
-        .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-        .map((ri) => ri.traceId),
-    ),
-    getScoresForObservations(
-      projectId,
-      runItems
-        .filter((ri) => ri.observationId !== null)
-        .map((ri) => ri.observationId) as string[],
-    ),
-    getLatencyAndTotalCostForObservations(
-      projectId,
-      runItems
-        .filter((ri) => ri.observationId !== null)
-        .map((ri) => ri.observationId) as string[],
-    ),
-    getLatencyAndTotalCostForObservationsByTraces(
-      projectId,
-      runItems.map((ri) => ri.traceId),
-    ),
-  ]);
+  const [traceScores, observationAggregates, traceAggregate] =
+    await Promise.all([
+      getScoresForTraces(
+        projectId,
+        runItems.map((ri) => ri.traceId),
+      ),
+      getLatencyAndTotalCostForObservations(
+        projectId,
+        runItems
+          .filter((ri) => ri.observationId !== null)
+          .map((ri) => ri.observationId) as string[],
+      ),
+      getLatencyAndTotalCostForObservationsByTraces(
+        projectId,
+        runItems.map((ri) => ri.traceId),
+      ),
+    ]);
 
   const validatedTraceScores = filterAndValidateDbScoreList(
     traceScores,
-    traceException,
-  );
-  const validatedObservationScores = filterAndValidateDbScoreList(
-    observationScores,
     traceException,
   );
 
@@ -575,13 +562,7 @@ export const getRunItemsByRunIdOrItemId = async (
       observation,
       trace,
       scores: aggregateScores([
-        ...validatedTraceScores.filter(
-          (s) => s.traceId === ri.traceId && ri.observationId === null,
-        ),
-        ...validatedObservationScores.filter(
-          (s) =>
-            s.observationId === ri.observationId && s.traceId === ri.traceId,
-        ),
+        ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
       ]),
     };
   });

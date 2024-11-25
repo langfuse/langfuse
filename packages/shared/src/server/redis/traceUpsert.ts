@@ -32,6 +32,7 @@ export class TraceUpsertQueue {
               removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
               removeOnFail: 100_000,
               attempts: 5,
+              delay: 10_000, // 10 seconds
               backoff: {
                 type: "exponential",
                 delay: 5000,
@@ -47,44 +48,4 @@ export class TraceUpsertQueue {
 
     return TraceUpsertQueue.instance;
   }
-}
-
-export function convertTraceUpsertEventsToRedisEvents(
-  events: TraceUpsertEventType[],
-) {
-  const uniqueTracesPerProject = events.reduce((acc, event) => {
-    if (!acc.get(event.projectId)) {
-      acc.set(event.projectId, new Set());
-    }
-    acc.get(event.projectId)?.add(event.traceId);
-    return acc;
-  }, new Map<string, Set<string>>());
-
-  return [...uniqueTracesPerProject.entries()]
-    .map((tracesPerProject) => {
-      const [projectId, traceIds] = tracesPerProject;
-
-      return [...traceIds].map((traceId) => ({
-        name: QueueJobs.TraceUpsert,
-        data: {
-          payload: {
-            projectId,
-            traceId,
-          },
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.TraceUpsert as const,
-        },
-        opts: {
-          removeOnFail: 1_000,
-          removeOnComplete: true,
-          attempts: 5,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
-        },
-      }));
-    })
-    .flat();
 }

@@ -33,7 +33,7 @@ export type TracesTableReturnType = Pick<
 > & {
   level: ObservationLevel;
   observation_count: number | null;
-  latency_milliseconds: string | null;
+  latency: string | null;
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
@@ -89,7 +89,7 @@ export const getTracesTable = async (
     t.version, 
     t.user_id, 
     t.session_id,
-    os.latency_milliseconds,
+    os.latency_milliseconds / 1000 as latency,
     os.cost_details as cost_details,
     os.usage_details as usage_details,
     os.level as level,
