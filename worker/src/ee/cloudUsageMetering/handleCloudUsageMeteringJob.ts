@@ -19,6 +19,7 @@ const delayFromStartOfInterval = 3600000 + 5 * 60 * 1000; // 5 minutes after the
 
 export const handleCloudUsageMeteringJob = async (job: Job) => {
   if (!env.STRIPE_SECRET_KEY) {
+    logger.warn("[CLOUD USAGE METERING] Stripe secret key not found");
     throw new Error("Stripe secret key not found");
   }
 
@@ -32,15 +33,19 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     update: {},
   });
   if (!cron.lastRun) {
+    logger.warn("[CLOUD USAGE METERING] Cron job last run not found");
     throw new Error("Cloud Usage Metering Cron Job last run not found");
   }
   if (cron.lastRun.getTime() % 3600000 !== 0) {
+    logger.warn(
+      "[CLOUD USAGE METERING] Cron job last run is not on the full hour",
+    );
     throw new Error(
-      "Cloud Usage Metering Cron Job last run is not on the full hour"
+      "Cloud Usage Metering Cron Job last run is not on the full hour",
     );
   }
   if (cron.lastRun.getTime() + delayFromStartOfInterval > Date.now()) {
-    logger.info(`Next Cloud Usage Metering Job is not due yet`);
+    logger.info(`[CLOUD USAGE METERING] Next Job is not due yet`);
     return;
   }
 
@@ -50,10 +55,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       cron.jobStartedAt < new Date(Date.now() - 1200000)
     ) {
       logger.warn(
-        "Last cloud usage metering job started at is older than 20 minutes, retrying job"
+        "[CLOUD USAGE METERING] Last job started at is older than 20 minutes, retrying job",
       );
     } else {
-      logger.warn("Cloud Usage Metering Job already in progress");
+      logger.warn("[CLOUD USAGE METERING] Job already in progress");
       return;
     }
   }
@@ -70,7 +75,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   const meterIntervalStart = cron.lastRun;
   const meterIntervalEnd = new Date(cron.lastRun.getTime() + 3600000);
   logger.info(
-    `Cloud Usage Metering Job running for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()}`
+    `[CLOUD USAGE METERING] Job running for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()}`,
   );
 
   // find all organizations which have a stripe org id set up
@@ -85,7 +90,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     })
   ).map(parseDbOrg);
   logger.info(
-    `Cloud Usage Metering Job for ${organizations.length} organizations`
+    `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );
 
   // setup stripe client
@@ -102,8 +107,12 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
     if (!stripeCustomerId) {
       // should not happen
-      traceException(`Stripe customer id not found for org ${org.id}`);
-      logger.error(`Stripe customer id not found for org ${org.id}`);
+      traceException(
+        `[CLOUD USAGE METERING] Stripe customer id not found for org ${org.id}`,
+      );
+      logger.error(
+        `[CLOUD USAGE METERING] Stripe customer id not found for org ${org.id}`,
+      );
       continue;
     }
 
@@ -120,7 +129,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       },
     });
     logger.info(
-      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`
+      `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
     );
     if (countObservations > 0) {
       await stripe.billing.meterEvents.create({
@@ -158,7 +167,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     });
     const countEvents = countScores + countTraces + countObservations;
     logger.info(
-      `Cloud Usage Metering Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`
+      `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
     );
     if (countEvents > 0) {
       await stripe.billing.meterEvents.create({
@@ -184,7 +193,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     countProcessedObservations,
     {
       unit: "observations",
-    }
+    },
   );
   recordGauge("cloud_usage_metering_processed_events", countProcessedEvents, {
     unit: "events",
@@ -201,13 +210,15 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   });
 
   if (meterIntervalEnd.getTime() + delayFromStartOfInterval < Date.now()) {
-    logger.info(`Enqueueing next Cloud Usage Metering Job to catch up `);
+    logger.info(
+      `[CLOUD USAGE METERING] Enqueueing next Cloud Usage Metering Job to catch up `,
+    );
     recordGauge("cloud_usage_metering_scheduled_catchup_jobs", 1, {
       unit: "jobs",
     });
     await CloudUsageMeteringQueue.getInstance()?.add(
       QueueJobs.CloudUsageMeteringJob,
-      {}
+      {},
     );
   }
 };
