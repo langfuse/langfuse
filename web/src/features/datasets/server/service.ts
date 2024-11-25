@@ -518,8 +518,6 @@ export const getRunItemsByRunIdOrItemId = async (
       ),
     ]);
 
-  console.log(traceScores);
-
   const validatedTraceScores = filterAndValidateDbScoreList(
     traceScores,
     traceException,
