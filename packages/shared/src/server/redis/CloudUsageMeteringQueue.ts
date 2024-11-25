@@ -1,12 +1,8 @@
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  QueueName,
-  logger,
-  QueueJobs,
-} from "@langfuse/shared/src/server";
 import { Queue } from "bullmq";
 import { env } from "../..";
+import { logger } from "@azure/storage-blob";
+import { QueueName, QueueJobs } from "../queues";
+import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
 
 export class CloudUsageMeteringQueue {
   private static instance: Queue | null = null;
