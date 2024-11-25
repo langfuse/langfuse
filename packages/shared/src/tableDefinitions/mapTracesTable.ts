@@ -106,7 +106,9 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Latency (s)",
     uiTableId: "latency",
     clickhouseTableName: "traces",
-    clickhouseSelect: "latency_milliseconds",
+    clickhouseSelect: "latency_milliseconds / 1000",
+    // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Input Cost ($)",

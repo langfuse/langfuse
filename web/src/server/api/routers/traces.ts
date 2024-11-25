@@ -307,9 +307,7 @@ export const traceRouter = createTRPCRouter({
             promptTokens: BigInt(row.usageDetails?.input ?? 0),
             completionTokens: BigInt(row.usageDetails?.output ?? 0),
             totalTokens: BigInt(row.usageDetails?.total ?? 0),
-            latency: row.latencyMilliseconds
-              ? row.latencyMilliseconds / 1000
-              : null,
+            latency: row.latency,
             level: row.level,
             observationCount: BigInt(row.observationCount ?? 0),
             calculatedTotalCost: row.costDetails?.total
