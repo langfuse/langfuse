@@ -805,19 +805,7 @@ export const datasetRouter = createTRPCRouter({
             where: {
               projectId: ctx.session.projectId,
               traceId: {
-                in: runItems
-                  .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-                  .map((ri) => ri.traceId),
-              },
-            },
-          });
-          const observationScores = await ctx.prisma.score.findMany({
-            where: {
-              projectId: ctx.session.projectId,
-              observationId: {
-                in: runItems
-                  .filter((ri) => ri.observationId !== null)
-                  .map((ri) => ri.observationId) as string[],
+                in: runItems.map((ri) => ri.traceId),
               },
             },
           });
@@ -878,10 +866,6 @@ export const datasetRouter = createTRPCRouter({
             traceScores,
             traceException,
           );
-          const validatedObservationScores = filterAndValidateDbScoreList(
-            observationScores,
-            traceException,
-          );
 
           const items = runItems.map((ri) => {
             return {
@@ -890,16 +874,9 @@ export const datasetRouter = createTRPCRouter({
               datasetItemId: ri.datasetItemId,
               observation: observations.find((o) => o.id === ri.observationId),
               trace: traces.find((t) => t.id === ri.traceId),
-              scores: aggregateScores([
-                ...validatedTraceScores.filter(
-                  (s) => s.traceId === ri.traceId && ri.observationId === null,
-                ),
-                ...validatedObservationScores.filter(
-                  (s) =>
-                    s.observationId === ri.observationId &&
-                    s.traceId === ri.traceId,
-                ),
-              ]),
+              scores: aggregateScores(
+                validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+              ),
             };
           });
 
