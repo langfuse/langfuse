@@ -313,6 +313,103 @@ describe("eval service tests", () => {
       expect(jobsAfterTrace[0].start_time).not.toBeNull();
     }, 10_000);
 
+    test("creates a new eval job for a dataset only if trace _and_ dataset are available", async () => {
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+
+      await kyselyPrisma.$kysely
+        .insertInto("datasets")
+        .values({
+          id: datasetId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-dataset",
+        })
+        .execute();
+
+      // Create the trace and send the trace event. No job should be created
+      await kyselyPrisma.$kysely
+        .insertInto("traces")
+        .values({
+          id: traceId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        })
+        .execute();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "dataset",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payloadTrace = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        traceId,
+      };
+
+      // This should exit early without an error as there is no trace yet.
+      await createEvalJobs({ event: payloadTrace });
+
+      const jobsAfterDataset = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      // No jobs should have been created.
+      expect(jobsAfterDataset.length).toBe(0);
+
+      // Now, create the dataset item and validate that the job was created.
+      await kyselyPrisma.$kysely
+        .insertInto("dataset_items")
+        .values({
+          id: datasetItemId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          dataset_id: datasetId,
+          source_trace_id: traceId,
+        })
+        .execute();
+
+      const payloadDataset = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        traceId,
+        datasetItemId,
+      };
+
+      await createEvalJobs({ event: payloadDataset });
+
+      const jobsAfterTrace = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      expect(jobsAfterTrace.length).toBe(1);
+      expect(jobsAfterTrace[0].project_id).toBe(
+        "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      );
+      expect(jobsAfterTrace[0].job_input_trace_id).toBe(traceId);
+      expect(jobsAfterTrace[0].job_input_dataset_item_id).toBe(datasetItemId);
+      expect(jobsAfterTrace[0].status.toString()).toBe("PENDING");
+      expect(jobsAfterTrace[0].start_time).not.toBeNull();
+    }, 10_000);
+
     test("does not create job for inactive config", async () => {
       const traceId = randomUUID();
 

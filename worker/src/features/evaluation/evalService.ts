@@ -118,13 +118,13 @@ export const createEvalJobs = async ({
       traceExists = traces.length > 0;
     }
 
-    const isDataSetItemEvent = "datasetItemId" in event && event.datasetItemId;
+    const isDatasetConfig = config.target_object === "dataset";
     let datasetItem:
       | { id: string; sourceObservationId: string | undefined }
       | undefined;
-    if (config.target_object === "dataset") {
+    if (isDatasetConfig) {
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
-      if (isDataSetItemEvent) {
+      if ("datasetItemId" in event && event.datasetItemId) {
         const condition = tableColumnsToSqlFilterAndPrefix(
           config.target_object === "dataset" ? validatedFilter : [],
           evalDatasetFormFilterCols,
@@ -210,7 +210,7 @@ export const createEvalJobs = async ({
 
     // If we matched a trace for a trace event, we create a job or
     // if we have both trace and datasetItem.
-    if (traceExists && (!isDataSetItemEvent || Boolean(datasetItem))) {
+    if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
       const jobExecutionId = randomUUID();
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
