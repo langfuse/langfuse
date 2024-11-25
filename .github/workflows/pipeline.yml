@@ -106,6 +106,7 @@ jobs:
         run: |
           cp .env.dev.example .env
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
+          echo "CLICKHOUSE_CLUSTER_ENABLED=false" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -175,6 +176,7 @@ jobs:
         run: |
           cp .env.dev${{ matrix.blob-provider }}.example .env
           grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          echo "CLICKHOUSE_CLUSTER_ENABLED=false" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
@@ -245,6 +247,7 @@ jobs:
           cp .env.dev${{ matrix.blob-provider }}.example .env
           cp .env.dev${{ matrix.blob-provider }}.example web/.env
           cp .env.dev${{ matrix.blob-provider }}.example worker/.env
+          echo "CLICKHOUSE_CLUSTER_ENABLED=false" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
@@ -340,6 +343,7 @@ jobs:
           echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
           echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
+          echo "CLICKHOUSE_CLUSTER_ENABLED=false" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
