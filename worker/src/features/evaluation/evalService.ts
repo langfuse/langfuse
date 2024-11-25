@@ -90,6 +90,7 @@ export const createEvalJobs = async ({
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
+    // Check whether the trace already exists in the database.
     let traceExists: boolean = false;
     if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
       traceExists = await checkTraceExists(
@@ -117,47 +118,69 @@ export const createEvalJobs = async ({
       traceExists = traces.length > 0;
     }
 
-    const isDataSetItemRun = "datasetItemId" in event && event.datasetItemId;
-    let datasetItemExists: boolean = true;
-    if (isDataSetItemRun) {
-      const condition = tableColumnsToSqlFilterAndPrefix(
-        config.target_object === "dataset" ? validatedFilter : [],
-        evalDatasetFormFilterCols,
-        "dataset_items",
-      );
+    const isDataSetItemEvent = "datasetItemId" in event && event.datasetItemId;
+    let datasetItem:
+      | { id: string; sourceObservationId: string | undefined }
+      | undefined;
+    if (config.target_object === "dataset") {
+      // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
+      if (isDataSetItemEvent) {
+        const condition = tableColumnsToSqlFilterAndPrefix(
+          config.target_object === "dataset" ? validatedFilter : [],
+          evalDatasetFormFilterCols,
+          "dataset_items",
+        );
 
-      const joinedQuery = Prisma.sql`
-        SELECT id
-        FROM dataset_items as di
-        WHERE project_id = ${event.projectId}
-        AND id = ${event.datasetItemId}
-        ${condition}
-      `;
-
-      const datasetItems =
-        await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
-
-      datasetItemExists = datasetItems.length > 0;
+        const datasetItems = await prisma.$queryRaw<
+          Array<{ id: string; sourceObservationId: string | undefined }>
+        >(Prisma.sql`
+          SELECT id, source_observation_id as "sourceObservationId"
+          FROM dataset_items as di
+          WHERE project_id = ${event.projectId}
+            AND id = ${event.datasetItemId}
+            ${condition}
+        `);
+        datasetItem = datasetItems.shift();
+      } else {
+        // Otherwise, try to find the dataset item based on the traceId.
+        // We expect only one item to be found for a given trace.
+        const datasetItems = await prisma.$queryRaw<
+          Array<{ id: string; sourceObservationId: string | undefined }>
+        >(Prisma.sql`
+          SELECT id, source_observation_id as "sourceObservationId"
+          FROM dataset_items as di
+          WHERE project_id = ${event.projectId}
+          AND source_trace_id = ${event.traceId}
+        `);
+        datasetItem = datasetItems.shift();
+      }
     }
 
-    if (isDataSetItemRun && "observationId" in event && event.observationId) {
+    // We also need to validate that the observation exists in case an observationId is set
+    // If it's not set, we go into the retry loop. For the other events, we expect that the rerun
+    // is unnecessary, as we're triggering this flow if either event comes in.
+    const observationId =
+      "observationId" in event && event.observationId
+        ? event.observationId
+        : datasetItem?.sourceObservationId;
+    if (observationId) {
       const observationExists =
         env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
           ? await checkObservationExists(
               event.projectId,
-              event.observationId,
+              observationId,
               new Date(),
             )
           : await kyselyPrisma.$kysely
               .selectFrom("observations")
               .select("id")
               .where("project_id", "=", event.projectId)
-              .where("id", "=", event.observationId)
+              .where("id", "=", observationId)
               .executeTakeFirst();
 
       if (!observationExists) {
         logger.warn(
-          `Observation ${event.observationId} not found, retrying dataset eval later`,
+          `Observation ${observationId} not found, retrying dataset eval later`,
         );
         throw new Error(
           "Observation not found. Rejecting job to use retry-attempts.",
@@ -165,6 +188,8 @@ export const createEvalJobs = async ({
       }
     }
 
+    // Fetch the existing job for the given configuration.
+    // We either use it for deduplication or we cancel it in case it became "deselected".
     const existingJob = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
       .select("id")
@@ -173,21 +198,19 @@ export const createEvalJobs = async ({
       .where("job_input_trace_id", "=", event.traceId)
       .where(
         "job_input_dataset_item_id",
-        isDataSetItemRun ? "=" : "is",
-        isDataSetItemRun ? event.datasetItemId : null,
+        datasetItem ? "=" : "is",
+        datasetItem ? datasetItem.id : null,
       )
       .where(
         "job_input_observation_id",
-        "observationId" in event && event.observationId ? "=" : "is",
-        "observationId" in event && event.observationId
-          ? event.observationId
-          : null,
+        observationId ? "=" : "is",
+        observationId || null,
       )
       .execute();
 
-    // If we matched a trace and datasetitem, we might want to create a job
-    // If this is only run for a trace, datasetItemExists always default to true.
-    if (traceExists && datasetItemExists) {
+    // If we matched a trace for a trace event, we create a job or
+    // if we have both trace and datasetItem.
+    if (traceExists && (!isDataSetItemEvent || Boolean(datasetItem))) {
       const jobExecutionId = randomUUID();
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
@@ -222,10 +245,10 @@ export const createEvalJobs = async ({
           jobInputTraceId: event.traceId,
           status: "PENDING",
           startTime: new Date(),
-          ...(isDataSetItemRun
+          ...(datasetItem
             ? {
-                jobInputDatasetItemId: event.datasetItemId,
-                jobInputObservationId: event.observationId ?? null,
+                jobInputDatasetItemId: datasetItem.id,
+                jobInputObservationId: datasetItem.sourceObservationId || null,
               }
             : {}),
         },

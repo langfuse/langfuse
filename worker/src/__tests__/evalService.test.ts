@@ -174,6 +174,8 @@ describe("eval service tests", () => {
           id: datasetItemId,
           project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           dataset_id: datasetId,
+          source_trace_id: traceId,
+          source_observation_id: observationId,
         })
         .execute();
 
@@ -217,7 +219,6 @@ describe("eval service tests", () => {
 
     test("creates new eval job for a dataset on upsert of the trace", async () => {
       const traceId = randomUUID();
-      const observationId = randomUUID();
       const datasetId = randomUUID();
       const datasetItemId = randomUUID();
 
@@ -236,6 +237,7 @@ describe("eval service tests", () => {
           id: datasetItemId,
           project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           dataset_id: datasetId,
+          source_trace_id: traceId,
         })
         .execute();
 
