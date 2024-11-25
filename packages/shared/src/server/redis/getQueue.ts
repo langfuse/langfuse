@@ -28,6 +28,7 @@ export function getQueue(queueName: QueueName): Queue | null {
     case QueueName.IngestionQueue:
       return IngestionQueue.getInstance();
     default:
+      const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
   }
 }
