@@ -7,7 +7,7 @@ import {
   cloudUsageMeteringDbCronJobName,
   CloudUsageMeteringDbCronJobStates,
 } from "./constants";
-import { CloudUsageMeteringQueue } from "../../queues/cloudUsageMeteringQueue";
+import { CloudUsageMeteringQueue } from "../../queues/CloudUsageMeteringQueue.1";
 import {
   QueueJobs,
   recordGauge,
