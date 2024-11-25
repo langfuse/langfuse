@@ -73,6 +73,7 @@ export class NumberFilter implements Filter {
   public field: string;
   public value: number;
   public operator: (typeof filterOperators)["number"][number] | "!=";
+  public clickhouseTypeOverwrite?: string;
   protected tablePrefix?: string;
 
   constructor(opts: {
@@ -81,19 +82,22 @@ export class NumberFilter implements Filter {
     operator: (typeof filterOperators)["number"][number] | "!=";
     value: number;
     tablePrefix?: string;
+    clickhouseTypeOverwrite?: string;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
     this.value = opts.value;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
+    this.clickhouseTypeOverwrite = opts.clickhouseTypeOverwrite;
   }
 
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `numberFilter${uid}`;
+    const type = this.clickhouseTypeOverwrite ?? "Decimal64(12)";
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Decimal64(12)}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: ${type}}`,
       params: { [varName]: this.value.toString() },
     };
   }

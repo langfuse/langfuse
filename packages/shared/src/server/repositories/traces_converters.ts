@@ -81,7 +81,7 @@ export const convertToDomain = (row: TracesTableReturnType) => {
     version: row.version ?? null,
     userId: row.user_id ?? null,
     sessionId: row.session_id ?? null,
-    latencyMilliseconds: Number(row.latency_milliseconds),
+    latency: Number(row.latency),
     usageDetails: row.usage_details,
     costDetails: row.cost_details,
     level: row.level,
