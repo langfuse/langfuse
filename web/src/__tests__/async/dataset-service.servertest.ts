@@ -246,7 +246,7 @@ describe("Fetch datasets for UI presentation", () => {
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
   });
 
-  it.only("should fetch dataset run items for UI", async () => {
+  it("should fetch dataset run items for UI", async () => {
     const datasetId = v4();
 
     await prisma.dataset.create({
