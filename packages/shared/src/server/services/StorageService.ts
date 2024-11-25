@@ -260,7 +260,7 @@ class AzureBlobStorageService implements StorageService {
 
       const blockBlobClient = this.client.getBlockBlobClient(path);
       return blockBlobClient.generateSasUrl({
-        permissions: BlobSASPermissions.parse("r"),
+        permissions: BlobSASPermissions.parse("w"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentType: contentType,
       });
