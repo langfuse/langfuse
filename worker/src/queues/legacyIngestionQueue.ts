@@ -9,10 +9,7 @@ import {
   getClickhouseEntityType,
 } from "@langfuse/shared/src/server";
 
-import {
-  handleBatch,
-  addTracesToTraceUpsertQueue,
-} from "@langfuse/shared/src/server";
+import { handleBatch } from "@langfuse/shared/src/server";
 import { tokenCount } from "../features/tokenisation/usage";
 import { env } from "../env";
 import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
@@ -108,12 +105,6 @@ export const legacyIngestionQueueProcessor: Processor = async (
       });
       throw new Error(`Failed to process ${processingErrors.length} events`);
     }
-
-    // send out REDIS requests to worker for all trace types
-    await addTracesToTraceUpsertQueue(
-      result.results,
-      job.data.payload.authCheck.scope.projectId,
-    );
   } catch (e) {
     logger.error(
       `Failed job legacy ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,

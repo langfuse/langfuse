@@ -23,7 +23,7 @@ import { IngestionQueue } from "../redis/ingestionQueue";
 import { LegacyIngestionQueue } from "../redis/legacyIngestion";
 import { redis } from "../redis/redis";
 import { S3StorageService } from "../services/S3StorageService";
-import { addTracesToTraceUpsertQueue, handleBatch } from "./legacy";
+import { handleBatch } from "./legacy";
 import { getProcessorForEvent } from "./legacy/EventProcessor";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
 
@@ -285,8 +285,6 @@ export const processEventBatch = async (
    * SYNC PROCESSING *
    *******************/
   const result = await handleBatch(sortedBatch, authCheck, tokenCountDelegate);
-
-  await addTracesToTraceUpsertQueue(result.results, authCheck.scope.projectId);
 
   //  in case we did not return early, we return the result here
   return aggregateBatchResult(
