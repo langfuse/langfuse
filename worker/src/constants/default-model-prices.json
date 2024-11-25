@@ -1160,5 +1160,22 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
+  },
+  {
+    "id": "cm3x0p8ev000008kyd96800c8",
+    "model_name": "chatgpt-4o-latest",
+    "match_pattern": "(?i)^(chatgpt-4o-latest)$",
+    "created_at": "2024-11-25T12:47:17.504Z",
+    "updated_at": "2024-11-25T12:47:17.504Z",
+    "prices": {
+      "input": 0.000005,
+      "output": 0.000015
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4o",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]

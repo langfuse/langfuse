@@ -92,6 +92,8 @@ const EnvSchema = z.object({
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),

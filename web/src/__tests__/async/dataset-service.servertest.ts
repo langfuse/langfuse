@@ -246,7 +246,149 @@ describe("Fetch datasets for UI presentation", () => {
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
   });
 
-  it("should fetch dataset runs for UI with missing tracing data", async () => {
+  it("should fetch dataset run items for UI", async () => {
+    const datasetId = v4();
+
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: v4(),
+        projectId: projectId,
+      },
+    });
+    const datasetRunId = v4();
+    await prisma.datasetRuns.create({
+      data: {
+        id: datasetRunId,
+        name: v4(),
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    const datasetItemId = v4();
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId,
+        datasetId,
+        metadata: {},
+        projectId,
+      },
+    });
+
+    const datasetRunItemId = v4();
+    const traceId = v4();
+
+    await prisma.datasetRunItems.create({
+      data: {
+        id: datasetRunItemId,
+        datasetRunId: datasetRunId,
+        traceId: traceId,
+        projectId,
+        datasetItemId,
+      },
+    });
+
+    const traceId2 = v4();
+    const observationId = v4();
+    const datasetRunItemId2 = v4();
+
+    await prisma.datasetRunItems.create({
+      data: {
+        id: datasetRunItemId2,
+        datasetRunId: datasetRunId,
+        traceId: traceId2,
+        projectId,
+        datasetItemId,
+        observationId,
+      },
+    });
+
+    const trace1 = createTrace({
+      id: traceId,
+      project_id: projectId,
+    });
+
+    const trace2 = createTrace({
+      id: traceId2,
+      project_id: projectId,
+    });
+
+    await createTraces([trace1, trace2]);
+
+    const observation = createObservation({
+      id: observationId,
+      trace_id: traceId2,
+      project_id: projectId,
+      start_time: new Date().getTime() - 1000 * 60 * 60, // minus 1 min
+      end_time: new Date().getTime(),
+    });
+
+    const observation2 = createObservation({
+      trace_id: traceId,
+    });
+
+    await createObservations([observation]);
+
+    const score = createScore({
+      observation_id: observation2.id,
+      trace_id: traceId2,
+      project_id: projectId,
+    });
+
+    await createScores([score]);
+
+    const runs = await getRunItemsByRunIdOrItemId(
+      projectId,
+      // fetch directly from the db to have realistic data.
+      await prisma.datasetRunItems.findMany({
+        where: {
+          id: {
+            in: [datasetRunItemId, datasetRunItemId2],
+          },
+        },
+      }),
+    );
+
+    expect(runs).toHaveLength(2);
+
+    const firstRun = runs.find((run) => run.id === datasetRunItemId);
+    expect(firstRun).toBeDefined();
+    if (!firstRun) {
+      throw new Error("first run is not defined");
+    }
+
+    expect(firstRun.id).toEqual(datasetRunItemId);
+    expect(firstRun.datasetItemId).toEqual(datasetItemId);
+    expect(firstRun.observation).toBeUndefined();
+    expect(firstRun.trace).toBeDefined();
+    expect(firstRun.trace?.id).toEqual(traceId);
+
+    const secondRun = runs.find((run) => run.id === datasetRunItemId2);
+    expect(secondRun).toBeDefined();
+    if (!secondRun) {
+      throw new Error("secondRun is not defined");
+    }
+
+    expect(secondRun.id).toEqual(datasetRunItemId2);
+    expect(secondRun.datasetItemId).toEqual(datasetItemId);
+    expect(secondRun.trace?.id).toEqual(traceId2);
+    expect(secondRun.observation?.id).toEqual(observationId);
+
+    const expectedObject = {
+      [`${score.name.replaceAll("-", "_")}-API-NUMERIC`]: {
+        type: "NUMERIC",
+        values: expect.arrayContaining([100.5]),
+        average: 100.5,
+        comment: "comment",
+      },
+    };
+
+    expect(secondRun.scores).toEqual(expectedObject);
+  });
+
+  it("should fetch dataset run items for UI with missing tracing data", async () => {
     const datasetId = v4();
 
     await prisma.dataset.create({

@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, passthrough } from "msw";
 import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
@@ -42,7 +42,7 @@ const DEFAULT_RESPONSE = {
 
 function CompletionHandler(response: HttpResponse) {
   return http.post("https://api.openai.com/v1/chat/completions", async () => {
-    logger.info("handler");
+    logger.info("openai handler");
     return response;
   });
 }
@@ -53,10 +53,25 @@ function JsonCompletionHandler(data: object) {
 
 function MinioCompletionHandler() {
   return http.all("http://localhost:9090*", async (request) => {
+    logger.info("minio handler");
     if ((request.params[0] as string).startsWith("/langfuse/events/")) {
       return new HttpResponse("Success");
     }
     throw new Error("Unexpected path");
+  });
+}
+
+function ClickHouseCompletionHandler() {
+  return http.all("http://localhost:8123*", async (request) => {
+    logger.info("clickhouse handler");
+    return passthrough();
+  });
+}
+
+function AzuriteCompletionHandler() {
+  return http.all("http://localhost:10000*", async (request) => {
+    logger.info("handle azurite");
+    return passthrough();
   });
 }
 
@@ -112,6 +127,8 @@ export class OpenAIServer {
     this.internalServer.use(
       JsonCompletionHandler(data),
       MinioCompletionHandler(),
+      ClickHouseCompletionHandler(),
+      AzuriteCompletionHandler(),
     );
   }
 
