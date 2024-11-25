@@ -13,7 +13,8 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import {
   DatabaseReadStream,
-  S3StorageService,
+  StorageServiceFactory,
+  StorageService,
   createSessionsAllQuery,
   sendBatchExportSuccessEmail,
   streamTransformations,
@@ -333,7 +334,7 @@ export const handleBatchExportJob = async (
     throw new Error("No S3 bucket configured for exports.");
   }
 
-  const { signedUrl } = await new S3StorageService({
+  const { signedUrl } = await StorageServiceFactory.getInstance({
     accessKeyId: env.S3_ACCESS_KEY_ID,
     secretAccessKey: env.S3_SECRET_ACCESS_KEY,
     bucketName,

@@ -58,6 +58,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 });
 
 export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
