@@ -46,11 +46,11 @@ import {
   convertTraceDomainToClickhouse,
   hasAnyTrace,
   QueueJobs,
+  TraceDeleteQueue,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import Decimal from "decimal.js";
-import { TraceDeleteQueue } from "../../../../../packages/shared/src/server/redis/traceDelete";
 import { randomUUID } from "crypto";
 
 const TraceFilterOptions = z.object({
