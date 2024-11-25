@@ -33,11 +33,14 @@ import {
   validateAndInflateScore,
   UsageCostType,
   convertDateToClickhouseDateTime,
+  TraceUpsertQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
+import { randomUUID } from "crypto";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -270,6 +273,22 @@ export class IngestionService {
     }
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+
+    // Add trace into trace upsert queue for eval processing
+    const traceUpsertQueue = TraceUpsertQueue.getInstance();
+    if (!traceUpsertQueue) {
+      logger.error("TraceUpsertQueue is not initialized");
+      return;
+    }
+    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+      payload: {
+        projectId: finalTraceRecord.project_id,
+        traceId: finalTraceRecord.id,
+      },
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.TraceUpsert as const,
+    });
   }
 
   private async processObservationEventList(params: {

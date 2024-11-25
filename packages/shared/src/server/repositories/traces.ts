@@ -12,6 +12,7 @@ import { FilterState } from "../../types";
 import {
   DateTimeFilter,
   FilterList,
+  StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
@@ -24,6 +25,48 @@ import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 import { FetchTracesTableProps } from "../services/traces-ui-table-service";
+
+export const checkTraceExists = async (
+  projectId: string,
+  traceId: string,
+  timestamp: Date | undefined,
+  filter: FilterState,
+): Promise<boolean> => {
+  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
+  });
+
+  tracesFilter.push(
+    ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+    new StringFilter({
+      clickhouseTable: "t",
+      field: "id",
+      operator: "=",
+      value: traceId,
+    }),
+  );
+
+  const tracesFilterRes = tracesFilter.apply();
+
+  const query = `
+    SELECT id, project_id
+    FROM traces t FINAL
+    WHERE ${tracesFilterRes.query}
+    ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+  `;
+
+  const rows = await queryClickhouse<{ id: string; project_id: string }>({
+    query,
+    params: {
+      ...tracesFilterRes.params,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    },
+  });
+
+  return rows.length > 0;
+};
 
 /**
  * Accepts a trace in a Clickhouse-ready format.
