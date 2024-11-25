@@ -68,6 +68,13 @@ function ClickHouseCompletionHandler() {
   });
 }
 
+function AzuriteCompletionHandler() {
+  return http.all("http://localhost:10000*", async (request) => {
+    logger.info("handle azurite");
+    return passthrough();
+  });
+}
+
 function ErrorCompletionHandler(status: number, statusText: string) {
   return CompletionHandler(
     new HttpResponse(null, {
@@ -121,6 +128,7 @@ export class OpenAIServer {
       JsonCompletionHandler(data),
       MinioCompletionHandler(),
       ClickHouseCompletionHandler(),
+      AzuriteCompletionHandler(),
     );
   }
 

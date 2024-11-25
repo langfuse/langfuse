@@ -5,7 +5,7 @@ import { BatchExportFileFormat, exportOptions } from "@langfuse/shared";
 import {
   type FullObservations,
   logger,
-  S3StorageService,
+  StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { type ObservationView } from "@langfuse/shared/src/db";
@@ -71,7 +71,7 @@ export const generationsExportQuery = protectedProjectProcedure
     const bucketName = env.S3_BUCKET_NAME;
     if (bucketName) {
       logger.info(`Preparing export for ${fileName} on S3`);
-      const { signedUrl } = await new S3StorageService({
+      const { signedUrl } = await StorageServiceFactory.getInstance({
         accessKeyId: env.S3_ACCESS_KEY_ID,
         secretAccessKey: env.S3_SECRET_ACCESS_KEY,
         bucketName,

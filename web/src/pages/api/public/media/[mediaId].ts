@@ -38,7 +38,7 @@ export default withMiddlewares({
       if (!media) throw new LangfuseNotFoundError("Media asset not found");
       if (!media.uploadHttpStatus)
         throw new LangfuseNotFoundError("Media not yet uploaded");
-      if (media.uploadHttpStatus !== 200)
+      if (!(media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201))
         throw new LangfuseNotFoundError(
           `Media upload failed with status ${media.uploadHttpStatus}: \n ${media.uploadHttpError}`,
         );

@@ -38,7 +38,7 @@ export const mediaRouter = createTRPCRouter({
             code: "NOT_FOUND",
             message: "Media not yet uploaded",
           });
-        if (media.uploadHttpStatus !== 200)
+        if (!(media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201))
           throw new TRPCError({
             code: "NOT_FOUND",
             message: `Media upload failed`,
