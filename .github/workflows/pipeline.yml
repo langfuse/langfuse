@@ -326,18 +326,18 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Load default env
-        run: |
-          cp .env.dev.example .env
-          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
-          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
-
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          echo "LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING=true" >> .env
+          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
+          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d

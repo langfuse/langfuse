@@ -29,17 +29,13 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
-  table: "scores" | "traces"; // TODO: Modify eventType logic to support more tables going forward
+  table: "scores" | "traces" | "observations";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-upsert" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
-
-    // drop trailing s and pretend it's always a create.
-    // Only applicable to scores and traces.
-    const eventType = `${opts.table.slice(0, -1)}-create`;
 
     // If event upload is enabled, we store all rows in S3 to have a backup
     if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
@@ -51,6 +47,13 @@ export async function upsertClickhouse<
       );
       await Promise.all(
         opts.records.map((record) => {
+          // drop trailing s and pretend it's always a create.
+          // Only applicable to scores and traces.
+          let eventType = `${opts.table.slice(0, -1)}-create`;
+          if (opts.table === "observations") {
+            // @ts-ignore - If it's an observation we now that `type` is a string
+            eventType = `${record["type"].toLowerCase()}-create`;
+          }
           s3Client.uploadJson(
             `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
             [
