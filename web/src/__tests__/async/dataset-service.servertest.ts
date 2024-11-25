@@ -379,8 +379,9 @@ describe("Fetch datasets for UI presentation", () => {
     const expectedObject = {
       [`${score.name.replaceAll("-", "_")}-API-NUMERIC`]: {
         type: "NUMERIC",
-        values: expect.arrayContaining([1, 100.5]),
-        average: 50.75,
+        values: expect.arrayContaining([100.5]),
+        average: 100.5,
+        comment: "comment",
       },
     };
 

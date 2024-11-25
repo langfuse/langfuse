@@ -518,6 +518,8 @@ export const getRunItemsByRunIdOrItemId = async (
       ),
     ]);
 
+  console.log(traceScores);
+
   const validatedTraceScores = filterAndValidateDbScoreList(
     traceScores,
     traceException,
@@ -562,9 +564,7 @@ export const getRunItemsByRunIdOrItemId = async (
       observation,
       trace,
       scores: aggregateScores([
-        ...validatedTraceScores.filter(
-          (s) => s.traceId === ri.traceId && ri.observationId === null,
-        ),
+        ...validatedTraceScores.filter((s) => s.traceId === ri.traceId),
       ]),
     };
   });
