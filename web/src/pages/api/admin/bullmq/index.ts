@@ -82,19 +82,17 @@ export default async function handler(
     }
 
     if (req.method === "GET") {
-      const queues = [
-        QueueName.LegacyIngestionQueue,
-        QueueName.BatchExport,
-        QueueName.DatasetRunItemUpsert,
-        QueueName.EvaluationExecution,
-        QueueName.TraceUpsert,
-        QueueName.IngestionQueue,
-      ];
+      const queues = Object.values(QueueName);
       const queueCounts = await Promise.all(
         queues.map(async (queueName) => {
-          const queue = getQueue(queueName);
-          const jobCount = await queue?.getJobCounts();
-          return { queueName, jobCount };
+          try {
+            const queue = getQueue(queueName);
+            const jobCount = await queue?.getJobCounts();
+            return { queueName, jobCount };
+          } catch (e) {
+            logger.error(`Failed to get job count for queue ${queueName}`, e);
+            return { queueName, jobCount: NaN };
+          }
         }),
       );
       return res.status(200).json(queueCounts);
