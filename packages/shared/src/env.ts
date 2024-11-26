@@ -59,6 +59,7 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));

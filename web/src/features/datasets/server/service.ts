@@ -213,6 +213,7 @@ export const getDatasetRunsFromPostgres = async (
         d.id = ${input.datasetId}
         AND d.project_id = ${input.projectId}
       GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
+      ORDER BY runs.created_at DESC
       LIMIT ${input.limit}
       OFFSET ${input.page * input.limit}
     `,
