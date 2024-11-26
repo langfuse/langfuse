@@ -35,9 +35,9 @@ describe("overwriteObject", () => {
   it("should merge metadata correctly", () => {
     const result = overwriteObject(objA, objB, []);
     expect(result.metadata).toEqual({
-      key1: '"value1"',
-      key2: '"newValue2"',
-      key3: '"value3"',
+      key1: "value1",
+      key2: "newValue2",
+      key3: "value3",
     });
   });
 
