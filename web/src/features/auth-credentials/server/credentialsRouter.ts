@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
-import { passwordSchema } from "@/src/features/auth-credentials/types";
 import { updateUserPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
 import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 
 export const credentialsRouter = createTRPCRouter({
   resetPassword: protectedProcedure
