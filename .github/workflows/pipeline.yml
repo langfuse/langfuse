@@ -340,7 +340,6 @@ jobs:
           echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
           echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
-          echo "CLICKHOUSE_CLUSTER_ENABLED=false" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
