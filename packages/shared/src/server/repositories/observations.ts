@@ -672,7 +672,6 @@ const getObservationsTableInternal = async <T>(
   if (traceTableFilter.length > 0 || orderByTraces) {
     // joins with traces are very expensive. We need to filter by time as well.
     // We assume that a trace has to have been within the last 2 days to be relevant.
-    console.log("joining traces");
 
     const query = `
       ${scoresCte}
@@ -688,8 +687,6 @@ const getObservationsTableInternal = async <T>(
       ${chOrderBy}
       LIMIT 1 BY o.id, o.project_id 
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
-
-    console.log("query", query);
 
     const res = await queryClickhouse<T>({
       query,
@@ -719,7 +716,6 @@ const getObservationsTableInternal = async <T>(
       WHERE ${appliedObservationsFilter.query}
       ${chOrderBy}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
-    console.log("query", query);
 
     const res = await queryClickhouse<T>({
       query,
