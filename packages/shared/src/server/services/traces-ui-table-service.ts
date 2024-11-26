@@ -168,8 +168,6 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   //   (f) => f.clickhouseTable === "observations",
   // );
 
-  console.log("hasObservationsFilter", JSON.stringify(tracesFilter));
-
   const tracesFilterRes = tracesFilter.apply();
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
