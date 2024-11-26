@@ -1,6 +1,6 @@
 services:
   langfuse-worker:
-    image: langfuse/langfuse-worker:latest
+    image: langfuse/langfuse-worker:main
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
 
   langfuse-web:
-    image: langfuse/langfuse:latest
+    image: langfuse/langfuse:main
     depends_on: *langfuse-depends-on
     ports:
       - "3000:3000"
