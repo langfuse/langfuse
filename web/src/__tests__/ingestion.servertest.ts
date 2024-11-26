@@ -978,6 +978,40 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(dbTrace.length).toBe(1);
   });
 
+  it("should fail for long trace name", async () => {
+    const traceId = v4();
+
+    const baseString =
+      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ";
+    const repeatCount = Math.ceil(1500 / baseString.length);
+    const name = baseString.repeat(repeatCount);
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            name,
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+    console.log(JSON.stringify(response.body));
+    expect(true).toBe(false);
+    expect("errors" in response.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(response.body.errors.length).toBe(1);
+  });
+
   it("should update all token counts if update does not contain model name", async () => {
     const traceId = v4();
     const generationId = v4();
