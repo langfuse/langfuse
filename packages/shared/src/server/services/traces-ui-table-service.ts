@@ -16,6 +16,10 @@ import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { convertToDomain } from "../repositories";
 import { queryClickhouse } from "../repositories/clickhouse";
 import { TraceRecordReadType } from "../repositories/definitions";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+} from "../repositories/constants";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -156,27 +160,15 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  timeStampFilter
-    ? scoresFilter.push(
-        new DateTimeFilter({
-          clickhouseTable: "scores",
-          field: "timestamp",
-          operator: ">=",
-          value: timeStampFilter.value,
-        }),
-      )
-    : null;
+  // const hasScoresFilter = tracesFilter.find(
+  //   (f) => f.clickhouseTable === "scores",
+  // );
 
-  timeStampFilter
-    ? observationsFilter.push(
-        new DateTimeFilter({
-          clickhouseTable: "observations",
-          field: "start_time",
-          operator: ">=",
-          value: timeStampFilter.value,
-        }),
-      )
-    : null;
+  // const hasObservationsFilter = tracesFilter.find(
+  //   (f) => f.clickhouseTable === "observations",
+  // );
+
+  console.log("hasObservationsFilter", JSON.stringify(tracesFilter));
 
   const tracesFilterRes = tracesFilter.apply();
   const scoresFilterRes = scoresFilter.apply();
@@ -184,6 +176,26 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   const search = clickhouseSearchCondition(searchQuery);
 
+  const chOrderBy = orderByToClickhouseSql(
+    [
+      orderBy ?? null,
+      orderBy?.order && orderBy?.column === "timestamp"
+        ? {
+            column: "timestamp_to_date",
+            order: orderBy.order,
+          }
+        : null,
+    ],
+    [
+      ...tracesTableUiColumnDefinitions,
+      {
+        clickhouseSelect: "toDate(t.timestamp)",
+        uiTableName: "timestamp_to_date",
+        uiTableId: "timestamp_to_date",
+        clickhouseTableName: "observations",
+      },
+    ],
+  );
   const query = `
     WITH observations_stats AS (
       SELECT
@@ -200,8 +212,10 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
           sumMap(cost_details) as cost_details,
           trace_id,
           project_id
-      FROM observations FINAL
-      WHERE ${observationFilterRes.query}
+      FROM observations o FINAL 
+      WHERE o.project_id = {projectId: String}
+      ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+      ${observationsFilter ? `AND ${observationFilterRes.query}` : ""}
       GROUP BY trace_id, project_id
     ),
     scores_avg AS (
@@ -214,8 +228,10 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
                 trace_id,
                 name,
                 avg(value) avg_value
-        FROM scores final
-        WHERE ${scoresFilterRes.query}
+        FROM scores s FINAL 
+        WHERE project_id = {projectId: String}
+        ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
+        ${scoresFilterRes ? `AND ${scoresFilterRes.query}` : ""}
         GROUP BY project_id,
                   trace_id,
                   name
@@ -223,12 +239,13 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       GROUP BY project_id, trace_id
     )
     SELECT ${select}
-    FROM traces t final
+    FROM traces t FINAL 
     LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id
     LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
-    WHERE ${tracesFilterRes.query}
+    WHERE t.project_id = {projectId: String}
+    ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
     ${search.query}
-    ${orderByToClickhouseSql(orderBy ?? null, tracesTableUiColumnDefinitions)}
+    ${chOrderBy}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
@@ -237,6 +254,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     params: {
       limit: limit,
       offset: limit && page ? limit * page : 0,
+      traceTimestamp: timeStampFilter?.value.getTime(),
+      projectId: projectId,
       ...tracesFilterRes.params,
       ...observationFilterRes.params,
       ...scoresFilterRes.params,
