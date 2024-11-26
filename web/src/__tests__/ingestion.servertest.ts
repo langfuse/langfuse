@@ -1005,11 +1005,10 @@ describe("/api/public/ingestion API Endpoint", () => {
     });
 
     expect(response.status).toBe(207);
-    console.log(JSON.stringify(response.body));
-    expect(true).toBe(false);
     expect("errors" in response.body).toBe(true);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     expect(response.body.errors.length).toBe(1);
+    expect(response.body.errors[0].message).toBe("Invalid request data");
   });
 
   it("should update all token counts if update does not contain model name", async () => {
