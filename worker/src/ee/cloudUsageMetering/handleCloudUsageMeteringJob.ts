@@ -208,6 +208,15 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     },
   });
 
+  logger.info(
+    `[CLOUD USAGE METERING] Job for interval ${meterIntervalStart.toISOString()} - ${meterIntervalEnd.toISOString()} completed`,
+    {
+      countProcessedOrgs,
+      countProcessedObservations,
+      countProcessedEvents,
+    },
+  );
+
   if (meterIntervalEnd.getTime() + delayFromStartOfInterval < Date.now()) {
     logger.info(
       `[CLOUD USAGE METERING] Enqueueing next Cloud Usage Metering Job to catch up `,
