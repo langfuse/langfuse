@@ -654,6 +654,8 @@ const getObservationsTableInternal = async <T>(
       observation_id
   )`;
 
+  // if we have default ordering by time, we order by toDate(o.start_time) first and then by
+  // o.start_time. This way, clickhouse is able to read more efficiently directly from disk without ordering
   const newDefaultOrder =
     orderBy?.column === "startTime"
       ? [{ column: "order_by_date", order: orderBy.order }, orderBy]
