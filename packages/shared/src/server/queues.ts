@@ -63,7 +63,7 @@ export const BatchExportJobSchema = z.object({
   projectId: z.string(),
   batchExportId: z.string(),
 });
-export const TraceUpsertEventSchema = z.object({
+export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
 });
@@ -87,7 +87,7 @@ export const ExperimentCreateEventSchema = z.object({
 });
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
-export type TraceUpsertEventType = z.infer<typeof TraceUpsertEventSchema>;
+export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
@@ -101,7 +101,7 @@ export type ExperimentCreateEventType = z.infer<
 export const EventBodySchema = z.union([
   z.object({
     name: z.literal(EventName.TraceUpsert),
-    payload: z.array(TraceUpsertEventSchema),
+    payload: z.array(TraceQueueEventSchema),
   }),
   z.object({
     name: z.literal(EventName.EvaluationExecution),
@@ -120,6 +120,7 @@ export type EventBodyType = z.infer<typeof EventBodySchema>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
+  TraceDelete = "trace-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
@@ -131,6 +132,7 @@ export enum QueueName {
 
 export enum QueueJobs {
   TraceUpsert = "trace-upsert",
+  TraceDelete = "trace-delete",
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
@@ -145,8 +147,14 @@ export type TQueueJobTypes = {
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;
-    payload: TraceUpsertEventType;
+    payload: TraceQueueEventType;
     name: QueueJobs.TraceUpsert;
+  };
+  [QueueName.TraceDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: TraceQueueEventType;
+    name: QueueJobs.TraceDelete;
   };
   [QueueName.DatasetRunItemUpsert]: {
     timestamp: Date;
