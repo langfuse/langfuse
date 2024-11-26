@@ -672,7 +672,6 @@ const getObservationsTableInternal = async <T>(
       ${opts.select === "rows" ? "LIMIT 1 BY o.id, o.project_id" : ""}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-  console.log("huhu-query", query);
   const res = await queryClickhouse<T>({
     query,
     params: {
