@@ -580,6 +580,10 @@ const getObservationsTableInternal = async <T>(
         .includes(f.column),
   );
 
+  const hasScoresFilter = filter.some(
+    (f) => f.column === "Scores" || f.column === "scores",
+  );
+
   const orderByTraces = opts.orderBy
     ? observationsTableTraceUiColumnDefinitions
         .map((c) => c.uiTableId)
@@ -650,6 +654,23 @@ const getObservationsTableInternal = async <T>(
       observation_id
   )`;
 
+  // if we have default ordering by time, we order by toDate(o.start_time) first and then by
+  // o.start_time. This way, clickhouse is able to read more efficiently directly from disk without ordering
+  const newDefaultOrder =
+    orderBy?.column === "startTime"
+      ? [{ column: "order_by_date", order: orderBy.order }, orderBy]
+      : [orderBy ?? null];
+
+  const chOrderBy = orderByToClickhouseSql(newDefaultOrder, [
+    ...observationsTableUiColumnDefinitions,
+    {
+      uiTableName: "order_by_date",
+      uiTableId: "order_by_date",
+      clickhouseTableName: "observation",
+      clickhouseSelect: "toDate(o.start_time)",
+    },
+  ]);
+
   if (traceTableFilter.length > 0 || orderByTraces) {
     // joins with traces are very expensive. We need to filter by time as well.
     // We assume that a trace has to have been within the last 2 days to be relevant.
@@ -658,14 +679,15 @@ const getObservationsTableInternal = async <T>(
       ${scoresCte}
       SELECT
        ${selectString}
-      FROM observations o FINAL 
-        LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id
-        LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
+      FROM observations o 
+        LEFT JOIN traces FINAL t ON t.id = o.trace_id AND t.project_id = o.project_id
+        ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         AND o.type = 'GENERATION'
         ${timeFilter ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
-      ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
+      ${chOrderBy}
+      LIMIT 1 BY o.id, o.project_id 
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
     const res = await queryClickhouse<T>({
@@ -691,10 +713,10 @@ const getObservationsTableInternal = async <T>(
       ${scoresCte}
       SELECT
        ${selectString}
-      FROM observations o FINAL 
-        LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id
+      FROM observations o 
+      ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
-      ${orderByToClickhouseSql(orderBy ?? null, observationsTableUiColumnDefinitions)}
+      ${chOrderBy}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
     const res = await queryClickhouse<T>({
