@@ -1,9 +1,6 @@
-import { randomUUID } from "crypto";
 import {
-  QueueJobs,
   QueueName,
   TQueueJobTypes,
-  TraceUpsertEventType,
 } from "../queues";
 import { Queue } from "bullmq";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
