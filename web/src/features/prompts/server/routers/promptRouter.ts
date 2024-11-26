@@ -552,6 +552,7 @@ export const promptRouter = createTRPCRouter({
           id: true,
           name: true,
         },
+        distinct: ["name"],
       });
     }),
   updateTags: protectedProjectProcedure
