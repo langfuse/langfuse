@@ -15,6 +15,7 @@ export const traceDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.TraceDelete]>,
 ): Promise<void> => {
   const { traceId, projectId } = job.data.payload;
+  logger.info(`Deleting trace ${traceId} in project ${projectId}`);
   try {
     await prisma.$transaction([
       prisma.trace.deleteMany({
