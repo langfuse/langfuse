@@ -1051,3 +1051,32 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     latency: Number(r.latency_ms) / 1000,
   }));
 };
+
+export const getObservationCountInCreationInterval = async ({
+  projectIds,
+  start,
+  end,
+}: {
+  projectIds: string[];
+  start: Date;
+  end: Date;
+}) => {
+  const query = `
+    SELECT count(*) as count
+    FROM observations
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND created_at >= {start: DateTime64(3)}
+    AND created_at < {end: DateTime64(3)}
+  `;
+
+  const rows = await queryClickhouse<{ count: string }>({
+    query,
+    params: {
+      projectIds,
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+  });
+
+  return rows.length > 0 ? Number(rows[0].count) : 0;
+};
