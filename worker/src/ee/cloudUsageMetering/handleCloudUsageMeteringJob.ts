@@ -2,7 +2,13 @@ import { parseDbOrg, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
-import { CloudUsageMeteringQueue, logger } from "@langfuse/shared/src/server";
+import {
+  CloudUsageMeteringQueue,
+  getObservationCountInCreationInterval,
+  getScoreCountInCreationInterval,
+  getTraceCountInCreationInterval,
+  logger,
+} from "@langfuse/shared/src/server";
 import {
   cloudUsageMeteringDbCronJobName,
   CloudUsageMeteringDbCronJobStates,
@@ -86,8 +92,18 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
           not: Prisma.DbNull,
         },
       },
+      include: {
+        projects: {
+          select: {
+            id: true,
+          },
+        },
+      },
     })
-  ).map(parseDbOrg);
+  ).map(({ projects, ...org }) => ({
+    ...parseDbOrg(org),
+    projectIds: projects.map((p) => p.id),
+  }));
   logger.info(
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );
@@ -116,16 +132,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
 
     // Observations (legacy)
-    const countObservations = await prisma.observation.count({
-      where: {
-        project: {
-          orgId: org.id,
-        },
-        createdAt: {
-          gte: meterIntervalStart,
-          lt: meterIntervalEnd,
-        },
-      },
+    const countObservations = await getObservationCountInCreationInterval({
+      projectIds: org.projectIds,
+      start: meterIntervalStart,
+      end: meterIntervalEnd,
     });
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
@@ -142,27 +152,15 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
 
     // Events
-    const countScores = await prisma.score.count({
-      where: {
-        project: {
-          orgId: org.id,
-        },
-        createdAt: {
-          gte: meterIntervalStart,
-          lt: meterIntervalEnd,
-        },
-      },
+    const countScores = await getScoreCountInCreationInterval({
+      projectIds: org.projectIds,
+      start: meterIntervalStart,
+      end: meterIntervalEnd,
     });
-    const countTraces = await prisma.trace.count({
-      where: {
-        project: {
-          orgId: org.id,
-        },
-        createdAt: {
-          gte: meterIntervalStart,
-          lt: meterIntervalEnd,
-        },
-      },
+    const countTraces = await getTraceCountInCreationInterval({
+      projectIds: org.projectIds,
+      start: meterIntervalStart,
+      end: meterIntervalEnd,
     });
     const countEvents = countScores + countTraces + countObservations;
     logger.info(
