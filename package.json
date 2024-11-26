@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "2.92.0",
+  "version": "3.0.0-rc.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
