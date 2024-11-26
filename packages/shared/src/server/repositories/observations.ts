@@ -716,7 +716,9 @@ const getObservationsTableInternal = async <T>(
       FROM observations o 
       ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
+      AND o.type = 'GENERATION'
       ${chOrderBy}
+      LIMIT 1 BY o.id, o.project_id 
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
     const res = await queryClickhouse<T>({
