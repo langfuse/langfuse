@@ -550,31 +550,33 @@ export const getAggregatedScoresForPrompts = async (
   }));
 };
 
-export const getScoreCountInCreationInterval = async ({
-  projectIds,
+export const getScoreCountsByProjectInCreationInterval = async ({
   start,
   end,
 }: {
-  projectIds: string[];
   start: Date;
   end: Date;
 }) => {
   const query = `
-    SELECT count(*) as count
+    SELECT 
+      project_id,
+      count(*) as count
     FROM scores
-    WHERE project_id IN ({projectIds: Array(String)})
-    AND created_at >= {start: DateTime64(3)}
+    WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
+    GROUP BY project_id
   `;
 
-  const rows = await queryClickhouse<{ count: string }>({
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
     query,
     params: {
-      projectIds,
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
     },
   });
 
-  return rows.length > 0 ? Number(rows[0].count) : 0;
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 };
