@@ -290,13 +290,6 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
     )?.clickhouseTableName === "observations";
 
-  console.log(
-    "hasScoresFilter",
-    tracesFilter,
-    requiresScoresJoin,
-    requiresObservationsJoin,
-  );
-
   const tracesFilterRes = tracesFilter.apply();
   const scoresFilterRes = scoresFilter.apply();
   const observationFilterRes = observationsFilter.apply();
