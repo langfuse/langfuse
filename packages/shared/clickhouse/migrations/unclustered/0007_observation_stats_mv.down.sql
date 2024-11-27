@@ -1,0 +1,1 @@
+DROP MATERIALIZED VIEW observation_stats_mv;

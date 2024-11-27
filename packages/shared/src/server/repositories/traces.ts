@@ -454,20 +454,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     : undefined;
 
   const query = `
-      WITH observations_agg AS (
-        SELECT o.trace_id,
-              count(*) as obs_count,
-              min(o.start_time) as min_start_time,
-              max(o.end_time) as max_end_time,
-              sumMap(usage_details) as sum_usage_details,
-              sumMap(cost_details) as sum_cost_details,
-              anyLast(project_id) as project_id
-        FROM observations o FINAL
-        WHERE o.project_id = {projectId: String}
-        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-        GROUP BY o.trace_id
-    ),
-    session_data AS (
+      WITH session_data AS (
         SELECT
             t.session_id,
             anyLast(t.project_id) as project_id,
@@ -478,8 +465,8 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
             count(*) as trace_count,
             groupUniqArrayArray(t.tags) as trace_tags,
             -- Aggregate observations data at session level
-            sum(o.obs_count) as total_observations,
-            date_diff('milliseconds', min(min_start_time), max(max_end_time)) as duration,
+            uniqMerge(o.count) as total_observations,
+            date_diff('milliseconds', min(o.min_start_time), max(o.max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
             sumMap(o.sum_cost_details) as session_cost_details,
             sumMap(o.sum_cost_details)['input'] as session_input_cost,
@@ -489,11 +476,11 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
             sumMap(o.sum_usage_details)['output'] as session_output_usage,
             sumMap(o.sum_usage_details)['total'] as session_total_usage
         FROM traces t FINAL
-        LEFT JOIN observations_agg o
+        LEFT JOIN observation_stats o
         ON t.id = o.trace_id AND t.project_id = o.project_id
         WHERE t.session_id IS NOT NULL
-            AND t.project_id = {projectId: String}
-            ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
+        AND t.project_id = {projectId: String}
+        ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
         GROUP BY t.session_id
     )
     SELECT ${select}
@@ -502,10 +489,6 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
-
-  const obsStartTimeValue = traceTimestampFilter
-    ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
-    : null;
 
   const res = await queryClickhouse<T>({
     query: query,
@@ -517,9 +500,6 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
       ...singleTraceFilter?.params,
-      ...(obsStartTimeValue
-        ? { observationsStartTime: obsStartTimeValue }
-        : {}),
     },
   });
 
@@ -619,28 +599,18 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     return [];
   }
   const query = `
-    WITH observations_agg AS (
-      SELECT o.trace_id,
-             count(*) as obs_count,
-             sumMap(usage_details) as sum_usage_details,
-             sum(total_cost) as sum_total_cost,
-             anyLast(project_id) as project_id
-      FROM observations o FINAL
-      WHERE o.project_id = {projectId: String}
-      GROUP BY o.trace_id
-    ),
-    user_metric_data AS (
+    WITH user_metric_data AS (
       SELECT t.user_id,
              max(t.timestamp) as max_timestamp,
              min(t.timestamp) as min_timestamp,
              count(*) as trace_count,
-             sum(o.obs_count) as total_observations,
+             uniqMerge(o.count) as total_observations,
              sum(o.sum_total_cost) as session_total_cost,
              sumMap(o.sum_usage_details)['input'] as session_input_usage,
              sumMap(o.sum_usage_details)['output'] as session_output_usage,
              sumMap(o.sum_usage_details)['total'] as session_total_usage
       FROM traces t FINAL
-      LEFT JOIN observations_agg o
+      LEFT JOIN observation_stats o
       ON t.id = o.trace_id 
       AND t.project_id = o.project_id
       WHERE t.user_id IS NOT NULL

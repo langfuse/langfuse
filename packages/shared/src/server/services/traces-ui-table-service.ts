@@ -195,26 +195,24 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     ],
   );
   const query = `
-    WITH observations_stats AS (
-      SELECT
-        COUNT(*) AS observation_count,
-          sumMap(usage_details) as usage_details,
-          SUM(total_cost) AS total_cost,
-          date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-          multiIf(
-            arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
-            arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
-            arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
-            'DEBUG'
-          ) AS level,
-          sumMap(cost_details) as cost_details,
-          trace_id,
-          project_id
-      FROM observations o FINAL 
-      WHERE o.project_id = {projectId: String}
-      ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    WITH obs_stats AS (
+      select project_id,
+             trace_id,
+             uniqMerge(count) as observation_count,
+             date_diff('milliseconds', min(min_start_time), greatest(max(max_end_time), max(max_start_time))) as latency_milliseconds,
+             sumMap(sum_usage_details) as usage_details,
+             sumMap(sum_cost_details) as cost_details,
+             sum(sum_total_cost) as total_cost,
+             multiIf(
+                 arrayExists(x -> x = 'ERROR', groupUniqArrayArray(unique_levels)), 'ERROR',
+                 arrayExists(x -> x = 'WARNING', groupUniqArrayArray(unique_levels)), 'WARNING',
+                 arrayExists(x -> x = 'DEFAULT', groupUniqArrayArray(unique_levels)), 'DEFAULT',
+                 'DEBUG'
+             ) AS level
+      from observation_stats
+      where project_id = {projectId: String} 
       ${observationsFilter ? `AND ${observationFilterRes.query}` : ""}
-      GROUP BY trace_id, project_id
+      group by project_id, trace_id
     ),
     scores_avg AS (
       SELECT
@@ -238,7 +236,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     )
     SELECT ${select}
     FROM traces t FINAL 
-    LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id
+    LEFT JOIN obs_stats os on os.project_id = t.project_id and os.trace_id = t.id
     LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
     WHERE t.project_id = {projectId: String}
     ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
