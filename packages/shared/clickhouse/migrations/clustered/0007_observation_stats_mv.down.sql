@@ -1,1 +1,1 @@
-DROP MATERIALIZED VIEW observation_stats_mv ON CLUSTER default;
+DROP VIEW observation_stats_mv ON CLUSTER default;
