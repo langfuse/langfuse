@@ -426,7 +426,17 @@ export const getSessionsTable = async (props: {
   return rows;
 };
 
-const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
+export type FetchSessionsTableProps = {
+  select: string;
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+};
+
+const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const { select, projectId, filter, orderBy, limit, page } = props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =

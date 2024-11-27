@@ -9,9 +9,9 @@ import {
 } from "@/src/__tests__/fixtures/tracing-factory";
 import {
   getTracesTable,
+  type TracesAllUiReturnType,
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
-  type TracesTableReturnType,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 
@@ -43,12 +43,6 @@ describe("Traces table API test", () => {
     expect(tableRows[0].userId).toEqual(trace.user_id);
     expect(tableRows[0].sessionId).toEqual(trace.session_id);
     expect(tableRows[0].public).toEqual(trace.public);
-    expect(tableRows[0].latency).toBeGreaterThanOrEqual(0);
-    expect(tableRows[0].usageDetails).toEqual({});
-    expect(tableRows[0].costDetails).toEqual({});
-    expect(tableRows[0].level).toBeDefined();
-    expect(tableRows[0].observationCount).toBeGreaterThanOrEqual(0);
-    expect(tableRows[0].scoresAvg).toEqual([]);
   });
 
   it("should get a correct trace with observations", async () => {
@@ -82,29 +76,13 @@ describe("Traces table API test", () => {
     expect(tableRows[0].userId).toEqual(trace.user_id);
     expect(tableRows[0].sessionId).toEqual(trace.session_id);
     expect(tableRows[0].public).toEqual(trace.public);
-    expect(tableRows[0].latency).toBeGreaterThanOrEqual(0);
-    expect(tableRows[0].usageDetails).toEqual({
-      input: (obs1.usage_details.input + obs2.usage_details.input).toString(),
-      output: (
-        obs1.usage_details.output + obs2.usage_details.output
-      ).toString(),
-      total: (obs1.usage_details.total + obs2.usage_details.total).toString(),
-    });
-    expect(tableRows[0].costDetails).toEqual({
-      input: obs1.cost_details.input + obs2.cost_details.input,
-      output: obs1.cost_details.output + obs2.cost_details.output,
-      total: obs1.cost_details.total + obs2.cost_details.total,
-    });
-    expect(tableRows[0].level).toBeDefined();
-    expect(tableRows[0].observationCount).toBeGreaterThanOrEqual(0);
-    expect(tableRows[0].scoresAvg).toEqual([]);
   });
 
   type TestCase = {
     traceInput: Partial<TraceRecordInsertType>;
     observationInput: Partial<ObservationRecordInsertType>[];
     filterstate: FilterState;
-    expected: Partial<TracesTableReturnType>[];
+    expected: Partial<TracesAllUiReturnType>[];
   };
 
   [
@@ -246,30 +224,6 @@ describe("Traces table API test", () => {
         }
         if (expectedTrace.public !== undefined) {
           expect(tableRows[index].public).toEqual(expectedTrace.public);
-        }
-        if (expectedTrace.latency !== undefined) {
-          expect(tableRows[index].latency).toEqual(expectedTrace.latency);
-        }
-        if (expectedTrace.usage_details !== undefined) {
-          expect(tableRows[index].usageDetails).toEqual(
-            expectedTrace.usage_details,
-          );
-        }
-        if (expectedTrace.cost_details !== undefined) {
-          expect(tableRows[index].costDetails).toEqual(
-            expectedTrace.cost_details,
-          );
-        }
-        if (expectedTrace.level !== undefined) {
-          expect(tableRows[index].level).toEqual(expectedTrace.level);
-        }
-        if (expectedTrace.observation_count !== undefined) {
-          expect(tableRows[index].observationCount).toEqual(
-            expectedTrace.observation_count,
-          );
-        }
-        if (expectedTrace.scores_avg !== undefined) {
-          expect(tableRows[index].scoresAvg).toEqual(expectedTrace.scores_avg);
         }
       });
     });

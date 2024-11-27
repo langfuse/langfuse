@@ -68,13 +68,26 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
   }
 
-  await prisma.cronJobs.update({
-    where: { name: cloudUsageMeteringDbCronJobName },
-    data: {
-      state: CloudUsageMeteringDbCronJobStates.Processing,
-      jobStartedAt: new Date(),
-    },
-  });
+  try {
+    await prisma.cronJobs.update({
+      where: {
+        name: cloudUsageMeteringDbCronJobName,
+        state: CloudUsageMeteringDbCronJobStates.Queued,
+      },
+      data: {
+        state: CloudUsageMeteringDbCronJobStates.Processing,
+        jobStartedAt: new Date(),
+      },
+    });
+  } catch (e) {
+    logger.warn(
+      "[CLOUD USAGE METERING] Failed to update cron job state, potential race condition, exiting",
+      {
+        e,
+      },
+    );
+    return;
+  }
 
   // timing
   const meterIntervalStart = cron.lastRun;
