@@ -69,7 +69,9 @@ export type TracesMetricsUiReturnType = {
   scores: ScoreAggregate;
 };
 
-export const convertToUiTableRows = (row: TracesTableReturnType) => {
+export const convertToUiTableRows = (
+  row: TracesTableReturnType,
+): TracesAllUiReturnType => {
   return {
     id: row.id,
     projectId: row.project_id,
