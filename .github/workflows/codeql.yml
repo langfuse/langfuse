@@ -16,6 +16,7 @@ on:
     branches: ["main", "production", "v*"]
   pull_request:
     branches: ["main", "production", "v*"]
+  merge_group:
   schedule:
     - cron: "31 13 * * 0"
 
