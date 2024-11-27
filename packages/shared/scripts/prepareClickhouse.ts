@@ -110,7 +110,7 @@ export const prepareClickhouse = async (
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS provided_cost_details,
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS cost_details,
       toDecimal64(randUniform(0, 2000), 12) AS total_cost,
-      start_time AS completion_start_time,
+      addMilliseconds(start_time, if(rand() < 0.6, floor(randUniform(0, 500)), floor(randUniform(0, 600)))) AS completion_start_time,
       array(${SEED_PROMPTS.map((p) => `concat('${p.id}',project_id)`).join(
         ",",
       )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_id,
