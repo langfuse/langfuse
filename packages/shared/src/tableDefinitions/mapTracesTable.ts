@@ -71,28 +71,28 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Input Tokens",
     uiTableId: "inputTokens",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'input'), usage_details), usage_details['input'], NULL)",
   },
   {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'output'), usage_details), usage_details['output'], NULL)",
   },
   {
     uiTableName: "Total Tokens",
     uiTableId: "totalTokens",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
   },
   {
     uiTableName: "Usage",
     uiTableId: "usage",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
   },
@@ -105,7 +105,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Latency (s)",
     uiTableId: "latency",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect: "latency_milliseconds / 1000",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
@@ -113,19 +113,19 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
     uiTableName: "Input Cost ($)",
     uiTableId: "inputCost",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect: "cost_details['input']",
   },
   {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect: "cost_details['output']",
   },
   {
     uiTableName: "Total Cost ($)",
     uiTableId: "totalCost",
-    clickhouseTableName: "traces",
+    clickhouseTableName: "observations",
     clickhouseSelect: "cost_details['total']",
   },
 ];
