@@ -57,6 +57,10 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GITLAB_CLIENT_ID: z.string().optional(),
     AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -290,6 +294,11 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_ID: process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: process.env.AUTH_GITHUB_ENTERPRISE_BASE_URL,
+    AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_ISSUER: process.env.AUTH_GITLAB_ISSUER,
     AUTH_GITLAB_CLIENT_ID: process.env.AUTH_GITLAB_CLIENT_ID,
