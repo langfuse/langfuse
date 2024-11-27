@@ -323,7 +323,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       select project_id,
              trace_id,
              uniqMerge(count) as observation_count,
-             date_diff('milliseconds', min(min_start_time), greatest(max(max_end_time), max(max_start_time))) as latency_milliseconds,
+             date_diff('milliseconds', min(min_start_time), coalesce(max(max_end_time), max(max_start_time))) as latency_milliseconds,
              sumMap(sum_usage_details) as usage_details,
              sumMap(sum_cost_details) as cost_details,
              sum(sum_total_cost) as total_cost,
