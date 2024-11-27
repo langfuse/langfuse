@@ -17,6 +17,7 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -215,6 +216,10 @@ export default withMiddlewares({
             { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
           );
         } catch (error) {
+          logger.error(
+            `Failed to get media upload URL for trace ${traceId} and observation ${observationId}. Retrying...`,
+            error,
+          );
           if (
             // See https://www.prisma.io/docs/orm/prisma-client/queries/transactions#transaction-timing-issues
             error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -228,6 +233,9 @@ export default withMiddlewares({
         }
       }
 
+      logger.error(
+        `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
+      );
       throw new InternalServerError("Failed to get media upload URL");
     },
   }),
