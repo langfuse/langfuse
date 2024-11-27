@@ -9,6 +9,7 @@ import {
   recordHistogram,
   recordIncrement,
   redisQueueRetryOptions,
+  traceException,
 } from "@langfuse/shared/src/server";
 
 export class WorkerManager {
@@ -95,13 +96,18 @@ export class WorkerManager {
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {
       logger.error(
-        `Queue Job ${job?.name} with id ${job?.id} in ${queueName} failed`,
+        `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
         err,
       );
+      traceException(err);
       recordIncrement(convertQueueNameToMetricName(queueName) + ".failed");
     });
     worker.on("error", (failedReason: Error) => {
-      logger.error(`Queue worker ${queueName} failed: ${failedReason}`);
+      logger.error(
+        `Queue job ${queueName} errored: ${failedReason}`,
+        failedReason,
+      );
+      traceException(failedReason);
       recordIncrement(convertQueueNameToMetricName(queueName) + ".error");
     });
   }
