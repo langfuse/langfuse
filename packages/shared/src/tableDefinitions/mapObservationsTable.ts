@@ -86,7 +86,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "tokensPerSecond",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "usage_details['input'] / date_diff('milliseconds', start_time, end_time)",
+      "(usage_details['input'] / date_diff('milliseconds', start_time, end_time))",
   },
   {
     uiTableName: "Input Cost ($)",

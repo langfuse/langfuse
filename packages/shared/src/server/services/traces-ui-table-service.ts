@@ -176,13 +176,13 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   const chOrderBy = orderByToClickhouseSql(
     [
-      orderBy ?? null,
       orderBy?.order && orderBy?.column === "timestamp"
         ? {
             column: "timestamp_to_date",
             order: orderBy.order,
           }
         : null,
+      orderBy ?? null,
     ],
     [
       ...tracesTableUiColumnDefinitions,
