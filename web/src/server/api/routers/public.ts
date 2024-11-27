@@ -1,6 +1,7 @@
 import { VERSION } from "@/src/constants/VERSION";
 import { env } from "@/src/env.mjs";
 import { createTRPCRouter, publicProcedure } from "@/src/server/api/trpc";
+import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -58,11 +59,10 @@ export const publicRouter = createTRPCRouter({
       );
       body = await response.json();
     } catch (error) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to fetch or json parse the latest releases",
-        cause: error,
-      });
+      logger.info(
+        "[trpc.public.checkUpdate] failed to fetch latest-release api",
+      );
+      return null;
     }
 
     const releases = ReleaseApiRes.safeParse(body);

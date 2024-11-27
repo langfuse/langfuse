@@ -26,7 +26,7 @@ export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
     nestedLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
-  ])
+  ]),
 );
 
 // Root schema that does not allow nulls at the root level
@@ -35,17 +35,17 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
     rootLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
-  ])
+  ]),
 );
 
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().default(1)
+    z.coerce.number().default(1),
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().lte(100).default(50)
+    z.coerce.number().lte(100).default(50),
   ),
 };
 
@@ -69,8 +69,11 @@ export const paginationMetaResponseZod = z.object({
   totalPages: z.number().int().nonnegative(),
 });
 
-export const noHtmlRegex = /<[^>]*>/;
-export const noHtmlCheck = (value: string) => !noHtmlRegex.test(value);
+export const htmlRegex = /<[^>]*>/;
+export const noHtmlCheck = (value: string) => !htmlRegex.test(value);
+
+const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
+export const noUrlCheck = (value: string) => !urlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
 
@@ -83,7 +86,7 @@ export const NonEmptyString = z.string().min(1);
  */
 export const validateZodSchema = <T extends z.ZodTypeAny>(
   schema: T,
-  object: z.infer<T>
+  object: z.infer<T>,
 ): z.infer<T> => {
   return schema.parse(object);
 };

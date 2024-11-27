@@ -1,17 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
-import {
-  BatchExportQueue,
-  IngestionQueue,
-  LegacyIngestionQueue,
-  logger,
-  QueueName,
-  TraceUpsertQueue,
-  DatasetRunItemUpsertQueue,
-  EvalExecutionQueue,
-} from "@langfuse/shared/src/server";
+import { logger, QueueName, getQueue } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { type Queue } from "bullmq";
 
 /* 
 This API route is used by Langfuse Cloud to retry failed bullmq jobs.
@@ -177,23 +167,5 @@ export default async function handler(
   } catch (e) {
     logger.error("failed to remove API keys", e);
     res.status(500).json({ error: e });
-  }
-}
-function getQueue(queueName: QueueName): Queue | null {
-  switch (queueName) {
-    case QueueName.LegacyIngestionQueue:
-      return LegacyIngestionQueue.getInstance();
-    case QueueName.BatchExport:
-      return BatchExportQueue.getInstance();
-    case QueueName.DatasetRunItemUpsert:
-      return DatasetRunItemUpsertQueue.getInstance();
-    case QueueName.EvaluationExecution:
-      return EvalExecutionQueue.getInstance();
-    case QueueName.TraceUpsert:
-      return TraceUpsertQueue.getInstance();
-    case QueueName.IngestionQueue:
-      return IngestionQueue.getInstance();
-    default:
-      throw new Error(`Queue ${queueName} not found`);
   }
 }

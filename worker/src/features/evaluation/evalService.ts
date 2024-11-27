@@ -19,8 +19,8 @@ import {
   checkObservationExists,
   getTraceById,
   getObservationForTraceIdByName,
-  TraceUpsertEventType,
   DatasetRunItemUpsertEventType,
+  TraceQueueEventType,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -63,7 +63,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export const createEvalJobs = async ({
   event,
 }: {
-  event: TraceUpsertEventType | DatasetRunItemUpsertEventType;
+  event: TraceQueueEventType | DatasetRunItemUpsertEventType;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
   const configs = await kyselyPrisma.$kysely

@@ -38,17 +38,20 @@ import {
   deleteTraces,
   deleteScoresByTraceIds,
   deleteObservationsByTraceIds,
-  type TracesMetricsReturnType,
-  type TracesAllReturnType,
   getTraceById,
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
   hasAnyTrace,
+  QueueJobs,
+  TraceDeleteQueue,
+  getTracesTableMetrics,
+  type TracesAllUiReturnType,
+  type TracesMetricsUiReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import Decimal from "decimal.js";
+import { randomUUID } from "crypto";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -138,7 +141,7 @@ export const traceRouter = createTRPCRouter({
           const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
 
           return {
-            traces: traces.map<TracesAllReturnType>(
+            traces: traces.map<TracesAllUiReturnType>(
               // eslint-disable-next-line @typescript-eslint/no-unused-vars
               ({ input, output, metadata, ...trace }) => ({
                 ...trace,
@@ -254,7 +257,7 @@ export const traceRouter = createTRPCRouter({
 
           const [traceMetrics, scores] = await Promise.all([
             // traceMetrics
-            ctx.prisma.$queryRaw<Array<TracesMetricsReturnType>>(tracesQuery),
+            ctx.prisma.$queryRaw<Array<TracesMetricsUiReturnType>>(tracesQuery),
             // scores
             ctx.prisma.score.findMany({
               where: {
@@ -279,15 +282,18 @@ export const traceRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          const res = await getTracesTable(ctx.session.projectId, [
-            ...(input.filter ?? []),
-            {
-              type: "stringOptions",
-              operator: "any of",
-              column: "ID",
-              value: input.traceIds,
-            },
-          ]);
+          const res = await getTracesTableMetrics({
+            projectId: ctx.session.projectId,
+            filter: [
+              ...(input.filter ?? []),
+              {
+                type: "stringOptions",
+                operator: "any of",
+                column: "ID",
+                value: input.traceIds,
+              },
+            ],
+          });
 
           const scores = await getScoresForTraces(
             ctx.session.projectId,
@@ -303,22 +309,7 @@ export const traceRouter = createTRPCRouter({
           );
 
           return res.map((row) => ({
-            id: row.id,
-            promptTokens: BigInt(row.usageDetails?.input ?? 0),
-            completionTokens: BigInt(row.usageDetails?.output ?? 0),
-            totalTokens: BigInt(row.usageDetails?.total ?? 0),
-            latency: row.latency,
-            level: row.level,
-            observationCount: BigInt(row.observationCount ?? 0),
-            calculatedTotalCost: row.costDetails?.total
-              ? new Decimal(row.costDetails.total)
-              : null,
-            calculatedInputCost: row.costDetails?.input
-              ? new Decimal(row.costDetails.input)
-              : null,
-            calculatedOutputCost: row.costDetails?.output
-              ? new Decimal(row.costDetails.output)
-              : null,
+            ...row,
             scores: aggregateScores(
               validatedScores.filter((s) => s.traceId === row.id),
             ),
@@ -647,6 +638,8 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
+      const traceDeleteQueue = TraceDeleteQueue.getInstance();
+
       for (const traceId of input.traceIds) {
         await auditLog({
           resourceType: "trace",
@@ -656,55 +649,75 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      await ctx.prisma.$transaction([
-        ctx.prisma.trace.deleteMany({
-          where: {
-            id: {
-              in: input.traceIds,
+      if (!traceDeleteQueue) {
+        logger.warn(
+          `TraceDeleteQueue not initialized. Try synchronous deletion for ${input.traceIds.length} traces.`,
+        );
+        await ctx.prisma.$transaction([
+          ctx.prisma.trace.deleteMany({
+            where: {
+              id: {
+                in: input.traceIds,
+              },
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.observation.deleteMany({
-          where: {
-            traceId: {
-              in: input.traceIds,
+          }),
+          ctx.prisma.observation.deleteMany({
+            where: {
+              traceId: {
+                in: input.traceIds,
+              },
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.score.deleteMany({
-          where: {
-            traceId: {
-              in: input.traceIds,
+          }),
+          ctx.prisma.score.deleteMany({
+            where: {
+              traceId: {
+                in: input.traceIds,
+              },
+              projectId: input.projectId,
             },
-            projectId: input.projectId,
-          },
-        }),
-        // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
-        ctx.prisma.jobExecution.updateMany({
-          where: {
-            jobInputTraceId: { in: input.traceIds },
-            projectId: input.projectId,
-          },
-          data: {
-            jobInputTraceId: {
-              set: null,
+          }),
+          // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
+          ctx.prisma.jobExecution.updateMany({
+            where: {
+              jobInputTraceId: { in: input.traceIds },
+              projectId: input.projectId,
             },
-            jobInputObservationId: {
-              set: null,
+            data: {
+              jobInputTraceId: {
+                set: null,
+              },
+              jobInputObservationId: {
+                set: null,
+              },
             },
-          },
-        }),
-      ]);
-
-      if (env.CLICKHOUSE_URL) {
-        await Promise.all([
-          deleteTraces(input.projectId, input.traceIds),
-          deleteObservationsByTraceIds(input.projectId, input.traceIds),
-          deleteScoresByTraceIds(input.projectId, input.traceIds),
+          }),
         ]);
+
+        if (env.CLICKHOUSE_URL) {
+          await Promise.all([
+            deleteTraces(input.projectId, input.traceIds),
+            deleteObservationsByTraceIds(input.projectId, input.traceIds),
+            deleteScoresByTraceIds(input.projectId, input.traceIds),
+          ]);
+        }
+        return;
       }
+
+      await Promise.all(
+        input.traceIds.map(async (traceId) =>
+          traceDeleteQueue.add(QueueJobs.TraceDelete, {
+            timestamp: new Date(),
+            id: randomUUID(),
+            payload: {
+              projectId: input.projectId,
+              traceId,
+            },
+            name: QueueJobs.TraceDelete,
+          }),
+        ),
+      );
     }),
   bookmark: protectedProjectProcedure
     .input(
