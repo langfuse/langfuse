@@ -450,6 +450,9 @@ export async function createDatasets(
           Math.random() > 0.3
             ? observations[Math.floor(Math.random() * observations.length)]
             : undefined;
+        if (!sourceObservation) {
+          continue;
+        }
         const datasetItem = await prisma.datasetItem.create({
           data: {
             projectId,
