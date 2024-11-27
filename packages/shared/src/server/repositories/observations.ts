@@ -662,7 +662,7 @@ const getObservationsTableInternal = async <T>(
       SELECT
        ${selectString}
       FROM observations o 
-        ${traceTableFilter.length > 0 || orderByTraces ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+        ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         AND o.type = 'GENERATION'
