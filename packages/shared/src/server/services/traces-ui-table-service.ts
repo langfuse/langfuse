@@ -298,9 +298,19 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
 
   const search = clickhouseSearchCondition(searchQuery);
 
+  const defaultOrder = orderBy?.order && orderBy?.column === "timestamp";
+  const orderByCols = [
+    ...tracesTableUiColumnDefinitions,
+    {
+      clickhouseSelect: "toDate(t.timestamp)",
+      uiTableName: "timestamp_to_date",
+      uiTableId: "timestamp_to_date",
+      clickhouseTableName: "observations",
+    },
+  ];
   const chOrderBy = orderByToClickhouseSql(
     [
-      orderBy?.order && orderBy?.column === "timestamp"
+      defaultOrder
         ? {
             column: "timestamp_to_date",
             order: orderBy.order,
@@ -308,16 +318,16 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         : null,
       orderBy ?? null,
     ],
-    [
-      ...tracesTableUiColumnDefinitions,
-      {
-        clickhouseSelect: "toDate(t.timestamp)",
-        uiTableName: "timestamp_to_date",
-        uiTableId: "timestamp_to_date",
-        clickhouseTableName: "observations",
-      },
-    ],
+    orderByCols,
   );
+
+  // complex query ahead:
+  // - we only join scores and observations if we really need them to speed up default views
+  // - we use FINAL on traces only in case we not need to order by something different than time. Otherwise we cannot guarantee correct reads.
+  // - we filter the observations and scores as much as possible before joining them to traces.
+  // - we order by todate(timestamp), timestamp per default and do not use FINAL.
+  //   In this case, CH is able to read the data only from the latest date from disk and filtering them in memory. No need to read all data e.g. for 1 month from disk.
+
   const query = `
     WITH observations_stats AS (
       SELECT
@@ -361,13 +371,17 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       GROUP BY project_id, trace_id
     )
     SELECT ${sqlSelect}
-    FROM traces t FINAL 
+    -- FINAL is used for non default ordering and count.
+    FROM traces t  ${["metrics", "rows"].includes(select) && defaultOrder ? "" : "FINAL"}
     ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
     ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
     WHERE t.project_id = {projectId: String}
     ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
     ${search.query}
     ${chOrderBy}
+    -- This is used for metrics and row queries. Count has only one result.
+    -- This is only used for default ordering. Otherwise, we use final.
+    ${["metrics", "rows"].includes(select) && defaultOrder ? "LIMIT 1 BY id, project_id" : ""}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
