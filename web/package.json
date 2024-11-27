@@ -115,7 +115,7 @@
     "kysely": "^0.27.4",
     "langchain": "^0.3.6",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.447.0",
+    "lucide-react": "^0.462.0",
     "next": "^14.2.15",
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.1",
