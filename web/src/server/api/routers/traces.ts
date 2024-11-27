@@ -47,7 +47,7 @@ import {
   TraceDeleteQueue,
   getTracesTableMetrics,
   type TracesAllUiReturnType,
-  TracesMetricsUiReturnType,
+  type TracesMetricsUiReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
