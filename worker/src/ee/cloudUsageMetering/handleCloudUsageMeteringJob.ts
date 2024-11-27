@@ -4,9 +4,9 @@ import Stripe from "stripe";
 import { env } from "../../env";
 import {
   CloudUsageMeteringQueue,
-  getObservationCountInCreationInterval,
-  getScoreCountInCreationInterval,
-  getTraceCountInCreationInterval,
+  getObservationCountsByProjectInCreationInterval,
+  getScoreCountsByProjectInCreationInterval,
+  getTraceCountsByProjectInCreationInterval,
   logger,
 } from "@langfuse/shared/src/server";
 import {
@@ -108,6 +108,20 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );
 
+  const observationCountsByProject =
+    await getObservationCountsByProjectInCreationInterval({
+      start: meterIntervalStart,
+      end: meterIntervalEnd,
+    });
+  const traceCountsByProject = await getTraceCountsByProjectInCreationInterval({
+    start: meterIntervalStart,
+    end: meterIntervalEnd,
+  });
+  const scoreCountsByProject = await getScoreCountsByProjectInCreationInterval({
+    start: meterIntervalStart,
+    end: meterIntervalEnd,
+  });
+
   // setup stripe client
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
@@ -132,11 +146,10 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
 
     // Observations (legacy)
-    const countObservations = await getObservationCountInCreationInterval({
-      projectIds: org.projectIds,
-      start: meterIntervalStart,
-      end: meterIntervalEnd,
-    });
+    const countObservations = observationCountsByProject
+      .filter((p) => org.projectIds.includes(p.projectId))
+      .reduce((sum, p) => sum + p.count, 0);
+
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
     );
@@ -152,16 +165,12 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
 
     // Events
-    const countScores = await getScoreCountInCreationInterval({
-      projectIds: org.projectIds,
-      start: meterIntervalStart,
-      end: meterIntervalEnd,
-    });
-    const countTraces = await getTraceCountInCreationInterval({
-      projectIds: org.projectIds,
-      start: meterIntervalStart,
-      end: meterIntervalEnd,
-    });
+    const countScores = scoreCountsByProject
+      .filter((p) => org.projectIds.includes(p.projectId))
+      .reduce((sum, p) => sum + p.count, 0);
+    const countTraces = traceCountsByProject
+      .filter((p) => org.projectIds.includes(p.projectId))
+      .reduce((sum, p) => sum + p.count, 0);
     const countEvents = countScores + countTraces + countObservations;
     logger.info(
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
