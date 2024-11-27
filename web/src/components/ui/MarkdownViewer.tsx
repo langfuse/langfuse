@@ -31,6 +31,7 @@ import {
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { type MediaReturnType } from "@/src/features/media/validation";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -233,12 +234,14 @@ export function MarkdownView({
   className,
   customCodeHeaderClassName,
   audio,
+  media,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const capture = usePostHogClientCapture();
@@ -364,6 +367,22 @@ export function MarkdownView({
           </>
         ) : null}
       </div>
+      {media && media.length > 0 && (
+        <>
+          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+            Media
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 pt-1">
+            {media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
