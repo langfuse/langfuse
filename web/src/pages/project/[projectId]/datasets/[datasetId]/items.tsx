@@ -75,6 +75,7 @@ export default function DatasetItems() {
               invalidateFunc={() => void utils.datasets.invalidate()}
               type="dataset"
               redirectUrl={`/project/${projectId}/datasets`}
+              deleteConfirmation={dataset.data?.name}
             />
           </>
         }

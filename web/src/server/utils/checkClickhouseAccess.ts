@@ -44,6 +44,14 @@ export const measureAndReturnApi = async <T, Y>(args: {
         });
       }
 
+      const excludedOperations =
+        env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS?.split(",");
+
+      // if operation is excluded, return postgres only
+      if (excludedOperations?.includes(args.operation)) {
+        return await pgExecution(input);
+      }
+
       // if query clickhouse, return clickhouse only. Only possible for admin users
       if (input.queryClickhouse) {
         return await clickhouseExecution(input);

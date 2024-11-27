@@ -137,11 +137,12 @@ jobs:
   tests-web-async:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
+        blob-provider: ["", "-azure"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -172,11 +173,11 @@ jobs:
           pnpm install
       - name: Load default env
         run: |
-          cp .env.dev.example .env
-          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          cp .env.dev${{ matrix.blob-provider }}.example .env
+          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
         env:
@@ -205,11 +206,12 @@ jobs:
   tests-worker:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
+        blob-provider: ["", "-azure"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -240,12 +242,12 @@ jobs:
           which migrate
       - name: Load default env
         run: |
-          cp .env.dev.example .env
-          cp .env.dev.example web/.env
-          cp .env.dev.example worker/.env
+          cp .env.dev${{ matrix.blob-provider }}.example .env
+          cp .env.dev${{ matrix.blob-provider }}.example web/.env
+          cp .env.dev${{ matrix.blob-provider }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
       - name: Ensure no unhealthy status
@@ -326,18 +328,18 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Load default env
-        run: |
-          cp .env.dev.example .env
-          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
-          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
-
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+          echo "LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING=true" >> .env
+          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
+          echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -439,6 +441,8 @@ jobs:
           images: |
             ghcr.io/langfuse/langfuse # GitHub
             langfuse/langfuse # Docker Hub
+          flavor: |
+            latest=false
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -446,6 +450,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+          # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') }}
       - name: Build and push Docker image (web)
         uses: docker/build-push-action@v4
         with:

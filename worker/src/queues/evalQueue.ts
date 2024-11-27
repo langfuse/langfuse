@@ -1,10 +1,6 @@
 import { Job } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
-import {
-  createDatasetEvalJobs,
-  createTraceEvalJobs,
-  evaluate,
-} from "../features/evaluation/evalService";
+import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -18,7 +14,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
-    await createTraceEvalJobs({ event: job.data.payload });
+    await createEvalJobs({ event: job.data.payload });
     return true;
   } catch (e) {
     logger.error(
@@ -34,7 +30,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>,
 ) => {
   try {
-    await createDatasetEvalJobs({ event: job.data.payload });
+    await createEvalJobs({ event: job.data.payload });
     return true;
   } catch (e) {
     logger.error(

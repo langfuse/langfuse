@@ -2,7 +2,7 @@ import {
   clickhouseClient,
   ObservationRecordReadType,
 } from "@langfuse/shared/src/server";
-import { Prisma, prisma } from "../../src/db";
+import { prisma } from "../../src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { prepareClickhouse } from "../../scripts/prepareClickhouse";
 import { createDatasets } from "../../prisma/seed";

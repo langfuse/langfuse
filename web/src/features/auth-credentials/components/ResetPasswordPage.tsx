@@ -25,16 +25,13 @@ import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 
 const resetPasswordSchema = z
   .object({
     email: z.string().email(),
-    password: z.string().min(8, {
-      message: "Password must be at least 8 characters long",
-    }),
-    confirmPassword: z.string().min(8, {
-      message: "Password must be at least 8 characters long",
-    }),
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",

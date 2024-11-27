@@ -22,8 +22,11 @@ import { LegacyIngestionEventType, QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { LegacyIngestionQueue } from "../redis/legacyIngestion";
 import { redis } from "../redis/redis";
-import { S3StorageService } from "../services/S3StorageService";
-import { addTracesToTraceUpsertQueue, handleBatch } from "./legacy";
+import { handleBatch } from "./legacy";
+import {
+  StorageService,
+  StorageServiceFactory,
+} from "../services/StorageService";
 import { getProcessorForEvent } from "./legacy/EventProcessor";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
 
@@ -32,11 +35,11 @@ export type TokenCountDelegate = (p: {
   text: unknown;
 }) => number | undefined;
 
-let s3StorageServiceClient: S3StorageService;
+let s3StorageServiceClient: StorageService;
 
-const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = new S3StorageService({
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
       accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
@@ -285,8 +288,6 @@ export const processEventBatch = async (
    * SYNC PROCESSING *
    *******************/
   const result = await handleBatch(sortedBatch, authCheck, tokenCountDelegate);
-
-  await addTracesToTraceUpsertQueue(result.results, authCheck.scope.projectId);
 
   //  in case we did not return early, we return the result here
   return aggregateBatchResult(

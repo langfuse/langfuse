@@ -68,21 +68,25 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "timeToFirstToken",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(isNull(completion_start_time), NULL,  date_diff('seconds', start_time, completion_start_time))",
+      "if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time))",
+    // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Latency (s)",
     uiTableId: "latency",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(isNull(end_time), NULL, date_diff('seconds', start_time, end_time))",
+      "if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time))",
+    // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Tokens per second",
     uiTableId: "tokensPerSecond",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "usage_details['input'] / date_diff('seconds', start_time, end_time)",
+      "(usage_details['input'] / date_diff('milliseconds', start_time, end_time))",
   },
   {
     uiTableName: "Input Cost ($)",

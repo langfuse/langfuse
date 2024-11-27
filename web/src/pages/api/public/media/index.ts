@@ -212,7 +212,7 @@ export default withMiddlewares({
                 uploadUrl,
               };
             },
-            { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
           );
         } catch (error) {
           if (

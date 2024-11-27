@@ -1,10 +1,13 @@
 import { filterOperators } from "../../../interfaces/filters";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
 
+export type ClickhouseOperator =
+  | (typeof filterOperators)[keyof typeof filterOperators][number]
+  | "!=";
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
-  operator: (typeof filterOperators)[keyof typeof filterOperators][number];
+  operator: ClickhouseOperator;
   field: string;
 }
 type ClickhouseFilter = {
@@ -69,28 +72,32 @@ export class NumberFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public value: number;
-  public operator: (typeof filterOperators)["number"][number];
+  public operator: (typeof filterOperators)["number"][number] | "!=";
+  public clickhouseTypeOverwrite?: string;
   protected tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["number"][number];
+    operator: (typeof filterOperators)["number"][number] | "!=";
     value: number;
     tablePrefix?: string;
+    clickhouseTypeOverwrite?: string;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
     this.value = opts.value;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
+    this.clickhouseTypeOverwrite = opts.clickhouseTypeOverwrite;
   }
 
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `numberFilter${uid}`;
+    const type = this.clickhouseTypeOverwrite ?? "Decimal64(12)";
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: Decimal64(12)}`,
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: ${type}}`,
       params: { [varName]: this.value.toString() },
     };
   }
@@ -256,7 +263,7 @@ export class ArrayOptionsFilter implements Filter {
         query = `hasAny({${varName}: Array(String)}, ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = False`;
         break;
       case "all of":
-        query = `arrayAll(x -> has({${varName}: Array(String)}, x), ${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}) = True`;
+        query = `hasAll(${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}, {${varName}: Array(String)}) = True`;
         break;
       default:
         throw new Error(`Unsupported operator: ${this.operator}`);
@@ -300,13 +307,13 @@ export class NumberObjectFilter implements Filter {
   public field: string;
   public key: string;
   public value: number;
-  public operator: (typeof filterOperators)["numberObject"][number];
+  public operator: (typeof filterOperators)["numberObject"][number] | "!=";
   protected tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["numberObject"][number];
+    operator: (typeof filterOperators)["numberObject"][number] | "!=";
     key: string;
     value: number;
     tablePrefix?: string;
@@ -364,7 +371,7 @@ export class BooleanFilter implements Filter {
 export class FilterList {
   private filters: Filter[];
 
-  constructor(filters: Filter[]) {
+  constructor(filters: Filter[] = []) {
     this.filters = filters;
   }
 
@@ -374,6 +381,10 @@ export class FilterList {
 
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
+  }
+
+  length() {
+    return this.filters.length;
   }
 
   public apply(): ClickhouseFilter {

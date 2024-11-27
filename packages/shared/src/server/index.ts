@@ -1,4 +1,4 @@
-export * from "./services/S3StorageService";
+export * from "./services/StorageService";
 export * from "./services/email/organizationInvitation/sendMembershipInvitationEmail";
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
@@ -21,6 +21,9 @@ export * from "../server/ingestion/types";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "./redis/redis";
 export * from "./redis/traceUpsert";
+export * from "./redis/cloudUsageMeteringQueue";
+export * from "./redis/getQueue";
+export * from "./redis/traceDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/legacyIngestion";

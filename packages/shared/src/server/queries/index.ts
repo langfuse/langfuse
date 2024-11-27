@@ -18,4 +18,5 @@ export {
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
+  type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";

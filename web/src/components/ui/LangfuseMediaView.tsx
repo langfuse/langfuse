@@ -8,7 +8,7 @@ import {
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
-  MediaContentType,
+  type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
 import { FileIcon, ImageIcon, SpeakerLoudIcon } from "@radix-ui/react-icons";
@@ -78,32 +78,22 @@ export const LangfuseMediaView = ({
     return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
   }
 
-  switch (mediaData.type) {
-    case MediaContentType.JPEG:
-    case MediaContentType.PNG:
-    case MediaContentType.WEBP:
-      return (
-        <div>
-          <ResizableImage
-            src={mediaUrl}
-            isDefaultVisible={true}
-            shouldValidateImageSource={false}
-          />
-        </div>
-      );
-    case MediaContentType.MP3:
-    case MediaContentType.MP3_LEGACY:
-    case MediaContentType.WAV:
-      return <AudioPlayer src={mediaUrl} />;
-
-    case MediaContentType.PDF:
-      return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
-
-    case MediaContentType.TXT:
-      return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
-
-    default:
-      return null;
+  if (mediaData.type.startsWith("image")) {
+    return (
+      <div>
+        <ResizableImage
+          src={mediaUrl}
+          isDefaultVisible={true}
+          shouldValidateImageSource={false}
+        />
+      </div>
+    );
+  } else if (mediaData.type.startsWith("audio")) {
+    return <AudioPlayer src={mediaUrl} />;
+  } else if (mediaData.type.startsWith("video")) {
+    return <VideoPlayer src={mediaUrl} />;
+  } else {
+    return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
   }
 };
 
@@ -159,5 +149,16 @@ function AudioPlayer({ src }: { src?: string }) {
       <source src={src} />
       Your browser does not support the audio element.
     </audio>
+  );
+}
+
+function VideoPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <video controls className="w-full" preload="metadata">
+      <source src={src} />
+      Your browser does not support the video element.
+    </video>
   );
 }

@@ -24,28 +24,7 @@ import {
 } from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-
-export type FetchScoresReturnType = {
-  id: string;
-  timestamp: string;
-  project_id: string;
-  trace_id: string;
-  observation_id: string | null;
-  name: string;
-  value: number;
-  source: string;
-  comment: string | null;
-  author_user_id: string | null;
-  config_id: string | null;
-  data_type: string;
-  string_value: string | null;
-  queue_id: string | null;
-  created_at: string;
-  updated_at: string;
-  event_ts: string;
-  is_deleted: number;
-  projectId: string;
-};
+import { ScoreRecordReadType } from "./definitions";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -74,7 +53,7 @@ export const searchExistingAnnotationScore = async (
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query,
     params: {
       projectId,
@@ -103,7 +82,7 @@ export const getScoreById = async (
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query,
     params: {
       projectId,
@@ -118,13 +97,13 @@ export const getScoreById = async (
  * Accepts a score in a Clickhouse-ready format.
  * id, project_id, name, and timestamp must always be provided.
  */
-export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
+export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   if (!["id", "project_id", "name", "timestamp"].every((key) => key in score)) {
     throw new Error("Identifier fields must be provided to upsert Score.");
   }
   await upsertClickhouse({
     table: "scores",
-    records: [score as FetchScoresReturnType],
+    records: [score as ScoreRecordReadType],
     eventBodyMapper: convertToScore,
   });
 };
@@ -148,7 +127,7 @@ export const getScoresForTraces = async (
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query: query,
     params: {
       projectId,
@@ -181,7 +160,7 @@ export const getScoresForObservations = async (
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query: query,
     params: {
       projectId: projectId,
@@ -568,5 +547,36 @@ export const getAggregatedScoresForPrompts = async (
   return rows.map((row) => ({
     ...convertScoreAggregation(row),
     promptId: row.prompt_id,
+  }));
+};
+
+export const getScoreCountsByProjectInCreationInterval = async ({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}) => {
+  const query = `
+    SELECT 
+      project_id,
+      count(*) as count
+    FROM scores
+    WHERE created_at >= {start: DateTime64(3)}
+    AND created_at < {end: DateTime64(3)}
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
   }));
 };

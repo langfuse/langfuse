@@ -191,6 +191,7 @@ export default withMiddlewares({
                   },
                 })
               : [];
+          const finalCount = count ? count : 0;
 
           return {
             data: items
@@ -214,8 +215,8 @@ export default withMiddlewares({
             meta: {
               page: query.page,
               limit: query.limit,
-              totalItems: count ?? 0,
-              totalPages: Math.ceil(count ?? 0 / query.limit),
+              totalItems: finalCount,
+              totalPages: Math.ceil(finalCount / query.limit),
             },
           };
         },
