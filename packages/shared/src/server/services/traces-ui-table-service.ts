@@ -353,8 +353,8 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     )
     SELECT ${sqlSelect}
     FROM traces t FINAL 
-    ${hasObservationsFilter ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
-    ${hasScoresFilter ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
+    ${select === "metrics" || hasObservationsFilter ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+    ${select === "metrics" || hasScoresFilter ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
     WHERE t.project_id = {projectId: String}
     ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
     ${search.query}
