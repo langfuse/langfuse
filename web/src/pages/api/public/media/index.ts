@@ -44,7 +44,7 @@ export default withMiddlewares({
 
       // Retry up to 3 times to avoid race conditions for concurrent media uploads
       // Multiple observations can reference the same media, so we need to make sure no deadlock occurs
-      const MAX_RETRIES = 3;
+      const MAX_RETRIES = 6;
       let retries = 0;
 
       while (retries < MAX_RETRIES) {
