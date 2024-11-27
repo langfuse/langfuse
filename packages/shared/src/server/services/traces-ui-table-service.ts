@@ -275,12 +275,26 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  const hasScoresFilter = tracesFilter.find(
-    (f) => f.clickhouseTable === "scores",
-  );
+  const requiresScoresJoin =
+    tracesFilter.find((f) => f.clickhouseTable === "scores") !== undefined ||
+    tracesTableUiColumnDefinitions.find(
+      (c) =>
+        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+    )?.clickhouseTableName === "scores";
 
-  const hasObservationsFilter = tracesFilter.find(
-    (f) => f.clickhouseTable === "observations",
+  const requiresObservationsJoin =
+    tracesFilter.find((f) => f.clickhouseTable === "observations") !==
+      undefined ||
+    tracesTableUiColumnDefinitions.find(
+      (c) =>
+        c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
+    )?.clickhouseTableName === "observations";
+
+  console.log(
+    "hasScoresFilter",
+    tracesFilter,
+    requiresScoresJoin,
+    requiresObservationsJoin,
   );
 
   const tracesFilterRes = tracesFilter.apply();
@@ -353,14 +367,16 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
     )
     SELECT ${sqlSelect}
     FROM traces t FINAL 
-    ${select === "metrics" || hasObservationsFilter ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
-    ${select === "metrics" || hasScoresFilter ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
+    ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id` : ""}
+    ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id` : ""}
     WHERE t.project_id = {projectId: String}
     ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
     ${search.query}
     ${chOrderBy}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
+
+  console.log("query", select, query);
 
   const res = await queryClickhouse<T>({
     query: query,
