@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
+  convertDateToClickhouseDateTime,
   ObservationEvent,
   observationRecordReadSchema,
   ObservationRecordReadType,
@@ -14,6 +15,7 @@ import {
   TraceEventType,
   traceRecordReadSchema,
   TraceRecordReadType,
+  upsertObservation,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 
@@ -1245,6 +1247,79 @@ describe("Ingestion end-to-end tests", () => {
       total: 0.0000006,
     });
     expect(observation.total_cost).toBe(0.0000006);
+  });
+
+  it("should merge merge observation_stats correctly without duplicate counting", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+
+    console.log("IDs", projectId, traceId, observationId);
+
+    // Write the same observation twice
+    await upsertObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      name: "great-llm-name",
+      type: "GENERATION",
+      total_cost: 5,
+      start_time: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+
+    await upsertObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      name: "great-llm-name",
+      type: "GENERATION",
+      total_cost: 5,
+      start_time: convertDateToClickhouseDateTime(new Date()),
+      created_at: convertDateToClickhouseDateTime(new Date()),
+      updated_at: convertDateToClickhouseDateTime(new Date()),
+    });
+
+    // Fetch the aggregate price from observations table (with replacing merge tree)
+    const statsFromObservationsTable = await clickhouseClient().query({
+      query: `
+         select trace_id, project_id, sum(total_cost) as total_cost
+         from observations final
+         where project_id = {projectId: String}
+         and trace_id = {traceId: String}
+         group by project_id, trace_id
+      `,
+      query_params: {
+        projectId,
+        traceId,
+      },
+    });
+
+    // Fetch the aggregate price from observation_stats table (with aggregating merge tree)
+    const statsFromObservationsStatsTable = await clickhouseClient().query({
+      query: `
+         select trace_id, project_id, sum(sum_total_cost) as total_cost
+         from observation_stats
+         where project_id = {projectId: String}
+         and trace_id = {traceId: String}
+         group by project_id, trace_id
+      `,
+      query_params: {
+        projectId,
+        traceId,
+      },
+    });
+
+    const totalCostObservations = (await statsFromObservationsTable.json())
+      .data[0]["total_cost"];
+    const totalCostObservationsStats = (
+      await statsFromObservationsStatsTable.json()
+    ).data[0]["total_cost"];
+
+    expect(totalCostObservations).toBe(5);
+    expect(totalCostObservationsStats).toBe(5);
+    expect(totalCostObservations).toBe(totalCostObservationsStats);
   });
 
   it("should merge observations and calculate cost", async () => {
