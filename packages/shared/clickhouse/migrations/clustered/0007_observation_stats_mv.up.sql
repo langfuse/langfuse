@@ -8,7 +8,7 @@ SELECT
     maxSimpleState(end_time) as max_end_time,
     sumMapSimpleState(usage_details) as sum_usage_details,
     sumMapSimpleState(cost_details) as sum_cost_details,
-    sumSimpleState(total_cost) as sum_total_cost,
+    sumSimpleState(coalesce(total_cost, 0)) as sum_total_cost,
     groupUniqArrayArraySimpleState([level]) as unique_levels
 FROM observations
 GROUP BY trace_id, project_id;
