@@ -6,6 +6,7 @@ export * from "./services/PromptService";
 export * from "./services/traces-ui-table-service";
 export * from "./auth/apiKeys";
 export * from "./auth/customSsoProvider";
+export * from "./auth/gitHubEnterpriseProvider";
 export * from "./llm/fetchLLMCompletion";
 export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
