@@ -883,13 +883,29 @@ export const deleteObservationsByTraceIds = async (
     WHERE project_id = {projectId: String}
     AND trace_id IN ({traceIds: Array(String)});
   `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
-    },
-  });
+
+  const queryStats = `
+    DELETE FROM observation_stats
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)});
+  `;
+
+  await Promise.all([
+    commandClickhouse({
+      query: query,
+      params: {
+        projectId,
+        traceIds,
+      },
+    }),
+    commandClickhouse({
+      query: queryStats,
+      params: {
+        projectId,
+        traceIds,
+      },
+    }),
+  ]);
 };
 
 export const getObservationsWithPromptName = async (
