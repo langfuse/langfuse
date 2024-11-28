@@ -121,7 +121,7 @@
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",
     "posthog-js": "^1.176.0",
-    "posthog-node": "^3.6.3",
+    "posthog-node": "^4.3.1",
     "prexit": "^2.2.0",
     "prisma": "^5.22.0",
     "rate-limiter-flexible": "^5.0.3",
