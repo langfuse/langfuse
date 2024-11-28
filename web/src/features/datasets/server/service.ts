@@ -259,6 +259,8 @@ const getObservationLatencyAndCostForDataset = async (
   tableName: string,
   clickhouseSession: string,
 ) => {
+  // the subquery here will improve performance as it allows clickhouse to use skip-indices on
+  // the observations table
   const query = `
       WITH agg AS (
         SELECT
