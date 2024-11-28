@@ -261,20 +261,24 @@ const getObservationLatencyAndCostForDataset = async (
 ) => {
   const query = `
       WITH agg AS (
-      SELECT
-        run_id,
-        dateDiff('milliseconds', start_time, end_time) AS latency_ms,
-        total_cost AS cost
-      FROM observations o  JOIN ${tableName} tmp
-        ON tmp.project_id = o.project_id 
-        AND tmp.observation_id = o.id 
-        AND tmp.trace_id = o.trace_id
-      WHERE o.project_id = {projectId: String}
-      AND tmp.project_id = {projectId: String}
-      AND tmp.dataset_id = {datasetId: String}
-      AND tmp.observation_id IS NOT NULL
-      ORDER BY o.event_ts DESC
-      LIMIT 1 BY o.id, o.project_id
+        SELECT
+            dateDiff('milliseconds', start_time, end_time) AS latency_ms,
+            total_cost AS cost,
+            run_id
+        FROM observations AS o
+        INNER JOIN ${tableName} AS tmp ON (o.id = tmp.observation_id) AND (o.project_id = tmp.project_id) AND (tmp.trace_id = o.trace_id)
+        WHERE (id, trace_id, project_id) IN (
+            SELECT
+                observation_id,
+                trace_id,
+                project_id
+            FROM ${tableName}
+            WHERE (project_id = {projectId: String}) AND (dataset_id = {datasetId: String}) AND (observation_id IS NOT NULL)
+      )
+      ORDER BY o.start_time DESC
+      LIMIT 1 BY
+          o.id,
+          o.project_id
     )
     SELECT 
       run_id,
