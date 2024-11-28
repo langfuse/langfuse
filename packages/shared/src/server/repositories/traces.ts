@@ -151,33 +151,35 @@ export const hasAnyTrace = async (projectId: string) => {
   return rows.length > 0 && Number(rows[0].count) > 0;
 };
 
-export const getTraceCountInCreationInterval = async ({
-  projectIds,
+export const getTraceCountsByProjectInCreationInterval = async ({
   start,
   end,
 }: {
-  projectIds: string[];
   start: Date;
   end: Date;
 }) => {
   const query = `
-    SELECT count(*) as count
+    SELECT 
+      project_id,
+      count(*) as count
     FROM traces
-    WHERE project_id IN ({projectIds: Array(String)})
-    AND created_at >= {start: DateTime64(3)}
+    WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
+    GROUP BY project_id
   `;
 
-  const rows = await queryClickhouse<{ count: string }>({
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
     query,
     params: {
-      projectIds,
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
     },
   });
 
-  return rows.length > 0 ? Number(rows[0].count) : 0;
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 };
 
 export const getTraceById = async (
@@ -424,7 +426,17 @@ export const getSessionsTable = async (props: {
   return rows;
 };
 
-const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
+export type FetchSessionsTableProps = {
+  select: string;
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+};
+
+const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const { select, projectId, filter, orderBy, limit, page } = props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =

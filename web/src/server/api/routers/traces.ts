@@ -38,8 +38,6 @@ import {
   deleteTraces,
   deleteScoresByTraceIds,
   deleteObservationsByTraceIds,
-  type TracesMetricsReturnType,
-  type TracesAllReturnType,
   getTraceById,
   logger,
   upsertTrace,
@@ -47,10 +45,12 @@ import {
   hasAnyTrace,
   QueueJobs,
   TraceDeleteQueue,
+  getTracesTableMetrics,
+  type TracesAllUiReturnType,
+  type TracesMetricsUiReturnType,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 
 const TraceFilterOptions = z.object({
@@ -141,7 +141,7 @@ export const traceRouter = createTRPCRouter({
           const traces = await ctx.prisma.$queryRaw<Array<Trace>>(tracesQuery);
 
           return {
-            traces: traces.map<TracesAllReturnType>(
+            traces: traces.map<TracesAllUiReturnType>(
               // eslint-disable-next-line @typescript-eslint/no-unused-vars
               ({ input, output, metadata, ...trace }) => ({
                 ...trace,
@@ -257,7 +257,7 @@ export const traceRouter = createTRPCRouter({
 
           const [traceMetrics, scores] = await Promise.all([
             // traceMetrics
-            ctx.prisma.$queryRaw<Array<TracesMetricsReturnType>>(tracesQuery),
+            ctx.prisma.$queryRaw<Array<TracesMetricsUiReturnType>>(tracesQuery),
             // scores
             ctx.prisma.score.findMany({
               where: {
@@ -282,15 +282,18 @@ export const traceRouter = createTRPCRouter({
           }));
         },
         clickhouseExecution: async () => {
-          const res = await getTracesTable(ctx.session.projectId, [
-            ...(input.filter ?? []),
-            {
-              type: "stringOptions",
-              operator: "any of",
-              column: "ID",
-              value: input.traceIds,
-            },
-          ]);
+          const res = await getTracesTableMetrics({
+            projectId: ctx.session.projectId,
+            filter: [
+              ...(input.filter ?? []),
+              {
+                type: "stringOptions",
+                operator: "any of",
+                column: "ID",
+                value: input.traceIds,
+              },
+            ],
+          });
 
           const scores = await getScoresForTraces(
             ctx.session.projectId,
@@ -306,22 +309,7 @@ export const traceRouter = createTRPCRouter({
           );
 
           return res.map((row) => ({
-            id: row.id,
-            promptTokens: BigInt(row.usageDetails?.input ?? 0),
-            completionTokens: BigInt(row.usageDetails?.output ?? 0),
-            totalTokens: BigInt(row.usageDetails?.total ?? 0),
-            latency: row.latency,
-            level: row.level,
-            observationCount: BigInt(row.observationCount ?? 0),
-            calculatedTotalCost: row.costDetails?.total
-              ? new Decimal(row.costDetails.total)
-              : null,
-            calculatedInputCost: row.costDetails?.input
-              ? new Decimal(row.costDetails.input)
-              : null,
-            calculatedOutputCost: row.costDetails?.output
-              ? new Decimal(row.costDetails.output)
-              : null,
+            ...row,
             scores: aggregateScores(
               validatedScores.filter((s) => s.traceId === row.id),
             ),
