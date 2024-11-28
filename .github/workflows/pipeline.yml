@@ -41,6 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME_READ && secrets.DOCKERHUB_TOKEN_READ }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -89,6 +90,7 @@ jobs:
         with:
           version: 9.5.0
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME_READ && secrets.DOCKERHUB_TOKEN_READ }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -158,6 +160,7 @@ jobs:
         with:
           version: 9.5.0
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME_READ && secrets.DOCKERHUB_TOKEN_READ }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -222,6 +225,7 @@ jobs:
         with:
           version: 9.5.0
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME_READ && secrets.DOCKERHUB_TOKEN_READ }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -281,6 +285,7 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME_READ && secrets.DOCKERHUB_TOKEN_READ }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -313,6 +318,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME_READ && secrets.DOCKERHUB_TOKEN_READ }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -424,6 +430,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
