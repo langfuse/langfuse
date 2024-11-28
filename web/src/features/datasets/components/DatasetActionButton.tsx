@@ -28,6 +28,7 @@ interface CreateDatasetButtonProps extends BaseDatasetButtonProps {
 interface DeleteDatasetButtonProps extends BaseDatasetButtonProps {
   mode: "delete";
   datasetId: string;
+  datasetName: string;
 }
 
 interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
@@ -145,6 +146,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             projectId={props.projectId}
             onFormSuccess={() => setOpen(false)}
             datasetId={props.datasetId}
+            datasetName={props.datasetName}
           />
         ) : (
           <DatasetForm

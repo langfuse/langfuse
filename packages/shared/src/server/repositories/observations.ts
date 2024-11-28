@@ -662,7 +662,7 @@ const getObservationsTableInternal = async <T>(
       SELECT
        ${selectString}
       FROM observations o 
-        ${traceTableFilter.length > 0 || orderByTraces ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+        ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
         AND o.type = 'GENERATION'
@@ -1051,31 +1051,33 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
   }));
 };
 
-export const getObservationCountInCreationInterval = async ({
-  projectIds,
+export const getObservationCountsByProjectInCreationInterval = async ({
   start,
   end,
 }: {
-  projectIds: string[];
   start: Date;
   end: Date;
 }) => {
   const query = `
-    SELECT count(*) as count
+    SELECT 
+      project_id,
+      count(*) as count
     FROM observations
-    WHERE project_id IN ({projectIds: Array(String)})
-    AND created_at >= {start: DateTime64(3)}
+    WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
+    GROUP BY project_id
   `;
 
-  const rows = await queryClickhouse<{ count: string }>({
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
     query,
     params: {
-      projectIds,
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
     },
   });
 
-  return rows.length > 0 ? Number(rows[0].count) : 0;
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
 };
