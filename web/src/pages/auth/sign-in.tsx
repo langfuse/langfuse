@@ -46,6 +46,7 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    githubEnterprise: boolean;
     gitlab: boolean;
     okta: boolean;
     azureAd: boolean;
@@ -74,6 +75,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        githubEnterprise:
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID !== undefined &&
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET !== undefined &&
+          env.AUTH_GITHUB_ENTERPRISE_BASE_URL !== undefined,
         gitlab:
           env.AUTH_GITLAB_CLIENT_ID !== undefined &&
           env.AUTH_GITLAB_CLIENT_SECRET !== undefined,
@@ -164,6 +169,16 @@ export function SSOButtons({
               <FaGithub className="mr-3" size={18} />
               Github
             </Button>
+          )}
+          {authProviders.githubEnterprise && (
+              <Button
+                  onClick={() => handleSignIn("github-enterprise")}
+                  variant="secondary"
+                  loading={providerSigningIn === "github-enterprise"}
+              >
+                <FaGithub className="mr-3" size={18} />
+                Github Enterprise
+              </Button>
           )}
           {authProviders.gitlab && (
             <Button
