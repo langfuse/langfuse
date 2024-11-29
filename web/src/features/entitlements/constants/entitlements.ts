@@ -8,7 +8,6 @@ const entitlements = [
   "rbac-project-roles",
   "cloud-billing",
   "integration-posthog",
-  "batch-export",
   "annotation-queues",
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
@@ -21,7 +20,6 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "model-based-evaluations",
   "cloud-billing",
   "integration-posthog",
-  "batch-export",
   "annotation-queues",
   "prompt-experiments",
 ];
@@ -92,7 +90,6 @@ export const entitlementAccess: Record<
   "self-hosted:pro": {
     entitlements: [
       "annotation-queues",
-      "batch-export",
       "model-based-evaluations",
       "playground",
       "prompt-experiments",
@@ -108,7 +105,6 @@ export const entitlementAccess: Record<
   "self-hosted:enterprise": {
     entitlements: [
       "annotation-queues",
-      "batch-export",
       "model-based-evaluations",
       "playground",
       "prompt-experiments",

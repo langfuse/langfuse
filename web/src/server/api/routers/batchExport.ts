@@ -15,18 +15,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { redis } from "@langfuse/shared/src/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateBatchExportSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoEntitlement({
-          entitlement: "batch-export",
-          sessionUser: ctx.session.user,
-          projectId: input.projectId,
-        });
         // Check permissions, esp. projectId
         throwIfNoProjectAccess({
           session: ctx.session,
