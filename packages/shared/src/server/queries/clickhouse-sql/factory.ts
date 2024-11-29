@@ -14,6 +14,7 @@ import {
   BooleanFilter,
   NumberObjectFilter,
   StringObjectFilter,
+  NullFilter,
 } from "./clickhouse-filter";
 
 export class QueryBuilderError extends Error {
@@ -66,6 +67,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          clickhouseTypeOverwrite: column.clickhouseTypeOverwrite,
         });
       case "arrayOptions":
         return new ArrayOptionsFilter({
@@ -101,9 +103,16 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
-
+      case "null":
+        return new NullFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          operator: frontEndFilter.operator,
+          tablePrefix: column.queryPrefix,
+        });
       default:
-        logger.error(`Invalid filter type: ${JSON.stringify(frontEndFilter)}`);
+        const exhaustiveCheck: never = frontEndFilter;
+        logger.error(`Invalid filter type: ${JSON.stringify(exhaustiveCheck)}`);
         throw new QueryBuilderError(`Invalid filter type`);
     }
   });

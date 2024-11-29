@@ -11,9 +11,14 @@ import {
   LLMApiKeySchema,
   ChatMessageRole,
   supportedModels,
+  GCPServiceAccountKeySchema,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
+import {
+  fetchLLMCompletion,
+  LLMAdapter,
+  logger,
+} from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.endsWith('"}')
@@ -142,6 +147,14 @@ export const llmApiKeyRouter = createTRPCRouter({
           : supportedModels[input.adapter][0];
 
         if (!model) throw Error("No model found");
+
+        if (input.adapter === LLMAdapter.VertexAI) {
+          const parsed = GCPServiceAccountKeySchema.safeParse(
+            JSON.parse(input.secretKey),
+          );
+          if (!parsed.success)
+            throw Error("Invalid GCP service account JSON key");
+        }
 
         const testMessages: ChatMessage[] = [
           { role: ChatMessageRole.System, content: "You are a bot" },

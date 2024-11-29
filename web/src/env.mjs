@@ -57,6 +57,10 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
+    AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GITLAB_CLIENT_ID: z.string().optional(),
     AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -119,6 +123,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: z.string().optional(),
     CLICKHOUSE_USER: z.string().optional(),
     CLICKHOUSE_PASSWORD: z.string().optional(),
+    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
@@ -169,13 +174,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
-    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z
-      .string()
-      .default("media/")
-      .refine(
-        (value) => value.endsWith("/"),
-        "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX must end with a slash ('/')",
-      ),
+    LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -188,26 +187,6 @@ export const env = createEnv({
       .nonnegative()
       .default(3600),
 
-    // Ingestion event upload to S3
-    LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
-
-    LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
-    LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_ASYNC_INGESTION_PROCESSING: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING: z
-      .enum(["true", "false"])
-      .default("false"),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -219,13 +198,14 @@ export const env = createEnv({
           (creator) => emailSchema.safeParse(creator).success,
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
-    LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
-      .number()
-      .nonnegative()
-      .default(15_000),
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
     LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
+    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS: z.string().optional(),
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
       .enum(["true", "false"])
       .default("false"),
     STRIPE_SECRET_KEY: z.string().optional(),
@@ -290,6 +270,8 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS:
+      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS,
     LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
       process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
@@ -313,6 +295,11 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_ID: process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+    AUTH_GITHUB_ENTERPRISE_BASE_URL: process.env.AUTH_GITHUB_ENTERPRISE_BASE_URL,
+    AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_ISSUER: process.env.AUTH_GITLAB_ISSUER,
     AUTH_GITLAB_CLIENT_ID: process.env.AUTH_GITLAB_CLIENT_ID,
     AUTH_GITLAB_CLIENT_SECRET: process.env.AUTH_GITLAB_CLIENT_SECRET,
@@ -386,23 +373,6 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
-    // S3 event upload
-    LANGFUSE_S3_EVENT_UPLOAD_ENABLED:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED,
-    LANGFUSE_S3_EVENT_UPLOAD_BUCKET:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    LANGFUSE_S3_EVENT_UPLOAD_PREFIX:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX,
-    LANGFUSE_S3_EVENT_UPLOAD_REGION:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-    LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-    LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-    LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-    LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE:
-      process.env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE,
     // Database exports
     DB_EXPORT_PAGE_SIZE: process.env.DB_EXPORT_PAGE_SIZE,
     // Worker
@@ -416,6 +386,7 @@ export const env = createEnv({
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
+    CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
@@ -446,18 +417,16 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-    LANGFUSE_ASYNC_INGESTION_PROCESSING:
-      process.env.LANGFUSE_ASYNC_INGESTION_PROCESSING,
-    LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING:
-      process.env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
-    LANGFUSE_INGESTION_QUEUE_DELAY_MS:
-      process.env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
     LANGFUSE_READ_FROM_POSTGRES_ONLY:
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
+    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
+      process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
     LANGFUSE_RETURN_FROM_CLICKHOUSE:
       process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
+    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS:
+      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS,
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE:
       process.env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

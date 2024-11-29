@@ -12,6 +12,7 @@ const entitlements = [
   "annotation-queues",
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
+  "prompt-experiments",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -22,6 +23,7 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "integration-posthog",
   "batch-export",
   "annotation-queues",
+  "prompt-experiments",
 ];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used

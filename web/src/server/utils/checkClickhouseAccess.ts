@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   instrumentAsync,
   logger,
-  recordGauge,
+  recordHistogram,
 } from "@langfuse/shared/src/server";
 import { type User } from "next-auth";
 import * as opentelemetry from "@opentelemetry/api";
@@ -21,7 +21,7 @@ export const isClickhouseAdminEligible = (user?: User | null) => {
 };
 
 export const measureAndReturnApi = async <T, Y>(args: {
-  input: T & { queryClickhouse: boolean };
+  input: T & { queryClickhouse: boolean; projectId?: string };
   user: User | undefined | null;
   operation: string;
   pgExecution: (input: T) => Promise<Y>;
@@ -44,8 +44,24 @@ export const measureAndReturnApi = async <T, Y>(args: {
         });
       }
 
+      const excludedOperations =
+        env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS?.split(",");
+
+      // if operation is excluded, return postgres only
+      if (excludedOperations?.includes(args.operation)) {
+        return await pgExecution(input);
+      }
+
       // if query clickhouse, return clickhouse only. Only possible for admin users
       if (input.queryClickhouse) {
+        return await clickhouseExecution(input);
+      }
+
+      if (
+        env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY === "true"
+        //  &&
+        // !args.operation.includes("dataset")
+      ) {
         return await clickhouseExecution(input);
       }
 
@@ -54,7 +70,21 @@ export const measureAndReturnApi = async <T, Y>(args: {
       // otherwise fetch both and compare timing
       // if env.LANGFUSE_RETURN_FROM_CLICKHOUSE is true, return clickhouse data
 
-      if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
+      const isExcludedFromClickhouse =
+        user?.featureFlags.excludeClickhouseRead ?? false;
+
+      const excludedProjects =
+        env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS?.split(",") ?? [];
+
+      const isExcludedProject = excludedProjects.includes(
+        input.projectId ?? "",
+      );
+
+      if (
+        env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true" ||
+        isExcludedFromClickhouse ||
+        isExcludedProject
+      ) {
         logger.info("Read from postgres only");
         return await pgExecution(input);
       }
@@ -75,12 +105,21 @@ export const measureAndReturnApi = async <T, Y>(args: {
         currentSpan?.setAttribute("pg-duration", pgDuration);
         currentSpan?.setAttribute("ch-duration", chDuration);
 
-        recordGauge("langfuse.clickhouse_execution_time", chDuration, {
+        recordHistogram("langfuse.clickhouse_experiment", chDuration, {
           operation: args.operation,
+          database: "clickhouse",
         });
-        recordGauge("langfuse.postgres_execution_time", pgDuration, {
+        recordHistogram("langfuse.clickhouse_experiment", pgDuration, {
           operation: args.operation,
+          database: "postgres",
         });
+
+        // if (args.operation.includes("dataset")) {
+        //   logger.info(
+        //     `operation: ${args.operation} pg result: ${JSON.stringify(pgResult)}, ch result: ${JSON.stringify(chResult)}`,
+        //   );
+        //   return pgResult;
+        // }
 
         return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
           ? chResult

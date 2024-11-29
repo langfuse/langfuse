@@ -167,7 +167,12 @@ describe("Media Upload API", () => {
       );
       result.getDownloadUrlResponse = getDownloadUrlResponse;
 
-      if (getDownloadUrlResponse.status !== 200) {
+      if (
+        !(
+          getDownloadUrlResponse.status === 200 ||
+          getDownloadUrlResponse.status === 201
+        )
+      ) {
         return result;
       }
 

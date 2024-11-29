@@ -1,0 +1,1 @@
+ALTER TABLE traces ON CLUSTER default DROP INDEX IF EXISTS idx_session_id;

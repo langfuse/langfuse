@@ -5,7 +5,6 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useState } from "react";
 import { usdFormatter } from "../../../utils/numbers";
@@ -34,6 +33,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type DatasetRunRowData = {
   id: string;
@@ -108,6 +108,7 @@ export function DatasetRunsTable(props: {
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    queryClickhouse: useClickhouse(),
   });
   const { setDetailPageList } = useDetailPageLists();
   useEffect(() => {

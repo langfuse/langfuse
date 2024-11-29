@@ -21,6 +21,7 @@ import {
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -63,6 +64,7 @@ export function DatasetRunItemsTable(
     ...props,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    queryClickhouse: useClickhouse(),
   });
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
 
@@ -326,6 +328,7 @@ const TraceObservationIOCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -342,6 +345,7 @@ const TraceObservationIOCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      onError: () => {},
     },
   );
 
@@ -349,7 +353,9 @@ const TraceObservationIOCell = ({
 
   return (
     <IOTableCell
-      isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
+      isLoading={
+        (!!!observationId ? trace.isLoading : observation.isLoading) || !data
+      }
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

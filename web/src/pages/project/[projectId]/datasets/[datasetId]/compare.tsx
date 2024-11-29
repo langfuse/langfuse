@@ -4,9 +4,9 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
-import { FolderKanban } from "lucide-react";
+import { FlaskConical, FolderKanban } from "lucide-react";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
 import {
   Popover,
@@ -14,6 +14,18 @@ import {
   PopoverContent,
 } from "@/src/components/ui/popover";
 import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import Link from "next/link";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -22,7 +34,18 @@ export default function DatasetCompare() {
   const [runState, setRunState] = useQueryParams({
     runs: withDefault(ArrayParam, []),
   });
+  const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
+    useState(false);
+  const [localRuns, setLocalRuns] = useState<
+    Array<{ key: string; value: string }>
+  >([]);
   const runIds = runState.runs as undefined | string[];
+
+  const hasExperimentWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "experiments:CUD",
+  });
+  const hasEntitlement = useHasOrgEntitlement("experiments");
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -40,15 +63,32 @@ export default function DatasetCompare() {
       refetchOnMount: false,
     },
   );
+  const utils = api.useUtils();
+
+  const handleExperimentSettled = async (data?: {
+    success: boolean;
+    datasetId: string;
+    runId: string;
+    runName: string;
+  }) => {
+    setIsCreateExperimentDialogOpen(false);
+    if (!data) return;
+    void utils.datasets.baseRunDataByDatasetId.invalidate();
+    setLocalRuns((prev) => [...prev, { key: data.runId, value: data.runName }]);
+    setRunState({
+      runs: [...(runIds ?? []), data.runId],
+    });
+  };
 
   const runs = useMemo(() => {
-    return (
+    const apiRuns =
       runsData.data?.map((run) => ({
         key: run.id,
         value: run.name,
-      })) ?? []
-    );
-  }, [runsData.data]);
+      })) ?? [];
+
+    return [...apiRuns, ...localRuns];
+  }, [runsData.data, localRuns]);
 
   if (!runsData.data || !router.isReady) {
     return <span>Loading...</span>;
@@ -72,6 +112,49 @@ export default function DatasetCompare() {
           description: "Compare your dataset runs side by side",
         }}
         actionButtons={[
+          hasEntitlement ? (
+            <Dialog
+              key="create-experiment-dialog"
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  variant="secondary"
+                  disabled={!hasExperimentWriteAccess}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2">New experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Set up experiment</DialogTitle>
+                  <DialogDescription>
+                    Create an experiment to test a prompt version on a dataset.
+                    See{" "}
+                    <Link
+                      href="https://langfuse.com/docs/datasets/prompt-experiments"
+                      target="_blank"
+                      className="underline"
+                    >
+                      documentation
+                    </Link>{" "}
+                    to learn more.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSettled={handleExperimentSettled}
+                />
+              </DialogContent>
+            </Dialog>
+          ) : null,
           <Popover key="show-dataset-details">
             <PopoverTrigger asChild>
               <Button variant="outline">
@@ -101,6 +184,7 @@ export default function DatasetCompare() {
             title="Select runs"
             placeholder="Select runs to compare"
             className="w-fit"
+            hideClearButton
             options={runs.map((run) => ({
               key: run.key,
               value: run.value,
@@ -108,19 +192,18 @@ export default function DatasetCompare() {
             }))}
             values={runs.filter((run) => runIds?.includes(run.key))}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
-              if (values.length === 0)
-                setRunState({
-                  runs: [],
-                });
+              if (values.length === 0) return;
               if (changedValueId) {
                 if (selectedValueKeys?.has(changedValueId)) {
                   setRunState({
                     runs: [...(runIds ?? []), changedValueId],
                   });
+                  setLocalRuns([]);
                 } else {
                   setRunState({
                     runs: runIds?.filter((id) => id !== changedValueId) ?? [],
                   });
+                  setLocalRuns([]);
                 }
               }
             }}
@@ -128,10 +211,12 @@ export default function DatasetCompare() {
         ]}
       />
       <DatasetCompareRunsTable
+        key={runIds?.join(",") ?? "empty"}
         projectId={projectId}
         datasetId={datasetId}
         runsData={runsData.data}
         runIds={runIds ?? []}
+        localExperiments={localRuns}
       />
     </FullScreenPage>
   );

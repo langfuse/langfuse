@@ -29,7 +29,7 @@ import {
   getSessionsTable,
   getSessionsTableCount,
   getTracesGroupedByTags,
-  getTracesForSession,
+  getTracesIdentifierForSession,
   getScoresForTraces,
   getCostForTraces,
   getTracesGroupedByUsers,
@@ -88,7 +88,7 @@ export const sessionRouter = createTRPCRouter({
               projectId: input.projectId,
               filter: finalFilter,
               orderBy: input.orderBy,
-              offset: input.page * input.limit,
+              page: input.page,
               limit: input.limit,
             });
 
@@ -187,8 +187,8 @@ export const sessionRouter = createTRPCRouter({
               projectId: input.projectId,
               filter: finalFilter,
               orderBy: input.orderBy,
-              offset: input.page * input.limit,
-              limit: input.limit,
+              page: 0,
+              limit: 1,
             });
 
             return {
@@ -356,7 +356,7 @@ export const sessionRouter = createTRPCRouter({
             ];
             const filter: FilterState = [
               {
-                column: "t.session_id",
+                column: "sessionId",
                 operator: "is not null",
                 type: "null",
                 value: "",
@@ -499,7 +499,7 @@ export const sessionRouter = createTRPCRouter({
               });
             }
 
-            const clickhouseTraces = await getTracesForSession(
+            const clickhouseTraces = await getTracesIdentifierForSession(
               input.projectId,
               input.sessionId,
             );
@@ -673,7 +673,7 @@ const getPublicSessions = async (
         sessionsBookmarkedFilter.operator === "<>"))
       ? [
           {
-            column: "sessionId",
+            column: "id",
             type: "stringOptions" as const,
             operator: "any of" as const,
             value: filteredSessions.map((s) => s.id),
@@ -686,7 +686,7 @@ const getPublicSessions = async (
               sessionsBookmarkedFilter.operator === "<>"))
         ? [
             {
-              column: "sessionId",
+              column: "id",
               type: "stringOptions" as const,
               operator: "none of" as const,
               value: filteredSessions.map((s) => s.id),

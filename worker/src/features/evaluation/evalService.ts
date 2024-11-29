@@ -1,25 +1,31 @@
 import { randomUUID } from "crypto";
-import Handlebars from "handlebars";
 import { sql } from "kysely";
 import { z } from "zod";
-import { ScoreSource } from "@prisma/client";
+import { ScoreSource, JobConfigState } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  TraceUpsertEventSchema,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
-  S3StorageService,
+  StorageServiceFactory,
+  StorageService,
   eventTypes,
   redis,
   IngestionQueue,
+  logger,
+  EvalExecutionQueue,
+  checkTraceExists,
+  checkObservationExists,
+  getTraceById,
+  getObservationForTraceIdByName,
+  DatasetRunItemUpsertEventType,
+  TraceQueueEventType,
 } from "@langfuse/shared/src/server";
 import {
-  ApiError,
-  availableEvalVariables,
+  availableTraceEvalVariables,
   ChatMessageRole,
-  evalTableCols,
+  evalTraceTableCols,
   ForbiddenError,
   LangfuseNotFoundError,
   LLMApiKeySchema,
@@ -28,20 +34,19 @@ import {
   InvalidRequestError,
   variableMappingList,
   ZodModelConfig,
-  EvalTemplate,
+  evalDatasetFormFilterCols,
+  availableDatasetEvalVariables,
 } from "@langfuse/shared";
-import { decrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { fetchLLMCompletion, logger } from "@langfuse/shared/src/server";
-import { EvalExecutionQueue } from "../../queues/evalQueue";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
+import { callStructuredLLM, compileHandlebarString } from "../utilities";
 
-let s3StorageServiceClient: S3StorageService;
+let s3StorageServiceClient: StorageService;
 
-const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = new S3StorageService({
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
       accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
@@ -58,8 +63,9 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 export const createEvalJobs = async ({
   event,
 }: {
-  event: z.infer<typeof TraceUpsertEventSchema>;
+  event: TraceQueueEventType | DatasetRunItemUpsertEventType;
 }) => {
+  // Fetch all configs for a given project. Those may be dataset or trace configs.
   const configs = await kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
@@ -71,12 +77,13 @@ export const createEvalJobs = async ({
     logger.debug("No evaluation jobs found for project", event.projectId);
     return;
   }
+
   logger.debug(
     `Creating eval jobs for trace ${event.traceId} on project ${event.projectId}`,
   );
 
   for (const config of configs) {
-    if (config.status === "INACTIVE") {
+    if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
       continue;
     }
@@ -84,13 +91,23 @@ export const createEvalJobs = async ({
     logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
-    const condition = tableColumnsToSqlFilterAndPrefix(
-      validatedFilter,
-      evalTableCols,
-      "traces",
-    );
+    // Check whether the trace already exists in the database.
+    let traceExists: boolean = false;
+    if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
+      traceExists = await checkTraceExists(
+        event.projectId,
+        event.traceId,
+        new Date(),
+        config.target_object === "trace" ? validatedFilter : [],
+      );
+    } else {
+      const condition = tableColumnsToSqlFilterAndPrefix(
+        config.target_object === "trace" ? validatedFilter : [],
+        evalTraceTableCols,
+        "traces",
+      );
 
-    const joinedQuery = Prisma.sql`
+      const joinedQuery = Prisma.sql`
         SELECT id
         FROM traces as t
         WHERE project_id = ${event.projectId}
@@ -98,27 +115,108 @@ export const createEvalJobs = async ({
         ${condition}
       `;
 
-    const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+      const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
+      traceExists = traces.length > 0;
+    }
 
+    const isDatasetConfig = config.target_object === "dataset";
+    let datasetItem:
+      | { id: string; sourceObservationId: string | undefined }
+      | undefined;
+    if (isDatasetConfig) {
+      // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
+      if ("datasetItemId" in event && event.datasetItemId) {
+        const condition = tableColumnsToSqlFilterAndPrefix(
+          config.target_object === "dataset" ? validatedFilter : [],
+          evalDatasetFormFilterCols,
+          "dataset_items",
+        );
+
+        const datasetItems = await prisma.$queryRaw<
+          Array<{ id: string; sourceObservationId: string | undefined }>
+        >(Prisma.sql`
+          SELECT id, source_observation_id as "sourceObservationId"
+          FROM dataset_items as di
+          WHERE project_id = ${event.projectId}
+            AND id = ${event.datasetItemId}
+            ${condition}
+        `);
+        datasetItem = datasetItems.shift();
+      } else {
+        // Otherwise, try to find the dataset item id from datasetRunItems.
+        // Here, we can search for the traceId and projectId and should only get one result.
+        const datasetItems = await prisma.$queryRaw<
+          Array<{ id: string; sourceObservationId: string | undefined }>
+        >(Prisma.sql`
+          SELECT dataset_item_id as id, observation_id as "sourceObservationId"
+          FROM dataset_run_items as dri
+          WHERE project_id = ${event.projectId}
+          AND trace_id = ${event.traceId}
+        `);
+        datasetItem = datasetItems.shift();
+      }
+    }
+
+    // We also need to validate that the observation exists in case an observationId is set
+    // If it's not set, we go into the retry loop. For the other events, we expect that the rerun
+    // is unnecessary, as we're triggering this flow if either event comes in.
+    const observationId =
+      "observationId" in event && event.observationId
+        ? event.observationId
+        : datasetItem?.sourceObservationId;
+    if (observationId) {
+      const observationExists =
+        env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+          ? await checkObservationExists(
+              event.projectId,
+              observationId,
+              new Date(),
+            )
+          : await kyselyPrisma.$kysely
+              .selectFrom("observations")
+              .select("id")
+              .where("project_id", "=", event.projectId)
+              .where("id", "=", observationId)
+              .executeTakeFirst();
+
+      if (!observationExists) {
+        logger.warn(
+          `Observation ${observationId} not found, retrying dataset eval later`,
+        );
+        throw new Error(
+          "Observation not found. Rejecting job to use retry-attempts.",
+        );
+      }
+    }
+
+    // Fetch the existing job for the given configuration.
+    // We either use it for deduplication or we cancel it in case it became "deselected".
     const existingJob = await kyselyPrisma.$kysely
       .selectFrom("job_executions")
       .select("id")
       .where("project_id", "=", event.projectId)
       .where("job_configuration_id", "=", config.id)
       .where("job_input_trace_id", "=", event.traceId)
+      .where(
+        "job_input_dataset_item_id",
+        datasetItem ? "=" : "is",
+        datasetItem ? datasetItem.id : null,
+      )
+      .where(
+        "job_input_observation_id",
+        observationId ? "=" : "is",
+        observationId || null,
+      )
       .execute();
 
-    // if we matched a trace, we might want to create a job
-    if (traces.length > 0) {
-      logger.info(
-        `Eval job for config ${config.id} matched trace ids ${JSON.stringify(traces.map((t) => t.id))}`,
-      );
-
+    // If we matched a trace for a trace event, we create a job or
+    // if we have both trace and datasetItem.
+    if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
       const jobExecutionId = randomUUID();
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
-        logger.info(
+        logger.debug(
           `Eval job for config ${config.id} and trace ${event.traceId} already exists`,
         );
         continue;
@@ -126,18 +224,17 @@ export const createEvalJobs = async ({
 
       // apply sampling. Only if the job is sampled, we create a job
       // user supplies a number between 0 and 1, which is the probability of sampling
-
       if (parseFloat(config.sampling) !== 1) {
         const random = Math.random();
         if (random > parseFloat(config.sampling)) {
-          logger.info(
+          logger.debug(
             `Eval job for config ${config.id} and trace ${event.traceId} was sampled out`,
           );
           continue;
         }
       }
 
-      logger.info(
+      logger.debug(
         `Creating eval job for config ${config.id} and trace ${event.traceId}`,
       );
 
@@ -149,6 +246,12 @@ export const createEvalJobs = async ({
           jobInputTraceId: event.traceId,
           status: "PENDING",
           startTime: new Date(),
+          ...(datasetItem
+            ? {
+                jobInputDatasetItemId: datasetItem.id,
+                jobInputObservationId: datasetItem.sourceObservationId || null,
+              }
+            : {}),
         },
       });
 
@@ -166,22 +269,15 @@ export const createEvalJobs = async ({
           },
         },
         {
-          attempts: 10,
-          backoff: {
-            type: "exponential",
-            delay: 1000,
-          },
           delay: config.delay, // milliseconds
-          removeOnComplete: true,
-          removeOnFail: 1_000,
         },
       );
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
-      logger.info(`Eval job for config ${config.id} did not match trace`);
+      logger.debug(`Eval job for config ${config.id} did not match trace`);
       if (existingJob.length > 0) {
-        logger.info(
+        logger.debug(
           `Cancelling eval job for config ${config.id} and trace ${event.traceId}`,
         );
         await kyselyPrisma.$kysely
@@ -201,7 +297,7 @@ export const evaluate = async ({
 }: {
   event: z.infer<typeof EvalExecutionEvent>;
 }) => {
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} for project ${event.projectId}`,
   );
   // first, fetch all the context required for the evaluation
@@ -213,11 +309,13 @@ export const evaluate = async ({
     .executeTakeFirstOrThrow();
 
   if (!job?.job_input_trace_id) {
-    throw new ForbiddenError("Jobs can only be executed on traces for now.");
+    throw new ForbiddenError(
+      "Jobs can only be executed on traces and dataset runs for now.",
+    );
   }
 
   if (job.status === "CANCELLED") {
-    logger.info(`Job ${job.id} for project ${event.projectId} was cancelled.`);
+    logger.debug(`Job ${job.id} for project ${event.projectId} was cancelled.`);
 
     await kyselyPrisma.$kysely
       .deleteFrom("job_executions")
@@ -261,23 +359,33 @@ export const evaluate = async ({
   );
 
   // extract the variables which need to be inserted into the prompt
-  const mappingResult = await extractVariablesFromTrace(
-    event.projectId,
-    template.vars,
-    job.job_input_trace_id,
-    parsedVariableMapping,
-  );
+  const mappingResult = await extractVariablesFromTracingData({
+    projectId: event.projectId,
+    variables: template.vars,
+    traceId: job.job_input_trace_id,
+    datasetItemId: job.job_input_dataset_item_id ?? undefined,
+    variableMapping: parsedVariableMapping,
+  });
 
   logger.debug(
     `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
   );
 
   // compile the prompt and send out the LLM request
-  const prompt = compileHandlebarString(template.prompt, {
-    ...Object.fromEntries(
-      mappingResult.map(({ var: key, value }) => [key, value]),
-    ),
-  });
+  let prompt;
+  try {
+    prompt = compileHandlebarString(template.prompt, {
+      ...Object.fromEntries(
+        mappingResult.map(({ var: key, value }) => [key, value]),
+      ),
+    });
+  } catch (e) {
+    // in case of a compilation error, we use the original prompt without adding variables.
+    logger.error(
+      `Evaluating job ${event.jobExecutionId} failed to compile prompt. Eval will fail. ${e}`,
+    );
+    prompt = template.prompt;
+  }
 
   logger.debug(
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
@@ -320,14 +428,23 @@ export const evaluate = async ({
     );
   }
 
+  const messages = [
+    {
+      role: ChatMessageRole.System,
+      content: "You are an expert at evaluating LLM outputs.",
+    },
+    { role: ChatMessageRole.User, content: prompt },
+  ];
+
   const parsedLLMOutput = await backOff(
-    () =>
-      callLLM(
+    async () =>
+      await callStructuredLLM(
         event.jobExecutionId,
         parsedKey.data,
-        prompt,
+        messages,
         modelParams,
-        template,
+        template.provider,
+        template.model,
         evalScoreSchema,
       ),
     {
@@ -335,7 +452,7 @@ export const evaluate = async ({
     },
   );
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
   );
 
@@ -345,12 +462,14 @@ export const evaluate = async ({
   const baseScore = {
     id: scoreId,
     traceId: job.job_input_trace_id,
+    observationId: job.job_input_observation_id,
     name: config.score_name,
     value: parsedLLMOutput.score,
     comment: parsedLLMOutput.reasoning,
     source: ScoreSource.EVAL,
   };
 
+  // TODO: Remove foreign key on jobExecutions when removing this
   await prisma.score.create({
     data: {
       ...baseScore,
@@ -413,7 +532,7 @@ export const evaluate = async ({
     throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
   }
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${event.jobExecutionId} persisted score ${scoreId} for trace ${job.job_input_trace_id}`,
   );
 
@@ -425,173 +544,193 @@ export const evaluate = async ({
     .where("id", "=", event.jobExecutionId)
     .execute();
 
-  logger.info(
+  logger.debug(
     `Eval job ${job.id} for project ${event.projectId} completed with score ${parsedLLMOutput.score}`,
   );
 };
 
-async function callLLM(
-  jeId: string,
-  llmApiKey: z.infer<typeof LLMApiKeySchema>,
-  prompt: string,
-  modelParams: z.infer<typeof ZodModelConfig>,
-  template: EvalTemplate,
-  evalScoreSchema: z.ZodObject<{ score: z.ZodNumber; reasoning: z.ZodString }>,
-): Promise<z.infer<typeof evalScoreSchema>> {
-  try {
-    const completion = await fetchLLMCompletion({
-      streaming: false,
-      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
-      baseURL: llmApiKey.baseURL || undefined,
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          content: "You are an expert at evaluating LLM outputs.",
-        },
-        { role: ChatMessageRole.User, content: prompt },
-      ],
-      modelParams: {
-        provider: template.provider,
-        model: template.model,
-        adapter: llmApiKey.adapter,
-        ...modelParams,
-      },
-      structuredOutputSchema: evalScoreSchema,
-      config: llmApiKey.config,
-    });
-    return evalScoreSchema.parse(completion);
-  } catch (e) {
-    logger.error(
-      `Evaluating job ${jeId} failed to call LLM. Eval will fail. ${e}`,
-    );
-    throw new ApiError(`Failed to call LLM: ${e}`);
-  }
-}
-
-export function compileHandlebarString(
-  handlebarString: string,
-  context: Record<string, any>,
-): string {
-  const template = Handlebars.compile(handlebarString, { noEscape: true });
-  return template(context);
-}
-
-export async function extractVariablesFromTrace(
-  projectId: string,
-  variables: string[],
-  traceId: string,
+export async function extractVariablesFromTracingData({
+  projectId,
+  variables,
+  traceId,
+  variableMapping,
+  datasetItemId,
+}: {
+  projectId: string;
+  variables: string[];
+  traceId: string;
   // this here are variables which were inserted by users. Need to validate before DB query.
-  variableMapping: z.infer<typeof variableMappingList>,
-) {
-  const mappingResult: { var: string; value: string }[] = [];
+  variableMapping: z.infer<typeof variableMappingList>;
+  datasetItemId?: string;
+}): Promise<{ var: string; value: string }[]> {
+  return Promise.all(
+    variables.map(async (variable) => {
+      const mapping = variableMapping.find(
+        (m) => m.templateVariable === variable,
+      );
 
-  // find the context for each variable of the template
-  for (const variable of variables) {
-    const mapping = variableMapping.find(
-      (m) => m.templateVariable === variable,
-    );
-
-    if (!mapping) {
-      logger.debug(`No mapping found for variable ${variable}`);
-      mappingResult.push({ var: variable, value: "" });
-      continue; // no need to fetch additional data
-    }
-
-    if (mapping.langfuseObject === "trace") {
-      // find the internal definitions of the column
-      const safeInternalColumn = availableEvalVariables
-        .find((o) => o.id === "trace")
-        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
-
-      // if no column was found, we still process with an empty variable
-      if (!safeInternalColumn?.id) {
-        logger.error(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
+      if (!mapping) {
+        logger.debug(`No mapping found for variable ${variable}`);
+        return { var: variable, value: "" };
       }
 
-      const trace = await kyselyPrisma.$kysely
-        .selectFrom("traces as t")
-        .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(
-            safeInternalColumn.id,
-          ),
-        ) // query the internal column name raw
-        .where("id", "=", traceId)
-        .where("project_id", "=", projectId)
-        .executeTakeFirst();
+      if (mapping.langfuseObject === "dataset_item") {
+        if (!datasetItemId) {
+          logger.error(
+            `No dataset item id found for variable ${variable}. Eval will succeed without dataset item input.`,
+          );
+          return { var: variable, value: "" };
+        }
 
-      // user facing errors
-      if (!trace) {
-        logger.error(
-          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-        );
-        throw new LangfuseNotFoundError(
-          `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
-        );
+        // find the internal definitions of the column
+        const safeInternalColumn = availableDatasetEvalVariables
+          .find((o) => o.id === "dataset_item")
+          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+
+        // if no column was found, we still process with an empty variable
+        if (!safeInternalColumn?.id) {
+          logger.error(
+            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        const datasetItem = await kyselyPrisma.$kysely
+          .selectFrom("dataset_items as d")
+          .select(
+            sql`${sql.raw(safeInternalColumn.internal)}`.as(
+              safeInternalColumn.id,
+            ),
+          ) // query the internal column name raw
+          .where("id", "=", datasetItemId)
+          .where("project_id", "=", projectId)
+          .executeTakeFirst();
+
+        // user facing errors
+        if (!datasetItem) {
+          logger.error(
+            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+          );
+          throw new LangfuseNotFoundError(
+            `Dataset item ${datasetItemId} for project ${projectId} not found. Eval will succeed without dataset item input. Please ensure the mapped data on the dataset item exists and consider extending the job delay.`,
+          );
+        }
+
+        return {
+          var: variable,
+          value: parseUnknownToString(datasetItem[mapping.selectedColumnId]),
+        };
       }
 
-      mappingResult.push({
-        var: variable,
-        value: parseUnknwnToString(trace[mapping.selectedColumnId]),
-      });
-    }
-    if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
-      const safeInternalColumn = availableEvalVariables
-        .find((o) => o.id === mapping.langfuseObject)
-        ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+      if (mapping.langfuseObject === "trace") {
+        // find the internal definitions of the column
+        const safeInternalColumn = availableTraceEvalVariables
+          .find((o) => o.id === "trace")
+          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
 
-      if (!mapping.objectName) {
-        logger.info(
-          `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
+        // if no column was found, we still process with an empty variable
+        if (!safeInternalColumn?.id) {
+          logger.error(
+            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        const trace: Record<string, unknown> | undefined =
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+            ? await getTraceById(traceId, projectId)
+            : await kyselyPrisma.$kysely
+                .selectFrom("traces as t")
+                .select(
+                  sql`${sql.raw(safeInternalColumn.internal)}`.as(
+                    safeInternalColumn.id,
+                  ),
+                ) // query the internal column name raw
+                .where("id", "=", traceId)
+                .where("project_id", "=", projectId)
+                .executeTakeFirst();
+
+        // user facing errors
+        if (!trace) {
+          logger.error(
+            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+          );
+          throw new LangfuseNotFoundError(
+            `Trace ${traceId} for project ${projectId} not found. Eval will succeed without trace input. Please ensure the mapped data on the trace exists and consider extending the job delay.`,
+          );
+        }
+
+        return {
+          var: variable,
+          value: parseUnknownToString(trace[mapping.selectedColumnId]),
+        };
       }
 
-      if (!safeInternalColumn?.id) {
-        logger.warn(
-          `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
-        );
-        mappingResult.push({ var: variable, value: "" });
-        continue;
+      if (["generation", "span", "event"].includes(mapping.langfuseObject)) {
+        const safeInternalColumn = availableTraceEvalVariables
+          .find((o) => o.id === mapping.langfuseObject)
+          ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);
+
+        if (!mapping.objectName) {
+          logger.info(
+            `No object name found for variable ${variable} and object ${mapping.langfuseObject}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        if (!safeInternalColumn?.id) {
+          logger.warn(
+            `No column found for variable ${variable} and column ${mapping.selectedColumnId}`,
+          );
+          return { var: variable, value: "" };
+        }
+
+        const observation: Record<string, unknown> | undefined =
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+            ? (
+                await getObservationForTraceIdByName(
+                  traceId,
+                  projectId,
+                  mapping.objectName,
+                  undefined,
+                  true,
+                )
+              ).shift() // We only take the first match and ignore duplicate generation-names in a trace.
+            : await kyselyPrisma.$kysely
+                .selectFrom("observations as o")
+                .select(
+                  sql`${sql.raw(safeInternalColumn.internal)}`.as(
+                    safeInternalColumn.id,
+                  ),
+                ) // query the internal column name raw
+                .where("trace_id", "=", traceId)
+                .where("project_id", "=", projectId)
+                .where("name", "=", mapping.objectName)
+                .orderBy("start_time", "desc")
+                .executeTakeFirst();
+
+        // user facing errors
+        if (!observation) {
+          logger.error(
+            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+          );
+          throw new LangfuseNotFoundError(
+            `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
+          );
+        }
+
+        return {
+          var: variable,
+          value: parseUnknownToString(observation[mapping.selectedColumnId]),
+        };
       }
 
-      const observation = await kyselyPrisma.$kysely
-        .selectFrom("observations as o")
-        .select(
-          sql`${sql.raw(safeInternalColumn.internal)}`.as(
-            safeInternalColumn.id,
-          ),
-        ) // query the internal column name raw
-        .where("trace_id", "=", traceId)
-        .where("project_id", "=", projectId)
-        .where("name", "=", mapping.objectName)
-        .orderBy("start_time", "desc")
-        .executeTakeFirst();
-
-      // user facing errors
-      if (!observation) {
-        logger.error(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-        );
-        throw new LangfuseNotFoundError(
-          `Observation ${mapping.objectName} for trace ${traceId} not found. Please ensure the mapped data exists and consider extending the job delay.`,
-        );
-      }
-
-      mappingResult.push({
-        var: variable,
-        value: parseUnknwnToString(observation[mapping.selectedColumnId]),
-      });
-    }
-  }
-  return mappingResult;
+      throw new Error(`Unknown object type ${mapping.langfuseObject}`);
+    }),
+  );
 }
 
-export const parseUnknwnToString = (value: unknown): string => {
+export const parseUnknownToString = (value: unknown): string => {
   if (value === null || value === undefined) {
     return "";
   }

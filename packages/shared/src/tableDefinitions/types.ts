@@ -3,12 +3,14 @@ export type UiColumnMapping = {
   uiTableId: string;
   clickhouseTableName: string;
   clickhouseSelect: string;
+  clickhouseTypeOverwrite?: string;
   queryPrefix?: string;
 };
 
 export type OptionsDefinition = {
   value: string;
   count?: number;
+  displayValue?: string; // FIX: Temporary workaround: Used to display a different value than the actual value since multiSelect doesn't support key-value pairs
 };
 
 export type ColumnDefinition =
@@ -55,6 +57,7 @@ export const tableNames = [
   "sessions",
   "prompts",
   "users",
+  "dataset_items",
 ] as const;
 
 export type TableNames = (typeof tableNames)[number];

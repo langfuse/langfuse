@@ -24,10 +24,46 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
+    id: "lw2-5",
+    title: "Launch Week 2 – Day 5",
+    description: "Introducing Prompt Experiments to test prompts on datasets",
+    link: "https://langfuse.com/changelog/2024-11-22-prompt-experimentation",
+    linkTitle: "Changelog",
+  },
+  {
+    id: "lw2-4",
+    title: "Launch Week 2 – Day 4",
+    description: "All new docs for datasets, experiments, and evaluations",
+    link: "https://langfuse.com/changelog/2024-11-21-all-new-datasets-and-evals-documentation",
+    linkTitle: "Changelog",
+  },
+  {
+    id: "lw2-3",
+    title: "Launch Week 2 – Day 3",
+    description:
+      "Full multi-modal support including images, audio, and attachments",
+    link: "https://langfuse.com/changelog/2024-11-20-full-multi-modal-images-audio-attachments",
+    linkTitle: "Changelog",
+  },
+  {
+    id: "lw2-2",
+    title: "Launch Week 2 – Day 2",
+    description: "LLM-as-a-Judge Evaluators for Dataset Experiments",
+    link: "https://langfuse.com/changelog/2024-11-19-llm-as-a-judge-for-datasets",
+    linkTitle: "Changelog",
+  },
+  {
+    id: "lw2-1",
+    title: "Launch Week 2 – Day 1",
+    description: "New side-by-side comparison view for dataset experiment runs",
+    link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
+    linkTitle: "Changelog",
+  },
+  {
     id: "github-star",
     title: "Star Langfuse",
     description:
-      "See the latest releases and help grow the community on GitHub.",
+      "See the latest releases and help grow the community on GitHub",
     link: "https://github.com/langfuse/langfuse",
     linkContent: (
       // eslint-disable-next-line @next/next/no-img-element
@@ -51,13 +87,17 @@ export function SidebarNotifications() {
     string[]
   >(STORAGE_KEY, []);
 
-  // Find the first non-dismissed notification on mount or when dismissed list changes
+  // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {
-    const firstAvailableIndex = notifications.findIndex(
-      (notif) => !dismissedNotifications.includes(notif.id),
-    );
+    const lastAvailableIndex = notifications
+      .slice()
+      .reverse()
+      .findIndex((notif) => !dismissedNotifications.includes(notif.id));
+
     setCurrentNotificationIndex(
-      firstAvailableIndex === -1 ? null : firstAvailableIndex,
+      lastAvailableIndex === -1
+        ? null
+        : notifications.length - 1 - lastAvailableIndex,
     );
   }, [dismissedNotifications]);
 
@@ -72,7 +112,7 @@ export function SidebarNotifications() {
   const currentNotification = notifications[currentNotificationIndex];
 
   return (
-    <Card className="relative overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
+    <Card className="relative max-h-60 overflow-hidden rounded-md bg-opacity-50 shadow-none group-data-[collapsible=icon]:hidden">
       <Button
         variant="ghost"
         size="sm"
@@ -115,7 +155,7 @@ export function SidebarNotifications() {
                 });
               }}
             >
-              {currentNotification.linkTitle ?? "Learn more"}
+              {currentNotification.linkTitle ?? "Learn more"} &rarr;
             </Link>
           </Button>
         )}

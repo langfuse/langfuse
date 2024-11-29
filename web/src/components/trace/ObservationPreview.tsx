@@ -76,6 +76,20 @@ export const ObservationPreview = ({
     queryClickhouse: useClickhouse(),
   });
 
+  const observationMedia = api.media.getByTraceOrObservationId.useQuery(
+    {
+      traceId: traceId,
+      observationId: currentObservationId,
+      projectId: projectId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: 50 * 60 * 1000, // 50 minutes
+    },
+  );
+
   const preloadedObservation = observations.find(
     (o) => o.id === currentObservationId,
   );
@@ -266,6 +280,7 @@ export const ObservationPreview = ({
                 input={observationWithInputAndOutput.data?.input ?? undefined}
                 output={observationWithInputAndOutput.data?.output ?? undefined}
                 isLoading={observationWithInputAndOutput.isLoading}
+                media={observationMedia.data}
               />
               {preloadedObservation.statusMessage ? (
                 <JSONView
@@ -279,6 +294,9 @@ export const ObservationPreview = ({
                   key={observationWithInputAndOutput.data.id + "-metadata"}
                   title="Metadata"
                   json={observationWithInputAndOutput.data.metadata}
+                  media={observationMedia.data?.filter(
+                    (m) => m.field === "metadata",
+                  )}
                 />
               ) : null}
               {viewType === "detailed" && (

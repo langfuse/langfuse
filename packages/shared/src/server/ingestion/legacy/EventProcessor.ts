@@ -20,6 +20,9 @@ import { jsonSchema } from "../../../utils/zod";
 import { prisma } from "../../../db";
 import { LegacyIngestionAccessScope } from ".";
 import { logger } from "../../logger";
+import { env } from "../../../env";
+import { upsertTrace } from "../../repositories";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 
 export interface EventProcessor {
   auth(apiScope: LegacyIngestionAccessScope): void;
@@ -131,19 +134,6 @@ export class ObservationProcessor implements EventProcessor {
           })
         : undefined;
 
-    const traceId =
-      !this.event.body.traceId && !existingObservation
-        ? // Create trace if no traceid
-          (
-            await prisma.trace.create({
-              data: {
-                projectId: apiScope.projectId,
-                name: this.event.body.name,
-              },
-            })
-          ).id
-        : this.event.body.traceId;
-
     // Token counts
     const [newInputCount, newOutputCount] =
       "usage" in this.event.body
@@ -230,11 +220,46 @@ export class ObservationProcessor implements EventProcessor {
         return newId;
       })();
 
+    let traceId = this.event.body?.traceId;
+    if (!this.event.body.traceId && !existingObservation) {
+      // Create trace if no traceId
+      traceId = observationId;
+
+      // Insert trace into postgres
+      await prisma.trace.upsert({
+        where: {
+          id: observationId,
+        },
+        create: {
+          projectId: apiScope.projectId,
+          name: this.event.body.name,
+          id: observationId,
+          timestamp: this.event.body.startTime || new Date(),
+        },
+        update: {},
+      });
+
+      if (env.CLICKHOUSE_URL) {
+        // Insert trace into clickhouse if enabled
+        await upsertTrace({
+          id: observationId,
+          project_id: apiScope.projectId,
+          timestamp: convertDateToClickhouseDateTime(
+            this.event.body.startTime
+              ? new Date(this.event.body.startTime)
+              : new Date(),
+          ),
+          created_at: convertDateToClickhouseDateTime(new Date()),
+          updated_at: convertDateToClickhouseDateTime(new Date()),
+        });
+      }
+    }
+
     return {
       id: observationId,
       create: {
         id: observationId,
-        traceId: traceId,
+        traceId,
         type: type,
         name: this.event.body.name,
         startTime: this.event.body.startTime
@@ -600,19 +625,32 @@ export class TraceProcessor implements EventProcessor {
           : undefined;
 
     if (body.sessionId) {
-      await prisma.traceSession.upsert({
-        where: {
-          id_projectId: {
+      try {
+        await prisma.traceSession.upsert({
+          where: {
+            id_projectId: {
+              id: body.sessionId,
+              projectId: apiScope.projectId,
+            },
+          },
+          create: {
             id: body.sessionId,
             projectId: apiScope.projectId,
           },
-        },
-        create: {
-          id: body.sessionId,
-          projectId: apiScope.projectId,
-        },
-        update: {},
-      });
+          update: {},
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2002"
+        ) {
+          logger.warn(
+            `Failed to upsert session. Session ${body.sessionId} in project ${apiScope.projectId} already exists`,
+          );
+        } else {
+          throw e;
+        }
+      }
     }
 
     // Do not use nested upserts or multiple where conditions as this should be a single native database upsert
