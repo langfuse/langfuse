@@ -37,15 +37,6 @@ export const ingestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.IngestionQueue]>,
 ) => {
   try {
-    if (
-      env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED !== "true" ||
-      !env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
-    ) {
-      throw new Error(
-        "S3 event store is not enabled but useS3EventStore is true",
-      );
-    }
-
     const s3Client = getS3StorageServiceClient(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     );

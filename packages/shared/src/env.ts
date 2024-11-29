@@ -27,15 +27,18 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
-  CLICKHOUSE_URL: z.string().url().optional(),
-  CLICKHOUSE_USER: z.string().optional(),
-  CLICKHOUSE_PASSWORD: z.string().optional(),
-  LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING: z
+  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_PASSWORD: z.string(),
+
+  LANGFUSE_CLICKHOUSE_INGESTION_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_ASYNC_INGESTION_PROCESSING: z
+    .default("true"),
+  // TODO: Disable Postgres before go-live
+  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
+
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
@@ -48,8 +51,9 @@ const EnvSchema = z.object({
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
+    required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
+  }),
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
