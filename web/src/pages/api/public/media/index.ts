@@ -56,6 +56,7 @@ export default withMiddlewares({
           span.setAttribute("traceId", traceId);
           span.setAttribute("observationId", observationId ?? "");
           span.setAttribute("field", field);
+          span.setAttribute("sha256Hash", sha256Hash);
 
           while (retries < MAX_RETRIES) {
             try {
