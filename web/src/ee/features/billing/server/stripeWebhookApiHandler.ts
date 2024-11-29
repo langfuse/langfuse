@@ -104,6 +104,7 @@ async function handleSubscriptionChanged(
   });
   if (!checkoutSessionsResponse || checkoutSessionsResponse.data.length !== 1) {
     logger.error("[Stripe Webhook] No checkout session found");
+    traceException("[Stripe Webhook] No checkout session found");
     return;
   }
   const checkoutSession = checkoutSessionsResponse.data[0];
@@ -112,6 +113,7 @@ async function handleSubscriptionChanged(
   const clientReference = checkoutSession.client_reference_id;
   if (!clientReference) {
     logger.error("[Stripe Webhook] No client reference");
+    traceException("[Stripe Webhook] No client reference");
     return NextResponse.json(
       { message: "No client reference" },
       { status: 400 },
@@ -133,6 +135,7 @@ async function handleSubscriptionChanged(
   });
   if (!organization) {
     logger.error("[Stripe Webhook] Organization not found");
+    traceException("[Stripe Webhook] Organization not found");
     return;
   }
   const parsedOrg = parseDbOrg(organization);
@@ -148,6 +151,7 @@ async function handleSubscriptionChanged(
     parsedOrg.cloudConfig?.stripe?.customerId &&
     parsedOrg.cloudConfig?.stripe?.customerId !== customerId
   ) {
+    logger.error("[Stripe Webhook] Another customer id already set on org");
     traceException("[Stripe Webhook] Another customer id already set on org");
     return;
   }
@@ -155,17 +159,41 @@ async function handleSubscriptionChanged(
   // check subscription items
   logger.info("subscription.items.data", { payload: subscription.items.data });
 
-  const subscriptionProductIds = subscription.items.data
-    .map((item) => item.price.product)
-    .sort();
-
-  if (!subscriptionProductIds || subscriptionProductIds.length === 0) {
-    logger.error("[Stripe Webhook] Product IDs not found");
-    traceException("[Stripe Webhook] Product IDs not found");
+  if (!subscription.items.data || subscription.items.data.length !== 1) {
+    logger.error(
+      "[Stripe Webhook] Subscription items not found or more than one",
+    );
+    traceException(
+      "[Stripe Webhook] Subscription items not found or more than one",
+    );
     return;
   }
 
-  // update the cloud config with the product IDs
+  const subscriptionItem = subscription.items.data[0];
+  const productId = subscriptionItem.price.product;
+
+  if (!productId || typeof productId !== "string") {
+    logger.error("[Stripe Webhook] Product ID not found");
+    traceException("[Stripe Webhook] Product ID not found");
+    return;
+  }
+
+  // assert that no other product is already set on the org if this is not an update
+  if (
+    action !== "updated" &&
+    parsedOrg.cloudConfig?.stripe?.activeProductId &&
+    parsedOrg.cloudConfig?.stripe?.activeProductId !== productId
+  ) {
+    traceException(
+      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
+    );
+    logger.error(
+      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
+    );
+    return;
+  }
+
+  // update the cloud config with the product ID
   if (action === "created" || action === "updated") {
     await prisma.organization.update({
       where: {
@@ -177,7 +205,7 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
-              activeProductIds: subscriptionProductIds,
+              activeProductId: productId,
               activeSubscriptionId: subscriptionId,
               customerId: customerId,
             }),
@@ -196,7 +224,7 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
-              activeProductIds: undefined,
+              activeProductId: undefined,
               activeSubscriptionId: undefined,
               customerId: customerId,
             }),
