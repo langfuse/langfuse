@@ -37,14 +37,10 @@ const EnvSchema = z.object({
     .default(24),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
-  LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
+  LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(100),
-  LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(100),
+    .default(20),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -76,7 +72,7 @@ const EnvSchema = z.object({
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(25),
+    .default(15),
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
