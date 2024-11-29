@@ -22,7 +22,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-server
+          image: langfuse-web
           args: --file=web/Dockerfile
 
       - name: Upload result to GitHub Code Scanning
