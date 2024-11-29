@@ -137,4 +137,7 @@ const EnvSchema = z.object({
     .default("true"),
 });
 
-export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+export const env: z.infer<typeof EnvSchema> =
+  process.env.DOCKER_BUILD === "1"
+    ? (process.env as any)
+    : EnvSchema.parse(removeEmptyEnvVariables(process.env));

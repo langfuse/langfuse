@@ -473,6 +473,8 @@ jobs:
           images: |
             ghcr.io/langfuse/langfuse-worker # GitHub
             langfuse/langfuse-worker # Docker Hub
+          flavor: |
+            latest=false
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -480,6 +482,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+          # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') }}
       - name: Build and push Docker image (worker)
         uses: docker/build-push-action@v4
         with:
