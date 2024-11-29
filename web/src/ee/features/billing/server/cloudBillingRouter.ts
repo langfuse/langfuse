@@ -3,7 +3,7 @@ import { stripeClient } from "@/src/ee/features/billing/utils/stripe";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { parseDbOrg, type Plan } from "@langfuse/shared";
+import { parseDbOrg } from "@langfuse/shared";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -13,20 +13,12 @@ import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-const availablePlans = stripeProducts
-  .filter((product) => product.checkout)
-  .map((product) => product.mappedPlan);
-
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
     .input(
       z.object({
         orgId: z.string(),
-        plan: z
-          .string()
-          .refine((plan) => availablePlans.includes(plan as Plan), {
-            message: "Invalid plan",
-          }),
+        stripeProductId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -78,51 +70,34 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const checkoutProduct = stripeProducts.find(
-        (product) => product.checkout && product.mappedPlan === input.plan,
-      );
-      if (!checkoutProduct)
+      if (
+        !stripeProducts.some(
+          (product) =>
+            Boolean(product.checkout) &&
+            product.stripeProductId === input.stripeProductId,
+        )
+      )
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Invalid plan",
+          message: "Invalid stripe product id",
         });
 
-      const stripeUsageProduct = await stripeClient.products.retrieve(
-        checkoutProduct.stripeUsageProductId,
+      const product = await stripeClient.products.retrieve(
+        input.stripeProductId,
       );
-      const stripeSeatsProduct = await stripeClient.products.retrieve(
-        checkoutProduct.stripeSeatsProductId,
-      );
-
-      if (!stripeUsageProduct.default_price) {
+      if (!product.default_price) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Usage product does not have a default price in Stripe",
-        });
-      }
-      if (!stripeSeatsProduct.default_price) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Seats product does not have a default price in Stripe",
+          message: "Product does not have a default price in Stripe",
         });
       }
-
-      const currentSeatCount = await ctx.prisma.organizationMembership.count({
-        where: {
-          orgId: input.orgId,
-        },
-      });
 
       const returnUrl = `${env.NEXTAUTH_URL}/organization/${input.orgId}/settings`;
       const session = await stripeClient.checkout.sessions.create({
         customer: stripeCustomerId,
         line_items: [
           {
-            price: stripeUsageProduct.default_price as string,
-          },
-          {
-            price: stripeSeatsProduct.default_price as string,
-            quantity: currentSeatCount,
+            price: product.default_price as string,
           },
         ],
         client_reference_id:
@@ -270,13 +245,6 @@ export const cloudBillingRouter = createTRPCRouter({
             end: new Date(subscription.current_period_end * 1000),
           };
 
-          // Get number of seats from subscription
-          const seatsSubscriptionItem = subscription.items.data.find(
-            (item) => !Boolean(item.plan?.meter),
-          );
-          const countUsers = seatsSubscriptionItem?.quantity;
-
-          // Get metered usage information from next invoice
           const stripeInvoice = await stripeClient.invoices.retrieveUpcoming({
             subscription: parsedOrg.cloudConfig.stripe.activeSubscriptionId,
           });
@@ -304,7 +272,6 @@ export const cloudBillingRouter = createTRPCRouter({
             usageType: meter?.display_name.toLowerCase() ?? "events",
             billingPeriod,
             upcomingInvoice,
-            countUsers,
           };
         }
       }
@@ -314,42 +281,53 @@ export const cloudBillingRouter = createTRPCRouter({
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-      const usageArr = await Promise.all([
-        ctx.prisma.observation.count({
-          where: {
-            project: {
-              orgId: input.orgId,
-            },
-            createdAt: {
-              gte: thirtyDaysAgo,
-            },
+      const countObservations = await ctx.prisma.observation.count({
+        where: {
+          project: {
+            orgId: input.orgId,
           },
-        }),
-        ctx.prisma.trace.count({
-          where: {
-            project: {
-              orgId: input.orgId,
-            },
-            createdAt: {
-              gte: thirtyDaysAgo,
-            },
+          createdAt: {
+            gte: thirtyDaysAgo,
           },
-        }),
-        ctx.prisma.score.count({
-          where: {
-            project: {
-              orgId: input.orgId,
-            },
-            createdAt: {
-              gte: thirtyDaysAgo,
-            },
-          },
-        }),
-      ]);
+        },
+      });
+
+      // const usageArr = await Promise.all([
+      //   ctx.prisma.observation.count({
+      //     where: {
+      //       project: {
+      //         orgId: input.orgId,
+      //       },
+      //       createdAt: {
+      //         gte: thirtyDaysAgo,
+      //       },
+      //     },
+      //   }),
+      //   ctx.prisma.trace.count({
+      //     where: {
+      //       project: {
+      //         orgId: input.orgId,
+      //       },
+      //       createdAt: {
+      //         gte: thirtyDaysAgo,
+      //       },
+      //     },
+      //   }),
+      //   ctx.prisma.score.count({
+      //     where: {
+      //       project: {
+      //         orgId: input.orgId,
+      //       },
+      //       createdAt: {
+      //         gte: thirtyDaysAgo,
+      //       },
+      //     },
+      //   }),
+      // ]);
 
       return {
-        usageCount: usageArr.reduce((a, b) => a + b, 0),
-        usageType: "events",
+        usageCount: countObservations,
+        usageType: "observations",
       };
     }),
 });

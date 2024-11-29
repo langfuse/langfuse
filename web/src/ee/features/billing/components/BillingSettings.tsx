@@ -19,6 +19,14 @@ import { env } from "@/src/env.mjs";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -109,10 +117,7 @@ const OrganizationUsageChart = () => {
         )}
       </Card>
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <p>
-          Current plan: {planLabel}
-          {usage.data?.countUsers && ` (${usage.data.countUsers} users)`}
-        </p>
+        <p>Current plan: {planLabel}</p>
         {usage.data?.billingPeriod && (
           <p>
             {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
@@ -125,7 +130,7 @@ const OrganizationUsageChart = () => {
         )}
       </div>
       <div className="mt-4 flex flex-row items-center gap-2">
-        <BillingPortalOrCheckoutButton />
+        <BillingPortalOrPricingPageButton />
         <Button variant="secondary" asChild>
           <Link href={"https://langfuse.com/pricing"} target="_blank">
             Compare plans
@@ -136,9 +141,10 @@ const OrganizationUsageChart = () => {
   );
 };
 
-const BillingPortalOrCheckoutButton = () => {
+const BillingPortalOrPricingPageButton = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const billingPortalUrl = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
     {
       orgId: organization?.id as string,
@@ -185,17 +191,61 @@ const BillingPortalOrCheckoutButton = () => {
     else return null;
   }
 
-  // Show checkout button
+  // Show pricing page button
   return (
-    <Button
-      onClick={() =>
-        mutCreateCheckoutSession.mutate({
-          orgId: organization.id,
-          plan: "cloud:pro",
-        })
-      }
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) {
+          capture("project_settings:pricing_dialog_opened");
+        }
+      }}
     >
-      Upgrade to Pro plan
-    </Button>
+      <DialogTrigger asChild>
+        <Button>Change plan</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <Header
+            title="Plans"
+            level="h3"
+            actionButtons={
+              <Button variant="secondary" asChild>
+                <Link href="https://langfuse.com/pricing" target="_blank">
+                  Comparison of plans ↗
+                </Link>
+              </Button>
+            }
+          />
+        </DialogHeader>
+        <div className="mb-3 flex flex-col justify-center gap-10 md:flex-row">
+          {stripeProducts
+            .filter((product) => Boolean(product.checkout))
+            .map((product) => (
+              <div
+                key={product.stripeProductId}
+                className="flex flex-1 flex-col"
+              >
+                <div className="mb-2 text-lg font-semibold">
+                  {product.checkout?.title}
+                </div>
+                <div>{product.checkout?.description}</div>
+                <div className="mb-6 mt-2">{product.checkout?.price}</div>
+                <Button
+                  onClick={() => {
+                    if (organization)
+                      mutCreateCheckoutSession.mutate({
+                        orgId: organization.id,
+                        stripeProductId: product.stripeProductId,
+                      });
+                  }}
+                  className="mt-auto"
+                >
+                  Select plan
+                </Button>
+              </div>
+            ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
