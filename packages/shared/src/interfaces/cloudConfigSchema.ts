@@ -11,7 +11,7 @@ export const CloudConfigSchema = z.object({
     .object({
       customerId: z.string().optional(),
       activeSubscriptionId: z.string().optional(),
-      activeProductIds: z.array(z.string()).optional(),
+      activeProductId: z.string().optional(),
     })
     .optional(),
 

@@ -16,7 +16,7 @@ import { CommandItem } from "@/src/components/ui/command";
 import { ExternalLink, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
   Dialog,
   DialogContent,
@@ -34,8 +34,8 @@ export default function Dataset() {
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
-  const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
-  const hasExperimentEntitlement = useHasOrgEntitlement("experiments");
+  const hasEntitlement = useHasEntitlement("model-based-evaluations");
+  const hasExperimentEntitlement = useHasEntitlement("prompt-experiments");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
 
@@ -51,7 +51,7 @@ export default function Dataset() {
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
 
   const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
