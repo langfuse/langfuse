@@ -54,7 +54,7 @@ export const entitlementAccess: Record<
       "data-access-days": 30,
       "annotation-queue-count": 1,
       "model-based-evaluations-count-evaluators": 1,
-      "prompt-management-count-prompts": 10,
+      "prompt-management-count-prompts": false,
     },
   },
   "cloud:pro": {
