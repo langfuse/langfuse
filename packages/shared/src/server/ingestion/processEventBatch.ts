@@ -193,7 +193,7 @@ export const processEventBatch = async (
       );
     }
 
-    if (redis && !s3UploadErrored) {
+    if (redis) {
       const queue = IngestionQueue.getInstance();
       await Promise.all(
         Object.keys(sortedBatchByEventBodyId).map(async (id) =>
