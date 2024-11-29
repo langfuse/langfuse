@@ -9,8 +9,9 @@ import MessageResponse from "./interfaces/MessageResponse";
 require("dotenv").config();
 
 import {
-  evalJobCreatorQueueProcessor,
+  evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
+  evalJobTraceCreatorQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -23,6 +24,8 @@ import { QueueName, logger } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessor } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
+import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
+import { traceDeleteProcessor } from "./queues/traceDelete";
 
 const app = express();
 
@@ -48,9 +51,29 @@ if (env.LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS === "true") {
 }
 
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.TraceUpsert, evalJobCreatorQueueProcessor, {
-    concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+  WorkerManager.register(
+    QueueName.TraceUpsert,
+    evalJobTraceCreatorQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
+    concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
   });
+}
+
+if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.DatasetRunItemUpsert,
+    evalJobDatasetCreatorQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+    },
+  );
 }
 
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
@@ -59,7 +82,7 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
     evalJobExecutorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
-    }
+    },
   );
 }
 
@@ -76,7 +99,7 @@ if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.IngestionQueue, ingestionQueueProcessor, {
-    concurrency: env.LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY,
+    concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
   });
 }
 
@@ -89,7 +112,7 @@ if (
     cloudUsageMeteringQueueProcessor,
     {
       concurrency: 1,
-    }
+    },
   );
 }
 
@@ -97,7 +120,17 @@ if (env.QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.LegacyIngestionQueue,
     legacyIngestionQueueProcessor,
-    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY } // n ingestion batches at a time
+    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY }, // n ingestion batches at a time
+  );
+}
+
+if (env.QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.ExperimentCreate,
+    experimentCreateQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EXPERIMENT_CREATOR_WORKER_CONCURRENCY,
+    },
   );
 }
 

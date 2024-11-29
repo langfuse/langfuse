@@ -1,0 +1,1 @@
+DROP TABLE scores ON CLUSTER default;

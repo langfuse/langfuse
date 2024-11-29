@@ -21,13 +21,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   tracesTableColsWithOptions,
-  evalTableCols,
+  evalTraceTableCols,
+  evalDatasetFormFilterCols,
   singleFilter,
   type JobConfiguration,
-  availableEvalVariables,
+  availableTraceEvalVariables,
+  datasetFormFilterColsWithOptions,
+  availableDatasetEvalVariables,
+  type langfuseObjects,
 } from "@langfuse/shared";
 import * as z from "zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
@@ -67,9 +71,15 @@ const formSchema = z.object({
   target: z.string(),
   filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
   mapping: z.array(wipVariableMapping),
-  sampling: z.coerce.number().gte(0).lte(1),
+  sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().optional().default(10),
 });
+
+type LangfuseObject = (typeof langfuseObjects)[number];
+
+const isTraceTarget = (target: string): boolean => target === "trace";
+const isTraceOrDatasetObject = (object: LangfuseObject): boolean =>
+  object === "trace" || object === "dataset_item";
 
 export const EvaluatorForm = (props: {
   projectId: string;
@@ -77,6 +87,7 @@ export const EvaluatorForm = (props: {
   disabled?: boolean;
   existingEvaluator?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
+  mode?: "create" | "edit";
   shouldWrapVariables?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -121,7 +132,7 @@ export const EvaluatorForm = (props: {
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
-                disabled={props.disabled}
+                disabled={props.disabled || props.mode === "edit"}
                 variant="outline"
                 role="combobox"
                 aria-expanded={open}
@@ -183,7 +194,11 @@ export const EvaluatorForm = (props: {
           <Popover>
             <PopoverTrigger asChild>
               <Button
-                disabled={props.disabled || !selectedTemplateName}
+                disabled={
+                  props.disabled ||
+                  !selectedTemplateName ||
+                  props.mode === "edit"
+                }
                 variant="outline"
                 role="combobox"
                 className="w-1/3 justify-between px-2 font-normal"
@@ -266,6 +281,7 @@ export const EvaluatorForm = (props: {
           }
           onFormSuccess={props.onFormSuccess}
           shouldWrapVariables={props.shouldWrapVariables}
+          mode={props.mode}
         />
       ) : null}
     </>
@@ -279,6 +295,7 @@ export const InnerEvalConfigForm = (props: {
   existingEvaluator?: JobConfiguration;
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
+  mode?: "create" | "edit";
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -289,7 +306,7 @@ export const InnerEvalConfigForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target: props.existingEvaluator?.targetObject ?? "",
+      target: props.existingEvaluator?.targetObject ?? "trace",
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
         : [],
@@ -315,9 +332,49 @@ export const InnerEvalConfigForm = (props: {
     },
   });
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery({
-    projectId: props.projectId,
-  });
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    {
+      projectId: props.projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const datasetFilterOptions = useMemo(() => {
+    if (!datasets.data) return undefined;
+    return {
+      datasetId: datasets.data?.map((d) => ({
+        value: d.id,
+        displayValue: d.name,
+      })),
+    };
+  }, [datasets.data]);
 
   useEffect(() => {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {
@@ -329,10 +386,7 @@ export const InnerEvalConfigForm = (props: {
           selectedColumnId: "input",
         })),
       );
-      form.setValue(
-        "scoreName",
-        `${props.evalTemplate.name}-v${props.evalTemplate.version}`,
-      );
+      form.setValue("scoreName", `${props.evalTemplate.name}`);
     }
   }, [form, props.evalTemplate]);
 
@@ -346,9 +400,24 @@ export const InnerEvalConfigForm = (props: {
     onSuccess: () => utils.models.invalidate(),
     onError: (error) => setFormError(error.message),
   });
+  const updateJobMutation = api.evals.updateEvalJob.useMutation({
+    onSuccess: () => utils.evals.invalidate(),
+    onError: (error) => setFormError(error.message),
+  });
+  const [availableVariables, setAvailableVariables] = useState<
+    typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
+  >(
+    isTraceTarget(props.existingEvaluator?.targetObject ?? "trace")
+      ? availableTraceEvalVariables
+      : availableDatasetEvalVariables,
+  );
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    capture("eval_config:new_form_submit");
+    capture(
+      props.mode === "edit"
+        ? "eval_config:update"
+        : "eval_config:new_form_submit",
+    );
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
@@ -373,21 +442,42 @@ export const InnerEvalConfigForm = (props: {
       return;
     }
 
-    createJobMutation
-      .mutateAsync({
-        projectId: props.projectId,
-        evalTemplateId: props.evalTemplate.id,
-        scoreName: values.scoreName,
-        target: values.target,
-        filter: validatedFilter.data,
-        mapping: validatedVarMapping.data,
-        sampling: values.sampling,
-        delay: values.delay * 1000, // multiply by 1k to convert to ms
-      })
+    const delay = values.delay * 1000; // convert to ms
+    const sampling = values.sampling;
+    const mapping = validatedVarMapping.data;
+    const filter = validatedFilter.data;
+    const scoreName = values.scoreName;
+
+    (props.mode === "edit" && props.existingEvaluator
+      ? updateJobMutation.mutateAsync({
+          projectId: props.projectId,
+          evalConfigId: props.existingEvaluator.id,
+          config: {
+            delay,
+            filter,
+            variableMapping: mapping,
+            sampling,
+            scoreName,
+          },
+        })
+      : createJobMutation.mutateAsync({
+          projectId: props.projectId,
+          target: values.target,
+          evalTemplateId: props.evalTemplate.id,
+          scoreName,
+          filter,
+          mapping,
+          sampling,
+          delay,
+        })
+    )
       .then(() => {
-        props.onFormSuccess?.();
         form.reset();
-        void router.push(`/project/${props.projectId}/evals`);
+        props.onFormSuccess?.();
+
+        if (props.mode !== "edit") {
+          void router.push(`/project/${props.projectId}/evals`);
+        }
       })
       .catch((error) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -407,7 +497,7 @@ export const InnerEvalConfigForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
+        className="flex w-full flex-col gap-4"
       >
         <div className="grid gap-4">
           <FormField
@@ -431,11 +521,39 @@ export const InnerEvalConfigForm = (props: {
                 <FormItem>
                   <FormLabel>Target object</FormLabel>
                   <FormControl>
-                    <Tabs defaultValue="trace">
-                      <TabsList {...field}>
-                        <TabsTrigger value="trace">Trace</TabsTrigger>
-                        <TabsTrigger value="dataset" disabled={true}>
-                          Dataset (coming soon)
+                    <Tabs
+                      defaultValue="trace"
+                      value={field.value}
+                      onValueChange={(value) => {
+                        const isTrace = isTraceTarget(value);
+                        const langfuseObject: LangfuseObject = isTrace
+                          ? "trace"
+                          : "dataset_item";
+                        const newMapping = form
+                          .getValues("mapping")
+                          .map((field) => ({ ...field, langfuseObject }));
+                        form.setValue("mapping", newMapping);
+                        form.setValue("delay", isTrace ? 10 : 20);
+                        setAvailableVariables(
+                          isTrace
+                            ? availableTraceEvalVariables
+                            : availableDatasetEvalVariables,
+                        );
+                        field.onChange(value);
+                      }}
+                    >
+                      <TabsList>
+                        <TabsTrigger
+                          value="trace"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Trace
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="dataset"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Dataset
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
@@ -451,21 +569,44 @@ export const InnerEvalConfigForm = (props: {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Target filter</FormLabel>
-                  <FormControl>
-                    <InlineFilterBuilder
-                      columns={tracesTableColsWithOptions(
-                        traceFilterOptions.data,
-                        evalTableCols,
-                      )}
-                      filterState={field.value ?? []}
-                      onChange={(value) => field.onChange(value)}
-                      disabled={props.disabled}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    This will run on all future traces that match these filters
-                  </FormDescription>
-                  <FormMessage />
+                  {isTraceTarget(form.watch("target")) ? (
+                    <>
+                      <FormControl>
+                        <InlineFilterBuilder
+                          columns={tracesTableColsWithOptions(
+                            traceFilterOptions.data,
+                            evalTraceTableCols,
+                          )}
+                          filterState={field.value ?? []}
+                          onChange={(value) => field.onChange(value)}
+                          disabled={props.disabled}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        This will run on all future traces that match these
+                        filters
+                      </FormDescription>
+                      <FormMessage />
+                    </>
+                  ) : (
+                    <>
+                      <FormControl>
+                        <InlineFilterBuilder
+                          columns={datasetFormFilterColsWithOptions(
+                            datasetFilterOptions,
+                            evalDatasetFormFilterCols,
+                          )}
+                          filterState={field.value ?? []}
+                          onChange={(value) => field.onChange(value)}
+                          disabled={props.disabled}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        This will run on all future dataset experiment runs
+                      </FormDescription>
+                      <FormMessage />
+                    </>
+                  )}
                 </FormItem>
               )}
             />
@@ -491,7 +632,7 @@ export const InnerEvalConfigForm = (props: {
                       json={props.evalTemplate.prompt ?? null}
                       className={cn(
                         "min-h-48 bg-muted",
-                        !props.shouldWrapVariables && "lg:w-1/2",
+                        !props.shouldWrapVariables && "lg:w-2/3",
                       )}
                     />
                     <div
@@ -522,7 +663,7 @@ export const InnerEvalConfigForm = (props: {
                             render={({ field }) => (
                               <div className="flex items-center gap-2">
                                 <VariableMappingDescription
-                                  title={"Trace object"}
+                                  title="Object"
                                   description={
                                     "Langfuse object to retrieve the data from."
                                   }
@@ -541,7 +682,7 @@ export const InnerEvalConfigForm = (props: {
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {availableEvalVariables.map(
+                                        {availableVariables.map(
                                           (evalObject) => (
                                             <SelectItem
                                               value={evalObject.id}
@@ -560,8 +701,9 @@ export const InnerEvalConfigForm = (props: {
                             )}
                           />
 
-                          {form.watch(`mapping.${index}.langfuseObject`) !==
-                          "trace" ? (
+                          {!isTraceOrDatasetObject(
+                            form.watch(`mapping.${index}.langfuseObject`),
+                          ) ? (
                             <FormField
                               control={form.control}
                               key={`${mappingField.id}-objectName`}
@@ -614,13 +756,14 @@ export const InnerEvalConfigForm = (props: {
                                       defaultValue={field.value ?? undefined}
                                       onValueChange={(value) => {
                                         const availableColumns =
-                                          availableEvalVariables.find(
+                                          availableVariables.find(
                                             (evalObject) =>
                                               evalObject.id ===
                                               form.watch(
                                                 `mapping.${index}.langfuseObject`,
                                               ),
                                           )?.availableColumns;
+
                                         const column = availableColumns?.find(
                                           (column) => column.id === value,
                                         );
@@ -632,7 +775,7 @@ export const InnerEvalConfigForm = (props: {
                                         <SelectValue placeholder="Object type" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {availableEvalVariables
+                                        {availableVariables
                                           .find(
                                             (evalObject) =>
                                               evalObject.id ===
@@ -711,8 +854,8 @@ export const InnerEvalConfigForm = (props: {
                     <Input {...field} type="number" />
                   </FormControl>
                   <FormDescription>
-                    Time between first Trace event and evaluation execution to
-                    ensure all Trace data is available
+                    Time between first Trace/Dataset run event and evaluation
+                    execution to ensure all data is available
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -724,7 +867,7 @@ export const InnerEvalConfigForm = (props: {
         {!props.disabled ? (
           <Button
             type="submit"
-            loading={createJobMutation.isLoading}
+            loading={createJobMutation.isLoading || updateJobMutation.isLoading}
             className="mt-3"
           >
             Save

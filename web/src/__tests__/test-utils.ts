@@ -1,5 +1,11 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  clickhouseClient,
+  getDisplaySecretKey,
+  hashSecretKey,
+} from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
 import { type z } from "zod";
 
 export const pruneDatabase = async () => {
@@ -20,9 +26,27 @@ export const pruneDatabase = async () => {
   await prisma.model.deleteMany();
   await prisma.llmApiKeys.deleteMany();
   await prisma.comment.deleteMany();
+  await prisma.media.deleteMany();
+
+  if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
+    throw new Error("You cannot prune clickhouse unless running on localhost.");
+  }
+
+  await clickhouseClient().command({
+    query: "TRUNCATE TABLE IF EXISTS observations",
+  });
+  await clickhouseClient().command({
+    query: "TRUNCATE TABLE IF EXISTS scores",
+  });
+  await clickhouseClient().command({
+    query: "TRUNCATE TABLE IF EXISTS traces",
+  });
 };
 
-function createBasicAuthHeader(username: string, password: string): string {
+export function createBasicAuthHeader(
+  username: string,
+  password: string,
+): string {
   const base64Credentials = Buffer.from(`${username}:${password}`).toString(
     "base64",
   );
@@ -92,3 +116,57 @@ export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
   }
   return { body: resBody, status };
 }
+
+export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
+  responseZodSchema: T,
+  method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
+  url: string,
+  body?: unknown,
+  auth?: string,
+): Promise<{ body: z.infer<T>; status: number }> {
+  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+
+  if (status === 200) {
+    const typeCheckResult = responseZodSchema.safeParse(resBody);
+    if (!typeCheckResult.success) {
+      console.error(typeCheckResult.error);
+      throw new Error(
+        `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${typeCheckResult.error}`,
+      );
+    }
+  }
+
+  return { body: resBody, status };
+}
+
+export const createOrgProjectAndApiKey = async () => {
+  const projectId = v4();
+  const org = await prisma.organization.create({
+    data: {
+      id: v4(),
+      name: v4(),
+    },
+  });
+  await prisma.project.create({
+    data: {
+      id: projectId,
+      name: v4(),
+      orgId: org.id,
+    },
+  });
+  const publicKey = v4();
+  const secretKey = v4();
+
+  const auth = createBasicAuthHeader(publicKey, secretKey);
+  await prisma.apiKey.create({
+    data: {
+      id: v4(),
+      projectId: projectId,
+      publicKey: publicKey,
+      hashedSecretKey: await hashSecretKey(secretKey),
+      displaySecretKey: getDisplaySecretKey(secretKey),
+    },
+  });
+
+  return { projectId, publicKey, secretKey, auth };
+};

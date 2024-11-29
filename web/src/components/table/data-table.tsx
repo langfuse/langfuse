@@ -210,7 +210,7 @@ export function DataTable<TData extends object, TValue>({
           style={{ ...columnSizeVars }}
         >
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10">
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {

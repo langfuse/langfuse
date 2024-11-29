@@ -22,7 +22,7 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
   await page.goto("auth/sign-up");
   await page.fill('input[name="name"]', "demo lang");
   await page.fill('input[name="email"]', randomEmailAddress());
-  await page.fill('input[type="password"]', "password2");
+  await page.fill('input[type="password"]', "Password2#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
   // see get started page
@@ -35,7 +35,7 @@ test("Successfully sign up & able to go to homepage with uppercase email", async
   await page.goto("auth/sign-up");
   await page.fill('input[name="name"]', "demo lang");
   await page.fill('input[name="email"]', "A" + randomEmailAddress());
-  await page.fill('input[type="password"]', "password3");
+  await page.fill('input[type="password"]', "Password3#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);
   // see get started page
@@ -50,7 +50,7 @@ test("Signup input validation", async ({ page }) => {
   await page.waitForTimeout(2000);
   await expect(page.getByText("Invalid email")).toBeVisible();
   await expect(
-    page.getByText("Password must be at least 8 characters long"),
+    page.getByText("Password must be at least 8 characters long."),
   ).toBeVisible();
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   await page.waitForTimeout(2000);

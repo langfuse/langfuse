@@ -1,102 +1,131 @@
-// This structure is maintained to relate the frontend table definitions with the clickhouse table definitions.
-// The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
-
 import { UiColumnMapping } from "./types";
 
 export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
   {
-    uiTableName: "bookmarked",
+    uiTableName: "⭐️",
+    uiTableId: "bookmarked",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "bookmarked",
+    clickhouseSelect: "bookmarked",
+    queryPrefix: "t",
   },
   {
     uiTableName: "Level",
+    uiTableId: "level",
     clickhouseTableName: "observations",
-    clickhouseColumnName: "level",
+    clickhouseSelect: "level",
   },
   {
     uiTableName: "ID",
+    uiTableId: "id",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "id",
+    clickhouseSelect: "id",
   },
   {
     uiTableName: "Name",
+    uiTableId: "name",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "name",
+    clickhouseSelect: "name",
   },
   {
     uiTableName: "Timestamp",
+    uiTableId: "timestamp",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "timestamp",
+    clickhouseSelect: "timestamp",
   },
   {
     uiTableName: "User ID",
+    uiTableId: "userId",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "userId",
+    clickhouseSelect: "user_id",
   },
   {
     uiTableName: "Session ID",
+    uiTableId: "sessionId",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "sessionId",
+    clickhouseSelect: "session_id",
   },
   {
     uiTableName: "Metadata",
+    uiTableId: "metadata",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "metadata",
+    clickhouseSelect: "metadata",
   },
   {
     uiTableName: "Version",
+    uiTableId: "version",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "version",
+    clickhouseSelect: "version",
   },
   {
     uiTableName: "Release",
+    uiTableId: "release",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "release",
+    clickhouseSelect: "release",
   },
   {
     uiTableName: "Tags",
+    uiTableId: "tags",
     clickhouseTableName: "traces",
-    clickhouseColumnName: "tags",
+    clickhouseSelect: "tags",
   },
   {
     uiTableName: "Input Tokens",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "promptTokens",
+    uiTableId: "inputTokens",
+    clickhouseTableName: "observations",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'input'), usage_details), usage_details['input'], NULL)",
   },
   {
     uiTableName: "Output Tokens",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "completionTokens",
+    uiTableId: "outputTokens",
+    clickhouseTableName: "observations",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'output'), usage_details), usage_details['output'], NULL)",
   },
   {
     uiTableName: "Total Tokens",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "totalTokens",
+    uiTableId: "totalTokens",
+    clickhouseTableName: "observations",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
   },
   {
     uiTableName: "Usage",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "totalTokens",
+    uiTableId: "usage",
+    clickhouseTableName: "observations",
+    clickhouseSelect:
+      "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+  },
+  {
+    uiTableName: "Scores",
+    uiTableId: "scores",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.scores_avg",
   },
   {
     uiTableName: "Latency (s)",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "latency",
+    uiTableId: "latency",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "latency_milliseconds / 1000",
+    // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Input Cost ($)",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "calculatedInputCost",
+    uiTableId: "inputCost",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "cost_details['input']",
   },
   {
     uiTableName: "Output Cost ($)",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "calculatedOutputCost",
+    uiTableId: "outputCost",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "cost_details['output']",
   },
   {
     uiTableName: "Total Cost ($)",
-    clickhouseTableName: "traces",
-    clickhouseColumnName: "calculatedTotalCost",
+    uiTableId: "totalCost",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "cost_details['total']",
   },
 ];

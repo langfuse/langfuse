@@ -25,6 +25,7 @@ import {
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 const SingleOrganizationProjectOverview = ({
   orgId,
@@ -167,7 +168,7 @@ export const OrganizationProjectOverview = () => {
       .length === 0 && !queryOrgId;
 
   return (
-    <div className="md:container">
+    <ScrollScreenPage>
       {!queryOrgId && (
         <>
           <Header
@@ -216,7 +217,7 @@ export const OrganizationProjectOverview = () => {
             />
           </Fragment>
         ))}
-    </div>
+    </ScrollScreenPage>
   );
 };
 

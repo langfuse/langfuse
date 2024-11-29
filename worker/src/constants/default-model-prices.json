@@ -1134,5 +1134,48 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
+  },
+  {
+    "id": "cm34aq60d000207ml0j1h31ar",
+    "model_name": "claude-3-5-haiku-20241022",
+    "match_pattern": "(?i)^(claude-3-5-haiku-20241022|anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
+    "created_at": "2024-11-05T10:30:50.566Z",
+    "updated_at": "2024-11-05T10:30:50.566Z",
+    "prices": {
+      "input": 0.000001,
+      "output": 0.000005
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
+  },
+  {
+    "id": "cm34aqb9h000307ml6nypd618",
+    "model_name": "claude-3.5-haiku-latest",
+    "match_pattern": "(?i)^(claude-3-5-haiku-latest)$",
+    "created_at": "2024-11-05T10:30:50.566Z",
+    "updated_at": "2024-11-05T10:30:50.566Z",
+    "prices": {
+      "input": 0.000001,
+      "output": 0.000005
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": "claude"
+  },
+  {
+    "id": "cm3x0p8ev000008kyd96800c8",
+    "model_name": "chatgpt-4o-latest",
+    "match_pattern": "(?i)^(chatgpt-4o-latest)$",
+    "created_at": "2024-11-25T12:47:17.504Z",
+    "updated_at": "2024-11-25T12:47:17.504Z",
+    "prices": {
+      "input": 0.000005,
+      "output": 0.000015
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4o",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]

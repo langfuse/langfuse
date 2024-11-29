@@ -138,17 +138,44 @@ export const tracesTableCols: ColumnDefinition[] = [
   },
 ];
 
-export const evalTableCols: ColumnDefinition[] = tracesOnlyCols;
+export const datasetCol: ColumnDefinition = {
+  name: "Dataset",
+  id: "datasetId",
+  type: "stringOptions",
+  internal: 'di."dataset_id"',
+  options: [], // to be filled in at runtime
+};
 
+// Used only for dataset evaluator, not on dataset table
+export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
+
+export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
+export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 export type TraceOptions = {
   scores_avg: Array<string>;
   name: Array<OptionsDefinition>;
   tags: Array<OptionsDefinition>;
 };
+export type DatasetOptions = {
+  datasetId: Array<OptionsDefinition>;
+};
+
+// Used only for dataset evaluator, not on dataset table
+export function datasetFormFilterColsWithOptions(
+  options?: DatasetOptions,
+  cols: ColumnDefinition[] = evalDatasetFormFilterCols,
+): ColumnDefinition[] {
+  return cols.map((col) => {
+    if (col.id === "datasetId") {
+      return { ...col, options: options?.datasetId ?? [] };
+    }
+    return col;
+  });
+}
 
 export function tracesTableColsWithOptions(
   options?: TraceOptions,
-  cols: ColumnDefinition[] = tracesTableCols
+  cols: ColumnDefinition[] = tracesTableCols,
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "scores_avg") {

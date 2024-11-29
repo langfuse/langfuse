@@ -8,11 +8,14 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  EvalTargetObject,
   ZodModelConfig,
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  type JobConfiguration,
+  JobConfigState,
+  JobType,
+  Prisma,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -23,6 +26,47 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import { EvaluatorStatus } from "../types";
+import { traceException } from "@langfuse/shared/src/server";
+
+const APIEvaluatorSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  evalTemplateId: z.string(),
+  scoreName: z.string(),
+  targetObject: z.string(),
+  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  variableMapping: z.array(variableMapping),
+  sampling: z.instanceof(Prisma.Decimal),
+  delay: z.number(),
+  status: z.nativeEnum(JobConfigState),
+  jobType: z.nativeEnum(JobType),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+type APIEvaluator = z.infer<typeof APIEvaluatorSchema>;
+
+/**
+ * Use this function when pulling a list of evaluators from the database before using in the application to ensure type safety.
+ * All evaluators are expected to pass the validation. If an evaluator fails validation, it will be logged to Otel.
+ * @param evaluators
+ * @returns list of validated evaluators
+ */
+const filterAndValidateDbEvaluatorList = (
+  evaluators: JobConfiguration[],
+  onParseError?: (error: z.ZodError) => void,
+): APIEvaluator[] =>
+  evaluators.reduce((acc, ts) => {
+    const result = APIEvaluatorSchema.safeParse(ts);
+    if (result.success) {
+      acc.push(result.data);
+    } else {
+      console.error("Evaluator parsing error: ", result.error);
+      onParseError?.(result.error);
+    }
+    return acc;
+  }, [] as APIEvaluator[]);
 
 export const CreateEvalTemplate = z.object({
   name: z.string().min(1),
@@ -40,6 +84,26 @@ export const CreateEvalTemplate = z.object({
     .nativeEnum(EvalReferencedEvaluators)
     .optional()
     .default(EvalReferencedEvaluators.PERSIST),
+});
+
+const CreateEvalJobSchema = z.object({
+  projectId: z.string(),
+  evalTemplateId: z.string(),
+  scoreName: z.string().min(1),
+  target: z.string(),
+  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  mapping: z.array(variableMapping),
+  sampling: z.number().gt(0).lte(1),
+  delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
+});
+
+const UpdateEvalJobSchema = z.object({
+  scoreName: z.string().min(1).optional(),
+  filter: z.array(singleFilter).optional(),
+  variableMapping: z.array(variableMapping).optional(),
+  sampling: z.number().gt(0).lte(1).optional(),
+  delay: z.number().gte(0).optional(),
+  status: z.nativeEnum(EvaluatorStatus).optional(),
 });
 
 export const evalRouter = createTRPCRouter({
@@ -267,6 +331,8 @@ export const evalRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+
+  // to be deprecated, only kept for cases of client side caching of routes
   evaluatorsByTemplateName: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -312,19 +378,78 @@ export const evalRouter = createTRPCRouter({
       }
     }),
 
+  jobConfigsByTarget: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), targetObject: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const evaluators = await ctx.prisma.jobConfiguration.findMany({
+        where: {
+          projectId: input.projectId,
+          targetObject: input.targetObject,
+          status: "ACTIVE",
+        },
+      });
+
+      return filterAndValidateDbEvaluatorList(evaluators, traceException);
+    }),
+
+  jobConfigsByTemplateName: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateName: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        throwIfNoEntitlement({
+          entitlement: "model-based-evaluations",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "evalJob:read",
+        });
+
+        const templates = await ctx.prisma.evalTemplate.findMany({
+          where: {
+            projectId: input.projectId,
+            name: input.evalTemplateName,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        return {
+          evaluators: await ctx.prisma.jobConfiguration.findMany({
+            where: {
+              projectId: input.projectId,
+              evalTemplateId: { in: templates.map((t) => t.id) },
+            },
+          }),
+        };
+      } catch (error) {
+        logger.error(error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Fetching eval jobs for template failed.",
+        });
+      }
+    }),
+
   createJob: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        evalTemplateId: z.string(),
-        scoreName: z.string().min(1),
-        target: z.string(),
-        filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
-        mapping: z.array(variableMapping),
-        sampling: z.number().gte(0).lte(1),
-        delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
-      }),
-    )
+    .input(CreateEvalJobSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoEntitlement({
@@ -358,7 +483,7 @@ export const evalRouter = createTRPCRouter({
             jobType: "EVAL",
             evalTemplateId: input.evalTemplateId,
             scoreName: input.scoreName,
-            targetObject: EvalTargetObject.Trace,
+            targetObject: input.target,
             filter: input.filter ?? [],
             variableMapping: input.mapping,
             sampling: input.sampling,
@@ -406,29 +531,31 @@ export const evalRouter = createTRPCRouter({
 
       // Make a test structured output call to validate the LLM key
       try {
-        await fetchLLMCompletion({
-          streaming: false,
-          apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
-          baseURL: parsedKey.data.baseURL ?? undefined,
-          messages: [
-            {
-              role: ChatMessageRole.System,
-              content: "You are an expert at evaluating LLM outputs.",
+        (
+          await fetchLLMCompletion({
+            streaming: false,
+            apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+            baseURL: parsedKey.data.baseURL ?? undefined,
+            messages: [
+              {
+                role: ChatMessageRole.System,
+                content: "You are an expert at evaluating LLM outputs.",
+              },
+              { role: ChatMessageRole.User, content: input.prompt },
+            ],
+            modelParams: {
+              provider: input.provider,
+              model: input.model,
+              adapter: parsedKey.data.adapter,
+              ...input.modelParams,
             },
-            { role: ChatMessageRole.User, content: input.prompt },
-          ],
-          modelParams: {
-            provider: input.provider,
-            model: input.model,
-            adapter: parsedKey.data.adapter,
-            ...input.modelParams,
-          },
-          structuredOutputSchema: z.object({
-            score: z.string(),
-            reasoning: z.string(),
-          }),
-          config: parsedKey.data.config,
-        });
+            structuredOutputSchema: z.object({
+              score: z.string(),
+              reasoning: z.string(),
+            }),
+            config: parsedKey.data.config,
+          })
+        ).completion;
       } catch (err) {
         logger.error(err);
 
@@ -496,7 +623,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         evalConfigId: z.string(),
-        updatedStatus: z.enum(["ACTIVE", "INACTIVE"]),
+        config: UpdateEvalJobSchema,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -516,9 +643,7 @@ export const evalRouter = createTRPCRouter({
           id: input.evalConfigId,
           projectId: input.projectId,
         },
-        data: {
-          status: input.updatedStatus,
-        },
+        data: input.config,
       });
 
       await auditLog({
@@ -600,5 +725,56 @@ export const evalRouter = createTRPCRouter({
         data: jobExecutions,
         totalCount: count,
       };
+    }),
+
+  jobConfigsByDatasetId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      // Get all evaluators (jobConfigs) for the project, refactor to reuse filter builder pattern in lfe-2887
+      const evaluators = await ctx.prisma.$queryRaw<
+        Array<{
+          id: string;
+          scoreName: string;
+        }>
+      >(Prisma.sql`
+      SELECT DISTINCT
+        jc.id, 
+        jc.score_name as "scoreName"
+      FROM 
+        "job_configurations" as jc
+      WHERE 
+        jc.project_id = ${input.projectId}
+        AND jc.job_type = 'EVAL'
+        AND jc.target_object = 'dataset'
+        AND jc.status = 'ACTIVE'
+        AND (
+          jc.filter IS NULL 
+          OR jsonb_array_length(jc.filter) = 0
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(jc.filter) as f
+            WHERE f->>'column' = 'Dataset'
+              AND f->>'type' = 'stringOptions'
+              AND (
+                (f->>'operator' = 'any of' AND ${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value')))
+                OR 
+                (f->>'operator' = 'none of' AND NOT (${Prisma.sql`${input.datasetId}`}::text = ANY(SELECT jsonb_array_elements_text(f->'value'))))
+              )
+          )
+        )
+      `);
+
+      return evaluators;
     }),
 });

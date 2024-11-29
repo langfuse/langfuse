@@ -21,7 +21,8 @@ export function ClickhouseAdminToggle() {
   };
 
   return (
-    <div className="ml-auto flex items-center space-x-1">
+    <div className="flex items-center space-x-1">
+      <span className="mr-2">Clickhouse Queries</span>
       <div
         title={
           isEnabled ? "Disable Clickhouse Queries" : "Enable Clickhouse Queries"

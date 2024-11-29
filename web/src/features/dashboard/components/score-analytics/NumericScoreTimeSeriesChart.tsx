@@ -19,6 +19,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -74,6 +75,8 @@ export function NumericScoreTimeSeriesChart(props: {
           column: "scoreDataType",
         },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "numeric-score-time-series",
     },
     {
       trpc: {

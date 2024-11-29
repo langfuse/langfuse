@@ -1,10 +1,14 @@
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
+import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
+import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
+import { Columns3 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 
 export default function Dataset() {
@@ -45,27 +49,63 @@ export default function Dataset() {
             />
             <DetailPageNav
               currentId={runId}
-              path={(id) =>
-                `/project/${projectId}/datasets/${datasetId}/runs/${id}`
+              path={(entry) =>
+                `/project/${projectId}/datasets/${datasetId}/runs/${entry.id}`
               }
               listKey="datasetRuns"
             />
+            <Link
+              href={{
+                pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                query: { runs: [runId] },
+              }}
+            >
+              <Button>
+                <Columns3 className="mr-2 h-4 w-4" />
+                <span>Compare</span>
+              </Button>
+            </Link>
           </>
         }
       />
-      <div className="flex flex-col gap-2">
-        {!!run.data?.description && (
-          <JSONView json={run.data.description} title="Description" />
-        )}
-        {!!run.data?.metadata && (
-          <JSONView json={run.data.metadata} title="Metadata" />
-        )}
-      </div>
-      <DatasetRunItemsTable
-        projectId={projectId}
-        datasetId={datasetId}
-        datasetRunId={runId}
-      />
+      {run.data?.description || run.data?.metadata ? (
+        <TableWithMetadataWrapper
+          tableComponent={
+            <DatasetRunItemsTable
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetRunId={runId}
+            />
+          }
+          cardTitleChildren={
+            <span className="text-lg font-medium">Run details</span>
+          }
+          cardContentChildren={
+            <div className="grid h-full grid-cols-1 gap-2 overflow-hidden">
+              {!!run.data?.description && (
+                <JSONView
+                  json={run.data.description}
+                  title="Description"
+                  className="overflow-y-auto"
+                />
+              )}
+              {!!run.data?.metadata && (
+                <JSONView
+                  json={run.data.metadata}
+                  title="Metadata"
+                  className="overflow-y-auto"
+                />
+              )}
+            </div>
+          }
+        />
+      ) : (
+        <DatasetRunItemsTable
+          projectId={projectId}
+          datasetId={datasetId}
+          datasetRunId={runId}
+        />
+      )}
     </FullScreenPage>
   );
 }

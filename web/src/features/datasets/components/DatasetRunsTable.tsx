@@ -5,9 +5,8 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-
 import { type RouterOutput } from "@/src/utils/types";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -18,26 +17,27 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
-import { MoreVertical } from "lucide-react";
+import { ChevronDown, Columns3, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-
-type DatasetRunRowKey = {
-  id: string;
-  name: string;
-};
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { type RowSelectionState } from "@tanstack/react-table";
+import Link from "next/link";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type DatasetRunRowData = {
-  key: DatasetRunRowKey;
+  id: string;
+  name: string;
   createdAt: string;
   countRunItems: string;
   avgLatency: number;
@@ -46,6 +46,46 @@ export type DatasetRunRowData = {
   scores?: ScoreAggregate;
   description: string;
   metadata: Prisma.JsonValue;
+};
+
+const DatasetRunTableMultiSelectAction = ({
+  selectedRunIds,
+  projectId,
+  datasetId,
+}: {
+  selectedRunIds: string[];
+  projectId: string;
+  datasetId: string;
+}) => {
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button disabled={selectedRunIds.length < 1}>
+            Actions ({selectedRunIds.length} selected)
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <Link
+            href={
+              selectedRunIds.length < 2
+                ? "#"
+                : {
+                    pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                    query: { runs: selectedRunIds },
+                  }
+            }
+          >
+            <DropdownMenuItem disabled={selectedRunIds.length < 2}>
+              <Columns3 className="mr-2 h-4 w-4" />
+              <span>Compare</span>
+            </DropdownMenuItem>
+          </Link>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
 };
 
 export function DatasetRunsTable(props: {
@@ -57,6 +97,7 @@ export function DatasetRunsTable(props: {
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetRuns",
@@ -67,13 +108,14 @@ export function DatasetRunsTable(props: {
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    queryClickhouse: useClickhouse(),
   });
   const { setDetailPageList } = useDetailPageLists();
   useEffect(() => {
     if (runs.isSuccess) {
       setDetailPageList(
         "datasetRuns",
-        runs.data.runs.map((t) => t.id),
+        runs.data.runs.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,17 +130,74 @@ export function DatasetRunsTable(props: {
 
   const columns: LangfuseColumnDef<DatasetRunRowData>[] = [
     {
-      accessorKey: "key",
+      id: "select",
+      accessorKey: "select",
+      size: 30,
+      isPinned: true,
+      header: ({ table }) => {
+        return (
+          <div className="flex h-full items-center">
+            <Checkbox
+              checked={
+                table.getIsAllPageRowsSelected()
+                  ? true
+                  : table.getIsSomePageRowsSelected()
+                    ? "indeterminate"
+                    : false
+              }
+              onCheckedChange={(value) => {
+                table.toggleAllPageRowsSelected(!!value);
+                if (!value) {
+                  setSelectedRows({});
+                }
+              }}
+              aria-label="Select all"
+              className="opacity-60"
+            />
+          </div>
+        );
+      },
+      cell: ({ row }) => {
+        return (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "id",
+      header: "Id",
+      id: "id",
+      size: 150,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const id: DatasetRunRowData["id"] = row.getValue("id");
+        return (
+          <TableLink
+            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
+            value={id}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "name",
       header: "Name",
-      id: "key",
+      id: "name",
       size: 150,
       isPinned: true,
       cell: ({ row }) => {
-        const key: DatasetRunRowData["key"] = row.getValue("key");
+        const name: DatasetRunRowData["name"] = row.getValue("name");
+        const id: DatasetRunRowData["id"] = row.getValue("id");
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${key.id}`}
-            value={key.name}
+            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
+            value={name}
           />
         );
       },
@@ -169,8 +268,7 @@ export function DatasetRunsTable(props: {
       header: "Actions",
       size: 70,
       cell: ({ row }) => {
-        const key: DatasetRunRowKey = row.getValue("key");
-        const { id: datasetRunId } = key;
+        const id: DatasetRunRowData["id"] = row.getValue("id");
 
         return (
           <DropdownMenu>
@@ -184,7 +282,7 @@ export function DatasetRunsTable(props: {
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DeleteDatasetRunButton
                 projectId={props.projectId}
-                datasetRunId={datasetRunId}
+                datasetRunId={id}
                 fullWidth
               />
             </DropdownMenuContent>
@@ -198,7 +296,8 @@ export function DatasetRunsTable(props: {
     item: RouterOutput["datasets"]["runsByDatasetId"]["runs"][number],
   ): DatasetRunRowData => {
     return {
-      key: { id: item.id, name: item.name },
+      id: item.id,
+      name: item.name,
       createdAt: item.createdAt.toLocaleString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
@@ -233,7 +332,21 @@ export function DatasetRunsTable(props: {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={props.menuItems}
+        actionButtons={[
+          props.menuItems,
+          Object.keys(selectedRows).filter((runId) =>
+            runs.data?.runs.map((run) => run.id).includes(runId),
+          ).length > 0 ? (
+            <DatasetRunTableMultiSelectAction
+              // Exclude items that are not in the current page
+              selectedRunIds={Object.keys(selectedRows).filter((runId) =>
+                runs.data?.runs.map((run) => run.id).includes(runId),
+              )}
+              projectId={props.projectId}
+              datasetId={props.datasetId}
+            />
+          ) : null,
+        ]}
       />
       <DataTable
         columns={columns}
@@ -262,6 +375,8 @@ export function DatasetRunsTable(props: {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
       />
     </>
   );
