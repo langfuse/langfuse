@@ -99,7 +99,7 @@ if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.IngestionQueue, ingestionQueueProcessor, {
-    concurrency: env.LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY,
+    concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
   });
 }
 
