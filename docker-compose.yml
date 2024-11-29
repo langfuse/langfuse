@@ -1,6 +1,6 @@
 services:
   langfuse-worker:
-    image: langfuse/langfuse-worker:main
+    image: langfuse/langfuse-worker:main # TODO: Switch to :3 after go-live
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -33,7 +33,7 @@ services:
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
 
   langfuse-web:
-    image: langfuse/langfuse:main
+    image: langfuse/langfuse:main # TODO: Switch to :3 after go-live
     depends_on: *langfuse-depends-on
     ports:
       - "3000:3000"
