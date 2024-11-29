@@ -20,7 +20,6 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import { updateStripeSeatCount } from "@/src/ee/features/billing/utils/updateSeatCount";
 
 // Record as it allows to type check that all roles are included
 function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
@@ -111,7 +110,6 @@ export const membersRouter = createTRPCRouter({
        *         - return
        *      - else throw error
        *    - create org membership
-       *    - update stripe seat count
        *    - audit log
        *    - if project role is set
        *     - create project role
@@ -247,7 +245,6 @@ export const membersRouter = createTRPCRouter({
             role: input.orgRole,
           },
         });
-        await updateStripeSeatCount(input.orgId);
         await auditLog({
           session: ctx.session,
           resourceType: "orgMembership",
@@ -383,16 +380,12 @@ export const membersRouter = createTRPCRouter({
         before: orgMembership,
       });
 
-      const res = await ctx.prisma.organizationMembership.delete({
+      return await ctx.prisma.organizationMembership.delete({
         where: {
           id: orgMembership.id,
           orgId: input.orgId,
         },
       });
-
-      await updateStripeSeatCount(input.orgId);
-
-      return res;
     }),
   deleteInvite: protectedOrganizationProcedure
     .input(

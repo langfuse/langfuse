@@ -1,4 +1,3 @@
-import { updateStripeSeatCount } from "@/src/ee/features/billing/utils/updateSeatCount";
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
@@ -128,8 +127,4 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
-
-  for (const inviteData of createOrgMembershipData) {
-    await updateStripeSeatCount(inviteData.orgId);
-  }
 }

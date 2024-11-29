@@ -2,57 +2,48 @@ import { env } from "@/src/env.mjs";
 import { type Plan } from "@langfuse/shared";
 
 type StripeProduct = {
-  stripeUsageProductId: string;
-  stripeSeatsProductId: string;
+  stripeProductId: string;
   mappedPlan: Plan;
   // include checkout if product can be subscribed to by new users
-  checkout: boolean;
+  checkout: {
+    title: string;
+    description: string;
+    price: string;
+  } | null;
 };
 
 // map of planid to plan name
-export const stripeProducts: readonly StripeProduct[] = [
+export const stripeProducts: StripeProduct[] = [
   {
-    mappedPlan: "cloud:pro",
-    checkout: true,
-    stripeUsageProductId:
+    stripeProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_QgDNYKXcBfvUQ3" // test
         : "prod_QhK7UMhrkVeF6R", // live
-    stripeSeatsProductId:
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-        ? "prod_R5cUtsHcxJv9dD" // test
-        : "xxx", // live
+    mappedPlan: "cloud:pro",
+    checkout: {
+      title: "Pro",
+      description:
+        "For serious projects. Includes access to full history and higher usage.",
+      price: "$59 / month + $10/100k observations",
+    },
   },
   {
-    mappedPlan: "cloud:team",
-    checkout: false,
-    stripeUsageProductId:
+    stripeProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_QgDOxTD64U6KDv" // test
         : "prod_QhK9qKGH25BTcS", // live
-    stripeSeatsProductId:
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-        ? "xxx" // test
-        : "xxx", // live
+    mappedPlan: "cloud:team",
+    checkout: {
+      title: "Team",
+      description:
+        "Dedicated solutions and support for your team. Contact us for additional add-ons listed on the pricing page.",
+      price: "$499 / month + $10/100k observations",
+    },
   },
 ];
 
-export const stripeSeatProductIds = stripeProducts.map(
-  (product) => product.stripeSeatsProductId,
-);
-
-export const mapActiveProductIdsToPlan = (
-  activeProductIds: string[],
-): Plan | null => {
-  return (
-    stripeProducts.find(
-      (product) =>
-        activeProductIds.includes(product.stripeUsageProductId) ||
-        activeProductIds.includes(product.stripeSeatsProductId),
-    )?.mappedPlan ?? null
-  );
-};
+export const mapStripeProductIdToPlan = (productId: string): Plan | null =>
+  stripeProducts.find((product) => product.stripeProductId === productId)
+    ?.mappedPlan ?? null;

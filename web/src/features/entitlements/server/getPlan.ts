@@ -1,4 +1,4 @@
-import { mapActiveProductIdsToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
+import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { type Plan } from "@langfuse/shared";
 import { type CloudConfigSchema } from "@langfuse/shared";
@@ -27,10 +27,11 @@ export function getOrganizationPlanServerSide(
             return "cloud:team";
         }
       }
-      // stripe plan via product ids
-      const activeProductIds = cloudConfig.stripe?.activeProductIds;
-      if (activeProductIds) {
-        const stripePlan = mapActiveProductIdsToPlan(activeProductIds);
+      // stripe plan via product id
+      if (cloudConfig.stripe?.activeProductId) {
+        const stripePlan = mapStripeProductIdToPlan(
+          cloudConfig.stripe.activeProductId,
+        );
         if (stripePlan) {
           return stripePlan;
         }
