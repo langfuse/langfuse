@@ -3,6 +3,7 @@ import type { ZodSchema } from "zod";
 import { CallbackHandler } from "langfuse-langchain";
 
 import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
 import {
   AIMessage,
@@ -15,7 +16,7 @@ import {
 } from "@langchain/core/output_parsers";
 import { IterableReadableStream } from "@langchain/core/utils/stream";
 import { ChatOpenAI } from "@langchain/openai";
-import {
+import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
@@ -139,7 +140,11 @@ export async function fetchLLMCompletion(
     return new AIMessage(message.content);
   });
 
-  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse;
+  let chatModel:
+    | ChatOpenAI
+    | ChatAnthropic
+    | ChatBedrockConverse
+    | ChatVertexAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
@@ -190,6 +195,21 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+    });
+  } else if (modelParams.adapter === LLMAdapter.VertexAI) {
+    const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
+
+    chatModel = new ChatVertexAI({
+      modelName: modelParams.model,
+      temperature: modelParams.temperature,
+      maxOutputTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks: finalCallbacks,
+      maxRetries,
+      authOptions: {
+        projectId: credentials.project_id,
+        credentials,
+      },
     });
   } else {
     // eslint-disable-next-line no-unused-vars

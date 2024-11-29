@@ -16,6 +16,7 @@ export enum LLMAdapter {
   OpenAI = "openai",
   Azure = "azure",
   Bedrock = "bedrock",
+  VertexAI = "vertex-ai",
 }
 
 export enum ChatMessageRole {
@@ -114,10 +115,18 @@ export const anthropicModels = [
   "claude-instant-1.2",
 ] as const;
 
+export const vertexAIModels = [
+  "gemini-1.5-pro",
+  "gemini-1.5-flash",
+  "gemini-1.0-pro",
+] as const;
+
 export type AnthropicModel = (typeof anthropicModels)[number];
+export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
   [LLMAdapter.Anthropic]: anthropicModels,
   [LLMAdapter.OpenAI]: openAIModels,
+  [LLMAdapter.VertexAI]: vertexAIModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
 } as const;
