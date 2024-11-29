@@ -5,7 +5,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-const versionSchema = z.string().regex(/^v\d+\.\d+\.\d+$/); // e.g. v1.2.3
+const versionSchema = z.string().regex(/^v\d+\.\d+\.\d+(?:[-+].+)?$/); // e.g. v1.2.3, v1.2.3-rc.1, v1.2.3+build.123
 
 const compareVersions = (
   current: string,
@@ -18,12 +18,32 @@ const compareVersions = (
     if (version.startsWith("v")) {
       version = version.slice(1);
     }
-    return version.split(".").map(Number);
+    // Split into version and pre-release parts
+    const [versionPart, ...rest] = version.split(/[-+]/);
+    const numbers = versionPart.split(".").map(Number);
+    return {
+      numbers,
+      isPreRelease: rest.length > 0,
+    };
   };
 
-  const [currentMajor, currentMinor, currentPatch] =
-    parseVersion(currentValidated);
-  const [latestMajor, latestMinor, latestPatch] = parseVersion(latestValidated);
+  const current_parsed = parseVersion(currentValidated);
+  const latest_parsed = parseVersion(latestValidated);
+
+  const [currentMajor, currentMinor, currentPatch] = current_parsed.numbers;
+  const [latestMajor, latestMinor, latestPatch] = latest_parsed.numbers;
+
+  // If current is a pre-release (RC) and latest is a full release of the same version,
+  // consider it as needing a patch update
+  if (
+    current_parsed.isPreRelease &&
+    !latest_parsed.isPreRelease &&
+    currentMajor === latestMajor &&
+    currentMinor === latestMinor &&
+    currentPatch === latestPatch
+  ) {
+    return "patch";
+  }
 
   if (latestMajor > currentMajor) return "major";
   if (latestMajor === currentMajor && latestMinor > currentMinor)
