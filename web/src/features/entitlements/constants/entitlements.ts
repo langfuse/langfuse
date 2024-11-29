@@ -49,16 +49,6 @@ export const entitlementAccess: Record<
     entitlementLimits: EntitlementLimits;
   }
 > = {
-  oss: {
-    entitlements: [],
-    entitlementLimits: {
-      "annotation-queue-count": 0,
-      "organization-member-count": false,
-      "data-access-days": false,
-      "model-based-evaluations-count-evaluators": false,
-      "prompt-management-count-prompts": false,
-    },
-  },
   "cloud:hobby": {
     entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
@@ -89,8 +79,24 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
+  oss: {
+    entitlements: [],
+    entitlementLimits: {
+      "annotation-queue-count": 0,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
   "self-hosted:pro": {
-    entitlements: ["annotation-queues", "playground"],
+    entitlements: [
+      "annotation-queues",
+      "batch-export",
+      "model-based-evaluations",
+      "playground",
+      "prompt-experiments",
+    ],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -102,10 +108,13 @@ export const entitlementAccess: Record<
   "self-hosted:enterprise": {
     entitlements: [
       "annotation-queues",
+      "batch-export",
+      "model-based-evaluations",
       "playground",
+      "prompt-experiments",
       "rbac-project-roles",
-      "self-host-ui-customization",
       "self-host-allowed-organization-creators",
+      "self-host-ui-customization",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
