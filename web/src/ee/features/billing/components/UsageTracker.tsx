@@ -49,7 +49,7 @@ export const UsageTracker = () => {
   const usageType = usageQuery.data.usageType;
   const percentage = (usage / MAX_EVENTS_FREE_PLAN) * 100;
 
-  if (percentage < 80) {
+  if (percentage < 90) {
     return null;
   }
 
