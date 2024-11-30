@@ -31,7 +31,8 @@ type MultiSelectOptions = {
 export function MultiSelectKeyValues<
   T extends { key: string; value: string } | string,
 >({
-  title,
+  title = "Select",
+  placeholder,
   values,
   onValueChange,
   options,
@@ -40,8 +41,10 @@ export function MultiSelectKeyValues<
   items = "items",
   align = "center",
   controlButtons,
+  hideClearButton = false,
 }: {
   title?: string;
+  placeholder?: string;
   values: T[];
   onValueChange: (
     values: T[],
@@ -54,11 +57,12 @@ export function MultiSelectKeyValues<
   items?: string;
   align?: "center" | "end" | "start";
   controlButtons?: React.ReactNode;
+  hideClearButton?: boolean;
 }) {
   const selectedValueKeys = new Set(
     values.map((value) => (typeof value === "string" ? value : value.key)),
   );
-  const showClearItems = selectedValueKeys.size > 0;
+  const showClearItems = selectedValueKeys.size > 0 && !hideClearButton;
 
   function formatFilterValues(): T[] {
     if (values.length > 0 && typeof values[0] === "string") {
@@ -84,7 +88,7 @@ export function MultiSelectKeyValues<
           )}
           disabled={disabled}
         >
-          Select
+          {title}
           <ChevronDown className="h-4 w-4 opacity-50" />
           {selectedValueKeys.size > 0 && (
             <>
@@ -112,7 +116,7 @@ export function MultiSelectKeyValues<
                       <Badge
                         variant="secondary"
                         key={option.key}
-                        className="rounded-sm px-1 font-normal"
+                        className="rounded-sm px-1 font-normal capitalize"
                       >
                         {option.value}
                       </Badge>
@@ -125,67 +129,71 @@ export function MultiSelectKeyValues<
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align={align}>
         <Command>
-          <CommandInput placeholder={title} />
+          <CommandInput placeholder={placeholder} />
           <CommandList>
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => {
-                const isSelected = selectedValueKeys.has(
-                  option.key ?? option.value,
-                );
-                return (
-                  <CommandItem
-                    key={option.key ?? option.value}
-                    value={option.key ?? option.value}
-                    keywords={[option.value]}
-                    onSelect={(value) => {
-                      if (isSelected) {
-                        selectedValueKeys.delete(value);
-                      } else {
-                        selectedValueKeys.add(value);
-                      }
-                      const filterValues = formatFilterValues();
+              {Boolean(options.length) ? (
+                options.map((option) => {
+                  const isSelected = selectedValueKeys.has(
+                    option.key ?? option.value,
+                  );
+                  return (
+                    <CommandItem
+                      key={option.key ?? option.value}
+                      value={option.key ?? option.value}
+                      keywords={[option.value]}
+                      onSelect={(value) => {
+                        if (isSelected) {
+                          selectedValueKeys.delete(value);
+                        } else {
+                          selectedValueKeys.add(value);
+                        }
+                        const filterValues = formatFilterValues();
 
-                      onValueChange(
-                        filterValues.length ? filterValues : [],
-                        value,
-                        selectedValueKeys,
-                      );
-                    }}
-                    disabled={option.disabled}
-                  >
-                    <div
-                      className={cn(
-                        "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                        isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "opacity-50 [&_svg]:invisible",
-                        option.disabled ? "opacity-50" : null,
-                      )}
+                        onValueChange(
+                          filterValues.length ? filterValues : [],
+                          value,
+                          selectedValueKeys,
+                        );
+                      }}
+                      disabled={option.disabled}
                     >
-                      <Check className="h-4 w-4" />
-                    </div>
-                    <span
-                      className={cn(
-                        "overflow-x-scroll",
-                        option.isArchived ? "text-foreground/50" : "",
-                      )}
-                    >
-                      {option.value}
-                    </span>
-                    {option.isArchived ? (
-                      <div className="ml-1 mt-1 flex h-4 w-4">
-                        <Archive className="h-4 w-4 text-foreground/50"></Archive>
+                      <div
+                        className={cn(
+                          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "opacity-50 [&_svg]:invisible",
+                          option.disabled ? "opacity-50" : null,
+                        )}
+                      >
+                        <Check className="h-4 w-4" />
                       </div>
-                    ) : null}
-                    {option.count !== undefined ? (
-                      <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
-                        {option.count}
+                      <span
+                        className={cn(
+                          "overflow-x-scroll capitalize",
+                          option.isArchived ? "text-foreground/50" : "",
+                        )}
+                      >
+                        {option.value}
                       </span>
-                    ) : null}
-                  </CommandItem>
-                );
-              })}
+                      {option.isArchived ? (
+                        <div className="ml-1 mt-1 flex h-4 w-4">
+                          <Archive className="h-4 w-4 text-foreground/50"></Archive>
+                        </div>
+                      ) : null}
+                      {option.count !== undefined ? (
+                        <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
+                          {option.count}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  );
+                })
+              ) : (
+                <CommandItem disabled>No options found.</CommandItem>
+              )}
             </CommandGroup>
             {controlButtons || showClearItems ? (
               <>

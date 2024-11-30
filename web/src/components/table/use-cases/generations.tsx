@@ -41,7 +41,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -55,6 +55,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { ChevronDownIcon, Loader } from "lucide-react";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type GenerationsTableRow = {
   id: string;
@@ -180,6 +181,7 @@ export default function GenerationsTable({
     page: 0,
     limit: 0,
     orderBy: null,
+    queryClickhouse: useClickhouse(),
   };
 
   const getAllPayload = {
@@ -187,6 +189,7 @@ export default function GenerationsTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
+    queryClickhouse: useClickhouse(),
   };
 
   const generations = api.generations.all.useQuery(getAllPayload);
@@ -200,6 +203,7 @@ export default function GenerationsTable({
       projectId,
       startTimeFilter:
         startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -207,6 +211,10 @@ export default function GenerationsTable({
           skipBatch: true,
         },
       },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
 
@@ -739,7 +747,7 @@ export default function GenerationsTable({
             },
             promptId: generation.promptId ?? undefined,
             promptName: generation.promptName ?? undefined,
-            promptVersion: generation.promptVersion ?? undefined,
+            promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
           };
         })
@@ -860,6 +868,7 @@ const GenerationsDynamicCell = ({
       observationId,
       traceId,
       projectId,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

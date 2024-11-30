@@ -18,6 +18,7 @@ import { NumericScoreHistogram } from "@/src/features/dashboard/components/score
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Flex, Text } from "@tremor/react";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -33,6 +34,7 @@ export function ScoreAnalytics(props: {
     {
       projectId: props.projectId,
       selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
+      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -73,7 +75,7 @@ export function ScoreAnalytics(props: {
         !scoreKeysAndProps.isLoading &&
         Boolean(scoreKeysAndProps.data?.length) && (
           <MultiSelectKeyValues
-            title="Search score..."
+            placeholder="Search score..."
             onValueChange={(values, changedValueId, selectedValueKeys) => {
               if (values.length === 0) setSelectedDashboardScoreKeys([]);
 

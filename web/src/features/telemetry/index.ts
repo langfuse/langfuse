@@ -3,6 +3,7 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 // Interval between jobs in milliseconds
 const JOB_INTERVAL_MINUTES = Prisma.raw("60");
@@ -15,11 +16,11 @@ export async function telemetry() {
     // Only run in prod
     if (process.env.NODE_ENV !== "production") return;
     // Do not run in Langfuse cloud, separate telemetry is used
-    if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
+    if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
     // Check if telemetry is not disabled, except for EE
     if (
-      process.env.TELEMETRY_ENABLED === "false" &&
-      process.env.LANGFUSE_EE_LICENSE_KEY === undefined
+      env.TELEMETRY_ENABLED === "false" &&
+      env.LANGFUSE_EE_LICENSE_KEY === undefined
     )
       return;
     // Do not run in CI
@@ -251,8 +252,8 @@ async function posthogTelemetry({
         datasetRunItems: countDatasetRunItems,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),
-        eeLicenseKey: process.env.LANGFUSE_EE_LICENSE_KEY,
-        langfuseCloudRegion: process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
+        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,
@@ -262,7 +263,7 @@ async function posthogTelemetry({
       },
     });
 
-    await posthog.shutdownAsync();
+    await posthog.shutdown();
   } catch (error) {
     logger.error(error);
   }

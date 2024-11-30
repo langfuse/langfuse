@@ -34,6 +34,7 @@ import { z } from "zod";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
+  GitHubEnterpriseProvider,
   traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
@@ -228,6 +229,22 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     }),
   );
 
+if (
+    env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID &&
+    env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET &&
+    env.AUTH_GITHUB_ENTERPRISE_BASE_URL
+) {
+  staticProviders.push(
+      GitHubEnterpriseProvider({
+        clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+        clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+        enterprise: {baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL},
+        allowDangerousEmailAccountLinking:
+            env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+      })
+  );
+}
+
 if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
   staticProviders.push(
     GitLabProvider({
@@ -264,6 +281,7 @@ if (
       clientId: env.AUTH_COGNITO_CLIENT_ID,
       clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
       issuer: env.AUTH_COGNITO_ISSUER,
+      checks: "nonce",
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
     }),

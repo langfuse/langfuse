@@ -26,15 +26,18 @@ import {
 } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Prompt } from "@langfuse/shared";
+import {
+  type Prompt,
+  extractVariables,
+  getIsCharOrUnderscore,
+} from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
 import {
   NewPromptFormSchema,
   type NewPromptFormSchemaType,
-  PromptContentSchema,
-  type PromptContentType,
+  PromptVariantSchema,
+  type PromptVariant,
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
@@ -62,25 +65,25 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
-  let initialPromptContent: PromptContentType | null;
+  let initialPromptVariant: PromptVariant | null;
   try {
-    initialPromptContent = PromptContentSchema.parse({
+    initialPromptVariant = PromptVariantSchema.parse({
       type: initialPrompt?.type,
       prompt: initialPrompt?.prompt?.valueOf(),
     });
   } catch (err) {
-    initialPromptContent = null;
+    initialPromptVariant = null;
   }
 
   const defaultValues: NewPromptFormSchemaType = {
-    type: initialPromptContent?.type ?? PromptType.Text,
+    type: initialPromptVariant?.type ?? PromptType.Text,
     chatPrompt:
-      initialPromptContent?.type === PromptType.Chat
-        ? initialPromptContent?.prompt
+      initialPromptVariant?.type === PromptType.Chat
+        ? initialPromptVariant?.prompt
         : [],
     textPrompt:
-      initialPromptContent?.type === PromptType.Text
-        ? initialPromptContent?.prompt
+      initialPromptVariant?.type === PromptType.Text
+        ? initialPromptVariant?.prompt
         : "",
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
@@ -110,7 +113,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
     },
-    { enabled: Boolean(projectId) },
+    {
+      enabled: Boolean(projectId),
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
   ).data?.name;
 
   function onSubmit(values: NewPromptFormSchemaType) {
@@ -252,8 +261,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 <TabsList className="flex w-full">
                   <TabsTrigger
                     disabled={
-                      Boolean(initialPromptContent) &&
-                      initialPromptContent?.type !== PromptType.Text
+                      Boolean(initialPromptVariant) &&
+                      initialPromptVariant?.type !== PromptType.Text
                     }
                     className="flex-1"
                     value={PromptType.Text}
@@ -262,8 +271,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   </TabsTrigger>
                   <TabsTrigger
                     disabled={
-                      Boolean(initialPromptContent) &&
-                      initialPromptContent?.type !== PromptType.Chat
+                      Boolean(initialPromptVariant) &&
+                      initialPromptVariant?.type !== PromptType.Chat
                     }
                     className="flex-1"
                     value={PromptType.Chat}

@@ -592,6 +592,118 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Media",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a media record",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/media/:mediaId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media",
+                ":mediaId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "mediaId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a media record"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Patch",
+          "request": {
+            "description": "Patch a media record",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/media/:mediaId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media",
+                ":mediaId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "mediaId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a media record"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"uploadedAt\": \"1994-11-05T13:15:30Z\",\n    \"uploadHttpStatus\": 0,\n    \"uploadHttpError\": \"example\",\n    \"uploadTimeMs\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Upload Url",
+          "request": {
+            "description": "Get a presigned upload URL for a media record",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/media",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"traceId\": \"example\",\n    \"observationId\": \"example\",\n    \"contentType\": \"example\",\n    \"contentLength\": 0,\n    \"sha256Hash\": \"example\",\n    \"field\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Metrics",
       "item": [
         {

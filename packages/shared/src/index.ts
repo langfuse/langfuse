@@ -6,11 +6,12 @@ export * from "./interfaces/parseDbOrg";
 export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";
-export * from "./tracesTable";
+export * from "./tableDefinitions/tracesTable";
 export * from "./server/auth/apiKeys";
 export * from "./observationsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
+export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./features/entitlements/plans";
@@ -28,8 +29,7 @@ export * from "./features/batchExport/types";
 export * from "./features/annotation/types";
 
 // scores
-export * from "./features/scores/scoreConfigTypes";
-export * from "./features/scores/scoreTypes";
+export * from "./features/scores";
 
 // comments
 export * from "./features/comments/types";

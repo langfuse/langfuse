@@ -18,9 +18,10 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type DatasetRunItemRowData = {
   id: string;
@@ -63,6 +64,7 @@ export function DatasetRunItemsTable(
     ...props,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    queryClickhouse: useClickhouse(),
   });
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("traces", "m");
 
@@ -70,13 +72,15 @@ export function DatasetRunItemsTable(
     if (runItems.isSuccess) {
       setDetailPageList(
         "traces",
-        runItems.data.runItems.filter((i) => !!i.trace).map((i) => i.trace!.id),
+        runItems.data.runItems
+          .filter((i) => !!i.trace)
+          .map((i) => ({ id: i.trace!.id })),
       );
       // set the datasetItems list only when viewing this table from the run page
       if ("datasetRunId" in props)
         setDetailPageList(
           "datasetItems",
-          runItems.data.runItems.map((i) => i.datasetItemId),
+          runItems.data.runItems.map((i) => ({ id: i.datasetItemId })),
         );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -324,6 +328,7 @@ const TraceObservationIOCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      onError: () => {},
     },
   );
   const observation = api.observations.byId.useQuery(
@@ -340,6 +345,7 @@ const TraceObservationIOCell = ({
         },
       },
       refetchOnMount: false, // prevents refetching loops
+      onError: () => {},
     },
   );
 
@@ -347,7 +353,9 @@ const TraceObservationIOCell = ({
 
   return (
     <IOTableCell
-      isLoading={!!!observationId ? trace.isLoading : observation.isLoading}
+      isLoading={
+        (!!!observationId ? trace.isLoading : observation.isLoading) || !data
+      }
       data={io === "output" ? data?.output : data?.input}
       className={cn(io === "output" && "bg-accent-light-green")}
       singleLine={singleLine}

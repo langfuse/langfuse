@@ -1,4 +1,5 @@
 import Header from "@/src/components/layouts/header";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -18,7 +19,7 @@ export default function NewTemplatesPage() {
   }
 
   return (
-    <div className="md:container">
+    <ScrollScreenPage>
       <Header
         title="Create eval template"
         help={{
@@ -28,6 +29,6 @@ export default function NewTemplatesPage() {
         }}
       />
       <EvalTemplateForm projectId={projectId} isEditing={true} />
-    </div>
+    </ScrollScreenPage>
   );
 }

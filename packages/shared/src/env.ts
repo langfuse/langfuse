@@ -30,6 +30,16 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url().optional(),
   CLICKHOUSE_USER: z.string().optional(),
   CLICKHOUSE_PASSWORD: z.string().optional(),
+  LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ASYNC_INGESTION_PROCESSING: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(15_000),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -38,6 +48,18 @@ const EnvSchema = z.object({
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));

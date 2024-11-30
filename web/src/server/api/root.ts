@@ -26,6 +26,8 @@ import { uiCustomizationRouter } from "@/src/ee/features/ui-customization/uiCust
 import { commentsRouter } from "@/src/server/api/routers/comments";
 import { queueRouter } from "@/src/ee/features/annotation-queues/server/annotationQueues";
 import { queueItemRouter } from "@/src/ee/features/annotation-queues/server/annotationQueueItems";
+import { experimentsRouter } from "@/src/ee/features/experiments/server/router";
+import { mediaRouter } from "@/src/server/api/routers/media";
 
 /**
  * This is the primary router for your server.
@@ -53,6 +55,7 @@ export const appRouter = createTRPCRouter({
   prompts: promptRouter,
   models: modelRouter,
   evals: evalRouter,
+  experiments: experimentsRouter,
   posthogIntegration: posthogIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
   public: publicRouter,
@@ -60,6 +63,7 @@ export const appRouter = createTRPCRouter({
   utilities: utilsRouter,
   uiCustomization: uiCustomizationRouter,
   comments: commentsRouter,
+  media: mediaRouter,
 });
 
 // export type definition of API

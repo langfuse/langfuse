@@ -11,16 +11,17 @@ import { type RouterOutput } from "@/src/utils/types";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type FilterState } from "@langfuse/shared";
+import { type ScoreAggregate, type FilterState } from "@langfuse/shared";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { type ScoreAggregate } from "@/src/features/scores/lib/types";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -29,7 +30,7 @@ export type PromptVersionTableRow = {
   medianInputTokens?: number | null;
   medianOutputTokens?: number | null;
   medianCost?: number | null;
-  generationCount?: number | null;
+  generationCount?: bigint | null;
   traceScores?: ScoreAggregate;
   generationScores?: ScoreAggregate;
   lastUsed?: string | null;
@@ -123,6 +124,7 @@ export default function PromptVersionTable() {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
       filter: dateRangeFilter,
+      queryClickhouse: useClickhouse(),
     },
     {
       enabled: Boolean(projectId) && promptVersions.isSuccess,
@@ -268,13 +270,13 @@ export default function PromptVersionTable() {
       size: 150,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number | undefined | null =
+        const value: bigint | undefined | null =
           row.getValue("generationCount");
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
         return value === undefined || value === null ? null : (
-          <span>{String(value)}</span>
+          <span>{numberFormatter(value, 0)}</span>
         );
       },
     },
@@ -282,6 +284,7 @@ export default function PromptVersionTable() {
       accessorKey: "traceScores",
       header: "Trace Scores",
       id: "traceScores",
+      enableHiding: true,
       columns: traceScoreColumns,
       cell: () => {
         return isTraceColumnLoading ? (
@@ -293,6 +296,7 @@ export default function PromptVersionTable() {
       accessorKey: "generationScores",
       header: "Generation Scores",
       id: "generationScores",
+      enableHiding: true,
       columns: generationScoreColumns,
       cell: () => {
         return isGenerationColumnLoading ? (
@@ -368,6 +372,7 @@ export default function PromptVersionTable() {
             medianInputTokens: prompt.medianInputTokens,
             medianOutputTokens: prompt.medianOutputTokens,
             medianCost: prompt.medianTotalCost,
+            generationCount: prompt.observationCount,
             traceScores: verifyAndPrefixScoreDataAgainstKeys(
               scoreKeysAndProps,
               prompt.traceScores ?? {},
@@ -387,7 +392,7 @@ export default function PromptVersionTable() {
       : [];
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col overflow-hidden xl:container lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title={promptName}
         help={{
@@ -466,6 +471,6 @@ export default function PromptVersionTable() {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
-    </div>
+    </FullScreenPage>
   );
 }

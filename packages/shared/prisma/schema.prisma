@@ -136,6 +136,9 @@ model Project {
   comment             Comment[]
   annotationQueue     AnnotationQueue[]
   annotationQueueItem AnnotationQueueItem[]
+  TraceMedia          TraceMedia[]
+  Media               Media[]
+  ObservationMedia    ObservationMedia[]
 
   @@index([orgId])
   @@map("projects")
@@ -166,6 +169,7 @@ model BackgroundMigration {
   name         String    @unique
   script       String    @map("script")
   args         Json      @map("args")
+  state        Json      @default("{}") @map("state")
   finishedAt   DateTime? @map("finished_at")
   failedAt     DateTime? @map("failed_at")
   failedReason String?   @map("failed_reason")
@@ -298,8 +302,6 @@ model Trace {
   session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
   createdAt  DateTime      @default(now()) @map("created_at")
   updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
-
-  JobExecution JobExecution[]
 
   @@index([projectId, timestamp])
   @@index([sessionId])
@@ -894,8 +896,11 @@ model JobExecution {
   endTime   DateTime?          @map("end_time")
   error     String?
 
-  jobInputTraceId String? @map("job_input_trace_id")
-  trace           Trace?  @relation(fields: [jobInputTraceId], references: [id], onDelete: SetNull) // job remains when traces are deleted
+  jobInputTraceId String? @map("job_input_trace_id") // no fk constraint - traces in ClickHouse, deletion handled via project cascade
+
+  jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
+
+  jobInputDatasetItemId String?      @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
   jobOutputScoreId String? @map("job_output_score_id")
   score            Score?  @relation(fields: [jobOutputScoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
@@ -959,4 +964,57 @@ model BatchExport {
   @@index([projectId, userId])
   @@index([status])
   @@map("batch_exports")
+}
+
+model Media {
+  id               String             @id @default(cuid())
+  sha256Hash       String             @map("sha_256_hash") @db.Char(44)
+  projectId        String             @map("project_id")
+  project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at")
+  uploadedAt       DateTime?          @map("uploaded_at")
+  uploadHttpStatus Int?               @map("upload_http_status")
+  uploadHttpError  String?            @map("upload_http_error")
+  bucketPath       String             @map("bucket_path")
+  bucketName       String             @map("bucket_name")
+  contentType      String             @map("content_type")
+  contentLength    BigInt             @map("content_length")
+  TraceMedia       TraceMedia[]
+  ObservationMedia ObservationMedia[]
+
+  @@unique([projectId, sha256Hash])
+  @@map("media")
+}
+
+model TraceMedia {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId   String   @map("media_id")
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  traceId   String   @map("trace_id")
+  field     String   @map("field")
+
+  @@unique([projectId, traceId, mediaId, field])
+  @@map("trace_media")
+}
+
+model ObservationMedia {
+  id            String   @id @default(cuid())
+  projectId     String   @map("project_id")
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId       String   @map("media_id")
+  media         Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  traceId       String   @map("trace_id")
+  observationId String   @map("observation_id")
+  field         String   @map("field")
+
+  @@unique([projectId, traceId, observationId, mediaId, field])
+  @@index([projectId, observationId])
+  @@map("observation_media")
 }

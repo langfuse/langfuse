@@ -37,14 +37,10 @@ const EnvSchema = z.object({
     .default(24),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
-  LANGFUSE_INGESTION_FLUSH_PROCESSING_CONCURRENCY: z.coerce
+  LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(100),
-  LANGFUSE_INGESTION_QEUEUE_PROCESSING_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(100),
+    .default(20),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -76,16 +72,23 @@ const EnvSchema = z.object({
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(25),
+    .default(15),
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
     .default(25),
+  LANGFUSE_TRACE_DELETE_CONCURRENCY: z.coerce.number().positive().default(5),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
     .default(5),
+  LANGFUSE_EXPERIMENT_CREATOR_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
+
+  LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
 
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
@@ -112,6 +115,15 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
 });

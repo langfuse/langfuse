@@ -13,6 +13,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import {
   CustomSSOProvider,
+  GitHubEnterpriseProvider,
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -202,6 +203,15 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       clientSecret: decrypt(provider.authConfig.clientSecret),
       authorization: {
         params: { scope: provider.authConfig.scope ?? "openid email profile" },
+      },
+    });
+  else if (provider.authProvider === "github-enterprise")
+    return GitHubEnterpriseProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      enterprise: {
+        baseUrl: provider.authConfig.enterprise.baseUrl,
       },
     });
   else {

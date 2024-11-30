@@ -107,7 +107,7 @@ export function AnnotateDrawer({
           </Button>
         )}
       </DrawerTrigger>
-      <DrawerContent className="h-1/3">
+      <DrawerContent>
         {configsData.isLoading ? (
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <DrawerTitle>

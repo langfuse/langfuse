@@ -30,7 +30,7 @@ export class PromptService {
       );
 
       if (cachedPrompt) {
-        this.logInfo("Returning cached prompt for params", params);
+        this.logDebug("Returning cached prompt for params", params);
 
         return cachedPrompt;
       }
@@ -221,6 +221,10 @@ export class PromptService {
 
   private logInfo(message: string, ...args: any[]) {
     logger.info(`[PromptService] ${message}`, ...args);
+  }
+
+  private logDebug(message: string, ...args: any[]) {
+    logger.debug(`[PromptService] ${message}`, ...args);
   }
 
   private incrementMetric(name: Metrics, value: number = 1) {
