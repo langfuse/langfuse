@@ -12,7 +12,7 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
@@ -35,7 +35,7 @@ export default function QueueItems() {
     projectId,
     scope: "annotationQueues:CUD",
   });
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
   if (!hasReadAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (

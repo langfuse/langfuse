@@ -28,7 +28,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -65,7 +65,7 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
 

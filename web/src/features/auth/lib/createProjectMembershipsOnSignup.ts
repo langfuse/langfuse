@@ -1,3 +1,4 @@
+import { updateStripeSeatCount } from "@/src/ee/features/billing/utils/updateSeatCount";
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
@@ -10,12 +11,12 @@ export async function createProjectMembershipsOnSignup(user: {
     // Langfuse Cloud: provide view-only access to the demo project, none access to the demo org
     const demoProject =
       env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
-        ? (await prisma.project.findUnique({
+        ? ((await prisma.project.findUnique({
             where: {
               orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
               id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
             },
-          })) ?? undefined
+          })) ?? undefined)
         : undefined;
     if (demoProject !== undefined) {
       await prisma.organizationMembership.create({
@@ -27,13 +28,13 @@ export async function createProjectMembershipsOnSignup(user: {
       });
     }
 
-    // LANGFUSE_DEFAULT_ORG_ID
+    // self-hosted: LANGFUSE_DEFAULT_ORG_ID
     const defaultOrg = env.LANGFUSE_DEFAULT_ORG_ID
-      ? (await prisma.organization.findUnique({
+      ? ((await prisma.organization.findUnique({
           where: {
             id: env.LANGFUSE_DEFAULT_ORG_ID,
           },
-        })) ?? undefined
+        })) ?? undefined)
       : undefined;
     const defaultOrgMembership =
       defaultOrg !== undefined
@@ -46,13 +47,13 @@ export async function createProjectMembershipsOnSignup(user: {
           })
         : undefined;
 
-    // LANGFUSE_DEFAULT_PROJECT_ID
+    // self-hosted: LANGFUSE_DEFAULT_PROJECT_ID
     const defaultProject = env.LANGFUSE_DEFAULT_PROJECT_ID
-      ? (await prisma.project.findUnique({
+      ? ((await prisma.project.findUnique({
           where: {
             id: env.LANGFUSE_DEFAULT_PROJECT_ID,
           },
-        })) ?? undefined
+        })) ?? undefined)
       : undefined;
     if (defaultProject !== undefined) {
       if (defaultOrgMembership) {
@@ -127,4 +128,8 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
+
+  for (const inviteData of createOrgMembershipData) {
+    await updateStripeSeatCount(inviteData.orgId);
+  }
 }

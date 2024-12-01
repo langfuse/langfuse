@@ -28,6 +28,7 @@ import SetupTracingButton from "@/src/features/setup/components/SetupTracingButt
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -36,6 +37,8 @@ export default function Dashboard() {
     useDashboardDateRange();
 
   const uiCustomization = useUiCustomization();
+
+  const lookbackLimit = useEntitlementLimit("data-access-days");
 
   const session = useSession();
   const disableExpensiveDashboardComponents =
@@ -152,6 +155,16 @@ export default function Dashboard() {
             setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
             selectedOption={selectedOption}
             className="my-0 max-w-full overflow-x-auto"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
           />
           <PopoverFilterBuilder
             columns={filterColumns}

@@ -140,8 +140,8 @@ async function handleSubscriptionChanged(
   // assert that no other stripe customer id is already set on the org
   const customerId = subscription.customer;
   if (!customerId || typeof customerId !== "string") {
-    logger.error("[Stripe Webhook] Product ID not found");
-    traceException("[Stripe Webhook] Product ID not found");
+    logger.error("[Stripe Webhook] Customer ID not found");
+    traceException("[Stripe Webhook] Customer ID not found");
     return;
   }
   if (
@@ -155,35 +155,17 @@ async function handleSubscriptionChanged(
   // check subscription items
   logger.info("subscription.items.data", { payload: subscription.items.data });
 
-  if (!subscription.items.data || subscription.items.data.length !== 1) {
-    logger.error(
-      "[Stripe Webhook] Subscription items not found or more than one",
-    );
+  const subscriptionProductIds = subscription.items.data
+    .map((item) => item.price.product)
+    .sort();
+
+  if (!subscriptionProductIds || subscriptionProductIds.length === 0) {
+    logger.error("[Stripe Webhook] Product IDs not found");
+    traceException("[Stripe Webhook] Product IDs not found");
     return;
   }
 
-  const subscriptionItem = subscription.items.data[0];
-  const productId = subscriptionItem.price.product;
-
-  if (!productId || typeof productId !== "string") {
-    logger.error("[Stripe Webhook] Product ID not found");
-    traceException("[Stripe Webhook] Product ID not found");
-    return;
-  }
-
-  // assert that no other product is already set on the org if this is not an update
-  if (
-    action !== "updated" &&
-    parsedOrg.cloudConfig?.stripe?.activeProductId &&
-    parsedOrg.cloudConfig?.stripe?.activeProductId !== productId
-  ) {
-    traceException(
-      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
-    );
-    return;
-  }
-
-  // update the cloud config with the product ID
+  // update the cloud config with the product IDs
   if (action === "created" || action === "updated") {
     await prisma.organization.update({
       where: {
@@ -195,7 +177,7 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
-              activeProductId: productId,
+              activeProductIds: subscriptionProductIds,
               activeSubscriptionId: subscriptionId,
               customerId: customerId,
             }),
@@ -214,7 +196,7 @@ async function handleSubscriptionChanged(
           stripe: {
             ...parsedOrg.cloudConfig?.stripe,
             ...CloudConfigSchema.shape.stripe.parse({
-              activeProductId: undefined,
+              activeProductIds: undefined,
               activeSubscriptionId: undefined,
               customerId: customerId,
             }),

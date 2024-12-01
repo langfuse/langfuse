@@ -46,7 +46,7 @@ import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndivi
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useOrganizationPlan } from "@/src/features/entitlements/hooks";
+import { usePlan } from "@/src/features/entitlements/hooks";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -104,7 +104,7 @@ export default function GenerationsTable({
   omittedFilter = [],
 }: GenerationsTableProps) {
   const capture = usePostHogClientCapture();
-  const plan = useOrganizationPlan();
+  const plan = usePlan();
   const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",

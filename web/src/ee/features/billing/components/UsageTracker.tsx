@@ -1,11 +1,8 @@
 import { api } from "@/src/utils/api";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
-import {
-  useHasOrgEntitlement,
-  useOrganizationPlan,
-} from "@/src/features/entitlements/hooks";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import {
   Card,
   CardContent,
@@ -18,8 +15,8 @@ import Link from "next/link";
 
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
-  const hasEntitlement = useHasOrgEntitlement("cloud-billing");
-  const plan = useOrganizationPlan();
+  const hasEntitlement = useHasEntitlement("cloud-billing");
+  const plan = usePlan();
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "langfuseCloudBilling:CRUD",
@@ -48,10 +45,11 @@ export const UsageTracker = () => {
     return null;
   }
 
-  const usage = usageQuery.data.countObservations || 0;
-  const percentage = (usage / MAX_OBSERVATIONS_FREE_PLAN) * 100;
+  const usage = usageQuery.data.usageCount || 0;
+  const usageType = usageQuery.data.usageType;
+  const percentage = (usage / MAX_EVENTS_FREE_PLAN) * 100;
 
-  if (percentage < 80) {
+  if (percentage < 90) {
     return null;
   }
 
@@ -60,7 +58,7 @@ export const UsageTracker = () => {
       <CardHeader className="p-4 pb-0">
         <CardTitle className="text-sm">Hobby Plan Usage Limit</CardTitle>
         <CardDescription>
-          {`${usage.toLocaleString()} / ${MAX_OBSERVATIONS_FREE_PLAN.toLocaleString()} (${percentage.toFixed(0)}%) observations in last 30 days. Please upgrade your plan to avoid interruptions.`}
+          {`${usage.toLocaleString()} / ${MAX_EVENTS_FREE_PLAN.toLocaleString()} (${percentage.toFixed(0)}%) ${usageType} in last 30 days. Please upgrade your plan to avoid interruptions.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-2">

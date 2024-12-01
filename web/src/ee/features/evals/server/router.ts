@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -12,6 +11,7 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  paginationZod,
   type JobConfiguration,
   JobConfigState,
   JobType,
@@ -111,8 +111,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {

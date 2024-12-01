@@ -39,7 +39,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useSession } from "next-auth/react";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 const addToQueueFormSchema = z.object({
   queueId: z.string(),
@@ -71,7 +71,7 @@ export function TraceTableMultiSelectAction({
     },
   });
 
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
   const hasAddToQueueAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:CUD",

@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { AnnotationQueuesTable } from "@/src/ee/features/annotation-queues/components/AnnotationQueuesTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 
 export default function AnnotationQueues() {
@@ -13,7 +13,7 @@ export default function AnnotationQueues() {
     projectId: projectId,
     scope: "annotationQueues:read",
   });
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
   if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (

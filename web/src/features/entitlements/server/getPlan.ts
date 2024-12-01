@@ -1,4 +1,4 @@
-import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
+import { mapActiveProductIdsToPlan } from "@/src/ee/features/billing/utils/stripeProducts";
 import { env } from "@/src/env.mjs";
 import { type Plan } from "@langfuse/shared";
 import { type CloudConfigSchema } from "@langfuse/shared";
@@ -6,7 +6,9 @@ import { type CloudConfigSchema } from "@langfuse/shared";
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.
  */
-export function getOrganizationPlan(cloudConfig?: CloudConfigSchema): Plan {
+export function getOrganizationPlanServerSide(
+  cloudConfig?: CloudConfigSchema,
+): Plan {
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
     // in dev, grant team plan to all organizations
     // if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
@@ -25,11 +27,10 @@ export function getOrganizationPlan(cloudConfig?: CloudConfigSchema): Plan {
             return "cloud:team";
         }
       }
-      // stripe plan via product id
-      if (cloudConfig.stripe?.activeProductId) {
-        const stripePlan = mapStripeProductIdToPlan(
-          cloudConfig.stripe.activeProductId,
-        );
+      // stripe plan via product ids
+      const activeProductIds = cloudConfig.stripe?.activeProductIds;
+      if (activeProductIds) {
+        const stripePlan = mapActiveProductIdsToPlan(activeProductIds);
         if (stripePlan) {
           return stripePlan;
         }
@@ -38,8 +39,22 @@ export function getOrganizationPlan(cloudConfig?: CloudConfigSchema): Plan {
     return "cloud:hobby";
   }
 
-  if (env.LANGFUSE_EE_LICENSE_KEY !== undefined)
-    return "self-hosted:enterprise";
+  const selfHostedPlan = getSelfHostedInstancePlanServerSide();
+  if (selfHostedPlan) {
+    return selfHostedPlan;
+  }
 
   return "oss";
+}
+
+export function getSelfHostedInstancePlanServerSide(): Plan | null {
+  const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
+  if (!licenseKey) return null;
+  if (licenseKey.startsWith("langfuse_ee_")) {
+    return "self-hosted:enterprise";
+  }
+  if (licenseKey.startsWith("langfuse_pro_")) {
+    return "self-hosted:pro";
+  }
+  return null;
 }

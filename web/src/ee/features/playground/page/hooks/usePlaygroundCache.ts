@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
 import { type PlaygroundCache } from "../types";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 const playgroundCacheKey = "playgroundCache";
 
 export default function usePlaygroundCache() {
   const [cache, setCache] = useState<PlaygroundCache>(null);
-  const available = useHasOrgEntitlement("playground");
+  const available = useHasEntitlement("playground");
   const setPlaygroundCache = (cache: PlaygroundCache) => {
     sessionStorage.setItem(playgroundCacheKey, JSON.stringify(cache));
   };

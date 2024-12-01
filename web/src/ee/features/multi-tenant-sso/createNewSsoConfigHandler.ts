@@ -1,18 +1,20 @@
-import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
+import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/multiTenantSsoAvailable";
 
 export async function createNewSsoConfigHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   try {
-    if (!isEeEnabled) {
-      res.status(403).json({ error: "EE is not available" });
+    if (!multiTenantSsoAvailable) {
+      res
+        .status(403)
+        .json({ error: "Multi-tenant SSO is not available on your instance" });
       return;
     }
     // allow only POST requests

@@ -4,20 +4,12 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { Flex, MarkerBar, Metric, Text } from "@tremor/react";
 import Link from "next/link";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { type Plan, planLabels } from "@langfuse/shared";
-import { stripeProducts } from "@/src/ee/features/billing/utils/stripeProducts";
 import { useRouter } from "next/router";
 import {
   chatAvailable,
@@ -26,7 +18,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { MAX_OBSERVATIONS_FREE_PLAN } from "@/src/ee/features/billing/constants";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -36,7 +28,7 @@ export const BillingSettings = () => {
     scope: "langfuseCloudBilling:CRUD",
   });
 
-  const entitled = useHasOrgEntitlement("cloud-billing");
+  const entitled = useHasEntitlement("cloud-billing");
   if (!entitled) return null;
 
   if (!hasAccess)
@@ -72,11 +64,14 @@ const OrganizationUsageChart = () => {
       },
     },
   );
-  const planLimit =
-    organization?.cloudConfig?.monthlyObservationLimit ??
-    MAX_OBSERVATIONS_FREE_PLAN;
+  const hobbyPlanLimit =
+    organization?.cloudConfig?.monthlyObservationLimit ?? MAX_EVENTS_FREE_PLAN;
   const plan: Plan = organization?.plan ?? "cloud:hobby";
   const planLabel = planLabels[plan];
+  const usageType = usage.data?.usageType
+    ? usage.data.usageType.charAt(0).toUpperCase() +
+      usage.data.usageType.slice(1)
+    : "Events";
 
   return (
     <div>
@@ -85,19 +80,21 @@ const OrganizationUsageChart = () => {
           <>
             <Text>
               {usage.data.billingPeriod
-                ? `Observations in current billing period`
-                : "Observations / last 30d"}
+                ? `${usageType} in current billing period`
+                : `${usageType} / last 30d`}
             </Text>
-            <Metric>{numberFormatter(usage.data.countObservations, 0)}</Metric>
+            <Metric>{numberFormatter(usage.data.usageCount, 0)}</Metric>
             {plan === "cloud:hobby" && (
               <>
                 <Flex className="mt-4">
-                  <Text>{`${numberFormatter((usage.data.countObservations / planLimit) * 100)}%`}</Text>
-                  <Text>Plan limit: {compactNumberFormatter(planLimit)}</Text>
+                  <Text>{`${numberFormatter((usage.data.usageCount / hobbyPlanLimit) * 100)}%`}</Text>
+                  <Text>
+                    Plan limit: {compactNumberFormatter(hobbyPlanLimit)}
+                  </Text>
                 </Flex>
                 <MarkerBar
                   value={Math.min(
-                    (usage.data.countObservations / planLimit) * 100,
+                    (usage.data.usageCount / hobbyPlanLimit) * 100,
                     100,
                   )}
                   className="mt-3"
@@ -112,7 +109,10 @@ const OrganizationUsageChart = () => {
         )}
       </Card>
       <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-        <p>Current plan: {planLabel}</p>
+        <p>
+          Current plan: {planLabel}
+          {usage.data?.countUsers && ` (${usage.data.countUsers} users)`}
+        </p>
         {usage.data?.billingPeriod && (
           <p>
             {`Billing period: ${usage.data.billingPeriod.start.toLocaleDateString()} - ${usage.data.billingPeriod.end.toLocaleDateString()}`}
@@ -125,7 +125,7 @@ const OrganizationUsageChart = () => {
         )}
       </div>
       <div className="mt-4 flex flex-row items-center gap-2">
-        <BillingPortalOrPricingPageButton />
+        <BillingPortalOrCheckoutButton />
         <Button variant="secondary" asChild>
           <Link href={"https://langfuse.com/pricing"} target="_blank">
             Compare plans
@@ -136,37 +136,36 @@ const OrganizationUsageChart = () => {
   );
 };
 
-const BillingPortalOrPricingPageButton = () => {
+const BillingPortalOrCheckoutButton = () => {
   const organization = useQueryOrganization();
+  const router = useRouter();
   const billingPortalUrl = api.cloudBilling.getStripeCustomerPortalUrl.useQuery(
     {
       orgId: organization?.id as string,
     },
     {
       enabled: organization !== undefined,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
     },
   );
-  if (billingPortalUrl.isLoading) return null;
-  if (!billingPortalUrl.data) return <PricingPageButton />;
 
-  return (
-    <Button asChild>
-      <Link href={billingPortalUrl.data}>Billing portal</Link>
-    </Button>
-  );
-};
-
-const PricingPageButton = () => {
-  const capture = usePostHogClientCapture();
-  const organization = useQueryOrganization();
-  const router = useRouter();
   const mutCreateCheckoutSession =
     api.cloudBilling.createStripeCheckoutSession.useMutation({
       onSuccess: (url) => {
         router.push(url);
       },
     });
+
   if (!organization) return null;
+  if (billingPortalUrl.isLoading) return null;
+  if (billingPortalUrl.data)
+    return (
+      <Button asChild>
+        <Link href={billingPortalUrl.data}>Billing portal</Link>
+      </Button>
+    );
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization.cloudConfig?.plan) {
@@ -186,60 +185,17 @@ const PricingPageButton = () => {
     else return null;
   }
 
+  // Show checkout button
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (open) {
-          capture("project_settings:pricing_dialog_opened");
-        }
-      }}
+    <Button
+      onClick={() =>
+        mutCreateCheckoutSession.mutate({
+          orgId: organization.id,
+          plan: "cloud:pro",
+        })
+      }
     >
-      <DialogTrigger asChild>
-        <Button>Change plan</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <Header
-            title="Plans"
-            level="h3"
-            actionButtons={
-              <Button variant="secondary" asChild>
-                <Link href="https://langfuse.com/pricing" target="_blank">
-                  Comparison of plans ↗
-                </Link>
-              </Button>
-            }
-          />
-        </DialogHeader>
-        <div className="mb-3 flex flex-col justify-center gap-10 md:flex-row">
-          {stripeProducts
-            .filter((product) => Boolean(product.checkout))
-            .map((product) => (
-              <div
-                key={product.stripeProductId}
-                className="flex flex-1 flex-col"
-              >
-                <div className="mb-2 text-lg font-semibold">
-                  {product.checkout?.title}
-                </div>
-                <div>{product.checkout?.description}</div>
-                <div className="mb-6 mt-2">{product.checkout?.price}</div>
-                <Button
-                  onClick={() => {
-                    if (organization)
-                      mutCreateCheckoutSession.mutate({
-                        orgId: organization.id,
-                        stripeProductId: product.stripeProductId,
-                      });
-                  }}
-                  className="mt-auto"
-                >
-                  Select plan
-                </Button>
-              </div>
-            ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+      Upgrade to Pro plan
+    </Button>
   );
 };
