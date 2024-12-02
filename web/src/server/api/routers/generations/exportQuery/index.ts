@@ -64,7 +64,7 @@ export const generationsExportQuery = protectedProjectProcedure
     const fileStream = dbReadStream.pipe(transformation());
     const fileDate = new Date().toISOString();
     const fileExtension = exportOptions[input.fileFormat].extension;
-    const fileName = `lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
+    const fileName = `${env.LANGFUSE_S3_BATCH_EXPORT_PREFIX}lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
 
     // If bucketName is configured, we expect that the user has some valid S3 setup.
     if (env.LANGFUSE_S3_BATCH_EXPORT_ENABLED === "true") {
