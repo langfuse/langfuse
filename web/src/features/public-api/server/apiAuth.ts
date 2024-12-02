@@ -366,13 +366,18 @@ export const convertToRedisRepresentation = (
         createdAt: Date;
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
+        cloudAbovePlanIngestionLimit: boolean;
       };
     };
   },
 ) => {
   const {
     project: {
-      organization: { id: orgId, cloudConfig: cloudConfig },
+      organization: {
+        id: orgId,
+        cloudConfig: cloudConfig,
+        cloudAbovePlanIngestionLimit: cloudAbovePlanIngestionLimit,
+      },
     },
   } = apiKeyAndOrganisation;
 
@@ -386,6 +391,7 @@ export const convertToRedisRepresentation = (
     orgId,
     plan: getOrganizationPlanServerSide(parsedCloudConfig),
     rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides,
+    cloudAbovePlanIngestionLimit,
   });
 
   if (!orgId) {
