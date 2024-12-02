@@ -235,7 +235,7 @@ export const createExperimentJob = async ({
           traceParams,
         ),
       {
-        numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+        numOfAttempts: 5, // turn off retries as Langchain is doing that for us already.
       },
     );
 

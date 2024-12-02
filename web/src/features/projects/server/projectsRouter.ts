@@ -26,6 +26,22 @@ export const projectsRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "projects:create",
       });
+
+      const existingProject = await ctx.prisma.project.findFirst({
+        where: {
+          name: input.name,
+          orgId: input.orgId,
+        },
+      });
+
+      if (existingProject) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "A project with this name already exists in your organization",
+        });
+      }
+
       const project = await ctx.prisma.project.create({
         data: {
           name: input.name,

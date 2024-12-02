@@ -104,6 +104,7 @@ async function handleSubscriptionChanged(
   });
   if (!checkoutSessionsResponse || checkoutSessionsResponse.data.length !== 1) {
     logger.error("[Stripe Webhook] No checkout session found");
+    traceException("[Stripe Webhook] No checkout session found");
     return;
   }
   const checkoutSession = checkoutSessionsResponse.data[0];
@@ -112,6 +113,7 @@ async function handleSubscriptionChanged(
   const clientReference = checkoutSession.client_reference_id;
   if (!clientReference) {
     logger.error("[Stripe Webhook] No client reference");
+    traceException("[Stripe Webhook] No client reference");
     return NextResponse.json(
       { message: "No client reference" },
       { status: 400 },
@@ -133,6 +135,7 @@ async function handleSubscriptionChanged(
   });
   if (!organization) {
     logger.error("[Stripe Webhook] Organization not found");
+    traceException("[Stripe Webhook] Organization not found");
     return;
   }
   const parsedOrg = parseDbOrg(organization);
@@ -140,14 +143,15 @@ async function handleSubscriptionChanged(
   // assert that no other stripe customer id is already set on the org
   const customerId = subscription.customer;
   if (!customerId || typeof customerId !== "string") {
-    logger.error("[Stripe Webhook] Product ID not found");
-    traceException("[Stripe Webhook] Product ID not found");
+    logger.error("[Stripe Webhook] Customer ID not found");
+    traceException("[Stripe Webhook] Customer ID not found");
     return;
   }
   if (
     parsedOrg.cloudConfig?.stripe?.customerId &&
     parsedOrg.cloudConfig?.stripe?.customerId !== customerId
   ) {
+    logger.error("[Stripe Webhook] Another customer id already set on org");
     traceException("[Stripe Webhook] Another customer id already set on org");
     return;
   }
@@ -157,6 +161,9 @@ async function handleSubscriptionChanged(
 
   if (!subscription.items.data || subscription.items.data.length !== 1) {
     logger.error(
+      "[Stripe Webhook] Subscription items not found or more than one",
+    );
+    traceException(
       "[Stripe Webhook] Subscription items not found or more than one",
     );
     return;
@@ -178,6 +185,9 @@ async function handleSubscriptionChanged(
     parsedOrg.cloudConfig?.stripe?.activeProductId !== productId
   ) {
     traceException(
+      "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
+    );
+    logger.error(
       "[Stripe Webhook] Another active product id already set on (one of the) org with this active subscription id",
     );
     return;

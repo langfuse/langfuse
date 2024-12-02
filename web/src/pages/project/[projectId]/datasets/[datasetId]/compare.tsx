@@ -24,7 +24,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Link from "next/link";
 
 export default function DatasetCompare() {
@@ -43,9 +43,9 @@ export default function DatasetCompare() {
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
-  const hasEntitlement = useHasOrgEntitlement("experiments");
+  const hasEntitlement = useHasEntitlement("prompt-experiments");
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
