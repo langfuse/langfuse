@@ -35,6 +35,7 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
   const appliedTracesFilter = tracesFilter.apply();
 
   const query = `
+      WITH filtered_scores AS (
         SELECT
           s.id,
           s.timestamp,
@@ -51,17 +52,19 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
           s.config_id,
           s.queue_id,
           s.trace_id,
-          s.observation_id,
-          t.user_id,
-          t.tags
+          s.observation_id
       FROM scores s
+      WHERE s.project_id = {projectId: String}
+      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+      ORDER BY s.timestamp desc
+      LIMIT 1 BY s.id, s.project_id
+    )
+      SELECT s.*, t.user_id, t.tags
+      FROM filtered_scores s
         JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
       WHERE s.project_id = {projectId: String}
       AND t.project_id = {projectId: String}
-      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-      ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
-      ORDER BY s.timestamp desc
-      LIMIT 1 BY s.id, s.project_id
+      
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
