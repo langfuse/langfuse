@@ -386,7 +386,9 @@ export function DatasetRunsTable(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: runsWithMetrics.rows.map((t) => convertToTableRow(t)),
+                  data: (runsWithMetrics.rows ?? []).map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
         pagination={{
