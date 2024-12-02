@@ -90,9 +90,9 @@ services:
       - "9000:9000"
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
-      interval: 1s
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 1s
 
   minio:
