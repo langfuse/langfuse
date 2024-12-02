@@ -12,7 +12,7 @@ import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { getObservationCountOfProjectSinceCreationDate } from "@langfuse/shared/src/server";
+import { getObservationCountOfProjectsSinceCreationDate } from "@langfuse/shared/src/server";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -222,6 +222,13 @@ export const cloudBillingRouter = createTRPCRouter({
         where: {
           id: input.orgId,
         },
+        include: {
+          projects: {
+            select: {
+              id: true,
+            },
+          },
+        },
       });
       if (!organization) {
         throw new TRPCError({
@@ -281,10 +288,11 @@ export const cloudBillingRouter = createTRPCRouter({
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
+      const projectIds = organization.projects.map((p) => p.id);
 
       const countObservations =
-        await getObservationCountOfProjectSinceCreationDate({
-          projectId: input.orgId,
+        await getObservationCountOfProjectsSinceCreationDate({
+          projectIds,
           start: thirtyDaysAgo,
         });
 

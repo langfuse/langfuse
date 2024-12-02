@@ -1083,25 +1083,25 @@ export const getObservationCountsByProjectInCreationInterval = async ({
   }));
 };
 
-export const getObservationCountOfProjectSinceCreationDate = async ({
-  projectId,
+export const getObservationCountOfProjectsSinceCreationDate = async ({
+  projectIds,
   start,
 }: {
-  projectId: string;
+  projectIds: string[];
   start: Date;
 }) => {
   const query = `
     SELECT 
       count(*) as count
     FROM observations
-    WHERE project_id = {projectId: String}
+    WHERE project_id IN ({projectIds: Array(String)})
     AND created_at >= {start: DateTime64(3)}
   `;
 
   const rows = await queryClickhouse<{ count: string }>({
     query,
     params: {
-      projectId,
+      projectIds,
       start: convertDateToClickhouseDateTime(start),
     },
   });
