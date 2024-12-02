@@ -342,7 +342,11 @@ export class ApiAuthService {
       }
 
       if (!parsedApiKey.success) {
-        logger.error("Failed to parse API key from Redis:", parsedApiKey.error);
+        logger.error(
+          "Failed to parse API key from Redis, deleting existing key from cache",
+          parsedApiKey.error,
+        );
+        await this.redis.del(this.createRedisKey(hash));
       }
       return null;
     } catch (error: unknown) {
