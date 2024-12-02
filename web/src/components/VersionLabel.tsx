@@ -118,10 +118,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         </DropdownMenuItem>
         {!isLangfuseCloud && (
           <DropdownMenuItem asChild>
-            <Link
-              href="https://langfuse.com/docs/deployment/feature-overview"
-              target="_blank"
-            >
+            <Link href="https://langfuse.com/pricing-self-host" target="_blank">
               <Info size={16} className="mr-2" />
               Compare Versions
             </Link>

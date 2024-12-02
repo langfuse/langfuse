@@ -235,7 +235,7 @@ export function MembersTable({
                 "meta",
               ) as MembersTableRow["meta"];
 
-              if (!projectRolesEntitlement) return "N/A";
+              if (!projectRolesEntitlement) return "N/A on plan";
 
               return (
                 <ProjectRoleDropdown
