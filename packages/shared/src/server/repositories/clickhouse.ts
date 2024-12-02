@@ -40,37 +40,31 @@ export async function upsertClickhouse<
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
 
-    // If event upload is enabled, we store all rows in S3 to have a backup
-    if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
-      if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
-        throw new Error("S3 event store is enabled but no bucket is set");
-      }
-      const s3Client = getS3StorageServiceClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      );
-      await Promise.all(
-        opts.records.map((record) => {
-          // drop trailing s and pretend it's always a create.
-          // Only applicable to scores and traces.
-          let eventType = `${opts.table.slice(0, -1)}-create`;
-          if (opts.table === "observations") {
-            // @ts-ignore - If it's an observation we now that `type` is a string
-            eventType = `${record["type"].toLowerCase()}-create`;
-          }
-          s3Client.uploadJson(
-            `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
-            [
-              {
-                id: randomUUID(),
-                timestamp: new Date().toISOString(),
-                type: eventType,
-                body: opts.eventBodyMapper(record),
-              },
-            ],
-          );
-        }),
-      );
-    }
+    const s3Client = getS3StorageServiceClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    await Promise.all(
+      opts.records.map((record) => {
+        // drop trailing s and pretend it's always a create.
+        // Only applicable to scores and traces.
+        let eventType = `${opts.table.slice(0, -1)}-create`;
+        if (opts.table === "observations") {
+          // @ts-ignore - If it's an observation we now that `type` is a string
+          eventType = `${record["type"].toLowerCase()}-create`;
+        }
+        s3Client.uploadJson(
+          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
+          [
+            {
+              id: randomUUID(),
+              timestamp: new Date().toISOString(),
+              type: eventType,
+              body: opts.eventBodyMapper(record),
+            },
+          ],
+        );
+      }),
+    );
 
     const res = await clickhouseClient().insert({
       table: opts.table,

@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { env } from "../..";
+import { env } from "../../env";
 import { logger } from "@azure/storage-blob";
 import { QueueName, QueueJobs } from "../queues";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
