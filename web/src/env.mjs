@@ -105,14 +105,19 @@ export const env = createEnv({
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
 
-    // S3
-    // TODO: Adjust naming to be compatible with other S3 usages
-    S3_ENDPOINT: z.string().optional(),
-    S3_ACCESS_KEY_ID: z.string().optional(),
-    S3_SECRET_ACCESS_KEY: z.string().optional(),
-    S3_BUCKET_NAME: z.string().optional(),
-    S3_REGION: z.string().optional(),
-    S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+    // S3 Batch Export
+    LANGFUSE_S3_BATCH_EXPORT_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
+    LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
@@ -363,13 +368,24 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
-    // S3
-    S3_ENDPOINT: process.env.S3_ENDPOINT,
-    S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
-    S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
-    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
-    S3_REGION: process.env.S3_REGION,
-    S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
+
+    // S3 Batch Export
+    LANGFUSE_S3_BATCH_EXPORT_ENABLED:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ENABLED,
+    LANGFUSE_S3_BATCH_EXPORT_BUCKET:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_BUCKET,
+    LANGFUSE_S3_BATCH_EXPORT_PREFIX:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_PREFIX,
+    LANGFUSE_S3_BATCH_EXPORT_REGION:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:

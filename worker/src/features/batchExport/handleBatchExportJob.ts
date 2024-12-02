@@ -263,6 +263,12 @@ const getDatabaseReadStream = async ({
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
 ) => {
+  if (env.LANGFUSE_S3_BATCH_EXPORT_ENABLED !== "true") {
+    throw new Error(
+      "Batch export is not enabled. Configure environment variables to use this feature.",
+    );
+  }
+
   const { projectId, batchExportId } = batchExportJob;
 
   // Get job details from DB
@@ -329,18 +335,18 @@ export const handleBatchExportJob = async (
     env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS * 3600;
 
   // Stream upload results to S3
-  const bucketName = env.S3_BUCKET_NAME;
+  const bucketName = env.LANGFUSE_S3_BATCH_EXPORT_BUCKET;
   if (!bucketName) {
     throw new Error("No S3 bucket configured for exports.");
   }
 
   const { signedUrl } = await StorageServiceFactory.getInstance({
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
     bucketName,
-    endpoint: env.S3_ENDPOINT,
-    region: env.S3_REGION,
-    forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
+    accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+    secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+    endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+    forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
   }).uploadFile({
     fileName,
     fileType:
