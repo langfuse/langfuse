@@ -14,7 +14,7 @@ describe("observations.export RPC", () => {
 
   beforeAll(async () => {
     // Disable S3 upload
-    process.env.S3_BUCKET_NAME = "";
+    process.env.LANGFUSE_S3_BATCH_EXPORT_ENABLED = "false";
 
     await pruneDatabase();
     const traceId = "trace-1";
