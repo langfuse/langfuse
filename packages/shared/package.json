@@ -68,7 +68,7 @@
     "@langchain/openai": "^0.3.14",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@prisma/client": "^5.22.0",
-    "@react-email/components": "^0.0.19",
+    "@react-email/components": "^0.0.28",
     "@react-email/render": "^0.0.15",
     "@types/bcryptjs": "^2.4.6",
     "axios": "^1.7.7",
