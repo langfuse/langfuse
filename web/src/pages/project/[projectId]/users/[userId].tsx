@@ -13,7 +13,7 @@ const tabs = ["Overview", "Sessions", "Traces", "Scores"] as const;
 
 export default function UserPage() {
   const router = useRouter();
-  const userId = decodeURIComponent(router.query.userId as string);
+  const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
 
   const [currentTab, setCurrentTab] = useQueryParam(
