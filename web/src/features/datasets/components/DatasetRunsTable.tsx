@@ -246,7 +246,7 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const avgLatency: DatasetRunRowData["avgLatency"] =
           row.getValue("avgLatency");
-        if (!avgLatency) return <Skeleton className="h-3 w-1/2" />;
+        if (avgLatency === undefined) return <Skeleton className="h-3 w-1/2" />;
         return <>{formatIntervalSeconds(avgLatency)}</>;
       },
     },
