@@ -17,7 +17,7 @@ export const addDatasetRunItemsToEvalQueue = async ({
   traceId: string;
   observationId?: string;
 }) => {
-  if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  if (redis) {
     const queue = DatasetRunItemUpsertQueue.getInstance();
 
     if (queue) {

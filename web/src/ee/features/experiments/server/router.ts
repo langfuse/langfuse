@@ -171,7 +171,7 @@ export const experimentsRouter = createTRPCRouter({
         scope: "experiments:CUD",
       });
 
-      if (!redis || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
       }
 

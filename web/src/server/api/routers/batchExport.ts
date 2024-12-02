@@ -72,7 +72,7 @@ export const batchExportRouter = createTRPCRouter({
           },
         };
 
-        if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+        if (redis) {
           await BatchExportQueue.getInstance()?.add(event.name, {
             id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
             name: QueueJobs.BatchExportJob,
