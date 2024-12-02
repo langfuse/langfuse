@@ -12,6 +12,7 @@ import { TRPCError } from "@trpc/server";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getObservationCountOfProjectSinceCreationDate } from "@langfuse/shared/src/server";
 
 export const cloudBillingRouter = createTRPCRouter({
   createStripeCheckoutSession: protectedOrganizationProcedure
@@ -281,16 +282,11 @@ export const cloudBillingRouter = createTRPCRouter({
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-      const countObservations = await ctx.prisma.observation.count({
-        where: {
-          project: {
-            orgId: input.orgId,
-          },
-          createdAt: {
-            gte: thirtyDaysAgo,
-          },
-        },
-      });
+      const countObservations =
+        await getObservationCountOfProjectSinceCreationDate({
+          projectId: input.orgId,
+          start: thirtyDaysAgo,
+        });
 
       // const usageArr = await Promise.all([
       //   ctx.prisma.observation.count({
