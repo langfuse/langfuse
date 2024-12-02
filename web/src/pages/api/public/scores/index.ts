@@ -111,7 +111,7 @@ export default withMiddlewares({
             ? Prisma.sql`AND s."timestamp" < ${toTimestamp}::timestamp with time zone at time zone 'UTC'`
             : Prisma.empty;
           const sourceCondition = source
-            ? Prisma.sql`AND s."source" = ${source}`
+            ? Prisma.sql`AND s."source" = ${source}::"ScoreSource"`
             : Prisma.empty;
           const valueCondition =
             operator && value !== null && value !== undefined
