@@ -118,7 +118,7 @@ export const SessionPage: React.FC<{
               userId ?? "",
             )}`}
           >
-            <Badge>User ID: {userId}</Badge>
+            <Badge className="max-w-[300px] truncate">User ID: {userId}</Badge>
           </Link>
         ))}
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
@@ -134,7 +134,9 @@ export const SessionPage: React.FC<{
             className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
           >
-            <SessionIO traceId={trace.id} projectId={projectId} />
+            <div className="col-span-2 overflow-hidden">
+              <SessionIO traceId={trace.id} projectId={projectId} />
+            </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
@@ -195,11 +197,11 @@ const SessionIO = ({
           skipBatch: true,
         },
       },
-      refetchOnMount: false, // prevents refetching loops
+      refetchOnMount: false,
     },
   );
   return (
-    <div className="col-span-2 flex flex-col gap-2 p-0">
+    <div className="flex w-full flex-col gap-2 overflow-hidden p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"
