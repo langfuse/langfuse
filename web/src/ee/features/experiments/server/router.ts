@@ -8,7 +8,6 @@ import {
   ZodModelConfig,
   ExperimentCreateQueue,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -171,7 +170,7 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:CUD",
       });
 
-      if (!redis || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
       }
 
