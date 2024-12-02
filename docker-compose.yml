@@ -8,6 +8,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
     ports:
       - "3030:3030"
     environment: &langfuse-worker-env
@@ -66,8 +68,12 @@ services:
     ports:
       - "8123:8123"
       - "9000:9000"
-    depends_on:
-      - postgres
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
 
   minio:
     image: minio/minio
