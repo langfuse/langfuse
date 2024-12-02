@@ -15,13 +15,16 @@ const EnvSchema = z.object({
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
 
-  // TODO: Align with other S3 usages
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
-  S3_BUCKET_NAME: z.string().optional(),
-  S3_ENDPOINT: z.string().optional(),
-  S3_REGION: z.string().optional(),
-  S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
+  LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
 
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
     required_error: "Langfuse requires a bucket name for S3 Event Uploads.",

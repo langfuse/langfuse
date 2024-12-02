@@ -19,7 +19,6 @@ import { GenerationTableOptions } from "../utils/GenerationTableOptions";
 const generationsExportInput = GenerationTableOptions.extend({
   fileFormat: z.nativeEnum(BatchExportFileFormat),
 });
-export type GenerationsExportInput = z.infer<typeof generationsExportInput>;
 export type GenerationsExportResult =
   | {
       type: "s3";
@@ -65,19 +64,23 @@ export const generationsExportQuery = protectedProjectProcedure
     const fileStream = dbReadStream.pipe(transformation());
     const fileDate = new Date().toISOString();
     const fileExtension = exportOptions[input.fileFormat].extension;
-    const fileName = `lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
+    const fileName = `${env.LANGFUSE_S3_BATCH_EXPORT_PREFIX}lf-export-${input.projectId}-${fileDate}.${fileExtension}`;
 
     // If bucketName is configured, we expect that the user has some valid S3 setup.
-    const bucketName = env.S3_BUCKET_NAME;
-    if (bucketName) {
+    if (env.LANGFUSE_S3_BATCH_EXPORT_ENABLED === "true") {
+      if (!env.LANGFUSE_S3_BATCH_EXPORT_BUCKET) {
+        throw new Error("S3 bucket name is required for batch export.");
+      }
+
       logger.info(`Preparing export for ${fileName} on S3`);
       const { signedUrl } = await StorageServiceFactory.getInstance({
-        accessKeyId: env.S3_ACCESS_KEY_ID,
-        secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-        bucketName,
-        endpoint: env.S3_ENDPOINT,
-        region: env.S3_REGION,
-        forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
+        bucketName: env.LANGFUSE_S3_BATCH_EXPORT_BUCKET,
+        accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+        secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+        endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+        region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+        forcePathStyle:
+          env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
       }).uploadFile({
         fileName,
         fileType: exportOptions[input.fileFormat].fileType,
