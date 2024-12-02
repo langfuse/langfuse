@@ -14,14 +14,18 @@ const EnvSchema = z.object({
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
     .default(3030),
+
+  // TODO: Align with other S3 usages
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_BUCKET_NAME: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
+    required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
+  }),
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
@@ -30,6 +34,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
     .number()
@@ -66,9 +71,11 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
-  CLICKHOUSE_URL: z.string().url().optional(),
-  CLICKHOUSE_USER: z.string().optional(),
-  CLICKHOUSE_PASSWORD: z.string().optional(),
+
+  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_PASSWORD: z.string(),
+
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -88,12 +95,14 @@ const EnvSchema = z.object({
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
 
-  LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+  // TODO: Remove for go-live
+  LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
 
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
 
+  // TODO: Toggle for go-live and overwrite for Langfuse Cloud
   LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
     .enum(["true", "false"])
     .default("false"),
@@ -128,4 +137,7 @@ const EnvSchema = z.object({
     .default("true"),
 });
 
-export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+export const env: z.infer<typeof EnvSchema> =
+  process.env.DOCKER_BUILD === "1"
+    ? (process.env as any)
+    : EnvSchema.parse(removeEmptyEnvVariables(process.env));

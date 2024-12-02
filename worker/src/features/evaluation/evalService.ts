@@ -479,52 +479,47 @@ export const evaluate = async ({
 
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
-    if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && env.CLICKHOUSE_URL) {
-      if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
-        throw new Error("S3 event store is enabled but no bucket is set");
-      }
-      const s3Client = getS3StorageServiceClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      );
-      await s3Client.uploadJson(
-        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
-        [
-          {
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            type: eventTypes.SCORE_CREATE,
-            body: {
-              ...baseScore,
-              dataType: "NUMERIC",
-            },
-          },
-        ],
-      );
-
-      if (redis) {
-        const queue = IngestionQueue.getInstance();
-        if (!queue) {
-          throw new Error("Ingestion queue not available");
-        }
-        await queue.add(QueueJobs.IngestionJob, {
+    const s3Client = getS3StorageServiceClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    await s3Client.uploadJson(
+      `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
+      [
+        {
           id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.IngestionJob as const,
-          payload: {
-            data: {
-              type: eventTypes.SCORE_CREATE,
-              eventBodyId: scoreId,
-            },
-            authCheck: {
-              validKey: true,
-              scope: {
-                projectId: event.projectId,
-                accessLevel: "scores",
-              },
+          timestamp: new Date().toISOString(),
+          type: eventTypes.SCORE_CREATE,
+          body: {
+            ...baseScore,
+            dataType: "NUMERIC",
+          },
+        },
+      ],
+    );
+
+    if (redis) {
+      const queue = IngestionQueue.getInstance();
+      if (!queue) {
+        throw new Error("Ingestion queue not available");
+      }
+      await queue.add(QueueJobs.IngestionJob, {
+        id: randomUUID(),
+        timestamp: new Date(),
+        name: QueueJobs.IngestionJob as const,
+        payload: {
+          data: {
+            type: eventTypes.SCORE_CREATE,
+            eventBodyId: scoreId,
+          },
+          authCheck: {
+            validKey: true,
+            scope: {
+              projectId: event.projectId,
+              accessLevel: "scores",
             },
           },
-        });
-      }
+        },
+      });
     }
   } catch (e) {
     logger.error(`Failed to add score into IngestionQueue: ${e}`, e);
