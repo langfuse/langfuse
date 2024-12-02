@@ -26,6 +26,7 @@ import { ingestionQueueProcessor } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
+import { cloudPlanLimitEvaluatorQueueProcessor } from "./queues/cloudPlanLimitEvaluatorQueue";
 
 const app = express();
 
@@ -113,6 +114,14 @@ if (
     {
       concurrency: 1,
     },
+  );
+}
+
+if (env.QUEUE_CONSUMER_CLOUD_PLAN_LIMIT_EVALUATOR_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.CloudPlanLimitEvaluatorQueue,
+    cloudPlanLimitEvaluatorQueueProcessor,
+    { concurrency: 1 },
   );
 }
 

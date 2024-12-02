@@ -119,14 +119,15 @@ export const EventBodySchema = z.union([
 export type EventBodyType = z.infer<typeof EventBodySchema>;
 
 export enum QueueName {
-  TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
+  TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
-  EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
+  EvaluationExecution = "evaluation-execution-queue",
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
-  IngestionQueue = "ingestion-queue", // Process single events with S3-merge
-  LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
+  IngestionQueue = "ingestion-queue",
+  LegacyIngestionQueue = "legacy-ingestion-queue",
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
+  CloudPlanLimitEvaluatorQueue = "cloud-plan-limit-evaluator-queue",
   ExperimentCreate = "experiment-create-queue",
 }
 
@@ -139,6 +140,7 @@ export enum QueueJobs {
   EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
   LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
+  CloudPlanLimitEvaluatorJob = "cloud-plan-limit-evaluator-job",
   IngestionJob = "ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
 }
@@ -191,5 +193,10 @@ export type TQueueJobTypes = {
     id: string;
     payload: ExperimentCreateEventType;
     name: QueueJobs.ExperimentCreateJob;
+  };
+  [QueueName.CloudPlanLimitEvaluatorQueue]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.CloudPlanLimitEvaluatorJob;
   };
 };
