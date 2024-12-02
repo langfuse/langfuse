@@ -422,6 +422,7 @@ export type Organization = {
     name: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    cloud_above_plan_ingestion_limit: Generated<boolean>;
     cloud_config: unknown | null;
 };
 export type OrganizationMembership = {

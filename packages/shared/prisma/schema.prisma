@@ -96,14 +96,15 @@ model VerificationToken {
 }
 
 model Organization {
-  id                      String                   @id @default(cuid())
-  name                    String
-  createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at")
-  cloudConfig             Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
-  organizationMemberships OrganizationMembership[]
-  projects                Project[]
-  MembershipInvitation    MembershipInvitation[]
+  id                           String                   @id @default(cuid())
+  name                         String
+  createdAt                    DateTime                 @default(now()) @map("created_at")
+  updatedAt                    DateTime                 @default(now()) @updatedAt @map("updated_at")
+  cloudAbovePlanIngestionLimit Boolean                  @default(false) @map("cloud_above_plan_ingestion_limit")
+  cloudConfig                  Json?                    @map("cloud_config") // Langfuse Cloud, for zod schema see @/src/features/organizations/utils/cloudConfigSchema
+  organizationMemberships      OrganizationMembership[]
+  projects                     Project[]
+  MembershipInvitation         MembershipInvitation[]
 
   @@map("organizations")
 }
@@ -900,7 +901,7 @@ model JobExecution {
 
   jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
 
-  jobInputDatasetItemId String?      @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
+  jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
   jobOutputScoreId String? @map("job_output_score_id")
   score            Score?  @relation(fields: [jobOutputScoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
