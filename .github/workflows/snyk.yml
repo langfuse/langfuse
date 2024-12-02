@@ -2,7 +2,7 @@ name: Snyk Container
 on:
   pull_request:
     branches:
-      - "**"
+      - "*"
   push:
     branches:
       - main
