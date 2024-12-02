@@ -10,7 +10,7 @@ import { Toaster } from "@/src/components/ui/sonner";
 import DOMPurify from "dompurify";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useOrgEntitlements } from "@/src/features/entitlements/hooks";
+import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
@@ -105,7 +105,7 @@ export default function Layout(props: PropsWithChildren) {
   const enableExperimentalFeatures =
     session.data?.environment.enableExperimentalFeatures ?? false;
 
-  const entitlements = useOrgEntitlements();
+  const entitlements = useEntitlements();
 
   const uiCustomization = useUiCustomization();
 

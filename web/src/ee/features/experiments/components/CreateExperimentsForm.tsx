@@ -162,7 +162,7 @@ export const CreateExperimentsForm = ({
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
 
   const hasEvalReadAccess = useHasProjectAccess({
