@@ -355,7 +355,7 @@ export const OpenAiMessageView: React.FC<{
           ))}
       </div>
       {additionalInput && (
-        <div className="p-3">
+        <div className="p-3 pt-1">
           <JSONView title="Additional Input" json={additionalInput} />
         </div>
       )}
