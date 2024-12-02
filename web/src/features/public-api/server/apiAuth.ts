@@ -16,7 +16,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis } from "ioredis";
-import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { API_KEY_NON_EXISTENT } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan } from "@langfuse/shared";
@@ -211,7 +211,7 @@ export class ApiAuthService {
             projectId: dbKey.projectId,
             accessLevel: "scores",
             orgId: dbKey.project.organization.id,
-            plan: getOrganizationPlan(cloudConfig),
+            plan: getOrganizationPlanServerSide(cloudConfig),
             rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
           },
         };
@@ -384,7 +384,7 @@ export const convertToRedisRepresentation = (
     ...apiKeyAndOrganisation,
     createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
     orgId,
-    plan: getOrganizationPlan(parsedCloudConfig),
+    plan: getOrganizationPlanServerSide(parsedCloudConfig),
     rateLimitOverrides: parsedCloudConfig?.rateLimitOverrides,
   });
 
