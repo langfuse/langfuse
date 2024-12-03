@@ -35,8 +35,9 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
   const appliedTracesFilter = tracesFilter.apply();
 
   const query = `
-      WITH filtered_scores AS (
-        SELECT
+      SELECT
+          t.user_id,
+          t.tags,
           s.id,
           s.timestamp,
           s.name,
@@ -44,8 +45,8 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
           s.string_value,
           s.author_user_id,
           s.project_id,
-          s.created_at,  
-          s.updated_at,  
+          s.created_at,
+          s.updated_at,
           s.source,
           s.comment,
           s.data_type,
@@ -53,18 +54,28 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
           s.queue_id,
           s.trace_id,
           s.observation_id
-      FROM scores s
-      WHERE s.project_id = {projectId: String}
-      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-      ORDER BY s.timestamp desc
-      LIMIT 1 BY s.id, s.project_id
-    )
-      SELECT s.*, t.user_id, t.tags
-      FROM filtered_scores s
-        JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
-      WHERE s.project_id = {projectId: String}
-      AND t.project_id = {projectId: String}
-      
+      FROM
+          traces t
+          JOIN scores s ON s.trace_id = t.id
+          AND s.project_id = t.project_id
+      WHERE
+          t.project_id = {projectId: String}
+          AND s.project_id = {projectId: String}
+          AND (t.id, t.project_id) IN (
+              SELECT
+                  trace_id,
+                  project_id
+              FROM
+                  scores s
+              WHERE
+                  s.project_id = {projectId: String}
+                  ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+          )
+          ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      ORDER BY
+          s.timestamp desc
+      LIMIT
+          1 BY s.id, s.project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
