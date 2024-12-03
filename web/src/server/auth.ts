@@ -239,18 +239,18 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
   );
 
 if (
-    env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID &&
-    env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET &&
-    env.AUTH_GITHUB_ENTERPRISE_BASE_URL
+  env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID &&
+  env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET &&
+  env.AUTH_GITHUB_ENTERPRISE_BASE_URL
 ) {
   staticProviders.push(
-      GitHubEnterpriseProvider({
-        clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
-        clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
-        enterprise: {baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL},
-        allowDangerousEmailAccountLinking:
-            env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
-      })
+    GitHubEnterpriseProvider({
+      clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+      clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+      enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
   );
 }
 
@@ -340,17 +340,13 @@ const extendedPrismaAdapter: Adapter = {
 
   async linkAccount(data) {
     if (!prismaAdapter.linkAccount)
-      throw new Error("linkAccount not implemented");
+      throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
 
     // Keycloak returns incompatible data with the nextjs-auth schema
     // (refresh_expires_in and not-before-policy in).
     // So, we need to remove this data from the payload before linking an account.
     // https://github.com/nextauthjs/next-auth/issues/7655
-    if (
-      env.AUTH_KEYCLOAK_CLIENT_ID &&
-      env.AUTH_KEYCLOAK_CLIENT_SECRET &&
-      env.AUTH_KEYCLOAK_ISSUER
-    ) {
+    if (data.provider === "keycloak") {
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
     }

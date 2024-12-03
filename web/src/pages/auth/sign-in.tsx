@@ -176,14 +176,14 @@ export function SSOButtons({
             </Button>
           )}
           {authProviders.githubEnterprise && (
-              <Button
-                  onClick={() => handleSignIn("github-enterprise")}
-                  variant="secondary"
-                  loading={providerSigningIn === "github-enterprise"}
-              >
-                <FaGithub className="mr-3" size={18} />
-                Github Enterprise
-              </Button>
+            <Button
+              onClick={() => handleSignIn("github-enterprise")}
+              variant="secondary"
+              loading={providerSigningIn === "github-enterprise"}
+            >
+              <FaGithub className="mr-3" size={18} />
+              Github Enterprise
+            </Button>
           )}
           {authProviders.gitlab && (
             <Button
@@ -271,10 +271,7 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({
-  authProviders,
-  signUpDisabled,
-}: Readonly<PageProps>) {
+export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
   const router = useRouter();
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
