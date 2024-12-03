@@ -17,10 +17,12 @@ type QueryType = {
   userId?: string;
   name?: string;
   type?: string;
-  parentObservationId?: string;
-  fromStartTime?: string;
-  toStartTime?: string;
+  sessionId?: string;
   version?: string;
+  release?: string;
+  tags?: string | string[];
+  fromTimestamp?: string;
+  toTimestamp?: string;
 };
 
 export const generateTracesForPublicApi = async (
