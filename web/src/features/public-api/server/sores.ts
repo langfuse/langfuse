@@ -71,6 +71,7 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
                   s.project_id = {projectId: String}
                   ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           )
+          ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       ORDER BY
           s.timestamp desc
