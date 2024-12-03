@@ -4,9 +4,9 @@ import {
   createTrace,
 } from "@/src/__tests__/fixtures/tracing-factory";
 import {
-  createObservations,
-  createScores,
-  createTraces,
+  createObservationsCh,
+  createScoresCh,
+  createTracesCh,
 } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import {
   createOrgProjectAndApiKey,
@@ -41,7 +41,7 @@ describe("/api/public/scores API Endpoint", () => {
         is_deleted: 0,
       };
 
-      await createScores([score]);
+      await createScoresCh([score]);
 
       const getScore = await makeZodVerifiedAPICall(
         GetScoreResponse,
@@ -76,7 +76,7 @@ describe("/api/public/scores API Endpoint", () => {
       id: traceId,
       project_id: projectId,
     });
-    await createTraces([trace]);
+    await createTracesCh([trace]);
 
     const scoreId = v4();
 
@@ -90,7 +90,7 @@ describe("/api/public/scores API Endpoint", () => {
       comment: "comment",
       observation_id: null,
     });
-    await createScores([score]);
+    await createScoresCh([score]);
 
     const fetchedScore = await makeZodVerifiedAPICall(
       GetScoreResponse,
@@ -118,7 +118,7 @@ describe("/api/public/scores API Endpoint", () => {
       id: minimalTraceId,
       project_id: projectId,
     });
-    await createTraces([trace]);
+    await createTracesCh([trace]);
 
     const minimalScoreId = v4();
 
@@ -132,7 +132,7 @@ describe("/api/public/scores API Endpoint", () => {
       comment: null,
       observation_id: null,
     });
-    await createScores([score]);
+    await createScoresCh([score]);
 
     const fetchedScore = await makeZodVerifiedAPICall(
       GetScoreResponse,
@@ -189,7 +189,7 @@ describe("/api/public/scores API Endpoint", () => {
         tags: ["staging"],
       });
 
-      await createTraces([trace, trace_2, trace_3]);
+      await createTracesCh([trace, trace_2, trace_3]);
 
       const generation = createObservation({
         id: generationId,
@@ -197,7 +197,7 @@ describe("/api/public/scores API Endpoint", () => {
         type: "GENERATION",
       });
 
-      await createObservations([generation]);
+      await createObservationsCh([generation]);
 
       const config = await prisma.scoreConfig.create({
         data: {
@@ -266,7 +266,7 @@ describe("/api/public/scores API Endpoint", () => {
         comment: "comment",
       });
 
-      await createScores([score1, score2, score3, score4, score5]);
+      await createScoresCh([score1, score2, score3, score4, score5]);
     });
 
     it("get all scores", async () => {
@@ -422,7 +422,7 @@ describe("/api/public/scores API Endpoint", () => {
             queue_id: queueId,
           });
 
-          await createScores([score, score2]);
+          await createScoresCh([score, score2]);
         });
 
         it("get all scores for queueId", async () => {

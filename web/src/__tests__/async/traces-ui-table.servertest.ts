@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import {
-  createObservations,
-  createTraces,
+  createObservationsCh,
+  createTracesCh,
 } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import {
   createObservation,
@@ -21,7 +21,7 @@ describe("Traces table API test", () => {
     const trace_id = v4();
 
     const trace = createTrace({ id: trace_id, project_id });
-    await createTraces([trace]);
+    await createTracesCh([trace]);
 
     const tableRows = await getTracesTable(
       project_id,
@@ -50,11 +50,11 @@ describe("Traces table API test", () => {
     const trace_id = v4();
 
     const trace = createTrace({ id: trace_id, project_id });
-    await createTraces([trace]);
+    await createTracesCh([trace]);
 
     const obs1 = createObservation({ trace_id, project_id });
     const obs2 = createObservation({ trace_id, project_id });
-    await createObservations([obs1, obs2]);
+    await createObservationsCh([obs1, obs2]);
 
     const tableRows = await getTracesTable(
       project_id,
@@ -138,7 +138,7 @@ describe("Traces table API test", () => {
         project_id,
         ...testConfig.traceInput,
       });
-      await createTraces([trace]);
+      await createTracesCh([trace]);
 
       expect(testConfig.observationInput.length).not.toBeGreaterThan(2);
 
@@ -156,7 +156,7 @@ describe("Traces table API test", () => {
           ? testConfig.observationInput[1]
           : {}),
       });
-      await createObservations([obs1, obs2]);
+      await createObservationsCh([obs1, obs2]);
 
       const tableRows = await getTracesTable(
         project_id,

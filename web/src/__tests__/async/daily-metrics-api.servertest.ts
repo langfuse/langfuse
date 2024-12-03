@@ -3,8 +3,8 @@ import {
   createTrace,
 } from "@/src/__tests__/fixtures/tracing-factory";
 import {
-  createObservations,
-  createTraces,
+  createObservationsCh,
+  createTracesCh,
 } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { randomUUID } from "crypto";
@@ -45,8 +45,8 @@ describe("/api/public/metrics/daily API Endpoint", () => {
       }),
     ];
 
-    await createTraces([createdTrace]);
-    await createObservations(observations);
+    await createTracesCh([createdTrace]);
+    await createObservationsCh(observations);
 
     const metrics = await makeZodVerifiedAPICall(
       GetMetricsDailyV1Response,

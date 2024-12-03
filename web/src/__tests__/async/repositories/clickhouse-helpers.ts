@@ -5,7 +5,7 @@ import {
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
 
-export const createTraces = async (trace: TraceRecordInsertType[]) => {
+export const createTracesCh = async (trace: TraceRecordInsertType[]) => {
   return await clickhouseClient().insert({
     table: "traces",
     format: "JSONEachRow",
@@ -13,7 +13,7 @@ export const createTraces = async (trace: TraceRecordInsertType[]) => {
   });
 };
 
-export const createObservations = async (
+export const createObservationsCh = async (
   observations: ObservationRecordInsertType[],
 ) => {
   return await clickhouseClient().insert({
@@ -23,7 +23,7 @@ export const createObservations = async (
   });
 };
 
-export const createScores = async (scores: ScoreRecordInsertType[]) => {
+export const createScoresCh = async (scores: ScoreRecordInsertType[]) => {
   return await clickhouseClient().insert({
     table: "scores",
     format: "JSONEachRow",
