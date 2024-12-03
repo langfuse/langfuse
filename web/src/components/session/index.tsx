@@ -37,7 +37,11 @@ export const SessionPage: React.FC<{
     },
     {
       retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
         return failureCount < 3;
       },
     },
@@ -67,6 +71,18 @@ export const SessionPage: React.FC<{
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
+
+  if (session.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Session not found"
+        message="The session is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
 
   return (
     <ScrollScreenPage>
