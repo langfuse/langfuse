@@ -4,10 +4,11 @@
     "model_name": "gpt-4o",
     "match_pattern": "(?i)^(gpt-4o)$",
     "created_at": "2024-05-13T23:15:07.670Z",
-    "updated_at": "2024-05-13T23:15:07.670Z",
+    "updated_at": "2024-12-03T10:12:31.000Z",
     "prices": {
-      "input": 0.000005,
-      "output": 0.000015
+      "input": 2.5e-6,
+      "input_cached": 1.25e-6,
+      "output": 10e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1011,10 +1012,11 @@
     "model_name": "gpt-4o-mini",
     "match_pattern": "(?i)^(gpt-4o-mini)$",
     "created_at": "2024-07-18T17:56:09.591Z",
-    "updated_at": "2024-07-18T17:56:09.591Z",
+    "updated_at": "2024-12-03T10:28:30.000Z",
     "prices": {
-      "input": 1.5e-7,
-      "output": 6e-7
+      "input": 0.15e-6,
+      "output": 0.6e-6,
+      "input_cached": 0.075e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1028,10 +1030,11 @@
     "model_name": "gpt-4o-mini-2024-07-18",
     "match_pattern": "(?i)^(gpt-4o-mini-2024-07-18)$",
     "created_at": "2024-07-18T17:56:09.591Z",
-    "updated_at": "2024-07-18T17:56:09.591Z",
+    "updated_at": "2024-12-03T10:31:11.000Z",
     "prices": {
-      "input": 1.5e-7,
-      "output": 6e-7
+      "input": 0.15e-6,
+      "input_cached": 0.075e-6,
+      "output": 0.6e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1045,10 +1048,11 @@
     "model_name": "gpt-4o-2024-08-06",
     "match_pattern": "(?i)^(gpt-4o-2024-08-06)$",
     "created_at": "2024-08-07T11:54:31.298Z",
-    "updated_at": "2024-08-07T11:54:31.298Z",
+    "updated_at": "2024-12-03T10:15:18.000Z",
     "prices": {
-      "input": 0.0000025,
-      "output": 0.00001
+      "input": 2.5e-6,
+      "input_cached": 1.25e-6,
+      "output": 10e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1062,10 +1066,11 @@
     "model_name": "o1-preview",
     "match_pattern": "(?i)^(o1-preview)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:34:05.000Z",
     "prices": {
-      "input": 0.000015,
-      "output": 0.00006
+      "input": 15e-6,
+      "input_cached": 7.5e-6,
+      "output": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1075,10 +1080,11 @@
     "model_name": "o1-preview-2024-09-12",
     "match_pattern": "(?i)^(o1-preview-2024-09-12)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:38:51.000Z",
     "prices": {
-      "input": 0.000015,
-      "output": 0.00006
+      "input": 15e-6,
+      "input_cached": 7.5e-6,
+      "output": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1088,10 +1094,11 @@
     "model_name": "o1-mini",
     "match_pattern": "(?i)^(o1-mini)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:41:55.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000012
+      "input": 3e-6,
+      "input_cached": 1.5e-6,
+      "output": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1101,10 +1108,11 @@
     "model_name": "o1-mini-2024-09-12",
     "match_pattern": "(?i)^(o1-mini-2024-09-12)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:43:16.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000012
+      "input": 3e-6,
+      "input_cached": 1.5e-6,
+      "output": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1177,5 +1185,87 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm48akqgo000008ldbia24qg0",
+    "model_name": "gpt-4o-2024-11-20",
+    "match_pattern": "(?i)^(gpt-4o-2024-11-20)$",
+    "created_at": "2024-12-03T10:06:12.000Z",
+    "updated_at": "2024-12-03T10:06:12.000Z",
+    "prices": {
+      "input": 2.5e-6,
+      "input_cached": 1.25e-6,
+      "output": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4o",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm48b2ksh000008l0hn3u0hl3",
+    "model_name": "gpt-4o-audio-preview",
+    "match_pattern": "(?i)^(gpt-4o-audio-preview)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "text_input": 2.5e-6,
+      "text_output": 10e-6,
+      "audio_input": 100e-6,
+      "audio_output": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm48bbm0k000008l69nsdakwf",
+    "model_name": "gpt-4o-audio-preview-2024-10-01",
+    "match_pattern": "(?i)^(gpt-4o-audio-preview-2024-10-01)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "text_input": 2.5e-6,
+      "text_output": 10e-6,
+      "audio_input": 100e-6,
+      "audio_output": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm48c2qh4000008mhgy4mg2qc",
+    "model_name": "gpt-4o-realtime-preview",
+    "match_pattern": "(?i)^(gpt-4o-realtime-preview)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "text_input": 5e-6,
+      "text_input_cached": 2.5e-6,
+      "text_output": 20e-6,
+      "audio_input": 100e-6,
+      "audio_input_cached": 20e-6,
+      "audio_output": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm48cjxtc000008jrcsso3avv",
+    "model_name": "gpt-4o-realtime-preview-2024-10-01",
+    "match_pattern": "(?i)^(gpt-4o-realtime-preview-2024-10-01)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "text_input": 5e-6,
+      "text_input_cached": 2.5e-6,
+      "text_output": 20e-6,
+      "audio_input": 100e-6,
+      "audio_input_cached": 20e-6,
+      "audio_output": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]
