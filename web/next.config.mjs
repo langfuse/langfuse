@@ -98,19 +98,26 @@ const nextConfig = {
         ],
       },
       // CSP header
-      ...(env.LANGFUSE_CSP_DISABLE !== "true"
-        ? [
+      {
+        source: "/:path((?!api).*)*",
+        headers: [
           {
-            source: "/:path((?!api).*)*",
-            headers: [
-              {
-                key: "Content-Security-Policy",
-                value: cspHeader.replace(/\n/g, ""),
-              },
-            ],
+            key: "Content-Security-Policy",
+            value: cspHeader.replace(/\n/g, ""),
           },
-        ]
-        : []),
+        ],
+        // Disable CSP on Hugging Face to allow for embedded use of Langfuse
+        missing: [
+          {
+            type: "host",
+            value: "huggingface.co",
+          },
+          {
+            type: "host",
+            value: ".*\\.hf\\.space$", // *.hf.space
+          },
+        ],
+      },
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
         ? [
