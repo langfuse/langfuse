@@ -67,7 +67,7 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       return await measureAndReturnApi({
         input: { projectId: auth.scope.projectId, queryClickhouse: false },
-        operation: "api/public/observations",
+        operation: "api/public/traces",
         user: null,
         pgExecution: async () => {
           const skipValue = (query.page - 1) * query.limit;
