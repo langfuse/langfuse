@@ -100,8 +100,6 @@ export const generateTracesForPublicApi = async (
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  console.log("*** QUERY ***", query);
-
   return queryClickhouse<
     Trace & {
       observations: string[];
@@ -136,13 +134,11 @@ export const getTracesCountForPublicApi = async (props: QueryType) => {
   const appliedFilter = filter.apply();
 
   const query = `
-      SELECT count() as count
-      FROM traces t
-      WHERE project_id = {projectId: String}
-      ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+    SELECT count() as count
+    FROM traces t
+    WHERE project_id = {projectId: String}
+    ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
   `;
-
-  console.log("*** QUERY ***", query);
 
   const records = await queryClickhouse<{ count: string }>({
     query,
