@@ -36,25 +36,24 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
 
   const query = `
       SELECT
-          t.user_id,
-          t.tags,
-          s.id,
-          s.project_id,
-          s.timestamp,
-          s.name,
-          s.value,
-          s.string_value,
-          s.author_user_id,
-          s.project_id,
-          s.created_at,
-          s.updated_at,
-          s.source,
-          s.comment,
-          s.data_type,
-          s.config_id,
-          s.queue_id,
-          s.trace_id,
-          s.observation_id
+          t.user_id as user_id,
+          t.tags as tags,
+          s.id as id,
+          s.project_id as project_id,
+          s.timestamp as timestamp,
+          s.name as name,
+          s.value as value,
+          s.string_value as string_value,
+          s.author_user_id as author_user_id,
+          s.created_at as created_at,
+          s.updated_at as updated_at,
+          s.source as source,
+          s.comment as comment,
+          s.data_type as data_type,
+          s.config_id as config_id,
+          s.queue_id as queue_id,
+          s.trace_id as trace_id,
+          s.observation_id as observation_id
       FROM
           traces t
           JOIN scores s ON s.trace_id = t.id
@@ -94,6 +93,7 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
         : {}),
     },
   });
+
   return records.map((record) => ({
     ...convertToScore(record),
     trace: { userId: record.user_id, tags: record.tags },
