@@ -1,4 +1,4 @@
-import { createObservation } from "@/src/__tests__/async/repositories/clickhouse-helpers";
+import { createObservationsCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationById,
@@ -54,7 +54,7 @@ describe("Clickhouse Observations Repository Test", () => {
       completion_start_time: Date.now(),
     };
 
-    await createObservation(observation);
+    await createObservationsCh([observation]);
 
     const result = await getObservationById(observationId, projectId, true);
     if (!result) {
@@ -122,7 +122,7 @@ describe("Clickhouse Observations Repository Test", () => {
       completion_start_time: Date.now() + 1000,
     };
 
-    await createObservation(observation);
+    await createObservationsCh([observation]);
 
     const result = await getObservationsViewForTrace(traceId, projectId);
     if (!result || result.length === 0) {

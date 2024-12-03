@@ -1,7 +1,7 @@
 import {
-  createObservations,
-  createScores,
-  createTraces,
+  createObservationsCh,
+  createScoresCh,
+  createTracesCh,
 } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -152,7 +152,7 @@ describe("Fetch datasets for UI presentation", () => {
       start_time: new Date().getTime() - 1000,
       end_time: new Date().getTime(),
     });
-    await createObservations([
+    await createObservationsCh([
       observation,
       observation2,
       observation3,
@@ -187,7 +187,7 @@ describe("Fetch datasets for UI presentation", () => {
       value: 1,
       comment: "some other comment for non run related score",
     });
-    await createScores([score, score2, score3]);
+    await createScoresCh([score, score2, score3]);
 
     const runs = await createDatasetRunsTable({
       projectId,
@@ -315,7 +315,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
     });
 
-    await createTraces([trace1, trace2]);
+    await createTracesCh([trace1, trace2]);
 
     const observation = createObservation({
       id: observationId,
@@ -329,7 +329,7 @@ describe("Fetch datasets for UI presentation", () => {
       trace_id: traceId,
     });
 
-    await createObservations([observation]);
+    await createObservationsCh([observation]);
 
     const score = createScore({
       observation_id: observation2.id,
@@ -337,7 +337,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
     });
 
-    await createScores([score]);
+    await createScoresCh([score]);
 
     const runs = await getRunItemsByRunIdOrItemId(
       projectId,
@@ -543,7 +543,7 @@ describe("Fetch datasets for UI presentation", () => {
       end_time: new Date().getTime(),
     });
 
-    await createObservations([observation]);
+    await createObservationsCh([observation]);
 
     const trace1 = createTrace({
       id: traceId1,
@@ -554,7 +554,7 @@ describe("Fetch datasets for UI presentation", () => {
       project_id: projectId,
     });
 
-    await createTraces([trace1, trace2]);
+    await createTracesCh([trace1, trace2]);
 
     const input = {
       projectId: projectId,

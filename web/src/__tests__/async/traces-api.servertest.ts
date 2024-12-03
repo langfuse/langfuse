@@ -3,8 +3,8 @@ import {
   createTrace,
 } from "@/src/__tests__/fixtures/tracing-factory";
 import {
-  createObservations,
-  createTraces,
+  createObservationsCh,
+  createTracesCh,
 } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
@@ -46,8 +46,8 @@ describe("/api/public/traces API Endpoint", () => {
       }),
     ];
 
-    await createTraces([createdTrace]);
-    await createObservations(observations);
+    await createTracesCh([createdTrace]);
+    await createObservationsCh(observations);
 
     const trace = await makeZodVerifiedAPICall(
       GetTraceV1Response,
@@ -110,8 +110,8 @@ describe("/api/public/traces API Endpoint", () => {
       }),
     ];
 
-    await createTraces([createdTrace]);
-    await createObservations(observations);
+    await createTracesCh([createdTrace]);
+    await createObservationsCh(observations);
 
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
@@ -151,7 +151,7 @@ describe("/api/public/traces API Endpoint", () => {
         metadata: { key: "value" },
       });
 
-      await createTraces([createdTrace]);
+      await createTracesCh([createdTrace]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
@@ -176,7 +176,7 @@ describe("/api/public/traces API Endpoint", () => {
       tags: [tag],
     });
 
-    await createTraces([createdTrace]);
+    await createTracesCh([createdTrace]);
 
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
@@ -211,7 +211,7 @@ describe("/api/public/traces API Endpoint", () => {
       tags: [tag],
     });
 
-    await createTraces([createdTrace1, createdTrace2, createdTrace3]);
+    await createTracesCh([createdTrace1, createdTrace2, createdTrace3]);
 
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
@@ -241,7 +241,7 @@ describe("/api/public/traces API Endpoint", () => {
       tags: [tag],
     });
 
-    await createTraces([createdTrace1, createdTrace2]);
+    await createTracesCh([createdTrace1, createdTrace2]);
 
     const traces = await makeZodVerifiedAPICall(
       GetTracesV1Response,
