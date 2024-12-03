@@ -837,10 +837,12 @@
     "model_name": "claude-3-sonnet-20240229",
     "match_pattern": "(?i)^(claude-3-sonnet-20240229|anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
     "created_at": "2024-03-07T17:55:38.139Z",
-    "updated_at": "2024-03-07T17:55:38.139Z",
+    "updated_at": "2024-12-03T12:20:04.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_cache_write": 3.75e-6,
+      "input_cache_read": 0.3e-6,
+      "output": 15e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -999,10 +1001,12 @@
     "model_name": "claude-3-5-sonnet-20240620",
     "match_pattern": "(?i)^(claude-3-5-sonnet-20240620|anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "created_at": "2024-06-25T11:47:24.475Z",
-    "updated_at": "2024-06-25T11:47:24.475Z",
+    "updated_at": "2024-12-03T12:20:59.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_cache_write": 3.75e-6,
+      "input_cache_read": 0.3e-6,
+      "output": 15e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1122,10 +1126,12 @@
     "model_name": "claude-3.5-sonnet-20241022",
     "match_pattern": "(?i)^(claude-3-5-sonnet-20241022|anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "created_at": "2024-10-22T18:48:01.676Z",
-    "updated_at": "2024-10-22T18:48:01.676Z",
+    "updated_at": "2024-12-03T12:21:10.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_cache_write": 3.75e-6,
+      "input_cache_read": 0.3e-6,
+      "output": 15e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1135,10 +1141,12 @@
     "model_name": "claude-3.5-sonnet-latest",
     "match_pattern": "(?i)^(claude-3-5-sonnet-latest)$",
     "created_at": "2024-10-22T18:48:01.676Z",
-    "updated_at": "2024-10-22T18:48:01.676Z",
+    "updated_at": "2024-12-03T12:22:03.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_cache_write": 3.75e-6,
+      "input_cache_read": 0.3e-6,
+      "output": 15e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
