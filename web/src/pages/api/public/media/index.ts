@@ -60,6 +60,10 @@ export default withMiddlewares({
 
           while (retries < MAX_RETRIES) {
             try {
+              if (retries > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+              }
+
               return await prisma.$transaction<{
                 mediaId: string;
                 uploadUrl: string | null;
@@ -80,43 +84,19 @@ export default withMiddlewares({
                     existingMedia.contentType === contentType
                   ) {
                     if (observationId) {
-                      await tx.observationMedia.upsert({
-                        where: {
-                          projectId_traceId_observationId_mediaId_field: {
-                            projectId,
-                            traceId,
-                            observationId,
-                            mediaId: existingMedia.id,
-                            field,
-                          },
-                        },
-                        update: {},
-                        create: {
-                          projectId,
-                          traceId,
-                          observationId,
-                          mediaId: existingMedia.id,
-                          field,
-                        },
-                      });
+                      // Use raw upserts to avoid deadlocks
+                      await tx.$queryRaw`
+                        INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
+                        VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${existingMedia.id}, ${field})
+                        ON CONFLICT DO NOTHING;
+                      `;
                     } else {
-                      await tx.traceMedia.upsert({
-                        where: {
-                          projectId_traceId_mediaId_field: {
-                            projectId,
-                            traceId,
-                            mediaId: existingMedia.id,
-                            field,
-                          },
-                        },
-                        update: {},
-                        create: {
-                          projectId,
-                          traceId,
-                          field,
-                          mediaId: existingMedia.id,
-                        },
-                      });
+                      // Use raw upserts to avoid deadlocks
+                      await tx.$queryRaw`
+                        INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
+                        VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${existingMedia.id}, ${field})
+                        ON CONFLICT DO NOTHING;
+                      `;
                     }
 
                     return {
@@ -157,66 +137,44 @@ export default withMiddlewares({
                   });
 
                   await Promise.all([
-                    tx.media.upsert({
-                      where: {
-                        projectId_sha256Hash: {
-                          projectId,
-                          sha256Hash,
-                        },
-                      },
-                      update: {
-                        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-                        bucketPath,
-                        contentType,
-                        contentLength,
-                      },
-                      create: {
-                        id: mediaId,
-                        projectId,
-                        sha256Hash,
-                        bucketPath,
-                        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-                        contentType,
-                        contentLength,
-                      },
-                    }),
+                    // Use raw upserts to avoid deadlocks
+                    tx.$queryRaw`
+                      INSERT INTO "media" (
+                          "id", 
+                          "project_id", 
+                          "sha_256_hash", 
+                          "bucket_path", 
+                          "bucket_name", 
+                          "content_type", 
+                          "content_length"
+                        )
+                        VALUES (
+                          ${mediaId},
+                          ${projectId},
+                          ${sha256Hash},
+                          ${bucketPath},
+                          ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
+                          ${contentType},
+                          ${contentLength}
+                        )
+                        ON CONFLICT ("project_id", "sha_256_hash") 
+                        DO UPDATE SET
+                          "bucket_name" = ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
+                          "bucket_path" = ${bucketPath},
+                          "content_type" = ${contentType},
+                          "content_length" = ${contentLength}
+                    `,
                     observationId
-                      ? tx.observationMedia.upsert({
-                          where: {
-                            projectId_traceId_observationId_mediaId_field: {
-                              projectId,
-                              traceId,
-                              observationId,
-                              mediaId,
-                              field,
-                            },
-                          },
-                          update: {},
-                          create: {
-                            projectId,
-                            traceId,
-                            observationId,
-                            mediaId,
-                            field,
-                          },
-                        })
-                      : tx.traceMedia.upsert({
-                          where: {
-                            projectId_traceId_mediaId_field: {
-                              projectId,
-                              traceId,
-                              mediaId,
-                              field,
-                            },
-                          },
-                          update: {},
-                          create: {
-                            projectId,
-                            traceId,
-                            field,
-                            mediaId,
-                          },
-                        }),
+                      ? tx.$queryRaw`
+                          INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
+                          VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
+                          ON CONFLICT DO NOTHING;
+                      `
+                      : tx.$queryRaw`
+                          INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
+                          VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
+                          ON CONFLICT DO NOTHING;
+                      `,
                   ]);
 
                   return {
@@ -233,16 +191,8 @@ export default withMiddlewares({
                 `Failed to get media upload URL for trace ${traceId} and observation ${observationId}. Retrying...`,
                 error,
               );
-              if (
-                // See https://www.prisma.io/docs/orm/prisma-client/queries/transactions#transaction-timing-issues
-                error instanceof Prisma.PrismaClientKnownRequestError &&
-                error.code === "P2034"
-              ) {
-                retries++;
-                continue;
-              }
-
-              throw error;
+              retries++;
+              continue;
             }
           }
           logger.error(

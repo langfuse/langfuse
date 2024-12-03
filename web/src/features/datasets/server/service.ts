@@ -53,6 +53,29 @@ type PostgresDatasetRun = {
 
 export type DatasetRunsTableInput = z.infer<typeof datasetRunsTableSchema>;
 
+export const createDatasetRunsTableWithoutMetrics = async (
+  input: DatasetRunsTableInput,
+) => {
+  const runs = await getDatasetRunsFromPostgres(input);
+
+  return runs.map(({ run_items, ...run }) => ({
+    ...run,
+    projectId: input.projectId,
+    datasetId: input.datasetId,
+    id: run.run_id,
+    countRunItems: run_items.length,
+    name: run.run_name,
+    description: run.run_description,
+    metadata: run.run_metadata,
+    createdAt: run.run_created_at,
+    updatedAt: run.run_updated_at,
+    // return metric fields as undefined
+    avgTotalCost: undefined,
+    avgLatency: undefined,
+    scores: undefined,
+  }));
+};
+
 // we might have many traces / observations in Postgres which belong to data in clickhouse.
 // We need to create a temp table in CH, dump the data in there, and then join in CH.
 export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
@@ -76,6 +99,10 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       input,
       tableName,
       clickhouseSession,
+    );
+
+    logger.info(
+      `Fetched ${scores.length} scores for dataset runs with ids ${scores.map((s) => s.id).join(", ")}`,
     );
 
     const obsAgg = await getObservationLatencyAndCostForDataset(
@@ -207,7 +234,7 @@ export const getDatasetRunsFromPostgres = async (
       FROM
         datasets d
         JOIN dataset_runs runs ON d.id = runs.dataset_id AND d.project_id = runs.project_id
-        JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
+        LEFT JOIN dataset_run_items ri ON ri.dataset_run_id = runs.id
           AND ri.project_id = runs.project_id
       WHERE
         d.id = ${input.datasetId}
@@ -262,25 +289,22 @@ const getObservationLatencyAndCostForDataset = async (
   // the subquery here will improve performance as it allows clickhouse to use skip-indices on
   // the observations table
   const query = `
-      WITH agg AS (
-        SELECT
-            dateDiff('milliseconds', start_time, end_time) AS latency_ms,
-            total_cost AS cost,
-            run_id
-        FROM observations AS o
-        INNER JOIN ${tableName} AS tmp ON (o.id = tmp.observation_id) AND (o.project_id = tmp.project_id) AND (tmp.trace_id = o.trace_id)
-        WHERE (id, trace_id, project_id) IN (
-            SELECT
-                observation_id,
-                trace_id,
-                project_id
-            FROM ${tableName}
-            WHERE (project_id = {projectId: String}) AND (dataset_id = {datasetId: String}) AND (observation_id IS NOT NULL)
-      )
-      ORDER BY o.start_time DESC
-      LIMIT 1 BY
-          o.id,
-          o.project_id
+    WITH agg AS (
+      SELECT
+          dateDiff('milliseconds', start_time, end_time) AS latency_ms,
+          total_cost AS cost,
+          run_id
+      FROM observations AS o
+      INNER JOIN ${tableName} AS tmp ON (o.id = tmp.observation_id) AND (o.project_id = tmp.project_id) AND (tmp.trace_id = o.trace_id)
+      WHERE 
+        o.project_id = {projectId: String}
+        AND (id, trace_id) IN (
+          SELECT
+              observation_id,
+              trace_id
+          FROM ${tableName}
+          WHERE (project_id = {projectId: String}) AND (dataset_id = {datasetId: String}) AND (observation_id IS NOT NULL)
+        )
     )
     SELECT 
       run_id,
@@ -322,7 +346,7 @@ const getTraceLatencyAndCostForDataset = async (
         run_id,
         dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms,
         sum(total_cost) AS cost
-      FROM observations o  JOIN ${tableName} tmp
+      FROM observations o JOIN ${tableName} tmp
         ON tmp.project_id = o.project_id 
         AND tmp.trace_id = o.trace_id
       WHERE o.project_id = {projectId: String}

@@ -16,7 +16,7 @@ import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
@@ -24,7 +24,7 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
   const router = useRouter();
-  const showBillingSettings = useHasOrgEntitlement("cloud-billing");
+  const showBillingSettings = useHasEntitlement("cloud-billing");
   if (!project || !organization) return null;
   return (
     <div className="lg:container">
@@ -127,7 +127,7 @@ export default function SettingsPage() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  const entitled = useHasOrgEntitlement("integration-posthog");
+  const entitled = useHasEntitlement("integration-posthog");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",

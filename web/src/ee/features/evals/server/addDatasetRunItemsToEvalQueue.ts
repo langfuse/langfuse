@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import {
   QueueJobs,
@@ -17,7 +16,7 @@ export const addDatasetRunItemsToEvalQueue = async ({
   traceId: string;
   observationId?: string;
 }) => {
-  if (redis && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  if (redis) {
     const queue = DatasetRunItemUpsertQueue.getInstance();
 
     if (queue) {

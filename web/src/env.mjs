@@ -46,7 +46,7 @@ export const env = createEnv({
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
-    LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional(),
+    LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional().default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
     // AUTH
@@ -60,7 +60,9 @@ export const env = createEnv({
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
-    AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z
+      .enum(["true", "false"])
+      .optional(),
     AUTH_GITLAB_CLIENT_ID: z.string().optional(),
     AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -106,16 +108,24 @@ export const env = createEnv({
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
-    // S3
-    S3_ENDPOINT: z.string().optional(),
-    S3_ACCESS_KEY_ID: z.string().optional(),
-    S3_SECRET_ACCESS_KEY: z.string().optional(),
-    S3_BUCKET_NAME: z.string().optional(),
-    S3_REGION: z.string().optional(),
-    S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false"),
+
+    // S3 Batch Export
+    LANGFUSE_S3_BATCH_EXPORT_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_S3_BATCH_EXPORT_BUCKET: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
+    LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
+
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
-    // Worker
+
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
     // Otel
@@ -124,10 +134,11 @@ export const env = createEnv({
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
     // clickhouse
-    CLICKHOUSE_URL: z.string().optional(),
-    CLICKHOUSE_USER: z.string().optional(),
-    CLICKHOUSE_PASSWORD: z.string().optional(),
+    CLICKHOUSE_URL: z.string().url(),
+    CLICKHOUSE_USER: z.string(),
+    CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
     LANGFUSE_UI_DOCUMENTATION_HREF: z.string().url().optional(),
@@ -141,6 +152,7 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
+
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -151,6 +163,7 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+
     REDIS_HOST: z.string().nullish(),
     REDIS_PORT: z.coerce
       .number({
@@ -164,6 +177,7 @@ export const env = createEnv({
     REDIS_AUTH: z.string().nullish(),
     REDIS_CONNECTION_STRING: z.string().nullish(),
     REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
@@ -202,21 +216,28 @@ export const env = createEnv({
           (creator) => emailSchema.safeParse(creator).success,
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
-    LANGFUSE_READ_FROM_POSTGRES_ONLY: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("false"),
+
+    // TODO: Remove entire block for go-live
+    // Settings to toggle Clickhouse vs Postgres behaviour
+    LANGFUSE_READ_FROM_POSTGRES_ONLY: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
     LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
     LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS: z.string().optional(),
     LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
       .enum(["true", "false"])
-      .default("false"),
+      .default("true"),
     LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
       .enum(["true", "false"])
-      .default("false"),
+      .default("true"),
+
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
+
     LANGFUSE_INIT_ORG_ID: z.string().optional(),
     LANGFUSE_INIT_ORG_NAME: z.string().optional(),
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
@@ -299,9 +320,12 @@ export const env = createEnv({
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
-    AUTH_GITHUB_ENTERPRISE_CLIENT_ID: process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
-    AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
-    AUTH_GITHUB_ENTERPRISE_BASE_URL: process.env.AUTH_GITHUB_ENTERPRISE_BASE_URL,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_ID:
+      process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET:
+      process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+    AUTH_GITHUB_ENTERPRISE_BASE_URL:
+      process.env.AUTH_GITHUB_ENTERPRISE_BASE_URL,
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_ISSUER: process.env.AUTH_GITLAB_ISSUER,
@@ -353,13 +377,24 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
-    // S3
-    S3_ENDPOINT: process.env.S3_ENDPOINT,
-    S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
-    S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
-    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
-    S3_REGION: process.env.S3_REGION,
-    S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
+
+    // S3 Batch Export
+    LANGFUSE_S3_BATCH_EXPORT_ENABLED:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ENABLED,
+    LANGFUSE_S3_BATCH_EXPORT_BUCKET:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_BUCKET,
+    LANGFUSE_S3_BATCH_EXPORT_PREFIX:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_PREFIX,
+    LANGFUSE_S3_BATCH_EXPORT_REGION:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+    LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+    LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+    LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:

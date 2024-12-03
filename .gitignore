@@ -38,7 +38,6 @@ yarn-error.log*
 .env*
 !.env.dev.example
 !.env.dev-azure.example
-!.env.local.example
 !.env.prod.example
 !.env.dev.legacy.example
 
