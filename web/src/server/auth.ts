@@ -23,6 +23,7 @@ import EmailProvider from "next-auth/providers/email";
 import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -229,18 +230,18 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
   );
 
 if (
-    env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID &&
-    env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET &&
-    env.AUTH_GITHUB_ENTERPRISE_BASE_URL
+  env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID &&
+  env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET &&
+  env.AUTH_GITHUB_ENTERPRISE_BASE_URL
 ) {
   staticProviders.push(
-      GitHubEnterpriseProvider({
-        clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
-        clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
-        enterprise: {baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL},
-        allowDangerousEmailAccountLinking:
-            env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
-      })
+    GitHubEnterpriseProvider({
+      clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+      clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+      enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+    }),
   );
 }
 
@@ -286,6 +287,21 @@ if (
     }),
   );
 
+if (
+  env.AUTH_KEYCLOAK_CLIENT_ID &&
+  env.AUTH_KEYCLOAK_CLIENT_SECRET &&
+  env.AUTH_KEYCLOAK_ISSUER
+)
+  staticProviders.push(
+    KeycloakProvider({
+      clientId: env.AUTH_KEYCLOAK_CLIENT_ID,
+      clientSecret: env.AUTH_KEYCLOAK_CLIENT_SECRET,
+      issuer: env.AUTH_KEYCLOAK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
+    }),
+  );
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const extendedPrismaAdapter: Adapter = {
@@ -311,6 +327,22 @@ const extendedPrismaAdapter: Adapter = {
     await createProjectMembershipsOnSignup(user);
 
     return user;
+  },
+
+  async linkAccount(data) {
+    if (!prismaAdapter.linkAccount)
+      throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
+
+    // Keycloak returns incompatible data with the nextjs-auth schema
+    // (refresh_expires_in and not-before-policy in).
+    // So, we need to remove this data from the payload before linking an account.
+    // https://github.com/nextauthjs/next-auth/issues/7655
+    if (data.provider === "keycloak") {
+      delete data["refresh_expires_in"];
+      delete data["not-before-policy"];
+    }
+
+    await prismaAdapter.linkAccount(data);
   },
 };
 
