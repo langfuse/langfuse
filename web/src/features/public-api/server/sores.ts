@@ -106,15 +106,33 @@ export const getScoresCountForPublicApi = async (props: ScoreQueryType) => {
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
+  // for this query, we only need the traces join if we have a filter on traces
   const query = `
       SELECT
         count() as count
-      FROM scores s
-        JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
-      WHERE s.project_id = {projectId: String}
-      AND t.project_id = {projectId: String}
-      ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-      ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      FROM
+        traces t
+          JOIN scores s ON s.trace_id = t.id
+          AND s.project_id = t.project_id
+      WHERE
+        t.project_id = {projectId: String}
+        AND s.project_id = {projectId: String}
+        AND (t.id, t.project_id) IN (
+          SELECT
+            trace_id,
+            project_id
+          FROM
+            scores s
+          WHERE
+            s.project_id = {projectId: String}
+            ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+          ORDER BY
+            s.timestamp desc
+          LIMIT
+            1 BY s.id, s.project_id
+        )
+        ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
+        ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
   const records = await queryClickhouse<{ count: string }>({
