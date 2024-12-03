@@ -2,7 +2,7 @@ import {
   createObservations,
   createScores,
   createTraces,
-} from "@/src/__tests__/server/repositories/clickhouse-helpers";
+} from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {

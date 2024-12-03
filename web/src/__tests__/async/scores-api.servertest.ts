@@ -7,7 +7,7 @@ import {
   createObservations,
   createScores,
   createTraces,
-} from "@/src/__tests__/server/repositories/clickhouse-helpers";
+} from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import {
   createOrgProjectAndApiKey,
   makeZodVerifiedAPICall,
