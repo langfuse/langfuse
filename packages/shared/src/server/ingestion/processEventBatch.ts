@@ -224,6 +224,7 @@ export const processEventBatch = async (
         return aggregateBatchResult(
           [...validationErrors, ...authenticationErrors],
           sortedBatch.map((event) => ({ id: event.id, result: event })),
+          authCheck.scope.projectId,
         );
       }
     }
@@ -272,6 +273,7 @@ export const processEventBatch = async (
             // we are not sending additional server errors to the client in case of early return
             [...validationErrors, ...authenticationErrors],
             sortedBatch.map((event) => ({ id: event.id, result: event })),
+            authCheck.scope.projectId,
           );
         }
       } else {
@@ -294,6 +296,7 @@ export const processEventBatch = async (
     return aggregateBatchResult(
       [...validationErrors, ...authenticationErrors, ...result.errors],
       result.results,
+      authCheck.scope.projectId,
     );
   }
 
@@ -342,6 +345,7 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
 export const aggregateBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
+  projectId?: string,
 ) => {
   const returnedErrors: {
     id: string;
@@ -388,7 +392,10 @@ export const aggregateBatchResult = (
 
   if (returnedErrors.length > 0) {
     traceException(errors);
-    logger.error("Error processing events", returnedErrors);
+    logger.error("Error processing events", {
+      errors: returnedErrors,
+      "langfuse.project.id": projectId,
+    });
   }
 
   results.forEach((result) => {
