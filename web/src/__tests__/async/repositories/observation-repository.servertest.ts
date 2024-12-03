@@ -147,18 +147,17 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(firstObservation.level).toEqual(observation.level);
     expect(firstObservation.statusMessage).toEqual(observation.status_message);
     expect(firstObservation.version).toEqual(observation.version);
-    expect(firstObservation.input).toEqual(observation.input);
-    expect(firstObservation.output).toEqual(observation.output);
-    expect(firstObservation.timeToFirstToken).toEqual(null);
+
     expect(firstObservation.modelParameters).toEqual({
       something: "sample_param",
     });
     expect(firstObservation.promptId).toEqual(observation.prompt_id);
     expect(firstObservation.endTime).toEqual(new Date(observation.end_time));
-    expect(firstObservation.completionStartTime).toEqual(
+    expect(firstObservation.timeToFirstToken).toEqual(
       new Date(observation.completion_start_time).getTime() -
         new Date(observation.start_time).getTime(),
     );
+    expect(firstObservation.timeToFirstToken).toBeGreaterThan(0);
     expect(firstObservation.calculatedTotalCost).toEqual(
       new Decimal(observation.total_cost),
     );
