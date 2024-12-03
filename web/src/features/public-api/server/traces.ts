@@ -1,12 +1,12 @@
 import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
   convertDateToClickhouseDateTime,
-  DateTimeFilter,
   queryClickhouse,
   TRACE_TO_OBSERVATIONS_INTERVAL,
   orderByToClickhouseSql,
+  type DateTimeFilter,
 } from "@langfuse/shared/src/server";
-import { OrderByState, type Trace } from "@langfuse/shared";
+import { type OrderByState, type Trace } from "@langfuse/shared";
 import { snakeCase } from "lodash";
 
 type QueryType = {
