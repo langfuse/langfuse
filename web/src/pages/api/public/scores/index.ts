@@ -20,7 +20,7 @@ import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   generateScoresForPublicApi,
   getScoresCountForPublicApi,
-} from "@/src/features/public-api/server/sores";
+} from "@/src/features/public-api/server/scores";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
