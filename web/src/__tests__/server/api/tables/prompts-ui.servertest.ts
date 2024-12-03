@@ -1,4 +1,4 @@
-import { createObservations } from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import { createObservations } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationMetricsForPrompts,

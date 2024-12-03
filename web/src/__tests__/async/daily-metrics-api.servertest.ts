@@ -5,7 +5,7 @@ import {
 import {
   createObservations,
   createTraces,
-} from "@/src/__tests__/server/repositories/clickhouse-helpers";
+} from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { randomUUID } from "crypto";
 import { GetMetricsDailyV1Response } from "@/src/features/public-api/types/metrics";

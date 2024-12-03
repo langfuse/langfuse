@@ -2,7 +2,7 @@ import { v4 } from "uuid";
 import {
   createObservations,
   createTraces,
-} from "@/src/__tests__/server/repositories/clickhouse-helpers";
+} from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import {
   createObservation,
   createTrace,
