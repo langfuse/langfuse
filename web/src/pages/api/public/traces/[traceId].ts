@@ -84,15 +84,19 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async () => {
-          const [trace, observations, scores] = await Promise.all([
-            getTraceById(traceId, auth.scope.projectId),
+          const trace = await getTraceById(traceId, auth.scope.projectId);
+          const [observations, scores] = await Promise.all([
             getObservationsViewForTrace(
               traceId,
               auth.scope.projectId,
-              undefined,
+              trace?.timestamp,
               true,
             ),
-            getScoresForTraces(auth.scope.projectId, [traceId]),
+            getScoresForTraces(
+              auth.scope.projectId,
+              [traceId],
+              trace?.timestamp,
+            ),
           ]);
 
           const uniqueModels: string[] = Array.from(
