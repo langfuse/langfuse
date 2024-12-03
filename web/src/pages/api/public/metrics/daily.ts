@@ -166,7 +166,7 @@ export default withMiddlewares({
 
           const finalCount = count || 0;
           return {
-            data: usage as z.infer<typeof GetMetricsDailyV1Response>["data"],
+            data: usage,
             meta: {
               page: query.page,
               limit: query.limit,

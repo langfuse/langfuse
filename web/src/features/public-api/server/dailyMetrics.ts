@@ -42,8 +42,8 @@ export const generateDailyMetrics = async (props: QueryType) => {
         sumMap(o.usage_details)['output'] as outputUsage,
         sumMap(o.usage_details)['total'] as totalUsage,
         sum(coalesce(o.total_cost, 0)) as totalCost
-      FROM traces t
-      LEFT JOIN observations o on o.trace_id = t.id AND o.project_id = t.project_id
+      FROM traces t FINAL
+      LEFT JOIN observations o FINAL on o.trace_id = t.id AND o.project_id = t.project_id
       WHERE o.project_id = {projectId: String} 
       ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
@@ -68,7 +68,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       SELECT
         toDate(t.timestamp) as date,
         count(t.id) as countTraces
-      FROM traces t
+      FROM traces t FINAL
       WHERE t.project_id = {projectId: String}
       ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
       GROUP BY date
