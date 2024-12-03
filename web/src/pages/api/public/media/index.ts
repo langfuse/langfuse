@@ -60,6 +60,10 @@ export default withMiddlewares({
 
           while (retries < MAX_RETRIES) {
             try {
+              if (retries > 0) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+              }
+
               return await prisma.$transaction<{
                 mediaId: string;
                 uploadUrl: string | null;
