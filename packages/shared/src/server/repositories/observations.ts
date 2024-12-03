@@ -883,13 +883,29 @@ export const deleteObservationsByTraceIds = async (
     WHERE project_id = {projectId: String}
     AND trace_id IN ({traceIds: Array(String)});
   `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
-    },
-  });
+
+  const queryStats = `
+    DELETE FROM observation_stats
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)});
+  `;
+
+  await Promise.all([
+    commandClickhouse({
+      query: query,
+      params: {
+        projectId,
+        traceIds,
+      },
+    }),
+    commandClickhouse({
+      query: queryStats,
+      params: {
+        projectId,
+        traceIds,
+      },
+    }),
+  ]);
 };
 
 export const getObservationsWithPromptName = async (
@@ -1024,11 +1040,10 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
   traceIds: string[],
 ) => {
   const query = `
-    SELECT
-        trace_id,
-        sumMap(cost_details)['total'] AS total_cost,
-        dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
-    FROM observations FINAL
+    SELECT trace_id,
+           sum(sum_total_cost) AS total_cost,
+           date_diff('milliseconds', min(min_start_time), coalesce(max(max_end_time), max(max_start_time))) as latency_ms
+    FROM observation_stats
     WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
     GROUP BY trace_id

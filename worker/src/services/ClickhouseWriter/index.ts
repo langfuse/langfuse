@@ -162,7 +162,8 @@ export class ClickhouseWriter {
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`,
+            `Max attempts reached for ${tableName} record. Dropping record.`,
+            { data: item.data },
           );
         }
       });

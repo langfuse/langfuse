@@ -144,6 +144,7 @@ describe("ClickhouseWriter", () => {
     expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Max attempts reached"),
+      expect.any(Object),
     );
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
