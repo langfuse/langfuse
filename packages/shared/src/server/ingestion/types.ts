@@ -119,6 +119,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  usageDetails: z.record(z.string(), z.number().nullish()).nullish(),
+  costDetails: z.record(z.string(), z.number().nullish()).nullish(),
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -147,6 +149,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  usageDetails: z.record(z.string(), z.number().nullish()).nullish(),
+  costDetails: z.record(z.string(), z.number().nullish()).nullish(),
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {

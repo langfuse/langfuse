@@ -938,14 +938,25 @@ export class IngestionService {
           ? newInputCount + newOutputCount
           : (newInputCount ?? newOutputCount));
 
-      const provided_usage_details: Record<string, number> = {};
+      let provided_usage_details: Record<string, number> = {};
 
       if (newInputCount != null) provided_usage_details.input = newInputCount;
       if (newOutputCount != null)
         provided_usage_details.output = newOutputCount;
       if (newTotalCount != null) provided_usage_details.total = newTotalCount;
 
-      const provided_cost_details: Record<string, number> = {};
+      provided_usage_details = {
+        ...provided_usage_details,
+        ...("usageDetails" in obs.body
+          ? (Object.fromEntries(
+              Object.entries(obs.body.usageDetails ?? {}).filter(
+                ([_, val]) => val != null,
+              ),
+            ) as Record<string, number>)
+          : {}),
+      };
+
+      let provided_cost_details: Record<string, number> = {};
 
       if ("usage" in obs.body) {
         const { inputCost, outputCost, totalCost } = obs.body.usage ?? {};
@@ -954,6 +965,17 @@ export class IngestionService {
         if (outputCost != null) provided_cost_details.output = outputCost;
         if (totalCost != null) provided_cost_details.total = totalCost;
       }
+
+      provided_cost_details = {
+        ...provided_cost_details,
+        ...("costDetails" in obs.body
+          ? (Object.fromEntries(
+              Object.entries(obs.body.costDetails ?? {}).filter(
+                ([_, val]) => val != null,
+              ),
+            ) as Record<string, number>)
+          : {}),
+      };
 
       if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
         logger.warn(
