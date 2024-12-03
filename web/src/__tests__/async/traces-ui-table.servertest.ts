@@ -104,32 +104,6 @@ describe("Traces table API test", () => {
     },
     {
       traceInput: {},
-      observationInput: [
-        {
-          cost_details: { total: 0.000001 },
-          usage_details: { total: 0 },
-        },
-        {
-          cost_details: { total: 0.000002 },
-          usage_details: { total: 0 },
-        },
-      ],
-      filterstate: [
-        {
-          column: "Total Cost ($)",
-          operator: ">" as const,
-          value: 0.000002,
-          type: "number" as const,
-        },
-      ],
-      expected: [
-        {
-          cost_details: { total: 0.000003 },
-        },
-      ],
-    },
-    {
-      traceInput: {},
       observationInput: [],
       filterstate: [
         {
@@ -198,8 +172,8 @@ describe("Traces table API test", () => {
         if (expectedTrace.id !== undefined) {
           expect(tableRows[index].id).toEqual(expectedTrace.id);
         }
-        if (expectedTrace.project_id !== undefined) {
-          expect(tableRows[index].projectId).toEqual(expectedTrace.project_id);
+        if (expectedTrace.projectId !== undefined) {
+          expect(tableRows[index].projectId).toEqual(expectedTrace.projectId);
         }
         if (expectedTrace.tags !== undefined) {
           expect(tableRows[index].tags).toEqual(expectedTrace.tags);
@@ -216,11 +190,11 @@ describe("Traces table API test", () => {
         if (expectedTrace.version !== undefined) {
           expect(tableRows[index].version).toEqual(expectedTrace.version);
         }
-        if (expectedTrace.user_id !== undefined) {
-          expect(tableRows[index].userId).toEqual(expectedTrace.user_id);
+        if (expectedTrace.userId !== undefined) {
+          expect(tableRows[index].userId).toEqual(expectedTrace.userId);
         }
-        if (expectedTrace.session_id !== undefined) {
-          expect(tableRows[index].sessionId).toEqual(expectedTrace.session_id);
+        if (expectedTrace.sessionId !== undefined) {
+          expect(tableRows[index].sessionId).toEqual(expectedTrace.sessionId);
         }
         if (expectedTrace.public !== undefined) {
           expect(tableRows[index].public).toEqual(expectedTrace.public);

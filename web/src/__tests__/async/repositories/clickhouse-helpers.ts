@@ -13,16 +13,6 @@ export const createTraces = async (trace: TraceRecordInsertType[]) => {
   });
 };
 
-export const createObservation = async (
-  observation: ObservationRecordInsertType,
-) => {
-  return await clickhouseClient().insert({
-    table: "observations",
-    format: "JSONEachRow",
-    values: [observation],
-  });
-};
-
 export const createObservations = async (
   observations: ObservationRecordInsertType[],
 ) => {
