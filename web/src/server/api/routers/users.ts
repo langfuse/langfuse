@@ -246,22 +246,25 @@ export const userRouter = createTRPCRouter({
             LIMIT 50
           `;
 
+          const res = result.shift();
+
           return {
             userId: input.userId,
-            firstTrace: result[0]?.firstTrace,
-            lastTrace: result[0]?.lastTrace,
-            totalTraces: result[0]?.totalTraces ?? 0,
-            totalPromptTokens: result[0]?.totalPromptTokens ?? 0,
-            totalCompletionTokens: result[0]?.totalCompletionTokens ?? 0,
-            totalTokens: result[0]?.totalTokens ?? 0,
-            totalObservations: result[0]?.totalObservations ?? 0,
-            sumCalculatedTotalCost: result[0]?.sumCalculatedTotalCost ?? 0,
+            firstTrace: res?.firstTrace,
+            lastTrace: res?.lastTrace,
+            totalTraces: res?.totalTraces ?? 0,
+            totalPromptTokens: res?.totalPromptTokens ?? 0,
+            totalCompletionTokens: res?.totalCompletionTokens ?? 0,
+            totalTokens: res?.totalTokens ?? 0,
+            totalObservations: res?.totalObservations ?? 0,
+            sumCalculatedTotalCost: res?.sumCalculatedTotalCost ?? 0,
           };
         },
         clickhouseExecution: async () => {
           const result = (
             await getUserMetrics(input.projectId, [input.userId])
           ).shift();
+
           return {
             userId: input.userId,
             firstTrace: result?.minTimestamp,
