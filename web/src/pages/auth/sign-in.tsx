@@ -14,7 +14,7 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub, FaGitlab } from "react-icons/fa";
-import { SiOkta, SiAuth0, SiAmazoncognito } from "react-icons/si";
+import { SiOkta, SiAuth0, SiAmazoncognito, SiKeycloak } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -52,6 +52,7 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
+    keycloak: boolean;
     custom:
       | {
           name: string;
@@ -99,6 +100,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_COGNITO_CLIENT_ID !== undefined &&
           env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
           env.AUTH_COGNITO_ISSUER !== undefined,
+        keycloak:
+          env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
+          env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
+          env.AUTH_KEYCLOAK_ISSUER !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -171,14 +176,14 @@ export function SSOButtons({
             </Button>
           )}
           {authProviders.githubEnterprise && (
-              <Button
-                  onClick={() => handleSignIn("github-enterprise")}
-                  variant="secondary"
-                  loading={providerSigningIn === "github-enterprise"}
-              >
-                <FaGithub className="mr-3" size={18} />
-                Github Enterprise
-              </Button>
+            <Button
+              onClick={() => handleSignIn("github-enterprise")}
+              variant="secondary"
+              loading={providerSigningIn === "github-enterprise"}
+            >
+              <FaGithub className="mr-3" size={18} />
+              Github Enterprise
+            </Button>
           )}
           {authProviders.gitlab && (
             <Button
@@ -228,6 +233,18 @@ export function SSOButtons({
             >
               <SiAmazoncognito className="mr-3" size={18} />
               Cognito
+            </Button>
+          )}
+          {authProviders.keycloak && (
+            <Button
+              onClick={() => {
+                capture("sign_in:button_click", { provider: "keycloak" });
+                void signIn("keycloak");
+              }}
+              variant="secondary"
+            >
+              <SiKeycloak className="mr-3" size={18} />
+              Keycloak
             </Button>
           )}
           {authProviders.custom && (

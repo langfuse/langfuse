@@ -1,4 +1,4 @@
-import { createScores } from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import { createScoresCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { getScoreById } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -33,7 +33,7 @@ describe("Clickhouse Scores Repository Test", () => {
       is_deleted: 0,
     };
 
-    await createScores([score]);
+    await createScoresCh([score]);
 
     const result = await getScoreById(projectId, scoreId);
     expect(result).not.toBeNull();

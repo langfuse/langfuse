@@ -6,7 +6,7 @@ import {
   convertObservationToView,
 } from "@langfuse/shared/src/server";
 
-export type QueryType = {
+type QueryType = {
   page: number;
   limit: number;
   projectId: string;

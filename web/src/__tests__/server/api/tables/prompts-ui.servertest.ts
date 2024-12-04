@@ -1,4 +1,4 @@
-import { createObservations } from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import { createObservationsCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationMetricsForPrompts,
@@ -63,7 +63,7 @@ describe("UI Prompts Table", () => {
       id: v4(),
       prompt_name: null,
     };
-    await createObservations([
+    await createObservationsCh([
       observation,
       secondObservation,
       thirdObservation,
@@ -140,7 +140,7 @@ describe("UI Prompts Table", () => {
       prompt_version: 2,
       cost_details: { input: 234, output: 755 },
     };
-    await createObservations([
+    await createObservationsCh([
       observation,
       secondObservation,
       thirdObservation,
