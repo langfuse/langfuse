@@ -30,7 +30,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
-
+  LANGFUSE_ASYNC_INGESTION_PROCESSING: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_CLICKHOUSE_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("true"),

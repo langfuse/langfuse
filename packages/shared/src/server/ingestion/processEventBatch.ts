@@ -185,6 +185,23 @@ export const processEventBatch = async (
     });
   });
 
+  // This is a workaround to allow us to disable async ingestion processing for SDK CI testing
+  // TODO: remove this block after SDKs are ready for V3 async ingestion processing
+  if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "false") {
+    const result = await handleBatch(
+      sortedBatch,
+      authCheck,
+      tokenCountDelegate,
+    );
+
+    //  in case we did not return early, we return the result here
+    return aggregateBatchResult(
+      [...validationErrors, ...authenticationErrors, ...result.errors],
+      result.results,
+      authCheck.scope.projectId,
+    );
+  }
+
   // Send each event individually to IngestionQueue for ClickHouse processing
   if (env.LANGFUSE_CLICKHOUSE_INGESTION_ENABLED === "true") {
     if (s3UploadErrored) {
