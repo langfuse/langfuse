@@ -100,9 +100,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       tableName,
       clickhouseSession,
     );
-    logger.info(
-      `Fetched ${scores.length} scores for dataset runs with ids ${scores.map((s) => JSON.stringify({ id: s.id, runId: s.run_id, v: s.value, tr: s.traceId })).join(", ")}`,
-    );
 
     const obsAgg = await getObservationLatencyAndCostForDataset(
       input,
