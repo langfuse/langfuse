@@ -15,9 +15,19 @@ export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
-  const evaluatorCount = api.evals.allConfigs.useQuery({
+
+  // only fetched first page to get count of active evaluators
+  // ok as this includes the first 50 active evaluators
+  const evaluatorsFirstPage = api.evals.allConfigs.useQuery({
     projectId,
-  }).data?.totalCount;
+    page: 0,
+    limit: 50,
+  });
+  console.log("evaluatorsFirstPage", evaluatorsFirstPage.data);
+  const evaluatorCountFirstPage = evaluatorsFirstPage.data?.configs.filter(
+    (e) => e.status === "ACTIVE",
+  ).length;
+
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
   );
@@ -51,7 +61,7 @@ export default function EvaluatorsPage() {
             variant="secondary"
             onClick={() => capture("eval_config:new_form_open")}
             href={`/project/${projectId}/evals/new`}
-            limitValue={evaluatorCount ?? 0}
+            limitValue={evaluatorCountFirstPage ?? 0}
             limit={evaluatorLimit}
           >
             New evaluator
