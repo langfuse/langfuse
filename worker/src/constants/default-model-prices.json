@@ -7,7 +7,7 @@
     "updated_at": "2024-12-03T10:12:31.000Z",
     "prices": {
       "input": 2.5e-6,
-      "input_cached": 1.25e-6,
+      "input_cached_tokens": 1.25e-6,
       "output": 10e-6
     },
     "tokenizer_config": {
@@ -1020,7 +1020,7 @@
     "prices": {
       "input": 0.15e-6,
       "output": 0.6e-6,
-      "input_cached": 0.075e-6
+      "input_cached_tokens": 0.075e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1037,7 +1037,7 @@
     "updated_at": "2024-12-03T10:31:11.000Z",
     "prices": {
       "input": 0.15e-6,
-      "input_cached": 0.075e-6,
+      "input_cached_tokens": 0.075e-6,
       "output": 0.6e-6
     },
     "tokenizer_config": {
@@ -1055,7 +1055,7 @@
     "updated_at": "2024-12-03T10:15:18.000Z",
     "prices": {
       "input": 2.5e-6,
-      "input_cached": 1.25e-6,
+      "input_cached_tokens": 1.25e-6,
       "output": 10e-6
     },
     "tokenizer_config": {
@@ -1073,9 +1073,9 @@
     "updated_at": "2024-12-03T10:34:05.000Z",
     "prices": {
       "input": 15e-6,
-      "input_cached": 7.5e-6,
+      "input_cached_tokens": 7.5e-6,
       "output": 60e-6,
-      "output_reasoning": 60e-6
+      "output_reasoning_tokens": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1088,9 +1088,9 @@
     "updated_at": "2024-12-03T10:38:51.000Z",
     "prices": {
       "input": 15e-6,
-      "input_cached": 7.5e-6,
+      "input_cached_tokens": 7.5e-6,
       "output": 60e-6,
-      "output_reasoning": 60e-6
+      "output_reasoning_tokens": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1103,9 +1103,9 @@
     "updated_at": "2024-12-03T10:41:55.000Z",
     "prices": {
       "input": 3e-6,
-      "input_cached": 1.5e-6,
+      "input_cached_tokens": 1.5e-6,
       "output": 12e-6,
-      "output_reasoning": 12e-6
+      "output_reasoning_tokens": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1118,9 +1118,9 @@
     "updated_at": "2024-12-03T10:43:16.000Z",
     "prices": {
       "input": 3e-6,
-      "input_cached": 1.5e-6,
+      "input_cached_tokens": 1.5e-6,
       "output": 12e-6,
-      "output_reasoning": 12e-6
+      "output_reasoning_tokens": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1210,7 +1210,7 @@
     "updated_at": "2024-12-03T10:06:12.000Z",
     "prices": {
       "input": 2.5e-6,
-      "input_cached": 1.25e-6,
+      "input_cached_tokens": 1.25e-6,
       "output": 10e-6
     },
     "tokenizer_config": {
@@ -1227,10 +1227,10 @@
     "created_at": "2024-12-03T10:19:56.000Z",
     "updated_at": "2024-12-03T10:19:56.000Z",
     "prices": {
-      "input_text": 2.5e-6,
-      "output_text": 10e-6,
-      "input_audio": 100e-6,
-      "output_audio": 200e-6
+      "input_text_tokens": 2.5e-6,
+      "output_text_tokens": 10e-6,
+      "input_audio_tokens": 100e-6,
+      "output_audio_tokens": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1242,10 +1242,10 @@
     "created_at": "2024-12-03T10:19:56.000Z",
     "updated_at": "2024-12-03T10:19:56.000Z",
     "prices": {
-      "input_text": 2.5e-6,
-      "output_text": 10e-6,
-      "input_audio": 100e-6,
-      "output_audio": 200e-6
+      "input_text_tokens": 2.5e-6,
+      "output_text_tokens": 10e-6,
+      "input_audio_tokens": 100e-6,
+      "output_audio_tokens": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1257,12 +1257,12 @@
     "created_at": "2024-12-03T10:19:56.000Z",
     "updated_at": "2024-12-03T10:19:56.000Z",
     "prices": {
-      "input_text": 5e-6,
-      "input_text_cached": 2.5e-6,
-      "output_text": 20e-6,
-      "input_audio": 100e-6,
-      "input_audio_cached": 20e-6,
-      "output_audio": 200e-6
+      "input_text_tokens": 5e-6,
+      "input_cached_text_tokens": 2.5e-6,
+      "output_text_tokens": 20e-6,
+      "input_audio_tokens": 100e-6,
+      "input_cached_audio_tokens": 20e-6,
+      "output_audio_tokens": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1274,12 +1274,12 @@
     "created_at": "2024-12-03T10:19:56.000Z",
     "updated_at": "2024-12-03T10:19:56.000Z",
     "prices": {
-      "input_text": 5e-6,
-      "input_text_cached": 2.5e-6,
-      "output_text": 20e-6,
-      "input_audio": 100e-6,
-      "input_audio_cached": 20e-6,
-      "output_audio": 200e-6
+      "input_text_tokens": 5e-6,
+      "input_cached_text_tokens": 2.5e-6,
+      "output_text_tokens": 20e-6,
+      "input_audio_tokens": 100e-6,
+      "input_cached_audio_tokens": 20e-6,
+      "output_audio_tokens": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
