@@ -12,6 +12,7 @@ import {
   type Trace,
 } from "@langfuse/shared";
 import { snakeCase } from "lodash";
+import { JsonValue } from "@prisma/client/runtime/binary";
 
 type QueryType = {
   page: number;
@@ -133,9 +134,10 @@ export const generateTracesForPublicApi = async (
 
   return result.map((trace) => ({
     ...trace,
+    // Parse metadata values to JSON and make TypeScript happy
     metadata: convertRecordToJsonSchema(
       (trace.metadata as Record<string, string>) || {},
-    ),
+    ) as JsonValue,
   }));
 };
 
