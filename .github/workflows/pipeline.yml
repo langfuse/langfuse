@@ -139,6 +139,8 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run test-sync
         run: pnpm --filter=web run test-sync
+      - name: run test-client
+        run: pnpm --filter=web run test-client
 
   tests-web-async:
     timeout-minutes: 20
