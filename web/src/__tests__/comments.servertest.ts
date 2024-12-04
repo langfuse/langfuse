@@ -107,7 +107,7 @@ describe("Create and get comments", () => {
         "POST",
         "/api/public/comments",
         {
-          content: null,
+          content: "",
           objectId: traceId,
           objectType: "TRACE",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -115,7 +115,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 404, body {\"message\":\"No trace with id invalid-trace-id in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a\",\"error\":\"LangfuseNotFoundError\"}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"too_small\",\"minimum\":1,\"type\":\"string\",\"inclusive\":true,\"exact\":false,\"message\":\"String must contain at least 1 character(s)\",\"path\":[\"content\"]}]}`,
       );
     }
   });
@@ -150,7 +150,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 404, body {\"message\":\"No trace with id invalid-trace-id in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a\",\"error\":\"LangfuseNotFoundError\"}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"too_big\",\"maximum\":3000,\"type\":\"string\",\"inclusive\":true,\"exact\":false,\"message\":\"String must contain at most 3000 character(s)\",\"path\":[\"content\"]}]}`,
       );
     }
   });
