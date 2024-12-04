@@ -100,9 +100,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       tableName,
       clickhouseSession,
     );
-    logger.info(
-      `Fetched ${scores.length} scores for dataset runs with ids ${scores.map((s) => JSON.stringify({ id: s.id, runId: s.run_id, v: s.value, tr: s.traceId })).join(", ")}`,
-    );
 
     const obsAgg = await getObservationLatencyAndCostForDataset(
       input,
@@ -264,7 +261,7 @@ const getScoresFromTempTable = async (
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      LIMIT 1 BY s.id, s.project_id, tmp.run_id
       SETTINGS select_sequential_consistency = 1;
   `;
 
