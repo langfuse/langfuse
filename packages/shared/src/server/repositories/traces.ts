@@ -630,59 +630,95 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
   if (userIds.length === 0) {
     return [];
   }
+  // this query uses window functions on observations + traces to always get only the first row and thereby remove deduplicates
+  // we filter wherever possible by project id and user id
   const query = `
-    WITH observations_agg AS (
-      SELECT o.trace_id,
-             count(*) as obs_count,
-             sumMap(usage_details) as sum_usage_details,
-             sum(total_cost) as sum_total_cost,
-             anyLast(project_id) as project_id
-      FROM observations o FINAL
-      WHERE o.project_id = {projectId: String}
-      GROUP BY o.trace_id
-    ),
-    user_metric_data AS (
-      SELECT t.user_id,
-             max(t.timestamp) as max_timestamp,
-             min(t.timestamp) as min_timestamp,
-             count(*) as trace_count,
-             sum(o.obs_count) as total_observations,
-             sum(o.sum_total_cost) as session_total_cost,
-             sumMap(o.sum_usage_details)['input'] as session_input_usage,
-             sumMap(o.sum_usage_details)['output'] as session_output_usage,
-             sumMap(o.sum_usage_details)['total'] as session_total_usage
-      FROM traces t FINAL
-      LEFT JOIN observations_agg o
-      ON t.id = o.trace_id 
-      AND t.project_id = o.project_id
-      WHERE t.user_id IS NOT NULL
-      AND t.user_id != ''
-      AND t.user_id IN ({userIds: Array(String)})
-      AND t.project_id = {projectId: String}
-      GROUP BY t.user_id
+      WITH stats as (
+        SELECT
+            t.user_id as user_id,
+            count(distinct o.id) as obs_count,
+            sumMap(usage_details) as sum_usage_details,
+            sum(total_cost) as sum_total_cost,
+            max(t.timestamp) as max_timestamp,
+            min(t.timestamp) as min_timestamp,
+            count(distinct t.id) as trace_count
+        FROM
+            (
+                SELECT
+                    o.project_id,
+                    o.trace_id,
+                    o.usage_details,
+                    o.total_cost,
+                    id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id
+                        ORDER BY
+                            event_ts DESC
+                    ) AS rn
+                FROM
+                    observations o
+                WHERE
+                    o.project_id = {projectId: String }
+                    AND o.trace_id in (
+                        SELECT
+                            distinct id
+                        from
+                            traces
+                        where
+                            user_id IN ({userIds: Array(String) })
+                            AND project_id = {projectId: String }
+                    )
+                    AND o.type = 'GENERATION'
+            ) as o
+            JOIN (
+                SELECT
+                    t.id,
+                    t.user_id,
+                    t.project_id,
+                    t.timestamp,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id
+                        ORDER BY
+                            event_ts DESC
+                    ) AS rn
+                FROM
+                    traces t
+                WHERE
+                    t.user_id IN ({userIds: Array(String) })
+                    AND t.project_id = {projectId: String }
+            ) as t on t.id = o.trace_id
+            and t.project_id = o.project_id
+        WHERE
+            o.rn = 1
+            and t.rn = 1
+        group by
+            t.user_id
     )
-    SELECT user_id AS userId,
-           min_timestamp as firstTrace,
-           max_timestamp as lastTrace,
-           trace_count as totalTraces,
-           total_observations as totalObservations,
-           session_input_usage as totalPromptTokens,
-           session_output_usage as totalCompletionTokens,
-           session_total_usage as totalTokens,
-           session_total_cost as sumCalculatedTotalCost
-    FROM user_metric_data umd
+    SELECT
+        sum_usage_details [ 'input' ] as input_usage,
+        sum_usage_details [ 'output' ] as output_usage,
+        sum_usage_details [ 'total' ] as total_usage,
+        obs_count,
+        trace_count,
+        user_id,
+        sum_total_cost,
+        max_timestamp,
+        min_timestamp
+    FROM
+        stats
+
   `;
 
-  return queryClickhouse<{
-    userId: string;
-    firstTrace: Date | null;
-    lastTrace: Date | null;
-    totalPromptTokens: bigint;
-    totalCompletionTokens: bigint;
-    totalTokens: bigint;
-    totalObservations: bigint;
-    totalTraces: bigint;
-    sumCalculatedTotalCost: number;
+  const rows = await queryClickhouse<{
+    user_id: string;
+    max_timestamp: string | null;
+    min_timestamp: string | null;
+    input_usage: bigint;
+    output_usage: bigint;
+    total_usage: bigint;
+    obs_count: bigint;
+    trace_count: bigint;
+    sum_total_cost: number;
   }>({
     query,
     params: {
@@ -690,4 +726,19 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
       userIds,
     },
   });
+  return rows.map((row) => ({
+    userId: row.user_id,
+    maxTimestamp: row.max_timestamp
+      ? parseClickhouseUTCDateTimeFormat(row.max_timestamp)
+      : null,
+    minTimestamp: row.min_timestamp
+      ? parseClickhouseUTCDateTimeFormat(row.min_timestamp)
+      : null,
+    inputUsage: row.input_usage,
+    outputUsage: row.output_usage,
+    totalUsage: row.total_usage,
+    observationCount: row.obs_count,
+    traceCount: row.trace_count,
+    totalCost: row.sum_total_cost,
+  }));
 };

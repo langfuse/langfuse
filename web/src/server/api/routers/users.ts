@@ -182,7 +182,19 @@ export const userRouter = createTRPCRouter({
           if (input.userIds.length === 0) {
             return [];
           }
-          return getUserMetrics(input.projectId, input.userIds);
+          const metrics = await getUserMetrics(input.projectId, input.userIds);
+
+          return metrics.map((metric) => ({
+            userId: metric.userId,
+            firstTrace: metric.minTimestamp,
+            lastTrace: metric.maxTimestamp,
+            totalPromptTokens: metric.inputUsage,
+            totalCompletionTokens: metric.outputUsage,
+            totalTokens: metric.totalUsage,
+            totalObservations: metric.observationCount,
+            totalTraces: metric.traceCount,
+            sumCalculatedTotalCost: metric.totalCost,
+          }));
         },
       });
     }),
@@ -252,14 +264,14 @@ export const userRouter = createTRPCRouter({
           ).shift();
           return {
             userId: input.userId,
-            firstTrace: result?.firstTrace,
-            lastTrace: result?.lastTrace,
-            totalTraces: result?.totalTraces ?? 0,
-            totalPromptTokens: result?.totalPromptTokens ?? 0,
-            totalCompletionTokens: result?.totalCompletionTokens ?? 0,
-            totalTokens: result?.totalTokens ?? 0,
-            totalObservations: result?.totalObservations ?? 0,
-            sumCalculatedTotalCost: result?.sumCalculatedTotalCost ?? 0,
+            firstTrace: result?.minTimestamp,
+            lastTrace: result?.maxTimestamp,
+            totalTraces: result?.traceCount ?? 0,
+            totalPromptTokens: result?.inputUsage ?? 0,
+            totalCompletionTokens: result?.outputUsage ?? 0,
+            totalTokens: result?.totalUsage ?? 0,
+            totalObservations: result?.observationCount ?? 0,
+            sumCalculatedTotalCost: result?.totalCost ?? 0,
           };
         },
       });
