@@ -56,6 +56,10 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
+export const UsageOrCostDetails = z
+  .record(z.string(), z.number().nonnegative().nullish())
+  .nullish();
+
 export const TraceBody = z.object({
   id: z.string().nullish(),
   timestamp: stringDateTime,
@@ -119,12 +123,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: z
-    .record(z.string(), z.number().nonnegative().nullish())
-    .nullish(),
-  costDetails: z
-    .record(z.string(), z.number().nonnegative().nullish())
-    .nullish(),
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -153,12 +153,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: z
-    .record(z.string(), z.number().nonnegative().nullish())
-    .nullish(),
-  costDetails: z
-    .record(z.string(), z.number().nonnegative().nullish())
-    .nullish(),
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -310,6 +306,8 @@ export const LegacyObservationBody = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
