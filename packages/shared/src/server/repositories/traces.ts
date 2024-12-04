@@ -734,11 +734,11 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     minTimestamp: row.min_timestamp
       ? parseClickhouseUTCDateTimeFormat(row.min_timestamp)
       : null,
-    inputUsage: row.input_usage,
-    outputUsage: row.output_usage,
-    totalUsage: row.total_usage,
-    observationCount: row.obs_count,
-    traceCount: row.trace_count,
-    totalCost: row.sum_total_cost,
+    inputUsage: Number(row.input_usage),
+    outputUsage: Number(row.output_usage),
+    totalUsage: Number(row.total_usage),
+    observationCount: Number(row.obs_count),
+    traceCount: Number(row.trace_count),
+    totalCost: Number(row.sum_total_cost),
   }));
 };
