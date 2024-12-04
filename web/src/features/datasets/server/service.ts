@@ -101,10 +101,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       clickhouseSession,
     );
 
-    logger.info(
-      `Fetched ${scores.length} scores for dataset runs with ids ${scores.map((s) => s.id).join(", ")}`,
-    );
-
     const obsAgg = await getObservationLatencyAndCostForDataset(
       input,
       tableName,
