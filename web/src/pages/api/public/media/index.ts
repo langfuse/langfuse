@@ -108,12 +108,7 @@ export default withMiddlewares({
                   const mediaId = existingMedia?.id ?? randomUUID();
                   span.setAttribute("mediaId", mediaId);
 
-                  if (
-                    !(
-                      env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED === "true" &&
-                      env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
-                    )
-                  )
+                  if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
                     throw new InternalServerError(
                       "Media upload to blob storage not enabled or no bucket configured",
                     );

@@ -46,7 +46,10 @@ export const env = createEnv({
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
-    LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional().default("false"),
+    LANGFUSE_CSP_ENFORCE_HTTPS: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
     // AUTH
@@ -188,9 +191,6 @@ export const env = createEnv({
       .positive()
       .int()
       .default(1_000_000_000),
-    LANGFUSE_S3_MEDIA_UPLOAD_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -399,8 +399,6 @@ export const env = createEnv({
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
       process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
-    LANGFUSE_S3_MEDIA_UPLOAD_ENABLED:
-      process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED,
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:
