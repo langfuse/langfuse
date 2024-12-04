@@ -12,7 +12,7 @@ import {
   type Trace,
 } from "@langfuse/shared";
 import { snakeCase } from "lodash";
-import { JsonValue } from "@prisma/client/runtime/binary";
+import { type JsonValue } from "@prisma/client/runtime/binary";
 
 type QueryType = {
   page: number;
