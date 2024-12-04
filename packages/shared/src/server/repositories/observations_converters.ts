@@ -25,10 +25,7 @@ export const convertObservationToView = (
       ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
-    timeToFirstToken: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
-      : null,
+
     promptName: record.prompt_name ?? null,
     promptVersion: record.prompt_version ?? null,
     modelId: record.internal_model_id ?? null,
@@ -108,8 +105,10 @@ export const convertObservation = (
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
     timeToFirstToken: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(record.start_time).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.completion_start_time).getTime()
+      ? parseClickhouseUTCDateTimeFormat(
+          record.completion_start_time,
+        ).getTime() -
+        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
   };
 };

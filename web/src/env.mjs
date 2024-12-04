@@ -47,7 +47,6 @@ export const env = createEnv({
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
     LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional().default("false"),
-    LANGFUSE_CSP_DISABLE: z.enum(["true", "false"]).optional().default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
     // AUTH
@@ -84,6 +83,10 @@ export const env = createEnv({
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_KEYCLOAK_CLIENT_ID: z.string().optional(),
+    AUTH_KEYCLOAK_CLIENT_SECRET: z.string().optional(),
+    AUTH_KEYCLOAK_ISSUER: z.string().optional(),
+    AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.string().url().optional(),
@@ -301,7 +304,6 @@ export const env = createEnv({
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
-    LANGFUSE_CSP_DISABLE: process.env.LANGFUSE_CSP_DISABLE,
     TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
     // Default org, project and role
     LANGFUSE_DEFAULT_ORG_ID: process.env.LANGFUSE_DEFAULT_ORG_ID,
@@ -351,6 +353,11 @@ export const env = createEnv({
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
+    AUTH_KEYCLOAK_CLIENT_ID: process.env.AUTH_KEYCLOAK_CLIENT_ID,
+    AUTH_KEYCLOAK_CLIENT_SECRET: process.env.AUTH_KEYCLOAK_CLIENT_SECRET,
+    AUTH_KEYCLOAK_ISSUER: process.env.AUTH_KEYCLOAK_ISSUER,
+    AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,

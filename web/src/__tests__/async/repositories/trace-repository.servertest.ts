@@ -1,4 +1,4 @@
-import { createTraces } from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import { createTracesCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getTraceById,
@@ -39,7 +39,7 @@ describe("Clickhouse Traces Repository Test", () => {
       is_deleted: 0,
     };
 
-    await createTraces([trace]);
+    await createTracesCh([trace]);
 
     const result = await getTraceById(
       traceId,
@@ -90,7 +90,7 @@ describe("Clickhouse Traces Repository Test", () => {
       is_deleted: 0,
     };
 
-    await createTraces([trace]);
+    await createTracesCh([trace]);
 
     const result = await getTraceById(traceId, projectId);
     expect(result).not.toBeNull();
@@ -154,7 +154,7 @@ describe("Clickhouse Traces Repository Test", () => {
       is_deleted: 0,
     };
 
-    await createTraces([trace1, trace2]);
+    await createTracesCh([trace1, trace2]);
 
     const results = await getTracesBySessionId(projectId, [sessionId]);
     expect(results).toHaveLength(2);
