@@ -14,6 +14,7 @@ import {
   MethodNotAllowedError,
   BaseError,
   UnauthorizedError,
+  RateLimitError,
 } from "@langfuse/shared";
 import { instrumentSync, processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -78,6 +79,10 @@ export default async function handler(
 
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
+    }
+
+    if (authCheck.abovePlanIngestionUsage) {
+      throw new RateLimitError("Plan ingestion limit exceeded");
     }
 
     try {

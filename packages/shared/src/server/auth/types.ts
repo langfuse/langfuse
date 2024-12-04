@@ -16,6 +16,7 @@ export const OrgEnrichedApiKey = z.object({
   orgId: z.string(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
+  cloudAbovePlanIngestionLimit: z.boolean(),
 });
 
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";
@@ -35,6 +36,7 @@ export type AuthHeaderVerificationResult =
 export type AuthHeaderValidVerificationResult = {
   validKey: true;
   scope: ApiAccessScope;
+  abovePlanIngestionUsage?: boolean;
 };
 
 export type ApiAccessScope = {
