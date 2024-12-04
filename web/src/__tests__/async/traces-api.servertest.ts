@@ -129,7 +129,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.name).toBe("trace-name");
     expect(trace.release).toBe("1.0.0");
     expect(trace.metadata.key).toBe("value");
-    expect(JSON.stringify(trace.metadata.jsonKey)).toBe(
+    expect(trace.metadata.jsonKey).toEqual({ foo: "bar" });
       JSON.stringify({ foo: "bar" }),
     );
     expect(trace.externalId).toBeNull();
