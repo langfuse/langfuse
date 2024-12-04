@@ -130,8 +130,6 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.release).toBe("1.0.0");
     expect(trace.metadata.key).toBe("value");
     expect(trace.metadata.jsonKey).toEqual({ foo: "bar" });
-      JSON.stringify({ foo: "bar" }),
-    );
     expect(trace.externalId).toBeNull();
     expect(trace.version).toBe("2.0.0");
     expect(trace.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
