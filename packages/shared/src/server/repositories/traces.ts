@@ -713,12 +713,12 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     user_id: string;
     max_timestamp: string | null;
     min_timestamp: string | null;
-    input_usage: bigint;
-    output_usage: bigint;
-    total_usage: bigint;
-    obs_count: bigint;
-    trace_count: bigint;
-    sum_total_cost: number;
+    input_usage: string;
+    output_usage: string;
+    total_usage: string;
+    obs_count: string;
+    trace_count: string;
+    sum_total_cost: string;
   }>({
     query,
     params: {
