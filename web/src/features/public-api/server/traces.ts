@@ -6,8 +6,13 @@ import {
   orderByToClickhouseSql,
   type DateTimeFilter,
 } from "@langfuse/shared/src/server";
-import { type OrderByState, type Trace } from "@langfuse/shared";
+import {
+  convertRecordToJsonSchema,
+  type OrderByState,
+  type Trace,
+} from "@langfuse/shared";
 import { snakeCase } from "lodash";
+import { type JsonValue } from "@prisma/client/runtime/binary";
 
 type QueryType = {
   page: number;
@@ -102,7 +107,7 @@ export const generateTracesForPublicApi = async (
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  return queryClickhouse<
+  const result = await queryClickhouse<
     Trace & {
       observations: string[];
       scores: string[];
@@ -126,6 +131,14 @@ export const generateTracesForPublicApi = async (
         : {}),
     },
   });
+
+  return result.map((trace) => ({
+    ...trace,
+    // Parse metadata values to JSON and make TypeScript happy
+    metadata: convertRecordToJsonSchema(
+      (trace.metadata as Record<string, string>) || {},
+    ) as JsonValue,
+  }));
 };
 
 export const getTracesCountForPublicApi = async (props: QueryType) => {
