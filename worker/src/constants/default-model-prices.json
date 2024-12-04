@@ -1177,5 +1177,22 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm48akqgo000008ldbia24qg0",
+    "model_name": "gpt-4o-2024-11-20",
+    "match_pattern": "(?i)^(gpt-4o-2024-11-20)$",
+    "created_at": "2024-12-03T10:06:12.000Z",
+    "updated_at": "2024-12-03T10:06:12.000Z",
+    "prices": {
+      "input": 2.5e-6,
+      "output": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4o",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
   }
 ]
