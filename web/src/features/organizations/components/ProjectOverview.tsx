@@ -134,16 +134,22 @@ const SingleOrganizationProjectOverview = ({
               <CardHeader>
                 <CardTitle className="text-base">{project.name}</CardTitle>
               </CardHeader>
-              <CardFooter className="gap-2">
-                <Button asChild variant="secondary">
-                  <Link href={`/project/${project.id}`}>Go to project</Link>
-                </Button>
-                <Button asChild variant="ghost">
-                  <Link href={`/project/${project.id}/settings`}>
-                    <Settings size={16} />
-                  </Link>
-                </Button>
-              </CardFooter>
+              {!project.deletedAt ? (
+                <CardFooter className="gap-2">
+                  <Button asChild variant="secondary">
+                    <Link href={`/project/${project.id}`}>Go to project</Link>
+                  </Button>
+                  <Button asChild variant="ghost">
+                    <Link href={`/project/${project.id}/settings`}>
+                      <Settings size={16} />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              ) : (
+                <CardContent>
+                  <CardDescription>Project is being deleted</CardDescription>
+                </CardContent>
+              )}
             </Card>
           ))}
       </div>
