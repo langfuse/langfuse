@@ -24,7 +24,7 @@ const serverTestConfig = {
 const asyncServerTestConfig = {
   displayName: "async-server",
   testPathIgnorePatterns: ["__e2e__"],
-  testMatch: ["/**/async/*.servertest.[jt]s?(x)"],
+  testMatch: ["/**/async/**/*.servertest.[jt]s?(x)"],
   testEnvironment: "jest-environment-node",
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
   globalTeardown: "<rootDir>/src/__tests__/teardown.ts",

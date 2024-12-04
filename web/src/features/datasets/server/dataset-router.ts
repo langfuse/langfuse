@@ -13,6 +13,8 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import {
+  type PrismaClient,
+  type ScoreAggregate,
   type ScoreSimplified,
   filterAndValidateDbScoreList,
   paginationZod,
@@ -21,6 +23,7 @@ import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   createDatasetRunsTable,
+  createDatasetRunsTableWithoutMetrics,
   datasetRunsTableSchema,
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
@@ -165,132 +168,14 @@ export const datasetRouter = createTRPCRouter({
         operation: "datasets.runsByDatasetId",
         user: ctx.session.user,
         pgExecution: async () => {
-          const scoresByRunId = await ctx.prisma.$queryRaw<
-            Array<{ scores: Array<ScoreSimplified>; runId: string }>
-          >(Prisma.sql`
-        SELECT
-          runs.id "runId",
-          array_agg(s.score) AS "scores"
-        FROM
-          dataset_runs runs
-          JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
-          LEFT JOIN LATERAL (
-              SELECT
-              jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
-              FROM
-                dataset_run_items ri
-                JOIN scores s 
-                  ON s.trace_id = ri.trace_id 
-                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
-                  AND s.project_id = ${input.projectId}
-                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
-              WHERE 
-                ri.project_id = ${input.projectId}
-                AND ri.dataset_run_id = runs.id
-          ) s ON true
-        WHERE 
-          runs.dataset_id = ${input.datasetId}
-          AND runs.project_id = ${input.projectId}
-          AND s.score IS NOT NULL
-        GROUP BY
-          runs.id
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
-      `);
+          return await runsByDatasetIdPg(ctx.prisma, input);
+        },
+        clickhouseExecution: async () => {
+          // we cannot easily join all the tracing data with the dataset run items
+          // hence, we pull the trace_ids and observation_ids separately for all run items
+          // afterwards, we aggregate them per run
 
-          const runs = await ctx.prisma.$queryRaw<
-            Array<
-              DatasetRuns & {
-                avgLatency: number;
-                avgTotalCost: Prisma.Decimal;
-                countRunItems: number;
-              }
-            >
-          >(Prisma.sql`
-        SELECT
-          runs.id,
-          runs.name,
-          runs.description,
-          runs.metadata,
-          runs.created_at "createdAt",
-          runs.updated_at "updatedAt",
-          COALESCE(o_latency_and_total_cost. "o_avgLatency", t_latency_and_total_cost."t_avgLatency", 0) "avgLatency",
-          COALESCE(o_latency_and_total_cost. "o_avgTotalCost", t_latency_and_total_cost."t_avgTotalCost", 0) "avgTotalCost",
-          COALESCE(run_items_count.count, 0)::int "countRunItems"
-        FROM
-          dataset_runs runs
-          JOIN datasets ON datasets.id = runs.dataset_id
-            AND datasets.project_id = ${input.projectId}
-            
-          -- Add average latency and cost if a run's items are linked to observations 
-          -- LIMITATION: this will only work if all items for a given run are linked to either observations or traces
-          -- If a run has items linked to both observations and traces, the average latency and cost will be incorrect as only those from the observations will be used
-          LEFT JOIN LATERAL (
-            SELECT
-              AVG(o.latency) AS "o_avgLatency",
-              AVG(COALESCE(o.calculated_total_cost, 0)) AS "o_avgTotalCost"
-            FROM
-              dataset_run_items ri
-              JOIN observations_view o ON o.id = ri.observation_id
-                AND o.project_id = ${input.projectId}
-            WHERE
-              ri.project_id = ${input.projectId}
-              AND ri.dataset_run_id = runs.id) o_latency_and_total_cost ON TRUE
-              
-          -- Add average latency and cost if run's items are linked to traces
-          LEFT JOIN LATERAL (
-            -- Average across run items. One run has many items
-            SELECT
-              AVG(trace_latency_cost.duration) AS "t_avgLatency", 
-              AVG(trace_latency_cost.total_cost) AS "t_avgTotalCost"
-            FROM
-              dataset_run_items ri
-              LEFT JOIN LATERAL (
-                -- Latency and cost for a run item's trace
-                SELECT
-                  t.id,
-                  o.duration,
-                  o.total_cost 
-                FROM
-                  traces t
-                  LEFT JOIN LATERAL (
-                    -- Latency and cost across a trace's observations
-                    SELECT
-                      EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
-                      SUM(COALESCE(o1.calculated_total_cost, 0)) AS total_cost
-                    FROM
-                      -- Use observations_view as cost are not backfilled for self-hosters. Once V3 is migration is done, we can use observations instead
-                      observations_view o1
-                    WHERE
-                      o1.project_id = ${input.projectId}
-                      AND o1.trace_id = t.id
-                    GROUP BY
-                      o1.project_id,
-                      o1.trace_id) o ON TRUE
-                  WHERE
-                    t.project_id = ${input.projectId}
-                    AND t.id = ri.trace_id) trace_latency_cost ON TRUE
-                WHERE
-                  ri.project_id = ${input.projectId}
-                  AND ri.dataset_run_id = runs.id) t_latency_and_total_cost ON TRUE
-                  
-          -- Add run item counts
-          LEFT JOIN LATERAL (
-            SELECT
-              count(*) AS count
-            FROM
-              dataset_run_items ri
-            WHERE
-              ri.dataset_run_id = runs.id
-              AND ri.project_id = ${input.projectId}) run_items_count ON TRUE
-        WHERE
-          runs.dataset_id = ${input.datasetId}
-          AND runs.project_id = ${input.projectId}
-        ORDER BY
-          runs.created_at DESC
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
-      `);
+          const runs = await createDatasetRunsTableWithoutMetrics(input);
 
           const totalRuns = await ctx.prisma.datasetRuns.count({
             where: {
@@ -301,15 +186,20 @@ export const datasetRouter = createTRPCRouter({
 
           return {
             totalRuns,
-            runs: runs.map((run) => ({
-              ...run,
-              scores: aggregateScores(
-                scoresByRunId.flatMap((s) =>
-                  s.runId === run.id ? s.scores : [],
-                ),
-              ),
-            })),
+            runs,
           };
+        },
+      });
+    }),
+  runsByDatasetIdMetrics: protectedProjectProcedure
+    .input(datasetRunsTableSchema)
+    .query(async ({ input, ctx }) => {
+      return await measureAndReturnApi({
+        input,
+        operation: "datasets.runsByDatasetId",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          return await runsByDatasetIdPg(ctx.prisma, input);
         },
         clickhouseExecution: async () => {
           // we cannot easily join all the tracing data with the dataset run items
@@ -805,19 +695,7 @@ export const datasetRouter = createTRPCRouter({
             where: {
               projectId: ctx.session.projectId,
               traceId: {
-                in: runItems
-                  .filter((ri) => ri.observationId === null) // only include trace scores if run is not linked to an observation
-                  .map((ri) => ri.traceId),
-              },
-            },
-          });
-          const observationScores = await ctx.prisma.score.findMany({
-            where: {
-              projectId: ctx.session.projectId,
-              observationId: {
-                in: runItems
-                  .filter((ri) => ri.observationId !== null)
-                  .map((ri) => ri.observationId) as string[],
+                in: runItems.map((ri) => ri.traceId),
               },
             },
           });
@@ -878,10 +756,6 @@ export const datasetRouter = createTRPCRouter({
             traceScores,
             traceException,
           );
-          const validatedObservationScores = filterAndValidateDbScoreList(
-            observationScores,
-            traceException,
-          );
 
           const items = runItems.map((ri) => {
             return {
@@ -890,16 +764,9 @@ export const datasetRouter = createTRPCRouter({
               datasetItemId: ri.datasetItemId,
               observation: observations.find((o) => o.id === ri.observationId),
               trace: traces.find((t) => t.id === ri.traceId),
-              scores: aggregateScores([
-                ...validatedTraceScores.filter(
-                  (s) => s.traceId === ri.traceId && ri.observationId === null,
-                ),
-                ...validatedObservationScores.filter(
-                  (s) =>
-                    s.observationId === ri.observationId &&
-                    s.traceId === ri.traceId,
-                ),
-              ]),
+              scores: aggregateScores(
+                validatedTraceScores.filter((s) => s.traceId === ri.traceId),
+              ),
             };
           });
 
@@ -984,3 +851,158 @@ export const datasetRouter = createTRPCRouter({
       return deletedDatasetRun;
     }),
 });
+
+async function runsByDatasetIdPg(
+  prisma: PrismaClient,
+  input: {
+    projectId: string;
+    datasetId: string;
+    queryClickhouse: boolean;
+    page: number;
+    limit: number;
+  },
+) {
+  const scoresByRunId = await prisma.$queryRaw<
+    Array<{ scores: Array<ScoreSimplified>; runId: string }>
+  >(Prisma.sql`
+        SELECT
+          runs.id "runId",
+          array_agg(s.score) AS "scores"
+        FROM
+          dataset_runs runs
+          JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
+          LEFT JOIN LATERAL (
+              SELECT
+              jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
+              FROM
+                dataset_run_items ri
+                JOIN scores s 
+                  ON s.trace_id = ri.trace_id 
+                  AND (ri.observation_id IS NULL OR s.observation_id = ri.observation_id)
+                  AND s.project_id = ${input.projectId}
+                JOIN traces t ON t.id = s.trace_id AND t.project_id = ${input.projectId}
+              WHERE 
+                ri.project_id = ${input.projectId}
+                AND ri.dataset_run_id = runs.id
+          ) s ON true
+        WHERE 
+          runs.dataset_id = ${input.datasetId}
+          AND runs.project_id = ${input.projectId}
+          AND s.score IS NOT NULL
+        GROUP BY
+          runs.id
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `);
+
+  const runs = await prisma.$queryRaw<
+    Array<
+      DatasetRuns & {
+        avgLatency: number | undefined;
+        avgTotalCost: Prisma.Decimal | undefined;
+        countRunItems: number;
+      }
+    >
+  >(Prisma.sql`
+        SELECT
+          runs.id,
+          runs.name,
+          runs.description,
+          runs.metadata,
+          runs.created_at "createdAt",
+          runs.updated_at "updatedAt",
+          COALESCE(o_latency_and_total_cost. "o_avgLatency", t_latency_and_total_cost."t_avgLatency", 0) "avgLatency",
+          COALESCE(o_latency_and_total_cost. "o_avgTotalCost", t_latency_and_total_cost."t_avgTotalCost", 0) "avgTotalCost",
+          COALESCE(run_items_count.count, 0)::int "countRunItems"
+        FROM
+          dataset_runs runs
+          JOIN datasets ON datasets.id = runs.dataset_id
+            AND datasets.project_id = ${input.projectId}
+            
+          -- Add average latency and cost if a run's items are linked to observations 
+          -- LIMITATION: this will only work if all items for a given run are linked to either observations or traces
+          -- If a run has items linked to both observations and traces, the average latency and cost will be incorrect as only those from the observations will be used
+          LEFT JOIN LATERAL (
+            SELECT
+              AVG(o.latency) AS "o_avgLatency",
+              AVG(COALESCE(o.calculated_total_cost, 0)) AS "o_avgTotalCost"
+            FROM
+              dataset_run_items ri
+              JOIN observations_view o ON o.id = ri.observation_id
+                AND o.project_id = ${input.projectId}
+            WHERE
+              ri.project_id = ${input.projectId}
+              AND ri.dataset_run_id = runs.id) o_latency_and_total_cost ON TRUE
+              
+          -- Add average latency and cost if run's items are linked to traces
+          LEFT JOIN LATERAL (
+            -- Average across run items. One run has many items
+            SELECT
+              AVG(trace_latency_cost.duration) AS "t_avgLatency", 
+              AVG(trace_latency_cost.total_cost) AS "t_avgTotalCost"
+            FROM
+              dataset_run_items ri
+              LEFT JOIN LATERAL (
+                -- Latency and cost for a run item's trace
+                SELECT
+                  t.id,
+                  o.duration,
+                  o.total_cost 
+                FROM
+                  traces t
+                  LEFT JOIN LATERAL (
+                    -- Latency and cost across a trace's observations
+                    SELECT
+                      EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
+                      SUM(COALESCE(o1.calculated_total_cost, 0)) AS total_cost
+                    FROM
+                      -- Use observations_view as cost are not backfilled for self-hosters. Once V3 is migration is done, we can use observations instead
+                      observations_view o1
+                    WHERE
+                      o1.project_id = ${input.projectId}
+                      AND o1.trace_id = t.id
+                    GROUP BY
+                      o1.project_id,
+                      o1.trace_id) o ON TRUE
+                  WHERE
+                    t.project_id = ${input.projectId}
+                    AND t.id = ri.trace_id) trace_latency_cost ON TRUE
+                WHERE
+                  ri.project_id = ${input.projectId}
+                  AND ri.dataset_run_id = runs.id) t_latency_and_total_cost ON TRUE
+                  
+          -- Add run item counts
+          LEFT JOIN LATERAL (
+            SELECT
+              count(*) AS count
+            FROM
+              dataset_run_items ri
+            WHERE
+              ri.dataset_run_id = runs.id
+              AND ri.project_id = ${input.projectId}) run_items_count ON TRUE
+        WHERE
+          runs.dataset_id = ${input.datasetId}
+          AND runs.project_id = ${input.projectId}
+        ORDER BY
+          runs.created_at DESC
+        LIMIT ${input.limit}
+        OFFSET ${input.page * input.limit}
+      `);
+
+  const totalRuns = await prisma.datasetRuns.count({
+    where: {
+      datasetId: input.datasetId,
+      projectId: input.projectId,
+    },
+  });
+
+  return {
+    totalRuns,
+    runs: runs.map((run) => ({
+      ...run,
+      scores: aggregateScores(
+        scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
+      ) as ScoreAggregate | undefined
+    })),
+  };
+}

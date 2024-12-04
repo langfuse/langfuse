@@ -1,14 +1,12 @@
+import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/public-api/server/filter-builder";
 import {
-  FilterList,
   StringFilter,
-  NumberFilter,
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservationToView,
-  DateTimeFilter,
 } from "@langfuse/shared/src/server";
 
-export type QueryType = {
+type QueryType = {
   page: number;
   limit: number;
   projectId: string;
@@ -85,7 +83,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   const query = `
         SELECT
         count() as count
-      FROM observations
+      FROM observations o
       WHERE project_id = {projectId: String}
       AND ${filter.query}
       `;
@@ -97,63 +95,80 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
   return records.map((record) => Number(record.count)).shift();
 };
 
+const filterParams = [
+  {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "traceId",
+    clickhouseSelect: "trace_id",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "name",
+    clickhouseSelect: "name",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "type",
+    clickhouseSelect: "type",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "parentObservationId",
+    clickhouseSelect: "parent_observation_id",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "fromStartTime",
+    clickhouseSelect: "start_time",
+    operator: ">=" as const,
+    filterType: "DateTimeFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "toStartTime",
+    clickhouseSelect: "start_time",
+    operator: "<" as const,
+    filterType: "DateTimeFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+  {
+    id: "version",
+    clickhouseSelect: "version",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
+];
+
 const generateFilter = (filter: QueryType) => {
-  const observationsFilter = new FilterList([
+  const observationsFilter = convertApiProvidedFilterToClickhouseFilter(
+    filter,
+    filterParams,
+  );
+
+  observationsFilter.push(
     new StringFilter({
       clickhouseTable: "observations",
       field: "project_id",
       operator: "=",
       value: filter.projectId,
     }),
-  ]);
-
-  const filterParams = [
-    { key: "userId", field: "user_id" },
-    { key: "traceId", field: "trace_id" },
-    { key: "name", field: "name" },
-    { key: "type", field: "type" },
-    { key: "parentObservationId", field: "parent_observation_id" },
-    {
-      key: "fromStartTime",
-      field: "start_time",
-      isDate: true,
-      operator: ">=" as const,
-    },
-    {
-      key: "toStartTime",
-      field: "start_time",
-      isDate: true,
-      operator: "<" as const,
-    },
-    { key: "version", field: "version" },
-  ];
-
-  filterParams.forEach((param) => {
-    const value = filter[param.key as keyof QueryType];
-    if (value) {
-      observationsFilter.push(
-        param.isDate
-          ? new DateTimeFilter({
-              clickhouseTable: "observations",
-              field: param.field,
-              operator: param.operator || ("=" as const),
-              value: new Date(value),
-            })
-          : typeof value === "string"
-            ? new StringFilter({
-                clickhouseTable: "observations",
-                field: param.field,
-                operator: "=",
-                value: value,
-              })
-            : new NumberFilter({
-                clickhouseTable: "observations",
-                field: param.field,
-                operator: "=",
-                value: value,
-              }),
-      );
-    }
-  });
+  );
   return observationsFilter;
 };

@@ -1,7 +1,7 @@
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
-import { createTraces } from "@/src/__tests__/server/repositories/clickhouse-helpers";
+import { createTracesCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
 import { createTrace } from "@/src/__tests__/fixtures/tracing-factory";
 import { GetSessionV1Response } from "@/src/features/public-api/types/sessions";
 
@@ -24,7 +24,7 @@ describe("/api/public/sessions API Endpoint", () => {
         createTrace({ session_id: sessionId, project_id: projectId }),
       ];
 
-      await createTraces(traces);
+      await createTracesCh(traces);
 
       const getScore = await makeZodVerifiedAPICall(
         GetSessionV1Response,

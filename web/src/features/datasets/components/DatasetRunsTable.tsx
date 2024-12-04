@@ -34,16 +34,18 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export type DatasetRunRowData = {
   id: string;
   name: string;
   createdAt: string;
   countRunItems: string;
-  avgLatency: number;
-  avgTotalCost: string;
+  avgLatency: number | undefined;
+  avgTotalCost: string | undefined;
   // scores holds grouped column with individual scores
-  scores?: ScoreAggregate;
+  scores?: ScoreAggregate | undefined;
   description: string;
   metadata: Prisma.JsonValue;
 };
@@ -110,6 +112,25 @@ export function DatasetRunsTable(props: {
     limit: paginationState.pageSize,
     queryClickhouse: useClickhouse(),
   });
+
+  const runsMetrics = api.datasets.runsByDatasetIdMetrics.useQuery({
+    projectId: props.projectId,
+    datasetId: props.datasetId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+    queryClickhouse: useClickhouse(),
+  });
+
+  type DatasetsCoreOutput =
+    RouterOutput["datasets"]["runsByDatasetId"]["runs"][number];
+  type DatasetsMetricOutput =
+    RouterOutput["datasets"]["runsByDatasetIdMetrics"]["runs"][number];
+
+  const runsWithMetrics = joinTableCoreAndMetrics<
+    DatasetsCoreOutput,
+    DatasetsMetricOutput
+  >(runs.data?.runs, runsMetrics.data?.runs);
+
   const { setDetailPageList } = useDetailPageLists();
   useEffect(() => {
     if (runs.isSuccess) {
@@ -225,6 +246,7 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const avgLatency: DatasetRunRowData["avgLatency"] =
           row.getValue("avgLatency");
+        if (avgLatency === undefined) return <Skeleton className="h-3 w-1/2" />;
         return <>{formatIntervalSeconds(avgLatency)}</>;
       },
     },
@@ -237,6 +259,7 @@ export function DatasetRunsTable(props: {
       cell: ({ row }) => {
         const avgTotalCost: DatasetRunRowData["avgTotalCost"] =
           row.getValue("avgTotalCost");
+        if (!avgTotalCost) return <Skeleton className="h-3 w-1/2" />;
         return <>{avgTotalCost}</>;
       },
     },
@@ -301,11 +324,12 @@ export function DatasetRunsTable(props: {
       createdAt: item.createdAt.toLocaleString(),
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
-      avgTotalCost: usdFormatter(item.avgTotalCost.toNumber()),
-      scores: verifyAndPrefixScoreDataAgainstKeys(
-        scoreKeysAndProps,
-        item.scores,
-      ),
+      avgTotalCost: item.avgTotalCost
+        ? usdFormatter(item.avgTotalCost.toNumber())
+        : undefined,
+      scores: item.scores
+        ? verifyAndPrefixScoreDataAgainstKeys(scoreKeysAndProps, item.scores)
+        : undefined,
       description: item.description ?? "",
       metadata: item.metadata,
     };
@@ -362,7 +386,9 @@ export function DatasetRunsTable(props: {
               : {
                   isLoading: false,
                   isError: false,
-                  data: runs.data.runs.map((t) => convertToTableRow(t)),
+                  data: (runsWithMetrics.rows ?? []).map((t) =>
+                    convertToTableRow(t),
+                  ),
                 }
         }
         pagination={{

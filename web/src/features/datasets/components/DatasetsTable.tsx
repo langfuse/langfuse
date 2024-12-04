@@ -158,6 +158,7 @@ export function DatasetsTable(props: { projectId: string }) {
                 mode="delete"
                 projectId={props.projectId}
                 datasetId={key.id}
+                datasetName={key.name}
               />
             </DropdownMenuContent>
           </DropdownMenu>

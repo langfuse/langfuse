@@ -268,7 +268,11 @@ export function TracePage({
     },
     {
       retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
         return failureCount < 3;
       },
     },
@@ -309,7 +313,21 @@ export function TracePage({
 
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
+
+  if (trace.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Trace not found"
+        message="The trace is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+
   if (!trace.data) return <div>loading...</div>;
+
   return (
     <FullScreenPage>
       <Header

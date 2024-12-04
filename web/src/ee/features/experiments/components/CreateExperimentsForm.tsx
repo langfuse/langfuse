@@ -65,6 +65,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Input } from "@/src/components/ui/input";
+import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 
 const CreateExperimentData = z.object({
   name: z.string().min(1, "Please enter a name").optional(),
@@ -161,7 +162,7 @@ export const CreateExperimentsForm = ({
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
 
   const hasEvalReadAccess = useHasProjectAccess({
@@ -326,7 +327,12 @@ export const CreateExperimentsForm = ({
     archiveEvaluatorMutation.mutate({
       projectId,
       evalConfigId: changedValueId,
-      updatedStatus: evaluator.status === "INACTIVE" ? "ACTIVE" : "INACTIVE",
+      config: {
+        status:
+          evaluator.status === EvaluatorStatus.INACTIVE
+            ? EvaluatorStatus.ACTIVE
+            : EvaluatorStatus.INACTIVE,
+      },
     });
 
     setSelectedEvaluators(values);

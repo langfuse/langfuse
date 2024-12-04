@@ -8,7 +8,6 @@ import {
   ZodModelConfig,
   ExperimentCreateQueue,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -74,14 +73,14 @@ export const experimentsRouter = createTRPCRouter({
     .output(ConfigResponse)
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
-        entitlement: "experiments",
+        entitlement: "prompt-experiments",
         projectId: input.projectId,
         sessionUser: ctx.session.user,
       });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "experiments:CUD",
+        scope: "promptExperiments:CUD",
       });
 
       const prompt = await ctx.prisma.prompt.findFirst({
@@ -161,17 +160,17 @@ export const experimentsRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoEntitlement({
-        entitlement: "experiments",
+        entitlement: "prompt-experiments",
         projectId: input.projectId,
         sessionUser: ctx.session.user,
       });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "experiments:CUD",
+        scope: "promptExperiments:CUD",
       });
 
-      if (!redis || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
       }
 

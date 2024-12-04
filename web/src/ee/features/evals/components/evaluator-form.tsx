@@ -87,6 +87,7 @@ export const EvaluatorForm = (props: {
   disabled?: boolean;
   existingEvaluator?: JobConfiguration & { evalTemplate: EvalTemplate };
   onFormSuccess?: () => void;
+  mode?: "create" | "edit";
   shouldWrapVariables?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -131,7 +132,7 @@ export const EvaluatorForm = (props: {
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
-                disabled={props.disabled}
+                disabled={props.disabled || props.mode === "edit"}
                 variant="outline"
                 role="combobox"
                 aria-expanded={open}
@@ -193,7 +194,11 @@ export const EvaluatorForm = (props: {
           <Popover>
             <PopoverTrigger asChild>
               <Button
-                disabled={props.disabled || !selectedTemplateName}
+                disabled={
+                  props.disabled ||
+                  !selectedTemplateName ||
+                  props.mode === "edit"
+                }
                 variant="outline"
                 role="combobox"
                 className="w-1/3 justify-between px-2 font-normal"
@@ -276,6 +281,7 @@ export const EvaluatorForm = (props: {
           }
           onFormSuccess={props.onFormSuccess}
           shouldWrapVariables={props.shouldWrapVariables}
+          mode={props.mode}
         />
       ) : null}
     </>
@@ -289,6 +295,7 @@ export const InnerEvalConfigForm = (props: {
   existingEvaluator?: JobConfiguration;
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
+  mode?: "create" | "edit";
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -393,6 +400,10 @@ export const InnerEvalConfigForm = (props: {
     onSuccess: () => utils.models.invalidate(),
     onError: (error) => setFormError(error.message),
   });
+  const updateJobMutation = api.evals.updateEvalJob.useMutation({
+    onSuccess: () => utils.evals.invalidate(),
+    onError: (error) => setFormError(error.message),
+  });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
   >(
@@ -402,7 +413,11 @@ export const InnerEvalConfigForm = (props: {
   );
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    capture("eval_config:new_form_submit");
+    capture(
+      props.mode === "edit"
+        ? "eval_config:update"
+        : "eval_config:new_form_submit",
+    );
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
@@ -427,21 +442,42 @@ export const InnerEvalConfigForm = (props: {
       return;
     }
 
-    createJobMutation
-      .mutateAsync({
-        projectId: props.projectId,
-        evalTemplateId: props.evalTemplate.id,
-        scoreName: values.scoreName,
-        target: values.target,
-        filter: validatedFilter.data,
-        mapping: validatedVarMapping.data,
-        sampling: values.sampling,
-        delay: values.delay * 1000, // multiply by 1k to convert to ms
-      })
+    const delay = values.delay * 1000; // convert to ms
+    const sampling = values.sampling;
+    const mapping = validatedVarMapping.data;
+    const filter = validatedFilter.data;
+    const scoreName = values.scoreName;
+
+    (props.mode === "edit" && props.existingEvaluator
+      ? updateJobMutation.mutateAsync({
+          projectId: props.projectId,
+          evalConfigId: props.existingEvaluator.id,
+          config: {
+            delay,
+            filter,
+            variableMapping: mapping,
+            sampling,
+            scoreName,
+          },
+        })
+      : createJobMutation.mutateAsync({
+          projectId: props.projectId,
+          target: values.target,
+          evalTemplateId: props.evalTemplate.id,
+          scoreName,
+          filter,
+          mapping,
+          sampling,
+          delay,
+        })
+    )
       .then(() => {
-        props.onFormSuccess?.();
         form.reset();
-        void router.push(`/project/${props.projectId}/evals`);
+        props.onFormSuccess?.();
+
+        if (props.mode !== "edit") {
+          void router.push(`/project/${props.projectId}/evals`);
+        }
       })
       .catch((error) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -507,10 +543,16 @@ export const InnerEvalConfigForm = (props: {
                       }}
                     >
                       <TabsList>
-                        <TabsTrigger value="trace" disabled={props.disabled}>
+                        <TabsTrigger
+                          value="trace"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
                           Trace
                         </TabsTrigger>
-                        <TabsTrigger value="dataset" disabled={props.disabled}>
+                        <TabsTrigger
+                          value="dataset"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
                           Dataset
                         </TabsTrigger>
                       </TabsList>
@@ -825,7 +867,7 @@ export const InnerEvalConfigForm = (props: {
         {!props.disabled ? (
           <Button
             type="submit"
-            loading={createJobMutation.isLoading}
+            loading={createJobMutation.isLoading || updateJobMutation.isLoading}
             className="mt-3"
           >
             Save

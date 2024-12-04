@@ -40,7 +40,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useState } from "react";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export const PromptDetail = () => {
@@ -51,7 +51,7 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
-  const hasEntitlement = useHasOrgEntitlement("experiments");
+  const hasEntitlement = useHasEntitlement("prompt-experiments");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const hasAccess = useHasProjectAccess({
@@ -60,7 +60,7 @@ export const PromptDetail = () => {
   });
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
   const promptHistory = api.prompts.allVersions.useQuery(
     {

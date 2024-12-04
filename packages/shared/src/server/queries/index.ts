@@ -18,4 +18,6 @@ export {
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
+  type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
+export { orderByToClickhouseSql } from "./clickhouse-sql/orderby-factory";

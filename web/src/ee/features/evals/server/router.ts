@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -12,6 +11,7 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  paginationZod,
   type JobConfiguration,
   JobConfigState,
   JobType,
@@ -26,6 +26,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
+import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 
 const APIEvaluatorSchema = z.object({
@@ -85,13 +86,32 @@ export const CreateEvalTemplate = z.object({
     .default(EvalReferencedEvaluators.PERSIST),
 });
 
+const CreateEvalJobSchema = z.object({
+  projectId: z.string(),
+  evalTemplateId: z.string(),
+  scoreName: z.string().min(1),
+  target: z.string(),
+  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  mapping: z.array(variableMapping),
+  sampling: z.number().gt(0).lte(1),
+  delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
+});
+
+const UpdateEvalJobSchema = z.object({
+  scoreName: z.string().min(1).optional(),
+  filter: z.array(singleFilter).optional(),
+  variableMapping: z.array(variableMapping).optional(),
+  sampling: z.number().gt(0).lte(1).optional(),
+  delay: z.number().gte(0).optional(),
+  status: z.nativeEnum(EvaluatorStatus).optional(),
+});
+
 export const evalRouter = createTRPCRouter({
   allConfigs: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -428,18 +448,7 @@ export const evalRouter = createTRPCRouter({
     }),
 
   createJob: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        evalTemplateId: z.string(),
-        scoreName: z.string().min(1),
-        target: z.string(),
-        filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
-        mapping: z.array(variableMapping),
-        sampling: z.number().gte(0).lte(1),
-        delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
-      }),
-    )
+    .input(CreateEvalJobSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoEntitlement({
@@ -613,7 +622,7 @@ export const evalRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         evalConfigId: z.string(),
-        updatedStatus: z.enum(["ACTIVE", "INACTIVE"]),
+        config: UpdateEvalJobSchema,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -633,9 +642,7 @@ export const evalRouter = createTRPCRouter({
           id: input.evalConfigId,
           projectId: input.projectId,
         },
-        data: {
-          status: input.updatedStatus,
-        },
+        data: input.config,
       });
 
       await auditLog({
