@@ -889,6 +889,9 @@ export const deleteObservationsByTraceIds = async (
       projectId,
       traceIds,
     },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
   });
 };
 
