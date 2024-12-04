@@ -264,7 +264,7 @@ const getScoresFromTempTable = async (
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      LIMIT 1 BY s.id, s.project_id, tmp.run_id
       SETTINGS select_sequential_consistency = 1;
   `;
 
