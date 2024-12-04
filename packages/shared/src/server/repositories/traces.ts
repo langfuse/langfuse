@@ -711,8 +711,8 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
 
   const rows = await queryClickhouse<{
     user_id: string;
-    max_timestamp: string | null;
-    min_timestamp: string | null;
+    max_timestamp: string;
+    min_timestamp: string;
     input_usage: string;
     output_usage: string;
     total_usage: string;
@@ -728,12 +728,8 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
   });
   return rows.map((row) => ({
     userId: row.user_id,
-    maxTimestamp: row.max_timestamp
-      ? parseClickhouseUTCDateTimeFormat(row.max_timestamp)
-      : null,
-    minTimestamp: row.min_timestamp
-      ? parseClickhouseUTCDateTimeFormat(row.min_timestamp)
-      : null,
+    maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
+    minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
     inputUsage: Number(row.input_usage),
     outputUsage: Number(row.output_usage),
     totalUsage: Number(row.total_usage),
