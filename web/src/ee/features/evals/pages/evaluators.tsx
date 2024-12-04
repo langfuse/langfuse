@@ -23,7 +23,6 @@ export default function EvaluatorsPage() {
     page: 0,
     limit: 50,
   });
-  console.log("evaluatorsFirstPage", evaluatorsFirstPage.data);
   const evaluatorCountFirstPage = evaluatorsFirstPage.data?.configs.filter(
     (e) => e.status === "ACTIVE",
   ).length;
