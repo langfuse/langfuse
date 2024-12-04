@@ -10,7 +10,12 @@ import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
+import {
+  QueueJobs,
+  redis,
+  ProjectDeleteQueue,
+} from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -127,20 +132,39 @@ export const projectsRouter = createTRPCRouter({
         action: "delete",
       });
 
-      // TODO: Set deleted_at to current timestamp instead of deleting the project
-      // Afterwards, send message to ProjectDelete queue for asynchronous cleanup.
-      // Do we want to remove all corresponding trace information or does that happen automatically using Prisma cascade?
-      await ctx.prisma.project.delete({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-      });
-
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
         input.projectId,
       );
+
+      await ctx.prisma.project.update({
+        where: {
+          id: input.projectId,
+          orgId: ctx.session.orgId,
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+
+      const projectDeleteQueue = ProjectDeleteQueue.getInstance();
+      if (!projectDeleteQueue) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "ProjectDeleteQueue is not available. Please try again later.",
+        });
+      }
+
+      await projectDeleteQueue.add(QueueJobs.ProjectDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: input.projectId,
+          orgId: ctx.session.orgId,
+        },
+        name: QueueJobs.ProjectDelete,
+      });
 
       return true;
     }),

@@ -25,6 +25,7 @@ export * from "./redis/traceUpsert";
 export * from "./redis/cloudUsageMeteringQueue";
 export * from "./redis/getQueue";
 export * from "./redis/traceDelete";
+export * from "./redis/projectDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/legacyIngestion";
