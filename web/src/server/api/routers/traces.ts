@@ -705,19 +705,15 @@ export const traceRouter = createTRPCRouter({
         return;
       }
 
-      await Promise.all(
-        input.traceIds.map(async (traceId) =>
-          traceDeleteQueue.add(QueueJobs.TraceDelete, {
-            timestamp: new Date(),
-            id: randomUUID(),
-            payload: {
-              projectId: input.projectId,
-              traceId,
-            },
-            name: QueueJobs.TraceDelete,
-          }),
-        ),
-      );
+      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: input.projectId,
+          traceIds: input.traceIds,
+        },
+        name: QueueJobs.TraceDelete,
+      });
     }),
   bookmark: protectedProjectProcedure
     .input(

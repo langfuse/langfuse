@@ -67,6 +67,10 @@ export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
 });
+export const TracesQueueEventSchema = z.object({
+  projectId: z.string(),
+  traceIds: z.array(z.string()),
+});
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
   datasetItemId: z.string(),
@@ -88,6 +92,7 @@ export const ExperimentCreateEventSchema = z.object({
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
+export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
@@ -153,7 +158,7 @@ export type TQueueJobTypes = {
   [QueueName.TraceDelete]: {
     timestamp: Date;
     id: string;
-    payload: TraceQueueEventType;
+    payload: TracesQueueEventType | TraceQueueEventType;
     name: QueueJobs.TraceDelete;
   };
   [QueueName.DatasetRunItemUpsert]: {

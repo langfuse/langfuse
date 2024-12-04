@@ -589,6 +589,9 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       projectId,
       traceIds,
     },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
   });
 };
 
