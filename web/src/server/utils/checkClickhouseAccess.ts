@@ -44,12 +44,24 @@ export const measureAndReturnApi = async <T, Y>(args: {
         });
       }
 
+      const excludedOperations =
+        env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS?.split(",");
+
+      // if operation is excluded, return postgres only
+      if (excludedOperations?.includes(args.operation)) {
+        return await pgExecution(input);
+      }
+
       // if query clickhouse, return clickhouse only. Only possible for admin users
       if (input.queryClickhouse) {
         return await clickhouseExecution(input);
       }
 
-      if (env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY === "true") {
+      if (
+        env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY === "true"
+        //  &&
+        // !args.operation.includes("dataset")
+      ) {
         return await clickhouseExecution(input);
       }
 
@@ -101,6 +113,13 @@ export const measureAndReturnApi = async <T, Y>(args: {
           operation: args.operation,
           database: "postgres",
         });
+
+        // if (args.operation.includes("dataset")) {
+        //   logger.info(
+        //     `operation: ${args.operation} pg result: ${JSON.stringify(pgResult)}, ch result: ${JSON.stringify(chResult)}`,
+        //   );
+        //   return pgResult;
+        // }
 
         return env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
           ? chResult

@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.90.1",
+  "version": "3.0.0-rc.3",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -14,10 +14,11 @@
     "prettier": "prettier --write ./src *.{ts,js}",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --testPathIgnorePatterns='__e2e__'",
+    "test": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects async-server",
+    "test-sync": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects sync-server",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --testPathPattern='__e2e__'",
+    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "dependencies": {
@@ -34,9 +35,9 @@
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
     "@hookform/resolvers": "^3.3.4",
-    "@langchain/anthropic": "^0.3.1",
-    "@langchain/core": "^0.3.9",
-    "@langchain/openai": "^0.3.0",
+    "@langchain/anthropic": "^0.3.8",
+    "@langchain/core": "^0.3.18",
+    "@langchain/openai": "^0.3.14",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@marsidev/react-turnstile": "^0.5.4",
@@ -56,7 +57,7 @@
     "@opentelemetry/sdk-node": "^0.53.0",
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
-    "@prisma/instrumentation": "^5.20.0",
+    "@prisma/instrumentation": "^5.22.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-avatar": "^1.1.1",
@@ -82,7 +83,7 @@
     "@remixicon/react": "^4.2.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@sentry/nextjs": "^8.33.1",
+    "@sentry/nextjs": "^8.39.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",
@@ -112,17 +113,17 @@
     "ip-address": "^9.0.5",
     "js-tiktoken": "^1.0.15",
     "kysely": "^0.27.4",
-    "langchain": "^0.3.2",
+    "langchain": "^0.3.6",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.447.0",
+    "lucide-react": "^0.462.0",
     "next": "^14.2.15",
     "next-auth": "^4.24.7",
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",
     "posthog-js": "^1.176.0",
-    "posthog-node": "^3.6.3",
+    "posthog-node": "^4.3.1",
     "prexit": "^2.2.0",
-    "prisma": "^5.20.0",
+    "prisma": "^5.22.0",
     "rate-limiter-flexible": "^5.0.3",
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",
@@ -137,7 +138,7 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "sonner": "^1.4.41",
-    "stripe": "^16.8.0",
+    "stripe": "^17.4.0",
     "superjson": "2.2.1",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
@@ -191,7 +192,7 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.0"
+      "jsonpath-plus": "10.0.7"
     }
   }
 }

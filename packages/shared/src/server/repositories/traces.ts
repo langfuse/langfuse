@@ -8,14 +8,11 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
-import { ObservationLevel, Trace } from "@prisma/client";
 import { FilterState } from "../../types";
-import { logger } from "../logger";
 import {
   DateTimeFilter,
   FilterList,
   StringFilter,
-  StringOptionsFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
@@ -24,241 +21,51 @@ import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factor
 import { UiColumnMapping } from "../../tableDefinitions";
 import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  convertClickhouseToDomain,
-  convertToDomain,
-} from "./traces_converters";
+import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
+import { FetchTracesTableProps } from "../services/traces-ui-table-service";
 
-export type TracesTableReturnType = Pick<
-  TraceRecordReadType,
-  | "project_id"
-  | "id"
-  | "name"
-  | "timestamp"
-  | "bookmarked"
-  | "release"
-  | "version"
-  | "user_id"
-  | "session_id"
-  | "tags"
-  | "public"
-> & {
-  level: ObservationLevel;
-  observation_count: number | null;
-  latency_milliseconds: string | null;
-  usage_details: Record<string, number>;
-  cost_details: Record<string, number>;
-  scores_avg: Array<{ name: string; avg_value: number }>;
-};
-
-export const getTracesTableCount = async (props: {
-  projectId: string;
-  filter: FilterState;
-  searchQuery?: string;
-  orderBy?: OrderByState;
-  limit?: number;
-  offset?: number;
-}) => {
-  const countRows = await getTracesTableGeneric<{ count: string }>({
-    select: "count(*) as count",
-    ...props,
-  });
-
-  const converted = countRows.map((row) => ({
-    count: Number(row.count),
-  }));
-
-  return converted.length > 0 ? converted[0].count : 0;
-};
-
-export const getTracesTable = async (
+export const checkTraceExists = async (
   projectId: string,
+  traceId: string,
+  timestamp: Date | undefined,
   filter: FilterState,
-  searchQuery?: string,
-  orderBy?: OrderByState,
-  limit?: number,
-  offset?: number,
-) => {
-  const rows = await getTracesTableGeneric<TracesTableReturnType>({
-    select: `
-    t.id, 
-    t.project_id as project_id, 
-    t.timestamp, 
-    t.tags, 
-    t.bookmarked, 
-    t.name, 
-    t.release, 
-    t.version, 
-    t.user_id, 
-    t.session_id,
-    os.latency_milliseconds,
-    os.cost_details as cost_details,
-    os.usage_details as usage_details,
-    os.level as level,
-    os.observation_count as observation_count,
-    s.scores_avg as scores_avg,
-    t.public`,
-    projectId,
-    filter,
-    searchQuery,
-    orderBy,
-    limit,
-    offset,
+): Promise<boolean> => {
+  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
   });
-
-  return rows.map(convertToDomain);
-};
-
-type FetchTracesTableProps = {
-  select: string;
-  projectId: string;
-  filter: FilterState;
-  searchQuery?: string;
-  orderBy?: OrderByState;
-  limit?: number;
-  offset?: number;
-};
-
-const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, offset, searchQuery } =
-    props;
-
-  const { tracesFilter, scoresFilter, observationsFilter } =
-    getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
 
   tracesFilter.push(
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+    new StringFilter({
+      clickhouseTable: "t",
+      field: "id",
+      operator: "=",
+      value: traceId,
+    }),
   );
 
-  const traceIdFilter = tracesFilter.find(
-    (f) => f.clickhouseTable === "traces" && f.field === "id",
-  ) as StringFilter | StringOptionsFilter | undefined;
-
-  traceIdFilter
-    ? scoresFilter.push(
-        new StringOptionsFilter({
-          clickhouseTable: "scores",
-          field: "trace_id",
-          operator: "any of",
-          values:
-            traceIdFilter instanceof StringFilter
-              ? [traceIdFilter.value]
-              : traceIdFilter.values,
-        }),
-      )
-    : null;
-  traceIdFilter
-    ? observationsFilter.push(
-        new StringOptionsFilter({
-          clickhouseTable: "observations",
-          field: "trace_id",
-          operator: "any of",
-          values:
-            traceIdFilter instanceof StringFilter
-              ? [traceIdFilter.value]
-              : traceIdFilter.values,
-        }),
-      )
-    : null;
-
-  // for query optimisation, we have to add the timeseries filter to observations + scores as well
-  // stats show, that 98% of all observations have their start_time larger than trace.timestamp - 5 min
-  const timeStampFilter = tracesFilter.find(
-    (f) =>
-      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
-
-  timeStampFilter
-    ? scoresFilter.push(
-        new DateTimeFilter({
-          clickhouseTable: "scores",
-          field: "timestamp",
-          operator: ">=",
-          value: timeStampFilter.value,
-        }),
-      )
-    : null;
-
-  timeStampFilter
-    ? observationsFilter.push(
-        new DateTimeFilter({
-          clickhouseTable: "observations",
-          field: "start_time",
-          operator: ">=",
-          value: timeStampFilter.value,
-        }),
-      )
-    : null;
-
   const tracesFilterRes = tracesFilter.apply();
-  const scoresFilterRes = scoresFilter.apply();
-  const observationFilterRes = observationsFilter.apply();
-
-  const search = clickhouseSearchCondition(searchQuery);
 
   const query = `
-    WITH observations_stats AS (
-      SELECT
-        COUNT(*) AS observation_count,
-          sumMap(usage_details) as usage_details,
-          SUM(total_cost) AS total_cost,
-          date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-          multiIf(
-            arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
-            arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
-            arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
-            'DEBUG'
-          ) AS level,
-          sumMap(cost_details) as cost_details,
-          trace_id,
-          project_id
-      FROM observations FINAL
-      WHERE ${observationFilterRes.query}
-      GROUP BY trace_id, project_id
-    ),
-    scores_avg AS (
-      SELECT
-        project_id,
-        trace_id,
-        groupArray(tuple(name, avg_value)) AS "scores_avg"
-      FROM (
-        SELECT project_id,
-                trace_id,
-                name,
-                avg(value) avg_value
-        FROM scores final
-        WHERE ${scoresFilterRes.query}
-        GROUP BY project_id,
-                  trace_id,
-                  name
-      ) tmp
-      GROUP BY project_id, trace_id
-    )
-    SELECT ${select}
-    FROM traces t final
-    LEFT JOIN observations_stats os on os.project_id = t.project_id and os.trace_id = t.id
-    LEFT JOIN scores_avg s on s.project_id = t.project_id and s.trace_id = t.id
+    SELECT id, project_id
+    FROM traces t FINAL
     WHERE ${tracesFilterRes.query}
-    ${search.query}
-    ${orderByToClickhouseSql(orderBy ?? null, tracesTableUiColumnDefinitions)}
-    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
   `;
 
-  const res = await queryClickhouse<T>({
-    query: query,
+  const rows = await queryClickhouse<{ id: string; project_id: string }>({
+    query,
     params: {
-      limit: limit,
-      offset: offset,
       ...tracesFilterRes.params,
-      ...observationFilterRes.params,
-      ...scoresFilterRes.params,
-      ...search.params,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 
-  return res;
+  return rows.length > 0;
 };
 
 /**
@@ -274,18 +81,6 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     records: [trace as TraceRecordReadType],
     eventBodyMapper: convertClickhouseToDomain,
   });
-};
-
-export const getTraceById = async (
-  traceId: string,
-  projectId: string,
-  timestamp?: Date,
-): Promise<Trace | undefined> => {
-  try {
-    return getTraceByIdOrThrow(traceId, projectId, timestamp);
-  } catch (e) {
-    return undefined;
-  }
 };
 
 export const getTracesByIds = async (
@@ -313,6 +108,31 @@ export const getTracesByIds = async (
   return records.map(convertClickhouseToDomain);
 };
 
+export const getTracesBySessionId = async (
+  projectId: string,
+  sessionIds: string[],
+  timestamp?: Date,
+) => {
+  const query = `
+      SELECT * 
+      FROM traces
+      WHERE session_id IN ({sessionIds: Array(String)})
+      AND project_id = {projectId: String}
+      ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""} 
+      ORDER BY event_ts DESC
+      LIMIT 1 by id, project_id;`;
+  const records = await queryClickhouse<TraceRecordReadType>({
+    query,
+    params: {
+      sessionIds,
+      projectId,
+      timestamp: timestamp ? convertDateToClickhouseDateTime(timestamp) : null,
+    },
+  });
+
+  return records.map(convertClickhouseToDomain);
+};
+
 export const hasAnyTrace = async (projectId: string) => {
   const query = `
     SELECT count(*) as count
@@ -331,7 +151,38 @@ export const hasAnyTrace = async (projectId: string) => {
   return rows.length > 0 && Number(rows[0].count) > 0;
 };
 
-export const getTraceByIdOrThrow = async (
+export const getTraceCountsByProjectInCreationInterval = async ({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}) => {
+  const query = `
+    SELECT 
+      project_id,
+      count(*) as count
+    FROM traces
+    WHERE created_at >= {start: DateTime64(3)}
+    AND created_at < {end: DateTime64(3)}
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
+  }));
+};
+
+export const getTraceById = async (
   traceId: string,
   projectId: string,
   timestamp?: Date,
@@ -359,12 +210,7 @@ export const getTraceByIdOrThrow = async (
 
   const res = records.map(convertClickhouseToDomain);
 
-  if (res.length === 0) {
-    const errorMessage = `Trace not found for traceId: ${traceId}, projectId: ${projectId}, and timestamp: ${timestamp}`;
-    logger.error(errorMessage);
-    throw new Error(errorMessage);
-  }
-  return res[0] as Trace;
+  return res.shift();
 };
 
 export const getTracesGroupedByName = async (
@@ -527,7 +373,7 @@ export const getSessionsTableCount = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 }) => {
   const rows = await getSessionsTableGeneric<{ count: string }>({
     select: `
@@ -537,7 +383,7 @@ export const getSessionsTableCount = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    offset: props.offset,
+    page: props.page,
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -548,7 +394,7 @@ export const getSessionsTable = async (props: {
   filter: FilterState;
   orderBy?: OrderByState;
   limit?: number;
-  offset?: number;
+  page?: number;
 }) => {
   const rows = await getSessionsTableGeneric<SessionDataReturnType>({
     select: `
@@ -574,14 +420,24 @@ export const getSessionsTable = async (props: {
     filter: props.filter,
     orderBy: props.orderBy,
     limit: props.limit,
-    offset: props.offset,
+    page: props.page,
   });
 
   return rows;
 };
 
-const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
-  const { select, projectId, filter, orderBy, limit, offset } = props;
+export type FetchSessionsTableProps = {
+  select: string;
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+};
+
+const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
+  const { select, projectId, filter, orderBy, limit, page } = props;
 
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "s" });
@@ -656,7 +512,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     FROM session_data s
     WHERE ${tracesFilterRes.query ? tracesFilterRes.query : ""}
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
-    ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
 
   const obsStartTimeValue = traceTimestampFilter
@@ -668,7 +524,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
     params: {
       projectId,
       limit: limit,
-      offset: offset,
+      offset: limit && page ? limit * page : 0,
       ...tracesFilterRes.params,
       ...observationsStatsRes.params,
       ...scoresAvgFilterRes.params,
@@ -682,7 +538,7 @@ const getSessionsTableGeneric = async <T>(props: FetchTracesTableProps) => {
   return res;
 };
 
-export const getTracesForSession = async (
+export const getTracesIdentifierForSession = async (
   projectId: string,
   sessionId: string,
 ) => {

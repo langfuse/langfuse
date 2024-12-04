@@ -23,11 +23,15 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
+  MediaReferenceStringSchema,
   type OpenAIContentParts,
   type OpenAIContentSchema,
+  type OpenAIOutputAudioType,
 } from "@/src/components/schemas/ChatMlSchema";
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { type MediaReturnType } from "@/src/features/media/validation";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -171,7 +175,7 @@ function MarkdownRenderer({
           );
         },
         img({ src, alt }) {
-          return <ResizableImage src={src} alt={alt} />;
+          return src ? <ResizableImage src={src} alt={alt} /> : null;
         },
         hr() {
           return <hr className="my-4" />;
@@ -209,14 +213,16 @@ function MarkdownRenderer({
   );
 }
 const parseOpenAIContentParts = (
-  content: z.infer<typeof OpenAIContentParts>,
+  content: z.infer<typeof OpenAIContentParts> | null,
 ): string => {
-  return content
+  return (content ?? [])
     .map((item) => {
       if (item.type === "text") {
         return item.text;
-      } else {
+      } else if (item.type === "image_url") {
         return `![image](${item.image_url.url})`;
+      } else if (item.type === "input_audio") {
+        return `![audio](${item.input_audio.data})`;
       }
     })
     .join("\n");
@@ -227,11 +233,15 @@ export function MarkdownView({
   title,
   className,
   customCodeHeaderClassName,
+  audio,
+  media,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   className?: string;
   customCodeHeaderClassName?: string;
+  audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const capture = usePostHogClientCapture();
@@ -307,7 +317,7 @@ export function MarkdownView({
           />
         ) : (
           // content parts (multi-modal)
-          markdown.map((content, index) =>
+          (markdown ?? []).map((content, index) =>
             content.type === "text" ? (
               <MarkdownRenderer
                 key={index}
@@ -316,23 +326,63 @@ export function MarkdownView({
                 className={className}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
-            ) : OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
-              <div key={index}>
-                <ResizableImage src={content.image_url.url} />
-              </div>
-            ) : (
-              <div className="grid grid-cols-[auto,1fr] items-center gap-2">
-                <span title="No Base64 image support yet" className="h-4 w-4">
-                  <ImageOff className="h-4 w-4" />
-                </span>
-                <span className="truncate text-sm">
-                  {content.image_url.url}
-                </span>
-              </div>
-            ),
+            ) : content.type === "image_url" ? (
+              OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
+                <div key={index}>
+                  <ResizableImage src={content.image_url.url.toString()} />
+                </div>
+              ) : MediaReferenceStringSchema.safeParse(content.image_url.url)
+                  .success ? (
+                <LangfuseMediaView
+                  mediaReferenceString={content.image_url.url}
+                />
+              ) : (
+                <div className="grid grid-cols-[auto,1fr] items-center gap-2">
+                  <span title="<Base64 data URI>" className="h-4 w-4">
+                    <ImageOff className="h-4 w-4" />
+                  </span>
+                  <span className="truncate text-sm">
+                    {content.image_url.url.toString()}
+                  </span>
+                </div>
+              )
+            ) : content.type === "input_audio" ? (
+              <LangfuseMediaView
+                mediaReferenceString={content.input_audio.data}
+              />
+            ) : null,
           )
         )}
+        {audio ? (
+          <>
+            <MarkdownRenderer
+              markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
+              theme={theme}
+              className={className}
+              customCodeHeaderClassName={customCodeHeaderClassName}
+            />
+            <LangfuseMediaView
+              mediaReferenceString={audio.data.referenceString}
+            />
+          </>
+        ) : null}
       </div>
+      {media && media.length > 0 && (
+        <>
+          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+            Media
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 pt-1">
+            {media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

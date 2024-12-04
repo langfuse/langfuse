@@ -552,6 +552,7 @@ export const promptRouter = createTRPCRouter({
           id: true,
           name: true,
         },
+        distinct: ["name"],
       });
     }),
   updateTags: protectedProjectProcedure
@@ -602,6 +603,29 @@ export const promptRouter = createTRPCRouter({
       } catch (error) {
         logger.error(error);
       }
+    }),
+  allPromptMeta: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      return await ctx.prisma.prompt.findMany({
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          type: true,
+          prompt: true,
+        },
+        where: {
+          projectId: input.projectId,
+        },
+        orderBy: [{ version: "desc" }],
+      });
     }),
   allVersions: protectedProjectProcedure
     .input(

@@ -27,7 +27,8 @@ export class DatasetRunItemUpsertQueue {
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,
-              attempts: 2,
+              attempts: 5,
+              delay: 30_000, // 30 seconds
               backoff: {
                 type: "exponential",
                 delay: 5000,

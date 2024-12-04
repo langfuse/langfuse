@@ -54,7 +54,7 @@ export function CommentDrawerButton({
           )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="h-1/3" overlayClassName="bg-primary/10">
+      <DrawerContent overlayClassName="bg-primary/10">
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <DrawerTitle>

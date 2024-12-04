@@ -3,10 +3,10 @@ import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export const ResetPlaygroundButton: React.FC = () => {
-  const available = useHasOrgEntitlement("playground");
+  const available = useHasEntitlement("playground");
   const router = useRouter();
   const { setPlaygroundCache } = usePlaygroundCache();
 

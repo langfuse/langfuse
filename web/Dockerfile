@@ -85,8 +85,7 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
-
-RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web
+RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
@@ -106,7 +105,7 @@ RUN apk add --no-cache dumb-init tzdata
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma@5.20.0
+RUN npm install -g --no-package-lock --no-save prisma@5.22.0
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
     wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.0/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \

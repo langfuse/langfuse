@@ -110,7 +110,7 @@ export const prepareClickhouse = async (
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS provided_cost_details,
       map('input', toDecimal64(randUniform(0, 1000), 12), 'output', toDecimal64(randUniform(0, 1000), 12), 'total', toDecimal64(randUniform(0, 2000), 12)) AS cost_details,
       toDecimal64(randUniform(0, 2000), 12) AS total_cost,
-      start_time AS completion_start_time,
+      addMilliseconds(start_time, if(rand() < 0.6, floor(randUniform(0, 500)), floor(randUniform(0, 600)))) AS completion_start_time,
       array(${SEED_PROMPTS.map((p) => `concat('${p.id}',project_id)`).join(
         ",",
       )})[(number % ${SEED_PROMPTS.length})+1] AS prompt_id,
@@ -160,7 +160,7 @@ export const prepareClickhouse = async (
 
     for (const query of queries) {
       logger.info(`Executing query: ${query}`);
-      await clickhouseClient.command({
+      await clickhouseClient().command({
         query,
         clickhouse_settings: {
           wait_end_of_query: 1,
@@ -174,7 +174,7 @@ export const prepareClickhouse = async (
       FROM traces 
       WHERE session_id IS NOT NULL;
     `;
-    const sessionResult = await clickhouseClient.query({
+    const sessionResult = await clickhouseClient().query({
       query: sessionQuery,
       format: "JSONEachRow",
     });
@@ -212,7 +212,7 @@ export const prepareClickhouse = async (
           ORDER BY count() desc
           `;
 
-    const result = await clickhouseClient.query({
+    const result = await clickhouseClient().query({
       query,
       format: "TabSeparated",
     });
@@ -243,7 +243,7 @@ export const prepareClickhouse = async (
           ORDER BY event_date desc
           `;
 
-    const result = await clickhouseClient.query({
+    const result = await clickhouseClient().query({
       query,
       format: "TabSeparated",
     });

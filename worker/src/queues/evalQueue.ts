@@ -1,67 +1,20 @@
-import { Job, Queue } from "bullmq";
+import { Job } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
-import {
-  createDatasetEvalJobs,
-  createTraceEvalJobs,
-  evaluate,
-} from "../features/evaluation/evalService";
+import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
-  createNewRedisInstance,
   QueueName,
   TQueueJobTypes,
   logger,
   traceException,
-  redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
-
-export class EvalExecutionQueue {
-  private static instance: Queue<
-    TQueueJobTypes[QueueName.EvaluationExecution]
-  > | null = null;
-
-  public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.EvaluationExecution]
-  > | null {
-    if (EvalExecutionQueue.instance) return EvalExecutionQueue.instance;
-
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    EvalExecutionQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(
-          QueueName.EvaluationExecution,
-          {
-            connection: newRedis,
-            defaultJobOptions: {
-              removeOnComplete: true,
-              removeOnFail: 10_000,
-              attempts: 2,
-              backoff: {
-                type: "exponential",
-                delay: 5000,
-              },
-            },
-          },
-        )
-      : null;
-
-    EvalExecutionQueue.instance?.on("error", (err) => {
-      logger.error("EvalExecutionQueue error", err);
-    });
-
-    return EvalExecutionQueue.instance;
-  }
-}
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
-    await createTraceEvalJobs({ event: job.data.payload });
+    await createEvalJobs({ event: job.data.payload });
     return true;
   } catch (e) {
     logger.error(
@@ -77,7 +30,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>,
 ) => {
   try {
-    await createDatasetEvalJobs({ event: job.data.payload });
+    await createEvalJobs({ event: job.data.payload });
     return true;
   } catch (e) {
     logger.error(

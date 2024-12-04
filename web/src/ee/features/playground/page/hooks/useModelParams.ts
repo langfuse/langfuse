@@ -170,5 +170,17 @@ function getDefaultAdapterParams(
         max_tokens: { value: 256, enabled: true },
         top_p: { value: 1, enabled: true },
       };
+
+    case LLMAdapter.VertexAI:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 1, enabled: true },
+        maxTemperature: { value: 2, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
+      };
   }
 }

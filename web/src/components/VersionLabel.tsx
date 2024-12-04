@@ -19,9 +19,10 @@ import {
 import { ArrowUp } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import { usePlan } from "@/src/features/entitlements/hooks";
+import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
   const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
@@ -31,8 +32,23 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
     onError: (error) => console.error("checkUpdate error", error), // do not render default error message
   });
-  const isEeVersion = useIsEeEnabled();
+  const plan = usePlan();
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+  const selfHostedPlanLabel = !isLangfuseCloud
+    ? plan && isSelfHostedPlan(plan)
+      ? // self-host plan
+        {
+          short: plan === "self-hosted:pro" ? "Pro" : "EE",
+          long: planLabels[plan],
+        }
+      : // no plan, oss
+        {
+          short: "OSS",
+          long: "Open Source",
+        }
+    : // null on cloud
+      null;
 
   const hasUpdate =
     !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
@@ -49,9 +65,9 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="xs" className={cn("text-xs",className)}>
+        <Button variant="ghost" size="xs" className={cn("text-xs", className)}>
           {VERSION}
-          {!isLangfuseCloud && (isEeVersion ? " EE" : " OSS")}
+          {selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : null}
           {hasUpdate && <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />}
         </Button>
       </DropdownMenuTrigger>
@@ -70,11 +86,11 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             <DropdownMenuSeparator />
           </>
         ) : null}
-        {isEeVersion && (
+        {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">
               <BadgeCheck size={16} className="mr-2" />
-              Enterprise Edition
+              {selfHostedPlanLabel.long}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
@@ -100,12 +116,9 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             Roadmap
           </Link>
         </DropdownMenuItem>
-        {!isLangfuseCloud && !isEeVersion && (
+        {!isLangfuseCloud && (
           <DropdownMenuItem asChild>
-            <Link
-              href="https://langfuse.com/docs/deployment/feature-overview"
-              target="_blank"
-            >
+            <Link href="https://langfuse.com/pricing-self-host" target="_blank">
               <Info size={16} className="mr-2" />
               Compare Versions
             </Link>

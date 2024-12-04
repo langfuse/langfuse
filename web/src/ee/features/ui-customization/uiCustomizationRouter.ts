@@ -1,9 +1,14 @@
 import { env } from "@/src/env.mjs";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 
 export const uiCustomizationRouter = createTRPCRouter({
   get: protectedProcedure.query(({ ctx }) => {
-    if (!ctx.session.environment.eeEnabled) return null;
+    const hasEntitlement = hasEntitlementBasedOnPlan({
+      plan: ctx.session.environment.selfHostedInstancePlan,
+      entitlement: "self-host-ui-customization",
+    });
+    if (!hasEntitlement) return null;
 
     return {
       hostname: env.LANGFUSE_UI_API_HOST,

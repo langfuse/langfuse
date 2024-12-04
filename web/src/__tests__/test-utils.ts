@@ -1,6 +1,11 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
-import { clickhouseClient } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  getDisplaySecretKey,
+  hashSecretKey,
+} from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
 import { type z } from "zod";
 
 export const pruneDatabase = async () => {
@@ -27,18 +32,21 @@ export const pruneDatabase = async () => {
     throw new Error("You cannot prune clickhouse unless running on localhost.");
   }
 
-  await clickhouseClient.command({
+  await clickhouseClient().command({
     query: "TRUNCATE TABLE IF EXISTS observations",
   });
-  await clickhouseClient.command({
+  await clickhouseClient().command({
     query: "TRUNCATE TABLE IF EXISTS scores",
   });
-  await clickhouseClient.command({
+  await clickhouseClient().command({
     query: "TRUNCATE TABLE IF EXISTS traces",
   });
 };
 
-function createBasicAuthHeader(username: string, password: string): string {
+export function createBasicAuthHeader(
+  username: string,
+  password: string,
+): string {
   const base64Credentials = Buffer.from(`${username}:${password}`).toString(
     "base64",
   );
@@ -130,3 +138,35 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
 
   return { body: resBody, status };
 }
+
+export const createOrgProjectAndApiKey = async () => {
+  const projectId = v4();
+  const org = await prisma.organization.create({
+    data: {
+      id: v4(),
+      name: v4(),
+    },
+  });
+  await prisma.project.create({
+    data: {
+      id: projectId,
+      name: v4(),
+      orgId: org.id,
+    },
+  });
+  const publicKey = v4();
+  const secretKey = v4();
+
+  const auth = createBasicAuthHeader(publicKey, secretKey);
+  await prisma.apiKey.create({
+    data: {
+      id: v4(),
+      projectId: projectId,
+      publicKey: publicKey,
+      hashedSecretKey: await hashSecretKey(secretKey),
+      displaySecretKey: getDisplaySecretKey(secretKey),
+    },
+  });
+
+  return { projectId, publicKey, secretKey, auth };
+};

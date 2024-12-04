@@ -7,15 +7,14 @@ export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";
 export * from "./tableDefinitions/tracesTable";
-export * from "./server/auth/apiKeys";
 export * from "./observationsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
+export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
-export { env } from "./env";
 
 // llm api
 export * from "./server/llm/types";

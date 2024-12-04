@@ -17,31 +17,14 @@ import {
   scoresTableUiColumnDefinitions,
 } from "../../tableDefinitions";
 import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
-import { convertToScore } from "./scores_converters";
+import {
+  convertScoreAggregation,
+  convertToScore,
+  ScoreAggregation,
+} from "./scores_converters";
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-
-export type FetchScoresReturnType = {
-  id: string;
-  timestamp: string;
-  project_id: string;
-  trace_id: string;
-  observation_id: string | null;
-  name: string;
-  value: number;
-  source: string;
-  comment: string | null;
-  author_user_id: string | null;
-  config_id: string | null;
-  data_type: string;
-  string_value: string | null;
-  queue_id: string | null;
-  created_at: string;
-  updated_at: string;
-  event_ts: string;
-  is_deleted: number;
-  projectId: string;
-};
+import { ScoreRecordReadType } from "./definitions";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -70,7 +53,7 @@ export const searchExistingAnnotationScore = async (
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query,
     params: {
       projectId,
@@ -86,25 +69,25 @@ export const searchExistingAnnotationScore = async (
 export const getScoreById = async (
   projectId: string,
   scoreId: string,
-  source: ScoreSource,
+  source?: ScoreSource,
 ) => {
   const query = `
     SELECT *
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.id = {scoreId: String}
-    AND s.source = {source: String}
+    ${source ? `AND s.source = {source: String}` : ""}
     ORDER BY s.event_ts DESC
     LIMIT 1 BY s.id, s.project_id
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query,
     params: {
       projectId,
       scoreId,
-      source,
+      ...(source !== undefined ? { source } : {}),
     },
   });
   return rows.map(convertToScore).shift();
@@ -114,13 +97,13 @@ export const getScoreById = async (
  * Accepts a score in a Clickhouse-ready format.
  * id, project_id, name, and timestamp must always be provided.
  */
-export const upsertScore = async (score: Partial<FetchScoresReturnType>) => {
+export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   if (!["id", "project_id", "name", "timestamp"].every((key) => key in score)) {
     throw new Error("Identifier fields must be provided to upsert Score.");
   }
   await upsertClickhouse({
     table: "scores",
-    records: [score as FetchScoresReturnType],
+    records: [score as ScoreRecordReadType],
     eventBodyMapper: convertToScore,
   });
 };
@@ -144,7 +127,7 @@ export const getScoresForTraces = async (
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query: query,
     params: {
       projectId,
@@ -177,7 +160,7 @@ export const getScoresForObservations = async (
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<FetchScoresReturnType>({
+  const rows = await queryClickhouse<ScoreRecordReadType>({
     query: query,
     params: {
       projectId: projectId,
@@ -553,16 +536,7 @@ export const getAggregatedScoresForPrompts = async (
     ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
   `;
 
-  const rows = await queryClickhouse<{
-    prompt_id: string;
-    id: string;
-    name: string;
-    string_value: string | null;
-    value: string;
-    source: string;
-    data_type: string;
-    comment: string | null;
-  }>({
+  const rows = await queryClickhouse<ScoreAggregation & { prompt_id: string }>({
     query,
     params: {
       projectId,
@@ -571,13 +545,38 @@ export const getAggregatedScoresForPrompts = async (
   });
 
   return rows.map((row) => ({
+    ...convertScoreAggregation(row),
     promptId: row.prompt_id,
-    id: row.id,
-    name: row.name,
-    stringValue: row.string_value,
-    value: Number(row.value),
-    source: row.source as ScoreSource,
-    dataType: row.data_type as ScoreDataType,
-    comment: row.comment,
+  }));
+};
+
+export const getScoreCountsByProjectInCreationInterval = async ({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}) => {
+  const query = `
+    SELECT 
+      project_id,
+      count(*) as count
+    FROM scores
+    WHERE created_at >= {start: DateTime64(3)}
+    AND created_at < {end: DateTime64(3)}
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{ project_id: string; count: string }>({
+    query,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    count: Number(row.count),
   }));
 };

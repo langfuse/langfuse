@@ -256,8 +256,8 @@ export const getDistinctModels = async (
       ) as DateTimeFilter | undefined)
     : undefined;
 
-    // No need for final as duplicates are caught by distinct anyway.
-    const query = `
+  // No need for final as duplicates are caught by distinct anyway.
+  const query = `
     SELECT distinct(provided_model_name) as model
     FROM observations o
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}

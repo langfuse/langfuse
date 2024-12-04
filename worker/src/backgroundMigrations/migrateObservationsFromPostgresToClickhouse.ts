@@ -110,7 +110,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
       );
 
       const insertStart = Date.now();
-      await clickhouseClient.insert({
+      await clickhouseClient().insert({
         table: "observations",
         values: observations.map(convertPostgresObservationToInsert),
         format: "JSONEachRow",

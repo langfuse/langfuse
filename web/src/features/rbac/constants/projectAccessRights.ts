@@ -48,6 +48,9 @@ const projectScopes = [
 
   "comments:CUD",
   "comments:read",
+
+  "promptExperiments:CUD",
+  "promptExperiments:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -88,6 +91,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "annotationQueues:CUD",
+    "promptExperiments:CUD",
+    "promptExperiments:read",
   ],
   ADMIN: [
     "project:read",
@@ -122,6 +127,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "annotationQueues:CUD",
+    "promptExperiments:CUD",
+    "promptExperiments:read",
   ],
   MEMBER: [
     "project:read",
@@ -147,6 +154,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "annotationQueues:CUD",
+    "promptExperiments:CUD",
+    "promptExperiments:read",
   ],
   VIEWER: [
     "project:read",
@@ -158,6 +167,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmApiKeys:read",
     "comments:read",
     "annotationQueues:read",
+    "promptExperiments:read",
   ],
   NONE: [],
 };

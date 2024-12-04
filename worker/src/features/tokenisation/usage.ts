@@ -90,7 +90,7 @@ type ChatMessage = {
 function openAiTokenCount(p: { model: Model; text: unknown }) {
   const config = OpenAiTokenConfig.safeParse(p.model.tokenizerConfig);
   if (!config.success) {
-    logger.error(
+    logger.warn(
       `Invalid tokenizer config for model ${p.model.id}: ${JSON.stringify(
         p.model.tokenizerConfig,
       )}, ${JSON.stringify(config.error)}`,
@@ -194,8 +194,7 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   const cleandedText = unicodeToBytesInString(text);
 
   logger.debug(`Tokenized data for model: ${model}`);
-
-  return encoding?.encode(cleandedText).length;
+  return encoding?.encode(cleandedText, "all").length;
 };
 
 interface Tokenizer {

@@ -5,15 +5,19 @@ import {
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { instrumentAsync } from "../instrumentation";
-import { S3StorageService } from "../services/S3StorageService";
+import {
+  StorageService,
+  StorageServiceFactory,
+} from "../services/StorageService";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
+import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 
-let s3StorageServiceClient: S3StorageService;
+let s3StorageServiceClient: StorageService;
 
-const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = new S3StorageService({
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
       accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
@@ -28,7 +32,7 @@ const getS3StorageServiceClient = (bucketName: string): S3StorageService => {
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
-  table: "scores" | "traces"; // TODO: Modify eventType logic to support more tables going forward
+  table: "scores" | "traces" | "observations";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
 }): Promise<void> {
@@ -36,36 +40,33 @@ export async function upsertClickhouse<
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
 
-    // drop trailing s and pretend it's always a create.
-    // Only applicable to scores and traces.
-    const eventType = `${opts.table.slice(0, -1)}-create`;
+    const s3Client = getS3StorageServiceClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    await Promise.all(
+      opts.records.map((record) => {
+        // drop trailing s and pretend it's always a create.
+        // Only applicable to scores and traces.
+        let eventType = `${opts.table.slice(0, -1)}-create`;
+        if (opts.table === "observations") {
+          // @ts-ignore - If it's an observation we now that `type` is a string
+          eventType = `${record["type"].toLowerCase()}-create`;
+        }
+        s3Client.uploadJson(
+          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
+          [
+            {
+              id: randomUUID(),
+              timestamp: new Date().toISOString(),
+              type: eventType,
+              body: opts.eventBodyMapper(record),
+            },
+          ],
+        );
+      }),
+    );
 
-    // If event upload is enabled, we store all rows in S3 to have a backup
-    if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
-      if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
-        throw new Error("S3 event store is enabled but no bucket is set");
-      }
-      const s3Client = getS3StorageServiceClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      );
-      await Promise.all(
-        opts.records.map((record) => {
-          s3Client.uploadJson(
-            `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
-            [
-              {
-                id: randomUUID(),
-                timestamp: new Date().toISOString(),
-                type: eventType,
-                body: opts.eventBodyMapper(record),
-              },
-            ],
-          );
-        }),
-      );
-    }
-
-    const res = await clickhouseClient.insert({
+    const res = await clickhouseClient().insert({
       table: opts.table,
       values: opts.records.map((record) => ({
         ...record,
@@ -103,12 +104,13 @@ export async function upsertClickhouse<
 export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
 }): Promise<T[]> {
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
 
-    const res = await clickhouseClient.query({
+    const res = await clickhouseClient(opts.clickhouseConfigs).query({
       query: opts.query,
       format: "JSONEachRow",
       query_params: opts.params,
@@ -145,12 +147,12 @@ export async function queryClickhouse<T>(opts: {
 export async function commandClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
-
-    const res = await clickhouseClient.command({
+    const res = await clickhouseClient(opts.clickhouseConfigs).command({
       query: opts.query,
       query_params: opts.params,
     });
@@ -183,4 +185,15 @@ export async function commandClickhouse<T>(opts: {
 
 export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
   return new Date(`${dateStr.replace(" ", "T")}Z`);
+}
+
+export function clickhouseCompliantRandomCharacters() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  let result = "";
+  const randomArray = new Uint8Array(5);
+  crypto.getRandomValues(randomArray);
+  randomArray.forEach((number) => {
+    result += chars[number % chars.length];
+  });
+  return result;
 }

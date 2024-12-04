@@ -7,6 +7,7 @@ export enum EventName {
   EvaluationExecution = "EvaluationExecution",
   LegacyIngestion = "LegacyIngestion",
   CloudUsageMetering = "CloudUsageMetering",
+  ExperimentCreate = "ExperimentCreate",
 }
 
 export const LegacyIngestionEventFull = z.object({
@@ -62,7 +63,7 @@ export const BatchExportJobSchema = z.object({
   projectId: z.string(),
   batchExportId: z.string(),
 });
-export const TraceUpsertEventSchema = z.object({
+export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
 });
@@ -78,19 +79,29 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 
+export const ExperimentCreateEventSchema = z.object({
+  projectId: z.string(),
+  datasetId: z.string(),
+  runId: z.string(),
+  description: z.string().optional(),
+});
+
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
-export type TraceUpsertEventType = z.infer<typeof TraceUpsertEventSchema>;
+export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type LegacyIngestionEventType = z.infer<typeof LegacyIngestionEvent>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
+export type ExperimentCreateEventType = z.infer<
+  typeof ExperimentCreateEventSchema
+>;
 
 export const EventBodySchema = z.union([
   z.object({
     name: z.literal(EventName.TraceUpsert),
-    payload: z.array(TraceUpsertEventSchema),
+    payload: z.array(TraceQueueEventSchema),
   }),
   z.object({
     name: z.literal(EventName.EvaluationExecution),
@@ -100,21 +111,28 @@ export const EventBodySchema = z.union([
     name: z.literal(EventName.BatchExport),
     payload: BatchExportJobSchema,
   }),
+  z.object({
+    name: z.literal(EventName.ExperimentCreate),
+    payload: ExperimentCreateEventSchema,
+  }),
 ]);
 export type EventBodyType = z.infer<typeof EventBodySchema>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
+  TraceDelete = "trace-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
+  ExperimentCreate = "experiment-create-queue",
 }
 
 export enum QueueJobs {
   TraceUpsert = "trace-upsert",
+  TraceDelete = "trace-delete",
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
@@ -122,14 +140,21 @@ export enum QueueJobs {
   LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   IngestionJob = "ingestion-job",
+  ExperimentCreateJob = "experiment-create-job",
 }
 
 export type TQueueJobTypes = {
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;
-    payload: TraceUpsertEventType;
+    payload: TraceQueueEventType;
     name: QueueJobs.TraceUpsert;
+  };
+  [QueueName.TraceDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: TraceQueueEventType;
+    name: QueueJobs.TraceDelete;
   };
   [QueueName.DatasetRunItemUpsert]: {
     timestamp: Date;
@@ -160,5 +185,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: IngestionEventQueueType;
     name: QueueJobs.IngestionJob;
+  };
+  [QueueName.ExperimentCreate]: {
+    timestamp: Date;
+    id: string;
+    payload: ExperimentCreateEventType;
+    name: QueueJobs.ExperimentCreateJob;
   };
 };

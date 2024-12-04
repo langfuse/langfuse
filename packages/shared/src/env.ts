@@ -22,14 +22,27 @@ const EnvSchema = z.object({
     .string()
     .length(
       64,
-      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32"
+      "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
     )
     .optional(),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
-  CLICKHOUSE_URL: z.string().url().optional(),
-  CLICKHOUSE_USER: z.string().optional(),
-  CLICKHOUSE_PASSWORD: z.string().optional(),
+  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_PASSWORD: z.string(),
+
+  LANGFUSE_CLICKHOUSE_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // TODO: Disable Postgres before go-live
+  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(15_000),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -38,8 +51,9 @@ const EnvSchema = z.object({
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
+    required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
+  }),
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
@@ -48,6 +62,11 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
+  STRIPE_SECRET_KEY: z.string().optional(),
 });
 
-export const env = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+export const env: z.infer<typeof EnvSchema> =
+  process.env.DOCKER_BUILD === "1"
+    ? (process.env as any)
+    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
