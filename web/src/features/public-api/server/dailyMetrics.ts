@@ -45,6 +45,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       FROM traces t FINAL
       LEFT JOIN observations o FINAL on o.trace_id = t.id AND o.project_id = t.project_id
       WHERE o.project_id = {projectId: String} 
+      AND t.project_id = {projectId: String}
       ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       GROUP BY date, model
@@ -106,6 +107,9 @@ export const generateDailyMetrics = async (props: QueryType) => {
             cteTimeFilter: convertDateToClickhouseDateTime(timeFilter.value),
           }
         : {}),
+    },
+    clickhouseConfigs: {
+      request_timeout: 60_000, // Use 1 minute timeout for daily metrics
     },
   });
 
