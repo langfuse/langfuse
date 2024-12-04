@@ -6,7 +6,11 @@ import {
   orderByToClickhouseSql,
   type DateTimeFilter,
 } from "@langfuse/shared/src/server";
-import { type OrderByState, type Trace } from "@langfuse/shared";
+import {
+  convertRecordToJsonSchema,
+  type OrderByState,
+  type Trace,
+} from "@langfuse/shared";
 import { snakeCase } from "lodash";
 
 type QueryType = {
@@ -102,7 +106,7 @@ export const generateTracesForPublicApi = async (
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  return queryClickhouse<
+  const result = await queryClickhouse<
     Trace & {
       observations: string[];
       scores: string[];
@@ -126,6 +130,13 @@ export const generateTracesForPublicApi = async (
         : {}),
     },
   });
+
+  return result.map((trace) => ({
+    ...trace,
+    metadata: convertRecordToJsonSchema(
+      (trace.metadata as Record<string, string>) || {},
+    ),
+  }));
 };
 
 export const getTracesCountForPublicApi = async (props: QueryType) => {

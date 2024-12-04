@@ -84,7 +84,7 @@ describe("/api/public/traces API Endpoint", () => {
       name: "trace-name",
       user_id: "user-1",
       project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value" },
+      metadata: { key: "value", jsonKey: JSON.stringify({ foo: "bar" }) },
       release: "1.0.0",
       version: "2.0.0",
     });
@@ -128,6 +128,10 @@ describe("/api/public/traces API Endpoint", () => {
     }
     expect(trace.name).toBe("trace-name");
     expect(trace.release).toBe("1.0.0");
+    expect(trace.metadata.key).toBe("value");
+    expect(JSON.stringify(trace.metadata.jsonKey)).toBe(
+      JSON.stringify({ foo: "bar" }),
+    );
     expect(trace.externalId).toBeNull();
     expect(trace.version).toBe("2.0.0");
     expect(trace.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
