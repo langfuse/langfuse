@@ -84,6 +84,76 @@ describe("Create and get comments", () => {
       );
     }
   });
+
+  it("should fail to create comment if content is empty", async () => {
+    try {
+      const traceResponse = await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          name: "trace-name",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+
+      const { id: traceId } = traceResponse.body;
+
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: null,
+          objectId: traceId,
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 404, body {\"message\":\"No trace with id invalid-trace-id in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a\",\"error\":\"LangfuseNotFoundError\"}`,
+      );
+    }
+  });
+
+  it("should fail to create comment if content is larger than 3000 characters", async () => {
+    try {
+      const traceResponse = await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          name: "trace-name",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+
+      const { id: traceId } = traceResponse.body;
+
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "a".repeat(3001),
+          objectId: traceId,
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 404, body {\"message\":\"No trace with id invalid-trace-id in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a\",\"error\":\"LangfuseNotFoundError\"}`,
+      );
+    }
+  });
 });
 
 describe("GET /api/public/comments API Endpoint", () => {
