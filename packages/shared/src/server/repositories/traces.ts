@@ -595,6 +595,22 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
+export const deleteTracesByProjectId = async (projectId: string) => {
+  const query = `
+    DELETE FROM traces
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
 export const getTotalUserCount = async (
   projectId: string,
   filter: FilterState,

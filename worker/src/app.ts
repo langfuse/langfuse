@@ -26,6 +26,7 @@ import { ingestionQueueProcessor } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
+import { projectDeleteProcessor } from "./queues/projectDelete";
 
 const app = express();
 
@@ -63,6 +64,12 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
+  });
+}
+
+if (env.QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.ProjectDelete, projectDeleteProcessor, {
+    concurrency: env.LANGFUSE_PROJECT_DELETE_CONCURRENCY,
   });
 }
 

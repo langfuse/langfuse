@@ -453,6 +453,7 @@ export type Project = {
     org_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    deleted_at: Timestamp | null;
     name: string;
 };
 export type ProjectMembership = {

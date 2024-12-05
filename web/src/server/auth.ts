@@ -452,6 +452,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 id: project.id,
                                 name: project.name,
                                 role: projectRole,
+                                deletedAt: project.deletedAt,
                               };
                             })
                             // Only include projects where the user has the required role
