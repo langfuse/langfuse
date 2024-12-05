@@ -101,11 +101,26 @@ export async function upsertClickhouse<
   });
 }
 
-export async function queryClickhouse<T>(opts: {
+/**
+ * Executes a query against the ClickHouse database and optionally transforms the result.
+ *
+ * @template T - The type of each row in the result set before transformation.
+ * @template R - The type of each row after transformation. Defaults to T if no transform is provided.
+ *
+ * @param {Object} opts - The options for the query.
+ * @param {string} opts.query - The SQL query to execute.
+ * @param {Record<string, unknown>} [opts.params] - Optional query parameters for safe value injection.
+ * @param {NodeClickHouseClientConfigOptions} [opts.clickhouseConfigs] - Optional ClickHouse client configuration.
+ * @param {(row: T) => R} [opts.transform] - Optional function to transform each row from type T to type R.
+ *
+ * @returns {Promise<R[]>} A promise that resolves to the transformed result set.
+ */
+export async function queryClickhouse<T, R = T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-}): Promise<T[]> {
+  transform?: (row: T) => R;
+}): Promise<R[]> {
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
@@ -140,7 +155,9 @@ export async function queryClickhouse<T>(opts: {
       }
     }
 
-    return await res.json<T>();
+    const rows = await res.json<T>();
+
+    return (opts.transform ? rows.map(opts.transform) : rows) as R[];
   });
 }
 

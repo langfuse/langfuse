@@ -24,6 +24,7 @@ import {
 } from "../repositories/constants";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
+import { reduceUsageOrCostDetails } from "../repositories";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -90,13 +91,15 @@ export const convertToUiTableRows = (
 export const convertToUITableMetrics = (
   row: TracesTableMetricsClickhouseReturnType,
 ): Omit<TracesMetricsUiReturnType, "scores"> => {
+  const usageDetails = reduceUsageOrCostDetails(row.usage_details);
+
   return {
     id: row.id,
     projectId: row.project_id,
     latency: Number(row.latency),
-    promptTokens: BigInt(row.usage_details?.input ?? 0),
-    completionTokens: BigInt(row.usage_details?.output ?? 0),
-    totalTokens: BigInt(row.usage_details?.total ?? 0),
+    promptTokens: BigInt(usageDetails.input),
+    completionTokens: BigInt(usageDetails.output),
+    totalTokens: BigInt(usageDetails.total),
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)

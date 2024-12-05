@@ -40,6 +40,8 @@ export const convertObservation = (
   latency: number | null;
   timeToFirstToken: number | null;
 } => {
+  const usageDetails = reduceUsageOrCostDetails(record.usage_details);
+
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -70,15 +72,9 @@ export const convertObservation = (
     promptId: record.prompt_id ?? null,
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: record.usage_details?.input
-      ? Number(record.usage_details?.input)
-      : 0,
-    completionTokens: record.usage_details?.output
-      ? Number(record.usage_details?.output)
-      : 0,
-    totalTokens: record.usage_details?.total
-      ? Number(record.usage_details?.total)
-      : 0,
+    promptTokens: usageDetails.input,
+    completionTokens: usageDetails.output,
+    totalTokens: usageDetails.total,
     calculatedInputCost: record.cost_details?.input
       ? new Decimal(record.cost_details.input)
       : null,
@@ -110,5 +106,23 @@ export const convertObservation = (
         ).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
+  };
+};
+
+export const reduceUsageOrCostDetails = (
+  details: Record<string, number> | null | undefined,
+): {
+  input: number;
+  output: number;
+  total: number;
+} => {
+  return {
+    input: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("input"))
+      .reduce((acc, [_, value]) => acc + Number(value), 0),
+    output: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("output"))
+      .reduce((acc, [_, value]) => acc + Number(value), 0),
+    total: Number(details?.total ?? 0),
   };
 };

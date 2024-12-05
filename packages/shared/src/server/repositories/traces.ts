@@ -24,7 +24,7 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
-import { FetchTracesTableProps } from "../services/traces-ui-table-service";
+import { reduceUsageOrCostDetails } from "./observations_converters";
 
 export const checkTraceExists = async (
   projectId: string,
@@ -408,13 +408,7 @@ export const getSessionsTable = async (props: {
     total_observations,
     duration,
     session_usage_details,
-    session_cost_details,
-    session_input_cost,
-    session_output_cost,
-    session_total_cost,
-    session_input_usage,
-    session_output_usage,
-    session_total_usage
+    session_cost_details
     `,
     projectId: props.projectId,
     filter: props.filter,
@@ -493,13 +487,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             sum(o.obs_count) as total_observations,
             date_diff('milliseconds', min(min_start_time), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
-            sumMap(o.sum_cost_details) as session_cost_details,
-            sumMap(o.sum_cost_details)['input'] as session_input_cost,
-            sumMap(o.sum_cost_details)['output'] as session_output_cost,
-            sumMap(o.sum_cost_details)['total'] as session_total_cost,
-            sumMap(o.sum_usage_details)['input'] as session_input_usage,
-            sumMap(o.sum_usage_details)['output'] as session_output_usage,
-            sumMap(o.sum_usage_details)['total'] as session_total_usage
+            sumMap(o.sum_cost_details) as session_cost_details
         FROM traces t FINAL
         LEFT JOIN observations_agg o
         ON t.id = o.trace_id AND t.project_id = o.project_id
@@ -532,6 +520,34 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       ...(obsStartTimeValue
         ? { observationsStartTime: obsStartTimeValue }
         : {}),
+    },
+    transform: (row) => {
+      if (typeof row !== "object" || row == null) {
+        return row;
+      }
+
+      const usageDetails = reduceUsageOrCostDetails(
+        "session_usage_details" in row
+          ? (row.session_usage_details as Record<string, number>)
+          : null,
+      );
+      const costDetails = reduceUsageOrCostDetails(
+        "session_cost_details" in row
+          ? (row.session_cost_details as Record<string, number>)
+          : null,
+      );
+
+      return {
+        ...row,
+
+        session_input_cost: costDetails.input,
+        session_output_cost: costDetails.output,
+        session_total_cost: costDetails.total,
+
+        session_input_usage: usageDetails.input,
+        session_output_usage: usageDetails.output,
+        session_total_usage: usageDetails.total,
+      };
     },
   });
 
@@ -698,9 +714,7 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
             t.user_id
     )
     SELECT
-        sum_usage_details [ 'input' ] as input_usage,
-        sum_usage_details [ 'output' ] as output_usage,
-        sum_usage_details [ 'total' ] as total_usage,
+        sum_usage_details, 
         obs_count,
         trace_count,
         user_id,
@@ -712,13 +726,11 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
 
   `;
 
-  const rows = await queryClickhouse<{
+  return await queryClickhouse<{
     user_id: string;
     max_timestamp: string;
     min_timestamp: string;
-    input_usage: string;
-    output_usage: string;
-    total_usage: string;
+    sum_usage_details: Record<string, number>;
     obs_count: string;
     trace_count: string;
     sum_total_cost: string;
@@ -728,16 +740,21 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
       projectId,
       userIds,
     },
+    transform: (row) => {
+      const usageDetails = reduceUsageOrCostDetails(row.sum_usage_details);
+
+      return {
+        ...row,
+        userId: row.user_id,
+        maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
+        minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
+        inputUsage: usageDetails.input,
+        outputUsage: usageDetails.output,
+        totalUsage: usageDetails.total,
+        observationCount: Number(row.obs_count),
+        traceCount: Number(row.trace_count),
+        totalCost: Number(row.sum_total_cost),
+      };
+    },
   });
-  return rows.map((row) => ({
-    userId: row.user_id,
-    maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
-    minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
-    inputUsage: Number(row.input_usage),
-    outputUsage: Number(row.output_usage),
-    totalUsage: Number(row.total_usage),
-    observationCount: Number(row.obs_count),
-    traceCount: Number(row.trace_count),
-    totalCost: Number(row.sum_total_cost),
-  }));
 };
