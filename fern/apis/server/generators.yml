@@ -19,6 +19,11 @@ groups:
           pydantic_config:
             require_optional_fields: false
             use_str_enums: false
+      - name: fernapi/fern-java-sdk
+        version: 2.3.0
+        output:
+          location: local-file-system
+          path: ../../../generated/java
       - name: fernapi/fern-postman
         version: 0.0.45
         output:
