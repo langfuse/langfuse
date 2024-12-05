@@ -21,7 +21,7 @@ export function RetryBackgroundMigration({
   const mutRetryBackgroundMigration =
     api.backgroundMigrations.retry.useMutation({
       onSuccess: () => {
-        void utils.prompts.invalidate();
+        void utils.backgroundMigrations.invalidate();
       },
     });
 
