@@ -114,7 +114,6 @@ const s3UrlSchema = z.object({
  */
 const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
   try {
-    // Parse the URL
     const parsedUrl = new URL(url);
 
     // Validate hostname and query parameters
