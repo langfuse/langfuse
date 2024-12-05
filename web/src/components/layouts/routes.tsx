@@ -20,6 +20,7 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { isSelfHostedPlan } from "@langfuse/shared";
 
 export type Route = {
   title: string;
@@ -165,5 +166,15 @@ export const ROUTES: Route[] = [
     icon: LifeBuoy,
     bottom: true,
     customizableHref: "supportHref",
+  },
+  {
+    title: "Background Migrations",
+    pathname: "/background-migrations",
+    icon: LifeBuoy,
+    bottom: true,
+    show: ({ organization }) =>
+      (organization?.plan === "oss" ||
+        (organization?.plan && isSelfHostedPlan(organization?.plan))) ??
+      false,
   },
 ];
