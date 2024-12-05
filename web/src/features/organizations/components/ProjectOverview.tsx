@@ -1,11 +1,4 @@
-import {
-  Building2,
-  LifeBuoy,
-  LockIcon,
-  SendToBack,
-  Settings,
-  Users,
-} from "lucide-react";
+import { Building2, LifeBuoy, LockIcon, Settings, Users } from "lucide-react";
 import {
   Card,
   CardContent,
