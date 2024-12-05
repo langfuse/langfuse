@@ -840,8 +840,8 @@
     "updated_at": "2024-12-03T12:20:04.000Z",
     "prices": {
       "input": 3e-6,
-      "input_cache_write": 3.75e-6,
-      "input_cache_read": 0.3e-6,
+      "input_cache_creation_tokens": 3.75e-6,
+      "input_cache_read_tokens": 0.3e-6,
       "output": 15e-6
     },
     "tokenizer_config": null,
@@ -1004,8 +1004,8 @@
     "updated_at": "2024-12-03T12:20:59.000Z",
     "prices": {
       "input": 3e-6,
-      "input_cache_write": 3.75e-6,
-      "input_cache_read": 0.3e-6,
+      "input_cache_creation_tokens": 3.75e-6,
+      "input_cache_read_tokens": 0.3e-6,
       "output": 15e-6
     },
     "tokenizer_config": null,
@@ -1133,8 +1133,8 @@
     "updated_at": "2024-12-03T12:21:10.000Z",
     "prices": {
       "input": 3e-6,
-      "input_cache_write": 3.75e-6,
-      "input_cache_read": 0.3e-6,
+      "input_cache_creation_tokens": 3.75e-6,
+      "input_cache_read_tokens": 0.3e-6,
       "output": 15e-6
     },
     "tokenizer_config": null,
@@ -1148,8 +1148,8 @@
     "updated_at": "2024-12-03T12:22:03.000Z",
     "prices": {
       "input": 3e-6,
-      "input_cache_write": 3.75e-6,
-      "input_cache_read": 0.3e-6,
+      "input_cache_creation_tokens": 3.75e-6,
+      "input_cache_read_tokens": 0.3e-6,
       "output": 15e-6
     },
     "tokenizer_config": null,
@@ -1163,8 +1163,8 @@
     "updated_at": "2024-12-03T12:24:24.000Z",
     "prices": {
       "input": 0.8e-6,
-      "input_cache_write": 1e-6,
-      "input_cache_read": 0.08e-6,
+      "input_cache_creation_tokens": 1e-6,
+      "input_cache_read_tokens": 0.08e-6,
       "output": 4e-6
     },
     "tokenizer_config": null,
@@ -1178,8 +1178,8 @@
     "updated_at": "2024-12-03T12:26:33.000Z",
     "prices": {
       "input": 0.8e-6,
-      "input_cache_write": 1e-6,
-      "input_cache_read": 0.08e-6,
+      "input_cache_creation_tokens": 1e-6,
+      "input_cache_read_tokens": 0.08e-6,
       "output": 4e-6
     },
     "tokenizer_config": null,
