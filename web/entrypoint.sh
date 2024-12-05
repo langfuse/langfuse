@@ -14,6 +14,12 @@ if [ -z "$DATABASE_URL" ]; then
     fi
 fi
 
+# Check if CLICKHOUSE_URL is not set
+if [ -z "CLICKHOUSE_URL" ]; then
+    echo "Error: CLICKHOUSE_URL is not configured. Migrating from V2? Check out migration guide at https://langfuse.com/docs/deployment/v3/migrate-v2-to-v3."
+    exit 1
+fi
+
 # Set DIRECT_URL to the value of DATABASE_URL if it is not set, required for migrations
 if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL=$DATABASE_URL
