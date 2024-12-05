@@ -76,6 +76,7 @@ export const SessionPage: React.FC<{
       {
         projectId,
         sessionId,
+        queryClickhouse: useClickhouse(),
       },
       { enabled: session.isSuccess && userSession.status === "authenticated" },
     );

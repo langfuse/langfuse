@@ -10,6 +10,8 @@ import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
+import { getTracesIdentifierForSession } from "@langfuse/shared/src/server";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -260,62 +262,102 @@ export const commentsRouter = createTRPCRouter({
       }
     }),
   getTraceCommentCountsBySessionId: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), sessionId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       try {
-        const session = await ctx.prisma.traceSession.findFirst({
-          where: {
-            id: input.sessionId,
-            projectId: input.projectId,
+        return await measureAndReturnApi({
+          input,
+          operation: "comments.getTraceCommentCountsBySessionId",
+          user: ctx.session.user ?? undefined,
+          pgExecution: async () => {
+            const session = await ctx.prisma.traceSession.findFirst({
+              where: {
+                id: input.sessionId,
+                projectId: input.projectId,
+              },
+              include: {
+                traces: {
+                  select: {
+                    id: true,
+                  },
+                },
+              },
+            });
+            if (!session) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Session not found in project",
+              });
+            }
+
+            const allCommentCounts = await ctx.prisma.$queryRaw<
+              Array<{ objectId: string; count: bigint }>
+            >`
+            SELECT object_id as "objectId", COUNT(*) as count
+            FROM comments
+            WHERE project_id = ${input.projectId}
+            AND object_type = 'TRACE'
+            GROUP BY object_id
+          `;
+
+            const traceIds = new Set(
+              session.traces.map((t: { id: string }) => t.id),
+            );
+            return new Map(
+              allCommentCounts
+                .filter((c) => traceIds.has(c.objectId))
+                .map(({ objectId, count }) => [objectId, Number(count)]),
+            );
           },
-          include: {
-            traces: {
-              orderBy: {
-                timestamp: "asc",
+          clickhouseExecution: async () => {
+            const postgresSession = await ctx.prisma.traceSession.findFirst({
+              where: {
+                id: input.sessionId,
+                projectId: input.projectId,
               },
-              select: {
-                id: true,
-                userId: true,
-                name: true,
-                timestamp: true,
-              },
-            },
+            });
+
+            if (!postgresSession) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: "Session not found in project",
+              });
+            }
+
+            const clickhouseTraces = await getTracesIdentifierForSession(
+              input.projectId,
+              input.sessionId,
+            );
+
+            const allCommentCounts = await ctx.prisma.$queryRaw<
+              Array<{ objectId: string; count: bigint }>
+            >`
+              SELECT object_id as "objectId", COUNT(*) as count
+              FROM comments
+              WHERE project_id = ${input.projectId}
+              AND object_type = 'TRACE'
+              GROUP BY object_id
+            `;
+
+            const traceIds = new Set(clickhouseTraces.map((t) => t.id));
+            return new Map(
+              allCommentCounts
+                .filter((c) => traceIds.has(c.objectId))
+                .map(({ objectId, count }) => [objectId, Number(count)]),
+            );
           },
         });
-        if (!session) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Session not found in project",
-          });
-        }
-
-        // traceCommentCounts
-        const traceCommentCounts = await ctx.prisma.comment.groupBy({
-          by: ["objectId"],
-          where: {
-            objectId: { in: session.traces.map((t) => t.id) },
-            projectId: input.projectId,
-            objectType: "TRACE",
-          },
-          _count: {
-            objectId: true,
-          },
-        });
-
-        return new Map(
-          traceCommentCounts.map(({ objectId, _count }) => [
-            objectId,
-            _count.objectId,
-          ]),
-        );
-      } catch (error) {
-        console.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
+      } catch (e) {
+        console.error(e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching trace comment counts by session id failed.",
+          message: "Unable to get trace comment counts by session id",
         });
       }
     }),
