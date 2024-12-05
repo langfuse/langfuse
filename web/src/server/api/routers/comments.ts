@@ -180,35 +180,6 @@ export const commentsRouter = createTRPCRouter({
         });
       }
     }),
-  // deprecated procedure, returns empty map, kept to prevent caching issues
-  getCountsByObjectIds: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        objectIds: z.array(z.string()),
-        objectType: z.nativeEnum(CommentObjectType),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "comments:read",
-        });
-
-        return new Map();
-      } catch (error) {
-        console.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching comment count by object id failed.",
-        });
-      }
-    }),
   getCountByObjectId: protectedProjectProcedure
     .input(
       z.object({
