@@ -1,21 +1,6 @@
 import { z } from "zod";
-
-import { ModelUsageUnit } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  createTRPCRouter,
-  protectedOrganizationProcedure,
-  protectedProcedure,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import { paginationZod } from "@langfuse/shared";
+import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
-
-const ModelAllOptions = z.object({
-  projectId: z.string(),
-});
 
 export const backgroundMigrationsRouter = createTRPCRouter({
   all: protectedProcedure.query(async ({ ctx }) => {
@@ -27,4 +12,35 @@ export const backgroundMigrationsRouter = createTRPCRouter({
 
     return { migrations: backgroundMigrations };
   }),
+  retry: protectedProcedure
+    .input(z.object({ name: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const backgroundMigration =
+        await ctx.prisma.backgroundMigration.findUnique({
+          where: {
+            name: input.name,
+          },
+        });
+
+      if (!backgroundMigration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Background migration not found",
+        });
+      }
+
+      await ctx.prisma.backgroundMigration.update({
+        where: {
+          name: input.name,
+        },
+        data: {
+          state: {},
+          failedAt: null,
+          failedReason: null,
+          finishedAt: null,
+        },
+      });
+
+      return { backgroundMigration };
+    }),
 });

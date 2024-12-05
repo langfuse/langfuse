@@ -1,26 +1,15 @@
-import { SupportChannels } from "@/src/components/Support";
 import Header from "@/src/components/layouts/header";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
-
-// type BackgroundMigrationsRow = {
-//   name: string;
-//   script: string;
-//   args: Prisma.JsonValue;
-//   finishedAt: Date | null;
-//   failedAt: Date | null;
-//   failedReason: string | null;
-//   state: Prisma.JsonValue;
-// };
+import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
 
-  const columns: LangfuseColumnDef<BackgroundMigration>[] = [
+  const columns = [
     {
       accessorKey: "name",
       id: "name",
@@ -38,6 +27,7 @@ export default function BackgroundMigrationsTable() {
       id: "args",
       enableColumnFilter: false,
       header: "Args",
+      size: 80,
       cell: (row) => JSON.stringify(row.getValue()),
     },
     {
@@ -45,12 +35,30 @@ export default function BackgroundMigrationsTable() {
       id: "finishedAt",
       enableColumnFilter: false,
       header: "Finished At",
+      size: 80,
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("finishedAt");
+        return value ? (
+          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "failedAt",
       id: "failedAt",
       enableColumnFilter: false,
       header: "Failed At",
+      size: 80,
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("failedAt");
+        return value ? (
+          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
+        ) : (
+          <span className="text-xs">-</span>
+        );
+      },
     },
     {
       accessorKey: "failedReason",
@@ -65,19 +73,26 @@ export default function BackgroundMigrationsTable() {
       header: "State",
       cell: (row) => JSON.stringify(row.getValue()),
     },
-  ];
+    {
+      id: "actions",
+      header: "Actions",
+      cell: (row) => {
+        const name = row.row.original.name;
+        const isRetryable = row.row.original.failedAt !== null;
+        return (
+          <RetryBackgroundMigration
+            backgroundMigrationName={name}
+            isRetryable={isRetryable}
+          />
+        );
+      },
+    },
+  ] as LangfuseColumnDef<BackgroundMigration>[];
 
   return (
     <>
-      <DataTableToolbar
-        columns={columns}
-        // columnVisibility={columnVisibility}
-        // setColumnVisibility={setColumnVisibility}
-        // columnOrder={columnOrder}
-        // setColumnOrder={setColumnOrder}
-        // rowHeight={rowHeight}
-        // setRowHeight={setRowHeight}
-      />
+      <Header title="Background Migrations" />
+      <DataTableToolbar columns={columns} />
       <DataTable
         columns={columns}
         data={
@@ -95,16 +110,6 @@ export default function BackgroundMigrationsTable() {
                   data: backgroundMigrations.data.migrations,
                 }
         }
-        // pagination={{
-        //   totalCount,
-        //   onChange: setPaginationState,
-        //   state: paginationState,
-        // }}
-        // columnVisibility={columnVisibility}
-        // onColumnVisibilityChange={setColumnVisibility}
-        // columnOrder={columnOrder}
-        // onColumnOrderChange={setColumnOrder}
-        // rowHeight={rowHeight}
       />
     </>
   );
