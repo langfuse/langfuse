@@ -107,6 +107,11 @@ const s3UrlSchema = z.object({
   }),
 });
 
+const isImageContent = (response: Response): boolean => {
+  const contentType = response.headers.get("content-type");
+  return !!contentType && contentType.startsWith("image/");
+};
+
 /**
  * Validate if a URL is a valid and live pre-signed S3 URL
  * @param url The pre-signed S3 URL to validate
@@ -135,11 +140,11 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
     });
 
     // Status 200 indicates the URL is valid
-    if (response.ok) {
+    if (response.ok && isImageContent(response)) {
       return true;
     }
 
-    // Attempt a GET request as a fallback, as some pre-signed URLs are restricted to GET requests only
+    // Attempt a GET request, as most pre-signed URLs are restricted to GET requests only
     if (response.status === 403) {
       logger.info(
         "HEAD request returned 403, attempting GET for validation...",
@@ -151,7 +156,7 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
         headers: { Range: "bytes=0-1" }, // Fetch only the first byte, expected server response for valid pre-signed URLs is 206 Partial Content
       });
 
-      return getResponse.ok; // 200 or 206 Partial Content indicates success
+      return getResponse.ok && isImageContent(getResponse); // 200 or 206 Partial Content indicates success
     }
 
     return false;
@@ -169,6 +174,7 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
 
 const isValidImageUrl = async (url: string): Promise<boolean> => {
   try {
+    // Pre-signed URLs (AWS S3) often have restricted access methods. Some only allow GET requests, others only HEAD. We need to try both.
     if (await isValidPresignedS3Url(url)) {
       return true;
     }
@@ -182,9 +188,7 @@ const isValidImageUrl = async (url: string): Promise<boolean> => {
       return false;
     }
 
-    const contentType = response.headers.get("content-type");
-
-    return !!contentType && contentType.startsWith("image/");
+    return isImageContent(response);
   } catch (error) {
     logger.info("Invalid image error:", error);
     return false;
