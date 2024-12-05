@@ -9,6 +9,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";
 import { Popup } from "@/src/components/layouts/doc-popup";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const LatencyTables = ({
   projectId,
@@ -41,6 +42,8 @@ export const LatencyTables = ({
       orderBy: [
         { column: "duration", agg: "95thPercentile", direction: "DESC" },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "observation-latencies-aggregated",
     },
     {
       trpc: {
@@ -75,6 +78,8 @@ export const LatencyTables = ({
       orderBy: [
         { column: "duration", agg: "95thPercentile", direction: "DESC" },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "observation-latencies-aggregated",
     },
     {
       trpc: {
@@ -101,6 +106,8 @@ export const LatencyTables = ({
       orderBy: [
         { column: "duration", agg: "95thPercentile", direction: "DESC" },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "traces-latencies-aggregated",
     },
     {
       trpc: {

@@ -15,7 +15,7 @@ import {
 import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { extractVariables, getIsCharOrUnderscore } from "@/src/utils/string";
+import { extractVariables, getIsCharOrUnderscore } from "@langfuse/shared";
 import router from "next/router";
 import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
@@ -37,6 +37,9 @@ import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 
 export const EvalTemplateForm = (props: {
   projectId: string;
@@ -44,6 +47,7 @@ export const EvalTemplateForm = (props: {
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
+  preventRedirect?: boolean;
 }) => {
   const [langfuseTemplate, setLangfuseTemplate] = useState<string | null>(null);
 
@@ -83,6 +87,7 @@ export const EvalTemplateForm = (props: {
       ) : null}
       <div className="col-span-1 lg:col-span-3">
         <InnerEvalTemplateForm
+          key={langfuseTemplate ?? props.existingEvalTemplate?.id}
           {...props}
           existingEvalTemplateId={props.existingEvalTemplate?.id}
           existingEvalTemplateName={props.existingEvalTemplate?.name}
@@ -153,6 +158,10 @@ const formSchema = z.object({
   ),
   outputScore: z.string().min(1, "Enter a score function"),
   outputReasoning: z.string().min(1, "Enter a reasoning function"),
+  referencedEvaluators: z
+    .nativeEnum(EvalReferencedEvaluators)
+    .optional()
+    .default(EvalReferencedEvaluators.PERSIST),
 });
 
 export type EvalTemplateFormPreFill = {
@@ -182,6 +191,7 @@ export const InnerEvalTemplateForm = (props: {
   onFormSuccess?: () => void;
   isEditing?: boolean;
   setIsEditing?: (isEditing: boolean) => void;
+  preventRedirect?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [formError, setFormError] = useState<string | null>(null);
@@ -265,9 +275,44 @@ export const InnerEvalTemplateForm = (props: {
 
   const utils = api.useUtils();
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
-    onSuccess: () => utils.models.invalidate(),
+    onSuccess: () => {
+      utils.models.invalidate();
+      if (
+        form.getValues("referencedEvaluators") ===
+          EvalReferencedEvaluators.UPDATE &&
+        props.existingEvalTemplateId
+      ) {
+        showSuccessToast({
+          title: "Updated evaluators",
+          description:
+            "Updated referenced evaluators to use new template version.",
+        });
+      }
+    },
     onError: (error) => setFormError(error.message),
   });
+
+  const evaluatorsByTemplateNameQuery =
+    api.evals.jobConfigsByTemplateName.useQuery(
+      {
+        projectId: props.projectId,
+        evalTemplateName: props.existingEvalTemplateName as string,
+      },
+      {
+        enabled: !!props.existingEvalTemplateName,
+      },
+    );
+
+  useEffect(() => {
+    if (evaluatorsByTemplateNameQuery.data) {
+      form.setValue(
+        "referencedEvaluators",
+        Boolean(evaluatorsByTemplateNameQuery.data.evaluators.length)
+          ? EvalReferencedEvaluators.UPDATE
+          : EvalReferencedEvaluators.PERSIST,
+      );
+    }
+  }, [evaluatorsByTemplateNameQuery.data, form]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
@@ -288,6 +333,7 @@ export const InnerEvalTemplateForm = (props: {
         score: values.outputScore,
         reasoning: values.outputReasoning,
       },
+      referencedEvaluators: values.referencedEvaluators,
     };
 
     const parsedModel = selectedModelSchema.safeParse(evalTemplate);
@@ -305,6 +351,9 @@ export const InnerEvalTemplateForm = (props: {
         props.onFormSuccess?.();
         form.reset();
         props.setIsEditing?.(false);
+        if (props.preventRedirect) {
+          return;
+        }
         void router.push(
           `/project/${props.projectId}/evals/templates/${res.id}`,
         );
@@ -416,6 +465,73 @@ export const InnerEvalTemplateForm = (props: {
               </FormItem>
             )}
           />
+
+          {props.isEditing && props.existingEvalTemplateId && (
+            <FormField
+              control={form.control}
+              name="referencedEvaluators"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Referenced evaluators</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      {...field}
+                      onValueChange={field.onChange}
+                      defaultValue={
+                        Boolean(
+                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
+                        )
+                          ? EvalReferencedEvaluators.UPDATE
+                          : EvalReferencedEvaluators.PERSIST
+                      }
+                      disabled={
+                        !Boolean(
+                          evaluatorsByTemplateNameQuery.data?.evaluators.length,
+                        )
+                      }
+                      className="flex flex-col space-y-1"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="update" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Update all to use new template version
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="persist" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Persist existing template version
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormDescription>
+                    {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
+                    evaluator(s) are currently using this template.{" "}
+                    {Boolean(
+                      evaluatorsByTemplateNameQuery.data?.evaluators.length,
+                    )
+                      ? "Would you like to update them to use this version?"
+                      : "No evaluators to update."}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+          {!props.isEditing && (
+            <>
+              <FormLabel>Referenced evaluators</FormLabel>
+              <FormDescription>
+                {evaluatorsByTemplateNameQuery.data?.evaluators.length ?? 0}{" "}
+                evaluator(s) are currently using this template.
+              </FormDescription>
+            </>
+          )}
         </div>
         <div className="col-span-1 row-span-3">
           <div className="flex flex-col gap-6">
@@ -439,7 +555,7 @@ export const InnerEvalTemplateForm = (props: {
           <Button
             type="submit"
             loading={createEvalTemplateMutation.isLoading}
-            className="col-span-1 mt-3 lg:col-span-3"
+            className="col-span-1 lg:col-span-3"
           >
             Save
           </Button>

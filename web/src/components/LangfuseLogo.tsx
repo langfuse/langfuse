@@ -1,6 +1,5 @@
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
-import { EnvLabel } from "./EnvLabel";
 import { VersionLabel } from "./VersionLabel";
 import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
@@ -35,7 +34,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
           src={uiCustomization.logoLightModeHref}
           alt="Langfuse Logo"
           className={cn(
-            "dark:hidden",
+            "group-data-[collapsible=icon]:hidden dark:hidden",
             size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
           )}
         />
@@ -44,11 +43,14 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
           src={uiCustomization.logoDarkModeHref}
           alt="Langfuse Logo"
           className={cn(
-            "hidden dark:block",
+            "hidden group-data-[collapsible=icon]:hidden dark:block",
             size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
           )}
         />
-        <PlusIcon size={size === "sm" ? 8 : 12} />
+        <PlusIcon
+          size={size === "sm" ? 8 : 12}
+          className="group-data-[collapsible=icon]:hidden"
+        />
         <LangfuseIcon size={size === "sm" ? 16 : 20} />
       </div>
     );
@@ -59,7 +61,7 @@ const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
       <LangfuseIcon size={size === "sm" ? 16 : 20} />
       <span
         className={cn(
-          "ml-2 font-mono font-semibold",
+          "ml-2 font-mono font-semibold leading-none group-data-[collapsible=icon]:hidden",
           size === "sm" ? "text-sm" : "text-xl",
         )}
       >
@@ -73,12 +75,10 @@ export const LangfuseLogo = ({
   className,
   size = "sm",
   version = false,
-  showEnvLabel = false,
 }: {
   size?: "sm" | "xl";
   className?: string;
   version?: boolean;
-  showEnvLabel?: boolean;
 }) => {
   return (
     <div
@@ -87,14 +87,14 @@ export const LangfuseLogo = ({
         className,
       )}
     >
-      {/* Environment Labeling for Langfuse Maintainers */}
-      {showEnvLabel && <EnvLabel />}
       {/* Langfuse Logo */}
       <div className="flex items-center">
         <Link href="/" className="flex items-center">
           <LangfuseLogotypeOrCustomized size={size} />
         </Link>
-        {version && <VersionLabel className="ml-2" />}
+        {version && (
+          <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
+        )}
       </div>
     </div>
   );

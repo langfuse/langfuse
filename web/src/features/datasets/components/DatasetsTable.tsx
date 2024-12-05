@@ -55,7 +55,7 @@ export function DatasetsTable(props: { projectId: string }) {
     if (datasets.isSuccess) {
       setDetailPageList(
         "datasets",
-        datasets.data.datasets.map((t) => t.id),
+        datasets.data.datasets.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,6 +84,10 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "description",
       enableHiding: true,
       size: 200,
+      cell: ({ row }) => {
+        const description: RowData["description"] = row.getValue("description");
+        return <div className="h-full overflow-y-auto">{description}</div>;
+      },
     },
     {
       accessorKey: "countItems",
@@ -154,6 +158,7 @@ export function DatasetsTable(props: { projectId: string }) {
                 mode="delete"
                 projectId={props.projectId}
                 datasetId={key.id}
+                datasetName={key.name}
               />
             </DropdownMenuContent>
           </DropdownMenu>

@@ -14,9 +14,10 @@ import {
 } from "@/src/components/ui/select";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
-import { Pencil } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -46,7 +47,7 @@ export const EvalTemplateDetail = () => {
   );
 
   return (
-    <div className="md:container">
+    <ScrollScreenPage>
       <Header
         title={template.data?.name ?? "Loading..."}
         actionButtons={
@@ -90,7 +91,7 @@ export const EvalTemplateDetail = () => {
           setIsEditing={setIsEditing}
         />
       )}
-    </div>
+    </ScrollScreenPage>
   );
 };
 
@@ -155,13 +156,13 @@ export function UpdateTemplate({
 
   return (
     <Button
-      variant="outline"
-      size="icon"
+      variant="secondary"
       onClick={() => handlePromptEdit()}
       disabled={!hasAccess}
       loading={isLoading}
     >
-      <Pencil className="h-5 w-5" />
+      <Plus className="h-4 w-4" />
+      New version
     </Button>
   );
 }

@@ -147,10 +147,29 @@ types:
       tags:
         type: optional<list<string>>
         docs: A list of tags associated with the trace referenced by score
-  GetScoresResponseData:
+
+  GetScoresResponseDataNumeric:
+    extends: commons.NumericScore
     properties:
-      <<: commons.Score
       trace: GetScoresResponseTraceData
+
+  GetScoresResponseDataCategorical:
+    extends: commons.CategoricalScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseDataBoolean:
+    extends: commons.BooleanScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseData:
+    discriminant: dataType
+    union:
+      NUMERIC: GetScoresResponseDataNumeric
+      CATEGORICAL: GetScoresResponseDataCategorical
+      BOOLEAN: GetScoresResponseDataBoolean
+
   GetScoresResponse:
     properties:
       data: list<GetScoresResponseData>

@@ -1,42 +1,75 @@
-import { type z } from "zod";
-
+import { z } from "zod";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
-
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
 import { getAllGenerations } from "@/src/server/api/routers/generations/db/getAllGenerationsSqlQuery";
-import { parseGetAllGenerationsInput } from "@langfuse/shared/src/server";
+import {
+  getObservationsTableCount,
+  parseGetAllGenerationsInput,
+} from "@langfuse/shared/src/server";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
-const getAllGenerationsInput = GenerationTableOptions.extend({
+const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
 });
 
-export type GetAllGenerationsInput = z.infer<typeof getAllGenerationsInput>;
+export type GetAllGenerationsInput = z.infer<typeof GetAllGenerationsInput>;
 
 export const getAllQueries = {
   all: protectedProjectProcedure
-    .input(getAllGenerationsInput)
-    .query(async ({ input }) => {
-      const { generations } = await getAllGenerations({
+    .input(
+      GetAllGenerationsInput.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return await measureAndReturnApi({
         input,
-        selectIOAndMetadata: false,
-      });
+        operation: "generations.all",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const { generations } = await getAllGenerations({
+            input,
+            selectIOAndMetadata: false,
+          });
 
-      return {
-        generations: generations,
-      };
+          return {
+            generations: generations,
+          };
+        },
+        clickhouseExecution: async () => {
+          const { generations } = await getAllGenerations({
+            input,
+            selectIOAndMetadata: false,
+            queryClickhouse: true,
+          });
+
+          return {
+            generations: generations,
+          };
+        },
+      });
     }),
   countAll: protectedProjectProcedure
-    .input(getAllGenerationsInput)
+    .input(
+      GetAllGenerationsInput.extend({
+        queryClickhouse: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      const { searchCondition, filterCondition, datetimeFilter } =
-        parseGetAllGenerationsInput(input);
+      return await measureAndReturnApi({
+        input,
+        operation: "generations.countAll",
+        user: ctx.session.user,
+        pgExecution: async () => {
+          const { searchCondition, filterCondition, datetimeFilter } =
+            parseGetAllGenerationsInput(input);
 
-      const totalGenerations = await ctx.prisma.$queryRaw<
-        Array<{ count: bigint }>
-      >(
-        Prisma.sql`
+          const totalGenerations = await ctx.prisma.$queryRaw<
+            Array<{ count: bigint }>
+          >(
+            Prisma.sql`
           SELECT
             count(*)
           FROM observations_view o
@@ -67,11 +100,25 @@ export const getAllQueries = {
             ${searchCondition}
             ${filterCondition}
     `,
-      );
+          );
 
-      const count = totalGenerations[0]?.count;
-      return {
-        totalCount: count ? Number(count) : undefined,
-      };
+          const count = totalGenerations[0]?.count;
+          return {
+            totalCount: count ? Number(count) : undefined,
+          };
+        },
+        clickhouseExecution: async () => {
+          const countQuery = await getObservationsTableCount({
+            projectId: ctx.session.projectId,
+            filter: input.filter ?? [],
+            limit: 1,
+            offset: 0,
+          });
+
+          return {
+            totalCount: countQuery.shift()?.count,
+          };
+        },
+      });
     }),
 };

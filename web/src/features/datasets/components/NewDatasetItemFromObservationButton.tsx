@@ -18,10 +18,10 @@ import {
 import Link from "next/link";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { useSession } from "next-auth/react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export const NewDatasetItemFromTrace = (props: {
   projectId: string;
@@ -32,7 +32,9 @@ export const NewDatasetItemFromTrace = (props: {
   metadata: Prisma.JsonValue;
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const session = useSession();
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    props.projectId,
+  );
   const observationInDatasets =
     api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
       {
@@ -41,7 +43,7 @@ export const NewDatasetItemFromTrace = (props: {
         observationId: props.observationId,
       },
       {
-        enabled: session.status === "authenticated",
+        enabled: isAuthenticatedAndProjectMember,
       },
     );
   const hasAccess = useHasProjectAccess({

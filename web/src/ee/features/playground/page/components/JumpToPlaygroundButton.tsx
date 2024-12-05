@@ -18,7 +18,7 @@ import {
   type UIModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -42,7 +42,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
-  const available = useHasOrgEntitlement("playground");
+  const available = useHasEntitlement("playground");
 
   useEffect(() => {
     if (props.source === "prompt") {
@@ -120,13 +120,26 @@ const parseGeneration = (generation: Observation): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
 
   const modelParams = parseModelParams(generation);
-  const input = generation.input?.valueOf();
+  let input = generation.input?.valueOf();
 
   if (typeof input === "string") {
-    return {
-      messages: [createEmptyMessage(ChatMessageRole.System, input)],
-      modelParams,
-    };
+    try {
+      input = JSON.parse(input);
+
+      if (typeof input === "string") {
+        return {
+          messages: [createEmptyMessage(ChatMessageRole.System, input)],
+          modelParams,
+        };
+      }
+    } catch (err) {
+      return {
+        messages: [
+          createEmptyMessage(ChatMessageRole.System, input?.toString()),
+        ],
+        modelParams,
+      };
+    }
   }
 
   if (typeof input === "object") {

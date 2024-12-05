@@ -30,7 +30,7 @@ import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { useSession } from "next-auth/react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 800;
@@ -138,7 +138,7 @@ function TreeItemInner({
                 <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-1/2 w-full overflow-hidden md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+            <DrawerContent className="overflow-hidden" size="md">
               {children}
             </DrawerContent>
           </Drawer>
@@ -313,7 +313,8 @@ export function TraceTimelineView({
     [nestedObservations],
   );
 
-  const session = useSession();
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
 
   const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
     {
@@ -327,7 +328,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: session.status === "authenticated",
+      enabled: isAuthenticatedAndProjectMember,
     },
   );
 
@@ -344,7 +345,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: session.status === "authenticated",
+      enabled: isAuthenticatedAndProjectMember,
     },
   );
 

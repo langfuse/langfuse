@@ -788,6 +788,148 @@ paths:
                     debugging.
               required:
                 - batch
+  /api/public/media/{mediaId}:
+    get:
+      description: Get a media record
+      operationId: media_get
+      tags:
+        - Media
+      parameters:
+        - name: mediaId
+          in: path
+          description: The unique langfuse identifier of a media record
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMediaResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    patch:
+      description: Patch a media record
+      operationId: media_patch
+      tags:
+        - Media
+      parameters:
+        - name: mediaId
+          in: path
+          description: The unique langfuse identifier of a media record
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchMediaBody'
+  /api/public/media:
+    post:
+      description: Get a presigned upload URL for a media record
+      operationId: media_getUploadUrl
+      tags:
+        - Media
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMediaUploadUrlResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetMediaUploadUrlRequest'
   /api/public/metrics/daily:
     get:
       description: Get daily metrics of the Langfuse project
@@ -2247,7 +2389,7 @@ components:
           type: string
           description: >-
             The content of the comment. May include markdown. Currently limited
-            to 500 characters.
+            to 3000 characters.
         authorUserId:
           type: string
           nullable: true
@@ -3813,6 +3955,112 @@ components:
       required:
         - successes
         - errors
+    GetMediaResponse:
+      title: GetMediaResponse
+      type: object
+      properties:
+        mediaId:
+          type: string
+          description: The unique langfuse identifier of a media record
+        contentType:
+          type: string
+          description: The MIME type of the media record
+        contentLength:
+          type: integer
+          description: The size of the media record in bytes
+        uploadedAt:
+          type: string
+          format: date-time
+          description: The date and time when the media record was uploaded
+        url:
+          type: string
+          description: The download URL of the media record
+        urlExpiry:
+          type: string
+          description: The expiry date and time of the media record download URL
+      required:
+        - mediaId
+        - contentType
+        - contentLength
+        - uploadedAt
+        - url
+        - urlExpiry
+    PatchMediaBody:
+      title: PatchMediaBody
+      type: object
+      properties:
+        uploadedAt:
+          type: string
+          format: date-time
+          description: The date and time when the media record was uploaded
+        uploadHttpStatus:
+          type: integer
+          description: The HTTP status code of the upload
+        uploadHttpError:
+          type: string
+          nullable: true
+          description: The HTTP error message of the upload
+        uploadTimeMs:
+          type: integer
+          nullable: true
+          description: The time in milliseconds it took to upload the media record
+      required:
+        - uploadedAt
+        - uploadHttpStatus
+    GetMediaUploadUrlRequest:
+      title: GetMediaUploadUrlRequest
+      type: object
+      properties:
+        traceId:
+          type: string
+          description: The trace ID associated with the media record
+        observationId:
+          type: string
+          nullable: true
+          description: >-
+            The observation ID associated with the media record. If the media
+            record is associated directly with a trace, this will be null.
+        contentType:
+          $ref: '#/components/schemas/MediaContentType'
+        contentLength:
+          type: integer
+          description: The size of the media record in bytes
+        sha256Hash:
+          type: string
+          description: The SHA-256 hash of the media record
+        field:
+          type: string
+          description: >-
+            The trace / observation field the media record is associated with.
+            This can be one of `input`, `output`, `metadata`
+      required:
+        - traceId
+        - contentType
+        - contentLength
+        - sha256Hash
+        - field
+    GetMediaUploadUrlResponse:
+      title: GetMediaUploadUrlResponse
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+          nullable: true
+          description: >-
+            The presigned upload URL. If the asset is already uploaded, this
+            will be null
+        mediaId:
+          type: string
+          description: The unique langfuse identifier of a media record
+      required:
+        - mediaId
+    MediaContentType:
+      title: MediaContentType
+      type: string
+      enum:
+        - >-
+          image/png","image/jpeg","image/jpg","image/webp","image/gif","image/svg+xml","image/tiff","image/bmp","audio/mpeg","audio/mp3","audio/wav","audio/ogg","audio/oga","audio/aac","audio/mp4","audio/flac","video/mp4","video/webm","text/plain","text/html","text/css","text/csv","application/pdf","application/msword","application/vnd.ms-excel","application/zip","application/json","application/xml","application/octet-stream
+      description: The MIME type of the media record
     DailyMetrics:
       title: DailyMetrics
       type: object
@@ -4330,17 +4578,72 @@ components:
             type: string
           nullable: true
           description: A list of tags associated with the trace referenced by score
-    GetScoresResponseData:
-      title: GetScoresResponseData
+    GetScoresResponseDataNumeric:
+      title: GetScoresResponseDataNumeric
       type: object
       properties:
-        '<<':
-          $ref: '#/components/schemas/Score'
         trace:
           $ref: '#/components/schemas/GetScoresResponseTraceData'
       required:
-        - '<<'
         - trace
+      allOf:
+        - $ref: '#/components/schemas/NumericScore'
+    GetScoresResponseDataCategorical:
+      title: GetScoresResponseDataCategorical
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+      required:
+        - trace
+      allOf:
+        - $ref: '#/components/schemas/CategoricalScore'
+    GetScoresResponseDataBoolean:
+      title: GetScoresResponseDataBoolean
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+      required:
+        - trace
+      allOf:
+        - $ref: '#/components/schemas/BooleanScore'
+    GetScoresResponseData:
+      title: GetScoresResponseData
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/GetScoresResponseDataNumeric'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/GetScoresResponseDataCategorical'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/GetScoresResponseDataBoolean'
+          required:
+            - dataType
     GetScoresResponse:
       title: GetScoresResponse
       type: object

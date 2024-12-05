@@ -10,7 +10,11 @@ on:
   merge_group:
   pull_request:
     branches:
-      - "*"
+      - "**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -41,6 +45,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -66,10 +71,10 @@ jobs:
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
 
-  tests-web:
+  tests-web-sync:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
         node-version: [20]
@@ -80,10 +85,16 @@ jobs:
         with:
           swap-size-gb: 10
       - uses: actions/checkout@v4
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
       - uses: pnpm/action-setup@v3
         with:
           version: 9.5.0
       - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -100,7 +111,7 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^S3_BUCKET_NAME=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -111,6 +122,79 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
+          pnpm --filter=shared ch:up
+      - name: Build
+        run: pnpm run build
+      - name: Start Langfuse
+        run: (pnpm run start&)
+        env:
+          LANGFUSE_INIT_ORG_ID: "seed-org-id"
+          LANGFUSE_INIT_ORG_NAME: "Seed Org"
+          LANGFUSE_INIT_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
+          LANGFUSE_INIT_PROJECT_NAME: "Seed Project"
+          LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
+          LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-1234567890"
+          LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
+          LANGFUSE_INIT_USER_NAME: "Demo User"
+          LANGFUSE_INIT_USER_PASSWORD: "password"
+      - name: run test-sync
+        run: pnpm --filter=web run test-sync
+      - name: run test-client
+        run: pnpm --filter=web run test-client
+
+  tests-web-async:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
+    strategy:
+      matrix:
+        node-version: [20]
+        postgres-version: [12, 15]
+        blob-provider: ["", "-azure"]
+    steps:
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+      - uses: actions/checkout@v4
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9.5.0
+      - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env
+        run: |
+          cp .env.dev${{ matrix.blob-provider }}.example .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+      - name: Run + migrate
+        run: |
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
+          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose ps
+        env:
+          POSTGRES_VERSION: ${{ matrix.postgres-version }}
+      - name: Seed DB
+        run: |
+          pnpm run db:migrate
+          pnpm --filter=shared ch:up
       - name: Build
         run: pnpm run build
       - name: Start Langfuse
@@ -131,11 +215,12 @@ jobs:
   tests-worker:
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
+    name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
         node-version: [20]
         postgres-version: [12, 15]
+        blob-provider: ["", "-azure"]
     steps:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -146,6 +231,7 @@ jobs:
         with:
           version: 9.5.0
       - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -166,12 +252,12 @@ jobs:
           which migrate
       - name: Load default env
         run: |
-          cp .env.dev.example .env
-          cp .env.dev.example web/.env
-          cp .env.dev.example worker/.env
+          cp .env.dev${{ matrix.blob-provider }}.example .env
+          cp .env.dev${{ matrix.blob-provider }}.example web/.env
+          cp .env.dev${{ matrix.blob-provider }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
       - name: Ensure no unhealthy status
@@ -205,6 +291,7 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -237,6 +324,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
+        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -252,10 +340,14 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
+      - name: Install golang-migrate for Clickhouse migrations
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.16.2/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/bin/migrate
+          which migrate
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          echo "LANGFUSE_ASYNC_INGESTION_PROCESSING=true" >> .env
           echo "LANGFUSE_CACHE_API_KEY_ENABLED=true" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=true" >> .env
       - name: Run + migrate
@@ -263,14 +355,29 @@ jobs:
           docker compose -f docker-compose.dev.yml up -d
           docker compose ps
           sleep 5 # Wait for PostgreSQL to accept connections
+      - name: Ensure Docker dependencies are healthy
+        run: |
+          if docker-compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy"
+            exit 1
+          else
+            echo "All services are healthy"
+          fi
       - name: Seed DB
         run: |
           pnpm run db:migrate
+          pnpm --filter=shared run ch:up
           pnpm run db:seed:examples
       - name: Build
         run: pnpm run build
       - name: Run server
         run: (pnpm run start&)
+      - name: Check worker health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3030/api/health; do sleep 2; done'
+      - name: Check server health
+        run: |
+          timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e:server
 
@@ -280,11 +387,12 @@ jobs:
     needs:
       [
         lint,
-        tests-web,
+        tests-web-sync,
         tests-worker,
         e2e-tests,
         test-docker-build,
         e2e-server-tests,
+        tests-web-async,
       ]
     if: always()
     steps:
@@ -343,6 +451,8 @@ jobs:
           images: |
             ghcr.io/langfuse/langfuse # GitHub
             langfuse/langfuse # Docker Hub
+          flavor: |
+            latest=false
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -350,6 +460,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+          # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') }}
       - name: Build and push Docker image (web)
         uses: docker/build-push-action@v4
         with:
@@ -368,6 +479,8 @@ jobs:
           images: |
             ghcr.io/langfuse/langfuse-worker # GitHub
             langfuse/langfuse-worker # Docker Hub
+          flavor: |
+            latest=false
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -375,6 +488,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+          # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') }}
       - name: Build and push Docker image (worker)
         uses: docker/build-push-action@v4
         with:
