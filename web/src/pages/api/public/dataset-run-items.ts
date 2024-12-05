@@ -7,6 +7,9 @@ import {
   transformDbDatasetRunItemToAPIDatasetRunItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
+import { addDatasetRunItemsToEvalQueue } from "@/src/ee/features/evals/server/addDatasetRunItemsToEvalQueue";
+import { getObservationById } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -22,6 +25,10 @@ export default withMiddlewares({
         runDescription,
         metadata,
       } = body;
+
+      /**************
+       * VALIDATION *
+       **************/
 
       const datasetItem = await prisma.datasetItem.findUnique({
         where: {
@@ -44,14 +51,20 @@ export default withMiddlewares({
 
       // Backwards compatibility: historically, dataset run items were linked to observations, not traces
       if (!traceId && observationId) {
-        const observation = observationId
-          ? await prisma.observation.findUnique({
-              where: {
-                id: observationId,
-                projectId: auth.scope.projectId,
-              },
-            })
-          : undefined;
+        const observation =
+          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
+            ? await getObservationById(
+                observationId,
+                auth.scope.projectId,
+                true,
+              )
+            : await prisma.observation.findUnique({
+                where: {
+                  id: observationId,
+                  projectId: auth.scope.projectId,
+                },
+              });
+
         if (observationId && !observation) {
           throw new LangfuseNotFoundError("Observation not found");
         }
@@ -61,6 +74,10 @@ export default withMiddlewares({
       if (!finalTraceId) {
         throw new InvalidRequestError("No traceId set");
       }
+
+      /********************
+       * RUN ITEM CREATION *
+       ********************/
 
       const run = await prisma.datasetRuns.upsert({
         where: {
@@ -85,12 +102,23 @@ export default withMiddlewares({
 
       const runItem = await prisma.datasetRunItems.create({
         data: {
-          datasetItemId: datasetItemId,
+          datasetItemId,
           traceId: finalTraceId,
           observationId,
           datasetRunId: run.id,
           projectId: auth.scope.projectId,
         },
+      });
+
+      /********************
+       * ASYNC RUN ITEM EVAL *
+       ********************/
+
+      await addDatasetRunItemsToEvalQueue({
+        projectId: auth.scope.projectId,
+        datasetItemId,
+        traceId: finalTraceId,
+        observationId: observationId ?? undefined,
       });
 
       return transformDbDatasetRunItemToAPIDatasetRunItem({

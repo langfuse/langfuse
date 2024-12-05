@@ -84,6 +84,76 @@ describe("Create and get comments", () => {
       );
     }
   });
+
+  it("should fail to create comment if content is empty", async () => {
+    try {
+      const traceResponse = await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          name: "trace-name",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+
+      const { id: traceId } = traceResponse.body;
+
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "",
+          objectId: traceId,
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"too_small\",\"minimum\":1,\"type\":\"string\",\"inclusive\":true,\"exact\":false,\"message\":\"String must contain at least 1 character(s)\",\"path\":[\"content\"]}]}`,
+      );
+    }
+  });
+
+  it("should fail to create comment if content is larger than 3000 characters", async () => {
+    try {
+      const traceResponse = await makeZodVerifiedAPICall(
+        PostTracesV1Response,
+        "POST",
+        "/api/public/traces",
+        {
+          name: "trace-name",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+
+      const { id: traceId } = traceResponse.body;
+
+      await makeZodVerifiedAPICall(
+        z.object({
+          message: z.string(),
+          error: z.array(z.object({})),
+        }),
+        "POST",
+        "/api/public/comments",
+        {
+          content: "a".repeat(3001),
+          objectId: traceId,
+          objectType: "TRACE",
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        },
+      );
+    } catch (error) {
+      expect((error as Error).message).toBe(
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"too_big\",\"maximum\":3000,\"type\":\"string\",\"inclusive\":true,\"exact\":false,\"message\":\"String must contain at most 3000 character(s)\",\"path\":[\"content\"]}]}`,
+      );
+    }
+  });
 });
 
 describe("GET /api/public/comments API Endpoint", () => {

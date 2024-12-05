@@ -2,13 +2,14 @@ import Header from "@/src/components/layouts/header";
 
 import { useRouter } from "next/router";
 import { NewModelForm } from "@/src/features/models/components/NewModelForm";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 export default function ModelsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <div className="mb-12 md:container">
+    <ScrollScreenPage>
       <Header
         title="New Model Definition"
         breadcrumb={[
@@ -30,6 +31,6 @@ export default function ModelsPage() {
         projectId={projectId}
         onFormSuccess={() => void router.push(`/project/${projectId}/models`)}
       />
-    </div>
+    </ScrollScreenPage>
   );
 }

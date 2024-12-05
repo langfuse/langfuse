@@ -28,6 +28,7 @@ interface CreateDatasetButtonProps extends BaseDatasetButtonProps {
 interface DeleteDatasetButtonProps extends BaseDatasetButtonProps {
   mode: "delete";
   datasetId: string;
+  datasetName: string;
 }
 
 interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
@@ -106,9 +107,10 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             className={props.className}
             disabled={!hasAccess}
             onClick={() => capture("datasets:new_form_open")}
+            variant="secondary"
           >
             {hasAccess ? (
-              <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
+              <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
             ) : (
               <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
             )}
@@ -144,6 +146,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             projectId={props.projectId}
             onFormSuccess={() => setOpen(false)}
             datasetId={props.datasetId}
+            datasetName={props.datasetName}
           />
         ) : (
           <DatasetForm

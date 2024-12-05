@@ -10,6 +10,7 @@ import { TotalMetric } from "./TotalMetric";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { env } from "@/src/env.mjs";
 import { truncate } from "@/src/utils/string";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const ModelCostTable = ({
   className,
@@ -44,6 +45,8 @@ export const ModelCostTable = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "observations-model-cost",
     },
     {
       trpc: {

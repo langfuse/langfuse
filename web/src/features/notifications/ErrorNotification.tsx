@@ -9,7 +9,6 @@ interface ErrorNotificationProps {
   error: string;
   description: string;
   type: "WARNING" | "ERROR";
-  cause?: string;
   dismissToast: (t?: string | number | undefined) => void;
   toast: string | number;
   path?: string;
@@ -19,7 +18,6 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   error,
   description,
   type,
-  cause,
   dismissToast,
   toast,
   path,
@@ -32,7 +30,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
   const handleReportIssueClick = () => {
     if (chatAvailable) {
       const currentUrl = window.location.href;
-      const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${cause ? `Cause: ${cause}\n` : ""}${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
+      const message = `I received the following error:\n\nError: ${error}\nDescription: ${description}\n ${path ? `Path: ${path}\n` : ""}URL: ${currentUrl}`;
       sendUserChatMessage(message);
       dismissToast(toast);
     }
@@ -57,13 +55,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
             Path: {path}
           </div>
         )}
-        {cause && (
-          <div
-            className={`max-h-32 overflow-y-auto text-sm leading-tight ${textColor}`}
-          >
-            {cause}
-          </div>
-        )}
+
         {isError && chatAvailable && (
           <Button
             variant="errorNotification"

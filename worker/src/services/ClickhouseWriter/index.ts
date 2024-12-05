@@ -1,5 +1,6 @@
 import {
-  clickhouseClient,
+  defaultClickhouseClient,
+  getCurrentSpan,
   ObservationRecordInsertType,
   recordGauge,
   recordHistogram,
@@ -112,6 +113,13 @@ export class ClickhouseWriter {
       });
     });
 
+    const currentSpan = getCurrentSpan();
+    if (currentSpan) {
+      currentSpan.setAttributes({
+        [`${tableName}-length`]: queueItems.length,
+      });
+    }
+
     try {
       const processingStartTime = Date.now();
 
@@ -187,7 +195,7 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await clickhouseClient
+    await defaultClickhouseClient
       .insert({
         table: params.table,
         format: "JSONEachRow",

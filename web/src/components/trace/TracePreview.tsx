@@ -18,20 +18,26 @@ import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 
 export const TracePreview = ({
   trace,
@@ -55,7 +61,10 @@ export const TracePreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    trace.projectId,
+  );
 
   const traceScores = scores.filter((s) => s.observationId === null);
   const traceScoresBySource = traceScores.reduce((acc, score) => {
@@ -65,6 +74,18 @@ export const TracePreview = ({
     acc.get(score.source)?.push(score);
     return acc;
   }, new Map<ScoreSource, APIScore[]>());
+  const traceMedia = api.media.getByTraceOrObservationId.useQuery(
+    {
+      traceId: trace.id,
+      projectId: trace.projectId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: 50 * 60 * 1000, // 50 minutes
+    },
+  );
 
   const totalCost = useMemo(
     () =>
@@ -83,26 +104,14 @@ export const TracePreview = ({
     >
       {viewType === "detailed" && (
         <div className="flex flex-shrink-0 flex-row justify-end gap-2">
-          <Tabs
-            value={selectedTab}
-            onValueChange={setSelectedTab}
-            className="flex w-full justify-end border-b bg-background"
-          >
-            <TabsList className="bg-background py-0">
-              <TabsTrigger
-                value="preview"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Preview
-              </TabsTrigger>
-              <TabsTrigger
-                value="scores"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Scores
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <TabsBar value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsBarList>
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              {isAuthenticatedAndProjectMember && (
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+              )}
+            </TabsBarList>
+          </TabsBar>
         </div>
       )}
       <div className="flex w-full flex-col overflow-y-auto">
@@ -183,11 +192,15 @@ export const TracePreview = ({
                 key={trace.id + "-io"}
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
+                media={traceMedia.data}
               />
               <JSONView
                 key={trace.id + "-metadata"}
                 title="Metadata"
                 json={trace.metadata}
+                media={
+                  traceMedia.data?.filter((m) => m.field === "metadata") ?? []
+                }
               />
               {viewType === "detailed" && (
                 <ScoresPreview itemScoresBySource={traceScoresBySource} />

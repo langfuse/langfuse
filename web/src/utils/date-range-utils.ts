@@ -1,6 +1,7 @@
 import { type DateRange } from "react-day-picker";
 import { z } from "zod";
 import { addMinutes } from "date-fns";
+import { type DateTrunc } from "@langfuse/shared/src/server";
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "24 hours" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "Custom" as const;
@@ -57,7 +58,7 @@ export type TableDateRangeOptions = TableDateRangeAggregationOption;
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   {
-    date_trunc: "year" | "month" | "week" | "day" | "hour" | "minute";
+    date_trunc: DateTrunc;
     minutes: number;
   }
 >;
@@ -75,11 +76,11 @@ export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregatio
     },
     "3 months": {
       date_trunc: "week",
-      minutes: 3 * 28 * 24 * 60,
+      minutes: 3 * 30 * 24 * 60,
     },
     "1 month": {
       date_trunc: "day",
-      minutes: 28 * 24 * 60,
+      minutes: 30 * 24 * 60,
     },
     "7 days": {
       date_trunc: "day",
@@ -120,14 +121,27 @@ export const SelectedTimeOptionSchema = z
   ])
   .optional();
 
+export const isDashboardDateRangeOptionAvailable = ({
+  option,
+  limitDays,
+}: {
+  option: DashboardDateRangeAggregationOption;
+  limitDays: number | false;
+}) => {
+  if (limitDays === false) return true;
+
+  const { minutes } = dashboardDateRangeAggregationSettings[option];
+  return limitDays >= minutes / (24 * 60);
+};
+
 type SelectedTimeOption = z.infer<typeof SelectedTimeOptionSchema>;
 
 const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
   TableDateRangeAggregationOption,
   number | null
 >([
-  ["3 months", 3 * 28 * 24 * 60],
-  ["1 month", 28 * 24 * 60],
+  ["3 months", 3 * 30 * 24 * 60],
+  ["1 month", 30 * 24 * 60],
   ["14 days", 14 * 24 * 60],
   ["7 days", 7 * 24 * 60],
   ["3 days", 3 * 24 * 60],
@@ -137,6 +151,21 @@ const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
   ["30 min", 30],
   ["All time", null],
 ]);
+
+export const isTableDataRangeOptionAvailable = ({
+  option,
+  limitDays,
+}: {
+  option: TableDateRangeAggregationOption;
+  limitDays: number | false;
+}) => {
+  if (limitDays === false) return true;
+
+  const durationMinutes = TABLE_DATE_RANGE_AGGREGATION_SETTINGS.get(option);
+  if (!durationMinutes) return false;
+
+  return limitDays >= durationMinutes / (24 * 60);
+};
 
 export const getDateFromOption = (
   selectedTimeOption: SelectedTimeOption,

@@ -58,7 +58,6 @@ jobs:
             --build-arg SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@v1

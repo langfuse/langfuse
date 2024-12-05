@@ -20,7 +20,9 @@ services:
   minio:
     image: minio/minio
     container_name: minio
-    command: server /data --console-address ":9001"
+    entrypoint: sh
+    # create the 'langfuse' bucket before starting the service
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
     environment:
       MINIO_ACCESS_KEY: minio
       MINIO_SECRET_KEY: miniosecret
@@ -31,23 +33,10 @@ services:
       - langfuse_minio_data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
+      interval: 1s
       timeout: 5s
       retries: 5
-      start_period: 5s
-
-  miniocreatebucket:
-    image: minio/mc
-    container_name: miniocreatebucket
-    entrypoint: ["/bin/sh", "-c"]
-    command: >
-      "mc alias set minio http://minio:9000 minio miniosecret && 
-       mc rm -r --force minio/mybucket || true &&
-       mc mb minio/mybucket && 
-       mc policy set download minio/mybucket"
-    depends_on:
-      minio:
-        condition: service_healthy
+      start_period: 1s
 
   redis:
     image: redis:7.2.4
@@ -60,6 +49,11 @@ services:
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
     command: ["postgres", "-c", "log_statement=all"]
     environment:
       - POSTGRES_USER=postgres

@@ -10,7 +10,6 @@ import {
   Minimize2,
 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { isPresent } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { captureException } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
@@ -29,7 +28,7 @@ const customLoader = ({
   width: number;
   quality?: number;
 }) => {
-  return `${src}?w=${width}&q=${quality || 75}`;
+  return src + (width && quality ? `?w=${width}&q=${quality || 75}` : "");
 };
 
 const ImageErrorDisplay = ({
@@ -52,19 +51,24 @@ const ImageErrorDisplay = ({
 export const ResizableImage = ({
   src,
   alt,
+  isDefaultVisible = false,
+  shouldValidateImageSource = true,
 }: {
-  src?: string;
+  src: string;
   alt?: string;
+  isDefaultVisible?: boolean;
+  shouldValidateImageSource?: boolean;
 }) => {
   const [isZoomedIn, setIsZoomedIn] = useState(true);
   const [hasFetchError, setHasFetchError] = useState(false);
-  const [isImageVisible, setIsImageVisible] = useState(false);
+  const [isImageVisible, setIsImageVisible] = useState(isDefaultVisible);
   const session = useSession();
-
-  if (!isPresent(src)) return null;
-
   const isValidImage = api.utilities.validateImgUrl.useQuery(src, {
-    enabled: session.status === "authenticated" && isImageVisible,
+    enabled:
+      session.status === "authenticated" &&
+      isImageVisible &&
+      shouldValidateImageSource,
+    initialData: { isValid: true },
   });
 
   if (session.status !== "authenticated") {

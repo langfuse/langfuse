@@ -18,7 +18,6 @@ import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
@@ -29,9 +28,16 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const ObservationPreview = ({
   observations,
@@ -59,13 +65,30 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
 
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
     traceId: traceId,
     projectId: projectId,
+    queryClickhouse: useClickhouse(),
   });
+
+  const observationMedia = api.media.getByTraceOrObservationId.useQuery(
+    {
+      traceId: traceId,
+      observationId: currentObservationId,
+      projectId: projectId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: 50 * 60 * 1000, // 50 minutes
+    },
+  );
 
   const preloadedObservation = observations.find(
     (o) => o.id === currentObservationId,
@@ -108,26 +131,14 @@ export const ObservationPreview = ({
     >
       {viewType === "detailed" && (
         <div className="flex flex-shrink-0 flex-row justify-end gap-2">
-          <Tabs
-            value={selectedTab}
-            onValueChange={setSelectedTab}
-            className="flex w-full justify-end border-b bg-background"
-          >
-            <TabsList className="bg-background py-0">
-              <TabsTrigger
-                value="preview"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Preview
-              </TabsTrigger>
-              <TabsTrigger
-                value="scores"
-                className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:shadow-none"
-              >
-                Scores
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <TabsBar value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsBarList>
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              {isAuthenticatedAndProjectMember && (
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+              )}
+            </TabsBarList>
+          </TabsBar>
         </div>
       )}
       <div className="flex w-full flex-col overflow-y-auto">
@@ -254,7 +265,7 @@ export const ObservationPreview = ({
                   projectId={projectId}
                   input={observationWithInputAndOutput.data.input}
                   output={observationWithInputAndOutput.data.output}
-                  metadata={preloadedObservation.metadata}
+                  metadata={observationWithInputAndOutput.data.metadata}
                   key={preloadedObservation.id}
                 />
               ) : null}
@@ -269,6 +280,7 @@ export const ObservationPreview = ({
                 input={observationWithInputAndOutput.data?.input ?? undefined}
                 output={observationWithInputAndOutput.data?.output ?? undefined}
                 isLoading={observationWithInputAndOutput.isLoading}
+                media={observationMedia.data}
               />
               {preloadedObservation.statusMessage ? (
                 <JSONView
@@ -282,6 +294,9 @@ export const ObservationPreview = ({
                   key={observationWithInputAndOutput.data.id + "-metadata"}
                   title="Metadata"
                   json={observationWithInputAndOutput.data.metadata}
+                  media={observationMedia.data?.filter(
+                    (m) => m.field === "metadata",
+                  )}
                 />
               ) : null}
               {viewType === "detailed" && (
@@ -292,6 +307,7 @@ export const ObservationPreview = ({
           {selectedTab === "scores" && (
             <ScoresTable
               projectId={projectId}
+              traceId={traceId}
               omittedFilter={["Observation ID"]}
               observationId={preloadedObservation.id}
               hiddenColumns={[

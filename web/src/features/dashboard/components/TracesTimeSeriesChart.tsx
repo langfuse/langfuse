@@ -10,6 +10,7 @@ import {
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const TracesTimeSeriesChart = ({
   className,
@@ -37,6 +38,8 @@ export const TracesTimeSeriesChart = ({
           temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
         },
       ],
+      queryClickhouse: useClickhouse(),
+      queryName: "traces-timeseries",
     },
     {
       trpc: {
