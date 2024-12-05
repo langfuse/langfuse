@@ -140,17 +140,16 @@ const isValidPresignedS3Url = async (url: string): Promise<boolean> => {
       return true;
     }
 
-    // Status 403 indicates the URL might be restricted to GET requests only
+    // Attempt a GET request as a fallback, as some pre-signed URLs are restricted to GET requests only
     if (response.status === 403) {
       logger.info(
         "HEAD request returned 403, attempting GET for validation...",
       );
-      // Attempt a GET request as a fallback, as some pre-signed URLs are restricted to GET requests only
-      // expected server response for valid pre-signed URLs is 206 Partial Content
+
       const getResponse = await fetch(url, {
         method: "GET",
         signal: AbortSignal.timeout(5000),
-        headers: { Range: "bytes=0-1" }, // Fetch only the first byte
+        headers: { Range: "bytes=0-1" }, // Fetch only the first byte, expected server response for valid pre-signed URLs is 206 Partial Content
       });
 
       return getResponse.ok; // 200 or 206 Partial Content indicates success
