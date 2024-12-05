@@ -1,50 +1,50 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { ErrorPage } from "@/src/components/error-page";
+import { getTracesByIdsForAnyProject } from "@langfuse/shared/src/server";
 import { type GetServerSideProps } from "next";
 import { useRouter } from "next/router";
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   if (!context.params) {
     return {
-      notFound: true,
+      props: {
+        notFound: true,
+      },
     };
   }
 
   const traceId = context.params.traceId as string;
 
-  const trace = await prisma.trace.findUnique({
-    where: {
-      id: traceId,
-    },
-    select: {
-      project: {
-        select: {
-          id: true,
-        },
-      },
-    },
-  });
+  const traces = await getTracesByIdsForAnyProject([traceId]);
 
-  if (!trace) {
+  if (!traces || traces.length === 0 || traces.length > 1) {
     return {
-      notFound: true,
+      props: {
+        notFound: true,
+      },
     };
   }
 
   return {
     redirect: {
-      destination: `/project/${trace.project.id}/traces/${traceId}`,
+      destination: `/project/${traces[0].projectId}/traces/${traceId}`,
       permanent: false,
     },
   };
 };
 
-const TraceRedirectPage = () => {
+const TraceRedirectPage = ({ notFound }: { notFound?: boolean }) => {
   const router = useRouter();
   if (router.isFallback) {
     return <div>Loading...</div>;
   }
 
-  return <div>Redirecting...</div>;
+  if (notFound) {
+    return (
+      <ErrorPage message="Trace not found. Please upgrade the SDK as we changed the URL schema." />
+    );
+  }
+
+  return null;
 };
 
 export default TraceRedirectPage;

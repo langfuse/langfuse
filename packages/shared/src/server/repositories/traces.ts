@@ -24,7 +24,6 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
-import { FetchTracesTableProps } from "../services/traces-ui-table-service";
 
 export const checkTraceExists = async (
   projectId: string,
@@ -755,5 +754,28 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     observationCount: Number(row.obs_count),
     traceCount: Number(row.trace_count),
     totalCost: Number(row.sum_total_cost),
+  }));
+};
+
+export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
+  const query = `
+      SELECT id, project_id
+      FROM traces
+      WHERE id IN ({traceIds: Array(String)})
+      ORDER BY event_ts DESC
+      LIMIT 1 by id, project_id;`;
+  const records = await queryClickhouse<{
+    id: string;
+    project_id: string;
+  }>({
+    query,
+    params: {
+      traceIds,
+    },
+  });
+
+  return records.map((record) => ({
+    id: record.id,
+    projectId: record.project_id,
   }));
 };
