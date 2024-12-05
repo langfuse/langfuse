@@ -296,7 +296,7 @@ export const commentsRouter = createTRPCRouter({
               });
             }
 
-            const allCommentCounts = await ctx.prisma.$queryRaw<
+            const allTraceCommentCounts = await ctx.prisma.$queryRaw<
               Array<{ objectId: string; count: bigint }>
             >`
             SELECT object_id as "objectId", COUNT(*) as count
@@ -310,7 +310,7 @@ export const commentsRouter = createTRPCRouter({
               session.traces.map((t: { id: string }) => t.id),
             );
             return new Map(
-              allCommentCounts
+              allTraceCommentCounts
                 .filter((c) => traceIds.has(c.objectId))
                 .map(({ objectId, count }) => [objectId, Number(count)]),
             );
@@ -335,7 +335,7 @@ export const commentsRouter = createTRPCRouter({
               input.sessionId,
             );
 
-            const allCommentCounts = await ctx.prisma.$queryRaw<
+            const allTraceCommentCounts = await ctx.prisma.$queryRaw<
               Array<{ objectId: string; count: bigint }>
             >`
               SELECT object_id as "objectId", COUNT(*) as count
@@ -347,7 +347,7 @@ export const commentsRouter = createTRPCRouter({
 
             const traceIds = new Set(clickhouseTraces.map((t) => t.id));
             return new Map(
-              allCommentCounts
+              allTraceCommentCounts
                 .filter((c) => traceIds.has(c.objectId))
                 .map(({ objectId, count }) => [objectId, Number(count)]),
             );
