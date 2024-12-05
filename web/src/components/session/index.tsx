@@ -19,7 +19,6 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
-import { defaultShouldDehydrateMutation } from "@tanstack/react-query";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
