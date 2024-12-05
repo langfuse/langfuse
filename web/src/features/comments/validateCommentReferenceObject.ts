@@ -4,6 +4,8 @@ import {
   type CreateCommentData,
 } from "@langfuse/shared";
 import { type z } from "zod";
+import { env } from "@/src/env.mjs";
+import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
 
 type PrismaModelName = keyof Omit<
   PrismaClient,
@@ -31,6 +33,13 @@ const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL: Record<
   [CommentObjectType.PROMPT]: "prompt",
 } as const;
 
+const isObservationOrTrace = (objectType: CommentObjectType) => {
+  return (
+    objectType === CommentObjectType.OBSERVATION ||
+    objectType === CommentObjectType.TRACE
+  );
+};
+
 export const validateCommentReferenceObject = async ({
   ctx,
   input,
@@ -39,27 +48,42 @@ export const validateCommentReferenceObject = async ({
   input: z.infer<typeof CreateCommentData>;
 }): Promise<{ errorMessage?: string }> => {
   const { objectId, objectType, projectId } = input;
-  const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
 
-  if (!prismaModel) {
-    return {
-      errorMessage: `No prisma model for object type ${objectType}`,
-    };
+  if (env.CLICKHOUSE_URL && isObservationOrTrace(objectType)) {
+    let clickhouseObject;
+    if (objectType === CommentObjectType.OBSERVATION) {
+      clickhouseObject = await getObservationById(objectId, projectId);
+    } else {
+      clickhouseObject = await getTraceById(objectId, projectId);
+    }
+
+    return !!clickhouseObject
+      ? {}
+      : {
+          errorMessage: `Reference object, ${objectType}: ${objectId} not found in Clickhouse. Skipping creating comment.`,
+        };
+  } else {
+    const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
+
+    if (!prismaModel) {
+      return {
+        errorMessage: `No prisma model for object type ${objectType}`,
+      };
+    }
+
+    const model = ctx.prisma[prismaModel];
+    const object = await model.findFirst({
+      where: {
+        id: objectId,
+        projectId,
+      },
+    });
+
+    if (!object) {
+      return {
+        errorMessage: `No ${prismaModel} with id ${objectId} in project ${projectId}`,
+      };
+    }
+    return {};
   }
-
-  const model = ctx.prisma[prismaModel];
-  const object = await model.findFirst({
-    where: {
-      id: objectId,
-      projectId,
-    },
-  });
-
-  if (!object) {
-    return {
-      errorMessage: `No ${prismaModel} with id ${objectId} in project ${projectId}`,
-    };
-  }
-
-  return {};
 };
