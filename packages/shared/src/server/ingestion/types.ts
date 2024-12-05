@@ -56,9 +56,35 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
-export const UsageOrCostDetails = z
+const RawUsageOrCostDetails = z
   .record(z.string(), z.number().nonnegative().nullish())
   .nullish();
+export const UsageOrCostDetails = RawUsageOrCostDetails.transform(
+  (providedDetails) => {
+    if (!providedDetails) return;
+
+    // Transform OpenAI format
+    if (
+      "promptTokens" in providedDetails ||
+      "completionTokens" in providedDetails ||
+      "totalTokens" in providedDetails
+    ) {
+      const { promptTokens, completionTokens, totalTokens, ...rest } =
+        providedDetails;
+      return {
+        ...rest,
+        input: promptTokens,
+        output: completionTokens,
+        total: totalTokens,
+      };
+    }
+
+    // if the object is empty, we return undefined
+    if (lodash.isEmpty(providedDetails)) return;
+
+    return providedDetails;
+  },
+).pipe(RawUsageOrCostDetails);
 
 export const TraceBody = z.object({
   id: z.string().nullish(),
