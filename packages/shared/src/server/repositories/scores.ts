@@ -482,6 +482,22 @@ export const deleteScoresByTraceIds = async (
   });
 };
 
+export const deleteScoresByProjectId = async (projectId: string) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
 export const getNumericScoreHistogram = async (
   projectId: string,
   filter: FilterState,

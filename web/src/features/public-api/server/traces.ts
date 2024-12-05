@@ -5,6 +5,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   orderByToClickhouseSql,
   type DateTimeFilter,
+  parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 import {
   convertRecordToJsonSchema,
@@ -134,6 +135,9 @@ export const generateTracesForPublicApi = async (
 
   return result.map((trace) => ({
     ...trace,
+    timestamp: parseClickhouseUTCDateTimeFormat(trace.timestamp.toString()),
+    createdAt: parseClickhouseUTCDateTimeFormat(trace.createdAt.toString()),
+    updatedAt: parseClickhouseUTCDateTimeFormat(trace.updatedAt.toString()),
     // Parse metadata values to JSON and make TypeScript happy
     metadata: convertRecordToJsonSchema(
       (trace.metadata as Record<string, string>) || {},

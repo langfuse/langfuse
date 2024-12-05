@@ -895,6 +895,22 @@ export const deleteObservationsByTraceIds = async (
   });
 };
 
+export const deleteObservationsByProjectId = async (projectId: string) => {
+  const query = `
+    DELETE FROM observations
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
 export const getObservationsWithPromptName = async (
   projectId: string,
   promptNames: string[],
