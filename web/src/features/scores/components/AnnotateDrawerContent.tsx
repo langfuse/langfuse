@@ -527,7 +527,6 @@ export function AnnotateDrawerContent({
       form.clearErrors(`scoreData.${index}.value`);
 
       if (isPresent(field.value)) {
-        console.log("handleOnBlur", field.value);
         await handleScoreChange(score, index, Number(field.value), null);
       }
     };
