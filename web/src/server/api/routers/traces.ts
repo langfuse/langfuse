@@ -827,7 +827,7 @@ export const traceRouter = createTRPCRouter({
             );
             throw new TRPCError({
               code: "NOT_FOUND",
-              message: "Trace not found in Clickhouse",
+              message: "Trace not found",
             });
           }
           clickhouseTrace.public = input.public;
