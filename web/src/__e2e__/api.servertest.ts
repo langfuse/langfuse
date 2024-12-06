@@ -165,90 +165,90 @@ describe("Ingestion Pipeline", () => {
     expect(response.status).toBe(207);
   }, 70000);
 
-  // it("rate limit ingestion", async () => {
-  //   // update the org in the database and set the rate limit to 1 for ingestion
-  //   const org = await prisma.organization.findUnique({
-  //     where: {
-  //       id: "seed-org-id",
-  //     },
-  //   });
-  //   await prisma.organization.update({
-  //     where: {
-  //       id: "seed-org-id",
-  //     },
-  //     data: {
-  //       cloudConfig: {
-  //         ...(typeof org?.cloudConfig === "object" ? org.cloudConfig : {}),
-  //         rateLimitOverrides: [
-  //           {
-  //             resource: "ingestion",
-  //             points: 1,
-  //             durationInSec: 60,
-  //           },
-  //         ],
-  //       },
-  //     },
-  //   });
+  it("rate limit ingestion", async () => {
+    // update the org in the database and set the rate limit to 1 for ingestion
+    const org = await prisma.organization.findUnique({
+      where: {
+        id: "seed-org-id",
+      },
+    });
+    await prisma.organization.update({
+      where: {
+        id: "seed-org-id",
+      },
+      data: {
+        cloudConfig: {
+          ...(typeof org?.cloudConfig === "object" ? org.cloudConfig : {}),
+          rateLimitOverrides: [
+            {
+              resource: "ingestion",
+              points: 1,
+              durationInSec: 60,
+            },
+          ],
+        },
+      },
+    });
 
-  //   const traceId = v4();
-  //   const spanId = v4();
+    const traceId = v4();
+    const spanId = v4();
 
-  //   const event = {
-  //     batch: [
-  //       {
-  //         id: v4(),
-  //         type: "trace-create",
-  //         timestamp: new Date().toISOString(),
-  //         body: {
-  //           name: "test trace",
-  //           id: traceId,
-  //           userId: "user-1", // triggers the eval
-  //         },
-  //       },
-  //       {
-  //         id: v4(),
-  //         type: "span-create",
-  //         timestamp: new Date().toISOString(),
-  //         body: {
-  //           id: spanId,
-  //           traceId: traceId,
-  //           name: "test span",
-  //         },
-  //       },
-  //     ],
-  //   };
-  //   // Arrange
-  //   const url = "http://localhost:3000/api/public/ingestion";
+    const event = {
+      batch: [
+        {
+          id: v4(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            name: "test trace",
+            id: traceId,
+            userId: "user-1", // triggers the eval
+          },
+        },
+        {
+          id: v4(),
+          type: "span-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: spanId,
+            traceId: traceId,
+            name: "test span",
+          },
+        },
+      ],
+    };
+    // Arrange
+    const url = "http://localhost:3000/api/public/ingestion";
 
-  //   // Act
-  //   let responses = [];
-  //   for (let i = 0; i < 10; i++) {
-  //     responses.push(
-  //       await fetch(url, {
-  //         method: "POST",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //           Authorization: userApiKeyAuth,
-  //         },
-  //         body: JSON.stringify(event),
-  //       }),
-  //     );
-  //   }
+    // Act
+    let responses = [];
+    for (let i = 0; i < 10; i++) {
+      responses.push(
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: userApiKeyAuth,
+          },
+          body: JSON.stringify(event),
+        }),
+      );
+    }
 
-  //   // check that at least one of the responses is a 429
-  //   const rateLimitedResponse = responses.find((r) => r.status === 429);
-  //   expect(rateLimitedResponse).not.toBeNull();
+    // check that at least one of the responses is a 429
+    const rateLimitedResponse = responses.find((r) => r.status === 429);
+    expect(rateLimitedResponse).not.toBeNull();
 
-  //   // revert the rate limit on the org
-  //   await prisma.organization.update({
-  //     where: {
-  //       id: "seed-org-id",
-  //     },
-  //     data: {
-  //       cloudConfig: org?.cloudConfig ?? Prisma.JsonNull,
-  //     },
-  //   });
-  // });
+    // revert the rate limit on the org
+    await prisma.organization.update({
+      where: {
+        id: "seed-org-id",
+      },
+      data: {
+        cloudConfig: org?.cloudConfig ?? Prisma.JsonNull,
+      },
+    });
+  });
 });
 
 describe("Prompts endpoint", () => {
