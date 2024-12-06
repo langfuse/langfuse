@@ -5,6 +5,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
@@ -31,33 +32,19 @@ export default function BackgroundMigrationsTable() {
       cell: (row) => JSON.stringify(row.getValue()),
     },
     {
-      accessorKey: "finishedAt",
-      id: "finishedAt",
-      enableColumnFilter: false,
-      header: "Finished At",
+      id: "status",
+      header: "Status",
       size: 80,
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("finishedAt");
-        return value ? (
-          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
-      },
-    },
-    {
-      accessorKey: "failedAt",
-      id: "failedAt",
-      enableColumnFilter: false,
-      header: "Failed At",
-      size: 80,
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("failedAt");
-        return value ? (
-          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
+      cell: (row) => {
+        const failedAt = row.row.original.failedAt;
+        if (failedAt) {
+          return <StatusBadge type={"failed"} className="capitalize" />;
+        }
+        const finishedAt = row.row.original.finishedAt;
+        if (finishedAt) {
+          return <StatusBadge type={"finished"} className="capitalize" />;
+        }
+        return <StatusBadge type={"active"} className="capitalize" />;
       },
     },
     {
