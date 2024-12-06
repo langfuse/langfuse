@@ -463,6 +463,25 @@ export const scoresRouter = createTRPCRouter({
             trace_id: clickhouseScore.traceId,
             observation_id: clickhouseScore.observationId,
           });
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "score",
+            resourceId: input.id,
+            action: "update",
+            before: clickhouseScore,
+            after: {
+              ...clickhouseScore,
+              timestamp: convertDateToClickhouseDateTime(
+                clickhouseScore.timestamp,
+              ),
+              value: input.value !== null ? input.value : undefined,
+              stringValue: input.stringValue,
+              comment: input.comment,
+              authorUserId: ctx.session.user.id,
+              queueId: input.queueId,
+            },
+          });
         }
       }
 
@@ -556,6 +575,14 @@ export const scoresRouter = createTRPCRouter({
             `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
           );
         } else {
+          await auditLog({
+            session: ctx.session,
+            resourceType: "score",
+            resourceId: input.id,
+            action: "delete",
+            before: clickhouseScore,
+          });
+
           // Delete the score from Clickhouse
           await deleteScore(input.projectId, clickhouseScore.id);
         }
