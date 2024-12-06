@@ -506,37 +506,52 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const score = await ctx.prisma.score.findFirst({
-        where: {
-          id: input.id,
-          source: "ANNOTATION",
-          projectId: input.projectId,
-        },
-      });
-      if (!score) {
-        throw new Error("No annotation score with this id in this project.");
-      }
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+        const score = await ctx.prisma.score.findFirst({
+          where: {
+            id: input.id,
+            source: "ANNOTATION",
+            projectId: input.projectId,
+          },
+        });
+        if (!score) {
+          throw new Error("No annotation score with this id in this project.");
+        }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "delete",
-        before: score,
-      });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: score.id,
+          action: "delete",
+          before: score,
+        });
+
+        // Delete the score from Postgres
+        return await ctx.prisma.score.delete({
+          where: {
+            id: score.id,
+            projectId: input.projectId,
+          },
+        });
+      }
 
       if (env.CLICKHOUSE_URL) {
-        // Delete the score from Clickhouse
-        await deleteScore(input.projectId, score.id);
+        // Fetch the current score from Clickhouse
+        const clickhouseScore = await getScoreById(
+          input.projectId,
+          input.id,
+          ScoreSource.ANNOTATION,
+        );
+        if (!clickhouseScore) {
+          // Continue processing the update in Postgres
+          logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+        } else {
+          // Delete the score from Clickhouse
+          await deleteScore(input.projectId, clickhouseScore.id);
+        }
       }
-
-      // Delete the score from Postgres
-      return await ctx.prisma.score.delete({
-        where: {
-          id: score.id,
-          projectId: input.projectId,
-        },
-      });
     }),
   getScoreKeysAndProps: protectedProjectProcedure
     .input(
