@@ -1,3 +1,4 @@
+import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -12,7 +13,7 @@ import {
   paginationZod,
   Prisma,
 } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { getObservationById, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -74,21 +75,32 @@ export const queueItemRouter = createTRPCRouter({
         };
 
         if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          const observation = await ctx.prisma.observation.findUnique({
-            where: {
-              id: item.objectId,
-              projectId: input.projectId,
-            },
-            select: {
-              id: true,
-              traceId: true,
-            },
-          });
+          if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+            const observation = await ctx.prisma.observation.findUnique({
+              where: {
+                id: item.objectId,
+                projectId: input.projectId,
+              },
+              select: {
+                id: true,
+                traceId: true,
+              },
+            });
 
-          return {
-            ...inflatedItem,
-            parentTraceId: observation?.traceId,
-          };
+            return {
+              ...inflatedItem,
+              parentTraceId: observation?.traceId,
+            };
+          } else {
+            const clickhouseObservation = await getObservationById(
+              item.objectId,
+              input.projectId,
+            );
+            return {
+              ...inflatedItem,
+              parentTraceId: clickhouseObservation?.traceId,
+            };
+          }
         }
 
         return inflatedItem;
