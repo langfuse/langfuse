@@ -39,7 +39,7 @@ const EnvSchema = z.object({
   // TODO: Disable Postgres before go-live
   LANGFUSE_POSTGRES_INGESTION_ENABLED: z
     .enum(["true", "false"])
-    .default("true"),
+    .default("false"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()

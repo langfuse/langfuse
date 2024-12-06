@@ -217,7 +217,7 @@ export const env = createEnv({
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
 
-    // TODO: Remove entire block for go-live
+    // TODO: Remove entire block during V3 clean up
     // Settings to toggle Clickhouse vs Postgres behaviour
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z
       .enum(["true", "false"])
