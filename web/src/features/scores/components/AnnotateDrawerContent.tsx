@@ -255,18 +255,16 @@ export function AnnotateDrawerContent({
           }
         : score,
     );
+
     if (updatedScore.index === stateCopy.length) {
-      const { name, dataType, configId } = updatedScore;
-      return [
-        ...stateCopy,
-        {
-          name,
-          dataType,
-          configId,
-          value: updatedScore.value,
-          stringValue: updatedScore.stringValue,
-        },
-      ];
+      const newScore = {
+        name: updatedScore.name ?? "",
+        dataType: updatedScore.dataType ?? ScoreDataType.NUMERIC,
+        configId: updatedScore.configId ?? undefined,
+        value: updatedScore.value,
+        stringValue: updatedScore.stringValue ?? undefined,
+      };
+      return [...stateCopy, newScore];
     }
     return stateCopy;
   });
@@ -368,6 +366,164 @@ export function AnnotateDrawerContent({
     onSettled: onSettledUpsert,
   });
 
+  const pendingCreates = useRef(new Map<number, Promise<APIScore>>());
+
+  async function handleScoreChange(
+    score: AnnotationScoreSchemaType,
+    index: number,
+    value: number,
+    stringValue: string | null,
+  ) {
+    // Optimistically update the UI
+    setOptimisticScore({
+      index,
+      value,
+      stringValue,
+    });
+
+    try {
+      // If we have an ID, straightforward update
+      if (!!score.scoreId) {
+        const validatedScore = UpdateAnnotationScoreData.parse({
+          id: score.scoreId,
+          projectId,
+          traceId,
+          name: score.name,
+          dataType: score.dataType,
+          configId: score.configId,
+          stringValue: stringValue ?? score.stringValue,
+          comment: score.comment,
+          observationId,
+          value,
+          queueId,
+        });
+
+        await mutUpdateScores.mutateAsync({
+          ...validatedScore,
+        });
+
+        capture("score:update", {
+          type: type,
+          source: source,
+          dataType: score.dataType,
+        });
+      } else {
+        const pendingCreate = pendingCreates.current.get(index);
+
+        if (pendingCreate) {
+          // Wait for the pending create to complete to get the ID
+          const createdScore = await pendingCreate;
+          const validatedScore = UpdateAnnotationScoreData.parse({
+            id: createdScore.id,
+            projectId,
+            traceId,
+            name: score.name,
+            dataType: score.dataType,
+            configId: score.configId,
+            stringValue: stringValue ?? score.stringValue,
+            comment: score.comment,
+            observationId,
+            value,
+            queueId,
+          });
+
+          await mutUpdateScores.mutateAsync({
+            ...validatedScore,
+          });
+
+          capture("score:update", {
+            type: type,
+            source: source,
+            dataType: score.dataType,
+          });
+        } else {
+          // If no pending create, straightforward create
+          const validatedScore = CreateAnnotationScoreData.parse({
+            projectId,
+            traceId,
+            name: score.name,
+            dataType: score.dataType,
+            configId: score.configId,
+            stringValue: stringValue ?? score.stringValue,
+            comment: score.comment,
+            observationId,
+            value,
+            queueId,
+          });
+
+          const createPromise = mutCreateScores.mutateAsync({
+            ...validatedScore,
+          });
+
+          capture("score:create", {
+            type: type,
+            source: source,
+            dataType: score.dataType,
+          });
+
+          pendingCreates.current.set(index, createPromise);
+
+          // Wait for creation and cleanup
+          const createdScore = await createPromise;
+          pendingCreates.current.delete(index);
+
+          // Update the form with the new ID
+          update(index, {
+            ...score,
+            scoreId: createdScore.id,
+            value: createdScore.value,
+          });
+        }
+      }
+    } catch (error) {
+      // Handle error and revert optimistic update
+      console.error(error);
+      setOptimisticScore({
+        index,
+        value: score.value ?? null,
+        stringValue: score.stringValue ?? null,
+      });
+    }
+  }
+
+  function handleOnBlur({
+    config,
+    field,
+    index,
+    score,
+  }: {
+    config: ValidatedScoreConfig;
+    field: ControllerRenderProps<
+      AnnotateFormSchemaType,
+      `scoreData.${number}.value`
+    >;
+    index: number;
+    score: AnnotationScoreSchemaType;
+  }): React.FocusEventHandler<HTMLInputElement> | undefined {
+    return async () => {
+      const { maxValue, minValue, dataType } = config;
+
+      if (isNumericDataType(dataType)) {
+        const formError = getFormError({
+          value: field.value,
+          maxValue,
+          minValue,
+        });
+        if (!!formError) {
+          form.setError(`scoreData.${index}.value`, formError);
+          return;
+        }
+      }
+
+      form.clearErrors(`scoreData.${index}.value`);
+
+      if (isPresent(field.value)) {
+        console.log("handleOnBlur", field.value);
+        await handleScoreChange(score, index, Number(field.value), null);
+      }
+    };
+  }
+
   useEffect(() => {
     if (
       mutUpdateScores.isLoading ||
@@ -376,17 +532,15 @@ export function AnnotateDrawerContent({
     ) {
       setShowSaving(true);
     } else {
-      const timer = setTimeout(() => {
-        setShowSaving(false);
-      }, 300); // Keep saving message for 1 second after loading
-
-      return () => clearTimeout(timer); // Cleanup timer on unmount or when loading state changes
+      setShowSaving(false);
     }
   }, [
     mutUpdateScores.isLoading,
     mutCreateScores.isLoading,
     mutDeleteScore.isLoading,
   ]);
+
+  // TODO: don't allow closing while saving data
 
   function handleOnCheckedChange(
     values: Record<string, string>[],
@@ -448,59 +602,10 @@ export function AnnotateDrawerContent({
       if (selectedCategory) {
         const newValue = Number(selectedCategory.value);
 
-        setOptimisticScore({ index, value: newValue, stringValue });
+        await handleScoreChange(score, index, newValue, stringValue);
         form.setValue(`scoreData.${index}.value`, newValue, {
           shouldValidate: true,
         });
-
-        if (!!stringValue) {
-          if (!!score.scoreId) {
-            const validatedScore = UpdateAnnotationScoreData.parse({
-              id: score.scoreId,
-              projectId,
-              traceId,
-              name: score.name,
-              dataType: score.dataType,
-              configId: score.configId,
-              comment: score.comment,
-              observationId,
-              value: newValue,
-              stringValue,
-              queueId,
-            });
-
-            await mutUpdateScores.mutateAsync({
-              ...validatedScore,
-            });
-            capture("score:update", {
-              type: type,
-              source: source,
-              dataType: score.dataType,
-            });
-          } else {
-            const validatedScore = CreateAnnotationScoreData.parse({
-              projectId,
-              traceId,
-              name: score.name,
-              dataType: score.dataType,
-              configId: score.configId,
-              comment: score.comment,
-              observationId,
-              value: newValue,
-              stringValue,
-              queueId,
-            });
-
-            await mutCreateScores.mutateAsync({
-              ...validatedScore,
-            });
-            capture("score:create", {
-              type: type,
-              source: source,
-              dataType: score.dataType,
-            });
-          }
-        }
       }
     };
   }
@@ -542,90 +647,6 @@ export function AnnotateDrawerContent({
           type: type,
           source: source,
         });
-      }
-    };
-  }
-
-  function handleOnBlur({
-    config,
-    field,
-    index,
-    score,
-  }: {
-    config: ValidatedScoreConfig;
-    field: ControllerRenderProps<
-      AnnotateFormSchemaType,
-      `scoreData.${number}.value`
-    >;
-    index: number;
-    score: AnnotationScoreSchemaType;
-  }): React.FocusEventHandler<HTMLInputElement> | undefined {
-    return async () => {
-      const { maxValue, minValue, dataType } = config;
-
-      if (isNumericDataType(dataType)) {
-        const formError = getFormError({
-          value: field.value,
-          maxValue,
-          minValue,
-        });
-        if (!!formError) {
-          form.setError(`scoreData.${index}.value`, formError);
-          return;
-        }
-      }
-
-      form.clearErrors(`scoreData.${index}.value`);
-
-      if (isPresent(field.value)) {
-        if (!!score.scoreId) {
-          const validatedScore = UpdateAnnotationScoreData.parse({
-            id: score.scoreId,
-            projectId,
-            traceId,
-            name: score.name,
-            dataType: score.dataType,
-            configId: score.configId,
-            stringValue: score.stringValue,
-            comment: score.comment,
-            observationId,
-            value: Number(field.value),
-            queueId,
-          });
-
-          await mutUpdateScores.mutateAsync({
-            ...validatedScore,
-          });
-
-          capture("score:update", {
-            type: type,
-            source: source,
-            dataType: score.dataType,
-          });
-        } else {
-          const validatedScore = CreateAnnotationScoreData.parse({
-            projectId,
-            traceId,
-            name: score.name,
-            dataType: score.dataType,
-            configId: score.configId,
-            stringValue: score.stringValue,
-            comment: score.comment,
-            observationId,
-            value: Number(field.value),
-            queueId,
-          });
-
-          await mutCreateScores.mutateAsync({
-            ...validatedScore,
-          });
-
-          capture("score:create", {
-            type: type,
-            source: source,
-            dataType: score.dataType,
-          });
-        }
       }
     };
   }
@@ -1068,7 +1089,13 @@ export function AnnotateDrawerContent({
                               className="px-0 pl-1"
                               title="Delete score from trace/observation"
                               disabled={isScoreUnsaved(score.scoreId)}
-                              loading={mutDeleteScore.isLoading}
+                              loading={
+                                mutDeleteScore.isLoading &&
+                                !optimisticScores.some(
+                                  (s) => s.scoreId === score.scoreId,
+                                ) &&
+                                !isScoreUnsaved(score.scoreId)
+                              }
                               onClick={async () => {
                                 if (score.scoreId) {
                                   setOptimisticScore({
