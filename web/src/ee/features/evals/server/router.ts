@@ -21,7 +21,6 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   fetchLLMCompletion,
-  getScoreById,
   getScoresByIds,
   LLMApiKeySchema,
   logger,
