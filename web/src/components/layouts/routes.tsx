@@ -22,6 +22,7 @@ import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/u
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { env } from "@/src/env.mjs";
+import { BackgroundMigrationsStatusIndicator } from "@/src/features/background-migrations/components/background-migrations-status-indicator";
 
 export type Route = {
   title: string;
@@ -165,6 +166,7 @@ export const ROUTES: Route[] = [
     title: "Background Migrations",
     pathname: "/background-migrations",
     icon: ArrowUp10,
+    label: <BackgroundMigrationsStatusIndicator />,
     bottom: true,
     show: () => !Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
   },

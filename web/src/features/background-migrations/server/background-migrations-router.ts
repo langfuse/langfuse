@@ -12,6 +12,27 @@ export const backgroundMigrationsRouter = createTRPCRouter({
 
     return { migrations: backgroundMigrations };
   }),
+  status: protectedProcedure.query(async ({ ctx }) => {
+    const backgroundMigrations = await ctx.prisma.backgroundMigration.findMany({
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    if (backgroundMigrations.some((m) => m.failedAt !== null)) {
+      return { status: "FAILED" };
+    }
+
+    if (
+      backgroundMigrations.some(
+        (m) => m.finishedAt === null && m.failedAt === null,
+      )
+    ) {
+      return { status: "ACTIVE" };
+    }
+
+    return { status: "FINISHED" };
+  }),
   retry: protectedProcedure
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input, ctx }) => {
