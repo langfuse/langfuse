@@ -113,10 +113,11 @@ export function tableColumnsToSqlFilter(
         valuePrisma = Prisma.sql``;
         break;
     }
-    const jsonKeyPrisma =
+    const jsonPathPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
-        ? Prisma.sql`->>${filter.key}`
+        ? buildJsonPath(filter.key)
         : Prisma.empty;
+
     const [cast1, cast2] =
       filter.type === "numberObject"
         ? [Prisma.raw("cast("), Prisma.raw(" as double precision)")]
@@ -141,7 +142,7 @@ export function tableColumnsToSqlFilter(
         ? [Prisma.raw("NOT ("), Prisma.raw(")")]
         : [Prisma.empty, Prisma.empty];
 
-    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonKeyPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
+    return Prisma.sql`${funcPrisma1}${cast1}${filterAndColumn.internalColumn}${jsonPathPrisma}${cast2} ${operatorPrisma} ${valuePrefix}${valuePrisma}${castValueToPostgresTypes(filterAndColumn.column, filterAndColumn.table)}${valueSuffix}${funcPrisma2}`;
   });
   if (statements.length === 0) {
     return Prisma.empty;
@@ -151,6 +152,19 @@ export function tableColumnsToSqlFilter(
   // Example: Or condition on charts API on projectId would break this.
   return Prisma.join(statements, " AND ");
 }
+
+const buildJsonPath = (key: string): Prisma.Sql => {
+  let jsonPathPrisma = Prisma.empty;
+  const keys = key.split(".");
+  keys.forEach((key, index) => {
+    if (index < keys.length - 1) {
+      jsonPathPrisma = Prisma.sql`${jsonPathPrisma}->${key}`;
+    } else {
+      jsonPathPrisma = Prisma.sql`${jsonPathPrisma}->>${key}`;
+    }
+  });
+  return jsonPathPrisma;
+};
 
 const castValueToPostgresTypes = (
   column: ColumnDefinition,
