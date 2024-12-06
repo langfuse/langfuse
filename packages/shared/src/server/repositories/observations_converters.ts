@@ -76,16 +76,24 @@ export const convertObservation = (
     promptId: record.prompt_id ?? null,
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: usageDetails.input,
-    completionTokens: usageDetails.output,
-    totalTokens: usageDetails.total,
-    calculatedInputCost: new Decimal(costDetails.input),
-    calculatedOutputCost: new Decimal(costDetails.output),
+    promptTokens: usageDetails.input ?? 0,
+    completionTokens: usageDetails.output ?? 0,
+    totalTokens: usageDetails.total ?? 0,
+    calculatedInputCost:
+      costDetails.input != null ? new Decimal(costDetails.input) : null,
+    calculatedOutputCost:
+      costDetails.output != null ? new Decimal(costDetails.output) : null,
     calculatedTotalCost: record.cost_details?.total
       ? new Decimal(record.cost_details.total)
       : null,
-    inputCost: new Decimal(providedCostDetails.input),
-    outputCost: new Decimal(providedCostDetails.output),
+    inputCost:
+      providedCostDetails.input != null
+        ? new Decimal(providedCostDetails.input)
+        : null,
+    outputCost:
+      providedCostDetails.output != null
+        ? new Decimal(providedCostDetails.output)
+        : null,
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
@@ -108,17 +116,23 @@ export const convertObservation = (
 export const reduceUsageOrCostDetails = (
   details: Record<string, number> | null | undefined,
 ): {
-  input: number;
-  output: number;
-  total: number;
+  input: number | null;
+  output: number | null;
+  total: number | null;
 } => {
   return {
     input: Object.entries(details ?? {})
       .filter(([usageType]) => usageType.startsWith("input"))
-      .reduce((acc, [_, value]) => acc + Number(value), 0),
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no input usage is found
+      ),
     output: Object.entries(details ?? {})
       .filter(([usageType]) => usageType.startsWith("output"))
-      .reduce((acc, [_, value]) => acc + Number(value), 0),
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no output usage is found
+      ),
     total: Number(details?.total ?? 0),
   };
 };

@@ -2,7 +2,6 @@ import { convertApiProvidedFilterToClickhouseFilter } from "@/src/features/publi
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
-  reduceUsageOrCostDetails,
   TRACE_TO_OBSERVATIONS_INTERVAL,
   type DateTimeFilter,
 } from "@langfuse/shared/src/server";
@@ -39,7 +38,9 @@ export const generateDailyMetrics = async (props: QueryType) => {
         o.provided_model_name as model,
         count(o.id) as countObservations,
         count(distinct t.id) as countTraces,
-        sumMap(o.usage_details) as usageDetails,
+        arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), o.usage_details))) as inputUsage,
+        arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), o.usage_details))) as outputUsage,
+        sumMap(o.usage_details)['total'] as totalUsage,
         sum(coalesce(o.total_cost, 0)) as totalCost
       FROM traces t FINAL
       LEFT JOIN observations o FINAL on o.trace_id = t.id AND o.project_id = t.project_id
@@ -55,7 +56,9 @@ export const generateDailyMetrics = async (props: QueryType) => {
         sum(mu.totalCost) as totalCost,
         groupArray(tuple(
           mu.model,
-          mu.usageDetails,
+          mu.inputUsage,
+          mu.outputUsage,
+          mu.totalUsage,
           mu.totalCost,
           mu.countObservations,
           mu.countTraces
@@ -84,30 +87,13 @@ export const generateDailyMetrics = async (props: QueryType) => {
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  const result = await queryClickhouse<
-    {
-      date: string;
-      countTraces: number;
-      countObservations: number;
-      totalCost: number;
-      usage: (string | null | Record<string, number>)[][];
-    },
-    {
-      date: string;
-      countTraces: number;
-      countObservations: number;
-      totalCost: number;
-      usage: {
-        model: string | null;
-        inputUsage: number;
-        outputUsage: number;
-        totalUsage: number;
-        totalCost: number;
-        countObservations: number;
-        countTraces: number;
-      }[];
-    }
-  >({
+  const result = await queryClickhouse<{
+    date: string;
+    countTraces: number;
+    countObservations: number;
+    totalCost: number;
+    usage: (string | null)[][];
+  }>({
     query,
     params: {
       ...appliedFilter.params,
@@ -125,21 +111,6 @@ export const generateDailyMetrics = async (props: QueryType) => {
     clickhouseConfigs: {
       request_timeout: 60_000, // Use 1 minute timeout for daily metrics
     },
-    transform: (row) => ({
-      ...row,
-      usage: row.usage.map((u) => ({
-        model: u[0] as string | null,
-        inputUsage: reduceUsageOrCostDetails(u[1] as Record<string, number>)
-          .input,
-        outputUsage: reduceUsageOrCostDetails(u[1] as Record<string, number>)
-          .output,
-        totalUsage: reduceUsageOrCostDetails(u[1] as Record<string, number>)
-          .total,
-        totalCost: Number(u[2]),
-        countObservations: Number(u[3]),
-        countTraces: Number(u[4]),
-      })),
-    }),
   });
 
   return result.map((record) => ({
@@ -147,7 +118,15 @@ export const generateDailyMetrics = async (props: QueryType) => {
     countTraces: Number(record.countTraces),
     countObservations: Number(record.countObservations),
     totalCost: Number(record.totalCost),
-    usage: record.usage,
+    usage: record.usage.map((u) => ({
+      model: u[0],
+      inputUsage: Number(u[1]),
+      outputUsage: Number(u[2]),
+      totalUsage: Number(u[3]),
+      totalCost: Number(u[4]),
+      countObservations: Number(u[5]),
+      countTraces: Number(u[6]),
+    })),
   }));
 };
 

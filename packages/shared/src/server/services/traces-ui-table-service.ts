@@ -97,9 +97,9 @@ export const convertToUITableMetrics = (
     id: row.id,
     projectId: row.project_id,
     latency: Number(row.latency),
-    promptTokens: BigInt(usageDetails.input),
-    completionTokens: BigInt(usageDetails.output),
-    totalTokens: BigInt(usageDetails.total),
+    promptTokens: BigInt(usageDetails.input ?? 0),
+    completionTokens: BigInt(usageDetails.output ?? 0),
+    totalTokens: BigInt(usageDetails.total ?? 0),
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)
