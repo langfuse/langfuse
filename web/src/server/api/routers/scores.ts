@@ -464,24 +464,27 @@ export const scoresRouter = createTRPCRouter({
             observation_id: clickhouseScore.observationId,
           });
 
-          await auditLog({
-            session: ctx.session,
-            resourceType: "score",
-            resourceId: input.id,
-            action: "update",
-            before: clickhouseScore,
-            after: {
-              ...clickhouseScore,
-              timestamp: convertDateToClickhouseDateTime(
-                clickhouseScore.timestamp,
-              ),
-              value: input.value !== null ? input.value : undefined,
-              stringValue: input.stringValue,
-              comment: input.comment,
-              authorUserId: ctx.session.user.id,
-              queueId: input.queueId,
-            },
-          });
+          // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
+          if (!env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+            await auditLog({
+              session: ctx.session,
+              resourceType: "score",
+              resourceId: input.id,
+              action: "update",
+              before: clickhouseScore,
+              after: {
+                ...clickhouseScore,
+                timestamp: convertDateToClickhouseDateTime(
+                  clickhouseScore.timestamp,
+                ),
+                value: input.value !== null ? input.value : undefined,
+                stringValue: input.stringValue,
+                comment: input.comment,
+                authorUserId: ctx.session.user.id,
+                queueId: input.queueId,
+              },
+            });
+          }
         }
       }
 
@@ -575,13 +578,16 @@ export const scoresRouter = createTRPCRouter({
             `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
           );
         } else {
-          await auditLog({
-            session: ctx.session,
-            resourceType: "score",
-            resourceId: input.id,
-            action: "delete",
-            before: clickhouseScore,
-          });
+          // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
+          if (!env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+            await auditLog({
+              session: ctx.session,
+              resourceType: "score",
+              resourceId: input.id,
+              action: "delete",
+              before: clickhouseScore,
+            });
+          }
 
           // Delete the score from Clickhouse
           await deleteScore(input.projectId, clickhouseScore.id);
