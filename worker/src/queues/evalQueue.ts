@@ -8,7 +8,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
-import { createEvalJobs } from "../ee/evaluation/evalService";
+import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
