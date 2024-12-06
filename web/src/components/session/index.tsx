@@ -17,6 +17,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useSession } from "next-auth/react";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
@@ -28,6 +29,7 @@ export const SessionPage: React.FC<{
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const userSession = useSession();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byId.useQuery(
     {
@@ -60,14 +62,24 @@ export const SessionPage: React.FC<{
     string[]
   >("emptySelectedConfigIds", []);
 
-  const commentCounts = api.comments.getCountByObjectId.useQuery(
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: session.isSuccess },
+    { enabled: session.isSuccess && userSession.status === "authenticated" },
   );
+
+  const traceCommentCounts =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId,
+        queryClickhouse: useClickhouse(),
+      },
+      { enabled: session.isSuccess && userSession.status === "authenticated" },
+    );
 
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
@@ -122,7 +134,7 @@ export const SessionPage: React.FC<{
             projectId={projectId}
             objectId={sessionId}
             objectType="SESSION"
-            count={commentCounts.data?.get(sessionId)}
+            count={sessionCommentCounts.data?.get(sessionId)}
           />,
         ]}
       />
@@ -169,17 +181,26 @@ export const SessionPage: React.FC<{
               <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <AnnotateDrawer
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                emptySelectedConfigIds={emptySelectedConfigIds}
-                setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                variant="badge"
-                type="session"
-                source="SessionDetail"
-                key={"annotation-drawer" + trace.id}
-              />
+              <div className="flex items-center gap-1">
+                <AnnotateDrawer
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  emptySelectedConfigIds={emptySelectedConfigIds}
+                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                  variant="badge"
+                  type="session"
+                  source="SessionDetail"
+                  key={"annotation-drawer" + trace.id}
+                />
+                <CommentDrawerButton
+                  projectId={projectId}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={traceCommentCounts.data?.get(trace.id)}
+                  className="h-6 rounded-full text-xs"
+                />
+              </div>
             </div>
           </Card>
         ))}

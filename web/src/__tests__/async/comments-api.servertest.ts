@@ -1,42 +1,43 @@
 /** @jest-environment node */
 
-import {
-  makeZodVerifiedAPICall,
-  pruneDatabase,
-} from "@/src/__tests__/test-utils";
+import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,
   GetCommentV1Response,
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
-import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
+import {
+  createObservationsCh,
+  createTracesCh,
+} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+import {
+  createObservation,
+  createTrace,
+} from "@/src/__tests__/fixtures/tracing-factory";
 
 describe("Create and get comments", () => {
-  beforeEach(async () => await pruneDatabase());
-  afterEach(async () => await pruneDatabase());
+  beforeAll(async () => {
+    const traces = [
+      createTrace({
+        name: "trace-name",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: "1234",
+      }),
+    ];
+
+    await createTracesCh(traces);
+  });
 
   it("should create and get comment", async () => {
-    const traceResponse = await makeZodVerifiedAPICall(
-      PostTracesV1Response,
-      "POST",
-      "/api/public/traces",
-      {
-        name: "trace-name",
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      },
-    );
-
-    const { id: traceId } = traceResponse.body;
-
     const commentResponse = await makeZodVerifiedAPICall(
       PostCommentsV1Response,
       "POST",
       "/api/public/comments",
       {
         content: "hello",
-        objectId: traceId,
+        objectId: "1234",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         authorUserId: "user-1",
@@ -55,7 +56,7 @@ describe("Create and get comments", () => {
     expect(response.body).toMatchObject({
       id: commentId,
       projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      objectId: traceId,
+      objectId: "1234",
       objectType: "TRACE",
       content: "hello",
       authorUserId: "user-1",
@@ -80,25 +81,13 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 404, body {\"message\":\"No trace with id invalid-trace-id in project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a\",\"error\":\"LangfuseNotFoundError\"}`,
+        `API call did not return 200, returned status 404, body {\"message\":\"Reference object, TRACE: invalid-trace-id not found in Clickhouse. Skipping creating comment.\",\"error\":\"LangfuseNotFoundError\"}`,
       );
     }
   });
 
   it("should fail to create comment if content is empty", async () => {
     try {
-      const traceResponse = await makeZodVerifiedAPICall(
-        PostTracesV1Response,
-        "POST",
-        "/api/public/traces",
-        {
-          name: "trace-name",
-          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        },
-      );
-
-      const { id: traceId } = traceResponse.body;
-
       await makeZodVerifiedAPICall(
         z.object({
           message: z.string(),
@@ -108,7 +97,7 @@ describe("Create and get comments", () => {
         "/api/public/comments",
         {
           content: "",
-          objectId: traceId,
+          objectId: "1234",
           objectType: "TRACE",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         },
@@ -122,18 +111,6 @@ describe("Create and get comments", () => {
 
   it("should fail to create comment if content is larger than 3000 characters", async () => {
     try {
-      const traceResponse = await makeZodVerifiedAPICall(
-        PostTracesV1Response,
-        "POST",
-        "/api/public/traces",
-        {
-          name: "trace-name",
-          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        },
-      );
-
-      const { id: traceId } = traceResponse.body;
-
       await makeZodVerifiedAPICall(
         z.object({
           message: z.string(),
@@ -143,7 +120,7 @@ describe("Create and get comments", () => {
         "/api/public/comments",
         {
           content: "a".repeat(3001),
-          objectId: traceId,
+          objectId: "1234",
           objectType: "TRACE",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         },
@@ -157,29 +134,28 @@ describe("Create and get comments", () => {
 });
 
 describe("GET /api/public/comments API Endpoint", () => {
-  beforeEach(async () => {
-    await pruneDatabase();
-
-    const trace = await prisma.trace.create({
-      data: {
-        id: "trace-2021-01-01",
-        createdAt: new Date("2021-01-01T00:00:00Z"),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+  beforeAll(async () => {
+    const traces = [
+      createTrace({
         name: "trace-1",
-      },
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: "1234",
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const observation = createObservation({
+      name: "generation-1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      id: "5678",
+      type: "GENERATION",
+      trace_id: "1234",
     });
 
-    const generation = await prisma.observation.create({
-      data: {
-        id: "generation-2021-01-01",
-        createdAt: new Date("2021-01-01T00:00:00Z"),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        traceId: trace.id,
-        name: "generation-1",
-        type: "GENERATION",
-      },
-    });
+    await createObservationsCh([observation]);
 
+    await prisma.comment.deleteMany();
     await prisma.comment.createMany({
       data: [
         {
@@ -187,7 +163,7 @@ describe("GET /api/public/comments API Endpoint", () => {
           createdAt: new Date("2021-01-01T00:00:00Z"),
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           content: "comment-1",
-          objectId: trace.id,
+          objectId: "1234",
           objectType: "TRACE",
           authorUserId: "user-1",
         },
@@ -196,7 +172,7 @@ describe("GET /api/public/comments API Endpoint", () => {
           createdAt: new Date("2021-02-01T00:00:00Z"),
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           content: "comment-2",
-          objectId: generation.id,
+          objectId: "5678",
           objectType: "OBSERVATION",
           authorUserId: "user-1",
         },
@@ -205,7 +181,7 @@ describe("GET /api/public/comments API Endpoint", () => {
           createdAt: new Date("2021-03-01T00:00:00Z"),
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           content: "comment-3",
-          objectId: trace.id,
+          objectId: "1234",
           objectType: "TRACE",
           authorUserId: "user-1",
         },
@@ -214,7 +190,7 @@ describe("GET /api/public/comments API Endpoint", () => {
           createdAt: new Date("2021-04-01T00:00:00Z"),
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           content: "comment-4",
-          objectId: trace.id,
+          objectId: "1234",
           objectType: "TRACE",
         },
         {
@@ -222,13 +198,12 @@ describe("GET /api/public/comments API Endpoint", () => {
           createdAt: new Date("2021-05-01T00:00:00Z"),
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           content: "comment-5",
-          objectId: trace.id,
+          objectId: "1234",
           objectType: "TRACE",
         },
       ],
     });
   });
-  afterEach(async () => await pruneDatabase());
 
   it("should return all comments", async () => {
     const comments = await makeZodVerifiedAPICall(
@@ -240,7 +215,7 @@ describe("GET /api/public/comments API Endpoint", () => {
   });
 
   it("should return comments for a specific objectId and objectType", async () => {
-    const objectId = "trace-2021-01-01";
+    const objectId = "1234";
     const objectType = "TRACE";
 
     const comments = await makeZodVerifiedAPICall(
@@ -260,7 +235,7 @@ describe("GET /api/public/comments API Endpoint", () => {
 
   it("should return comments linked to a specific object and by a specific author", async () => {
     const authorUserId = "user-1";
-    const objectId = "trace-2021-01-01";
+    const objectId = "1234";
     const objectType = "TRACE";
 
     const comments = await makeZodVerifiedAPICall(
