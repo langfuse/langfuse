@@ -749,7 +749,6 @@ export const evalRouter = createTRPCRouter({
             })
           : [];
 
-      console.log("scores", scores);
       return {
         data: jobExecutions.map((je) => ({
           ...je,
