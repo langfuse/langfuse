@@ -93,6 +93,32 @@ export const getScoreById = async (
   return rows.map(convertToScore).shift();
 };
 
+export const getScoresByIds = async (
+  projectId: string,
+  scoreId: string[],
+  source?: ScoreSource,
+) => {
+  const query = `
+    SELECT *
+    FROM scores s
+    WHERE s.project_id = {projectId: String}
+    AND s.id IN ({scoreId: Array(String)})
+    ${source ? `AND s.source = {source: String}` : ""}
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
+  `;
+
+  const rows = await queryClickhouse<ScoreRecordReadType>({
+    query,
+    params: {
+      projectId,
+      scoreId,
+      ...(source !== undefined ? { source } : {}),
+    },
+  });
+  return rows.map(convertToScore);
+};
+
 /**
  * Accepts a score in a Clickhouse-ready format.
  * id, project_id, name, and timestamp must always be provided.

@@ -22,6 +22,7 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import {
   fetchLLMCompletion,
   getScoreById,
+  getScoresByIds,
   LLMApiKeySchema,
   logger,
 } from "@langfuse/shared/src/server";
@@ -30,6 +31,7 @@ import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -723,13 +725,33 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      const scores = await Promise.all(
-        jobExecutions
-          .map((je) => je.jobOutputScoreId)
-          .filter(isNotNullOrUndefined)
-          .map((scoreId) => getScoreById(input.projectId, scoreId)),
-      );
+      const scoreIds = jobExecutions
+        .map((je) => je.jobOutputScoreId)
+        .filter(isNotNullOrUndefined);
 
+      console.log("scoreIds", scoreIds);
+
+      const scores =
+        scoreIds.length > 0
+          ? await measureAndReturnApi({
+              input: { projectId: input.projectId, queryClickhouse: false },
+              operation: "get-scores-eval-log",
+              user: ctx.session.user,
+              pgExecution: async () => {
+                return await ctx.prisma.score.findMany({
+                  where: {
+                    projectId: input.projectId,
+                    id: { in: scoreIds },
+                  },
+                });
+              },
+              clickhouseExecution: async () => {
+                return await getScoresByIds(input.projectId, scoreIds);
+              },
+            })
+          : [];
+
+      console.log("scores", scores);
       return {
         data: jobExecutions.map((je) => ({
           ...je,
