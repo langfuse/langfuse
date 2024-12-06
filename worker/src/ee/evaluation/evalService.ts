@@ -40,7 +40,10 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { callStructuredLLM, compileHandlebarString } from "../utilities";
+import {
+  callStructuredLLM,
+  compileHandlebarString,
+} from "../../features/utilities";
 
 let s3StorageServiceClient: StorageService;
 

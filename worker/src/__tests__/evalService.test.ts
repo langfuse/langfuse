@@ -10,7 +10,7 @@ import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTracingData,
-} from "../features/evaluation/evalService";
+} from "../ee/evaluation/evalService";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
