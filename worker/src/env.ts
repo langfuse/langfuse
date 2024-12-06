@@ -142,6 +142,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

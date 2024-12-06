@@ -470,12 +470,14 @@ export const evaluate = async ({
   };
 
   // TODO: Remove foreign key on jobExecutions when removing this
-  await prisma.score.create({
-    data: {
-      ...baseScore,
-      projectId: event.projectId,
-    },
-  });
+  if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+    await prisma.score.create({
+      data: {
+        ...baseScore,
+        projectId: event.projectId,
+      },
+    });
+  }
 
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {

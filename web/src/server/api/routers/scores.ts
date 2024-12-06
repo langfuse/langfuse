@@ -46,6 +46,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { env } from "@/src/env.mjs";
+import { v4 } from "uuid";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -333,24 +334,30 @@ export const scoresRouter = createTRPCRouter({
           `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
         );
       }
+      const score = {
+        id: v4(),
+        projectId: input.projectId,
+        traceId: input.traceId,
+        observationId: input.observationId ?? null,
+        value: input.value ?? null,
+        stringValue: input.stringValue ?? null,
+        dataType: input.dataType ?? null,
+        configId: input.configId ?? null,
+        name: input.name,
+        comment: input.comment ?? null,
+        authorUserId: ctx.session.user.id,
+        source: ScoreSource.ANNOTATION,
+        queueId: input.queueId ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        timestamp: new Date(),
+      };
 
-      const score = await ctx.prisma.score.create({
-        data: {
-          projectId: input.projectId,
-          traceId: input.traceId,
-          observationId: input.observationId,
-          value: input.value,
-          stringValue: input.stringValue,
-          dataType: input.dataType,
-          configId: input.configId,
-          name: input.name,
-          comment: input.comment,
-          authorUserId: ctx.session.user.id,
-          source: "ANNOTATION",
-          queueId: input.queueId,
-        },
-      });
-
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+        await ctx.prisma.score.create({
+          data: score,
+        });
+      }
       await auditLog({
         session: ctx.session,
         resourceType: "score",
