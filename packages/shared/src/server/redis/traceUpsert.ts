@@ -1,7 +1,4 @@
-import {
-  QueueName,
-  TQueueJobTypes,
-} from "../queues";
+import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
 import { logger } from "../logger";
@@ -29,7 +26,7 @@ export class TraceUpsertQueue {
               removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
               removeOnFail: 100_000,
               attempts: 5,
-              delay: 10_000, // 10 seconds
+              delay: 15_000, // 10 seconds
               backoff: {
                 type: "exponential",
                 delay: 5000,
