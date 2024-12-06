@@ -41,6 +41,10 @@ export const convertObservation = (
   timeToFirstToken: number | null;
 } => {
   const usageDetails = reduceUsageOrCostDetails(record.usage_details);
+  const costDetails = reduceUsageOrCostDetails(record.cost_details);
+  const providedCostDetails = reduceUsageOrCostDetails(
+    record.provided_cost_details,
+  );
 
   return {
     id: record.id,
@@ -75,21 +79,13 @@ export const convertObservation = (
     promptTokens: usageDetails.input,
     completionTokens: usageDetails.output,
     totalTokens: usageDetails.total,
-    calculatedInputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details.input)
-      : null,
-    calculatedOutputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details.output)
-      : null,
+    calculatedInputCost: new Decimal(costDetails.input),
+    calculatedOutputCost: new Decimal(costDetails.output),
     calculatedTotalCost: record.cost_details?.total
       ? new Decimal(record.cost_details.total)
       : null,
-    inputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details?.input)
-      : null,
-    outputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details?.output)
-      : null,
+    inputCost: new Decimal(providedCostDetails.input),
+    outputCost: new Decimal(providedCostDetails.output),
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,

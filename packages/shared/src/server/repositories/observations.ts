@@ -949,8 +949,8 @@ export const getObservationMetricsForPrompts = async (
           prompt_version,
           min(start_time) AS first_observation,
           max(start_time) AS last_observation,
-          medianExact(usage_details['input']) AS median_input_usage,
-          medianExact(usage_details['output']) AS median_output_usage,
+          medianExact(arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), usage_details)))) AS median_input_usage,
+          medianExact(arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), usage_details)))) AS median_output_usage,
           medianExact(cost_details['total']) AS median_total_cost,
           medianExact(latency_ms) AS median_latency_ms
       FROM latencies
