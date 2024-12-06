@@ -2,6 +2,7 @@ import { v4 } from "uuid";
 import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
+  getTraceById,
   OrgEnrichedApiKey,
   redis,
 } from "@langfuse/shared/src/server";
@@ -15,6 +16,7 @@ const generateAuth = (username: string, password: string) => {
 const workerAdminAuth = generateAuth("admin", "myworkerpassword");
 
 const userApiKeyAuth = generateAuth("pk-lf-1234567890", "sk-lf-1234567890");
+const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Health endpoints", () => {
   it("web container returns healthy", async () => {
@@ -112,11 +114,7 @@ describe("Ingestion Pipeline", () => {
         expect(traceResponse.body).not.toBeNull();
         expect((await traceResponse.json()).id).toBe(traceId);
 
-        const trace = await prisma.trace.findUnique({
-          where: {
-            id: traceId,
-          },
-        });
+        const trace = await getTraceById(traceId, projectId);
         expect(trace).not.toBeNull();
         expect(trace?.name).toBe("test trace");
 
