@@ -729,8 +729,6 @@ export const evalRouter = createTRPCRouter({
         .map((je) => je.jobOutputScoreId)
         .filter(isNotNullOrUndefined);
 
-      console.log("scoreIds", scoreIds);
-
       const scores =
         scoreIds.length > 0
           ? await measureAndReturnApi({
