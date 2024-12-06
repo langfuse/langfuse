@@ -469,7 +469,6 @@ export const evaluate = async ({
     source: ScoreSource.EVAL,
   };
 
-  // TODO: Remove foreign key on jobExecutions when removing this
   if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
     await prisma.score.create({
       data: {

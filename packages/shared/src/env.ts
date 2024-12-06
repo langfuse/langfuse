@@ -36,7 +36,6 @@ const EnvSchema = z.object({
   LANGFUSE_CLICKHOUSE_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // TODO: Disable Postgres before go-live
   LANGFUSE_POSTGRES_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
