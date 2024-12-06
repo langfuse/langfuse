@@ -460,40 +460,42 @@ export const scoresRouter = createTRPCRouter({
         }
       }
 
-      const score = await ctx.prisma.score.findFirst({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-          source: "ANNOTATION",
-        },
-      });
-      if (!score) {
-        throw new Error("No annotation score with this id in this project.");
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+        const score = await ctx.prisma.score.findFirst({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+            source: "ANNOTATION",
+          },
+        });
+        if (!score) {
+          throw new Error("No annotation score with this id in this project.");
+        }
+        const updatedScore = await ctx.prisma.score.update({
+          where: {
+            id: score.id,
+            projectId: input.projectId,
+          },
+          data: {
+            value: input.value,
+            stringValue: input.stringValue,
+            comment: input.comment,
+            authorUserId: ctx.session.user.id,
+            queueId: input.queueId,
+          },
+        });
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: score.id,
+          action: "update",
+          before: score,
+          after: updatedScore,
+        });
+
+        return validateDbScore(updatedScore);
       }
-      const updatedScore = await ctx.prisma.score.update({
-        where: {
-          id: score.id,
-          projectId: input.projectId,
-        },
-        data: {
-          value: input.value,
-          stringValue: input.stringValue,
-          comment: input.comment,
-          authorUserId: ctx.session.user.id,
-          queueId: input.queueId,
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "update",
-        before: score,
-        after: updatedScore,
-      });
-
-      return validateDbScore(updatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
