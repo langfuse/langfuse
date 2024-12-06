@@ -645,6 +645,12 @@ importers:
       react18-json-view:
         specifier: ^0.2.8-canary.6
         version: 0.2.8-canary.6(react@18.2.0)
+      react-diff-view:
+        specifier: 3.3.0
+        version: 3.3.0
+      unidiff:
+        specifier: 1.0.4
+        version: 1.0.4
       remark-gfm:
         specifier: ^4.0.0
         version: 4.0.0
@@ -10035,6 +10041,12 @@ packages:
   react@18.2.0:
     resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
     engines: {node: '>=0.10.0'}
+
+  react-diff-view@3.3.0:
+    resolution: {integrity: sha512-+KH1YMp7ARIBwOlfyWSmYjcg/uiexWjHlLKG35LsZfLaL7Uf382JEBajwPg1C+iE1Od9sScQxGfZCPd+1qNlAQ==}
+
+  unidiff@1.0.4:
+    resolution: {integrity: sha512-ynU0vsAXw0ir8roa+xPCUHmnJ5goc5BTM2Kuc3IJd8UwgaeRs7VSD5+eeaQL+xp1JtB92hu/Zy/Lgy7RZcr1pQ==}
 
   read-cache@1.0.0:
     resolution: {integrity: sha512-Owdv/Ft7IjOgm/i0xvNDZ1LrRANRfew4b2prF3OWMQLxLfu3bS8FVhCsrSCMK4lR56Y9ya+AThoTpDCTxCmpRA==}
@@ -23408,6 +23420,10 @@ snapshots:
   react@18.2.0:
     dependencies:
       loose-envify: 1.4.0
+
+  react-diff-view@3.3.0: {}
+
+  unidiff@1.0.4: {}
 
   read-cache@1.0.0:
     dependencies:

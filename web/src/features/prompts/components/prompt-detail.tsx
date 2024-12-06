@@ -42,6 +42,8 @@ import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/
 import { useState } from "react";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { parseDiff, Diff, Hunk, HunkProps } from "react-diff-view";
+import 'react-diff-view/style/index.css';
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -74,6 +76,17 @@ export const PromptDetail = () => {
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.promptVersions[0];
+
+  let oldPrompt = null;
+  const currentPromptVersionNumber = prompt?.version;
+  if (currentPromptVersionNumber != null && currentPromptVersionNumber > 1) {
+    const oldPromptVersionNumber = currentPromptVersionNumber - 1;
+    oldPrompt = oldPromptVersionNumber
+    ? promptHistory.data?.promptVersions.find(
+        (p) => p.version === oldPromptVersionNumber,
+      )
+    : promptHistory.data?.promptVersions[0];
+  }
 
   const extractedVariables = prompt
     ? extractVariables(
@@ -139,6 +152,16 @@ export const PromptDetail = () => {
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
+
+  const unidiff = require('unidiff');
+  const EMPTY_HUNKS: HunkProps['hunk'][] = [];
+  const newText = prompt.prompt;
+  let oldText = newText;
+  if (oldPrompt != null){
+    oldText = oldPrompt['prompt'];
+  }
+  const diffText = unidiff.formatLines(unidiff.diffLines(oldText, newText), {context: 3});
+  const [diff] = parseDiff(diffText, {nearbySequences: 'zip'});
 
   return (
     <ScrollScreenPage>
@@ -307,7 +330,7 @@ export const PromptDetail = () => {
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
           <p className="mt-6 text-xs text-muted-foreground">
-            Fetch prompts via Python or JS/TS SDKs. See{" "}
+            Fetch prompts via Python yeeeees or JS/TS SDKs. See{" "}
             <a
               href="https://langfuse.com/docs/prompts"
               className="underline"
@@ -318,6 +341,15 @@ export const PromptDetail = () => {
             </a>{" "}
             for details.
           </p>
+
+          <Diff viewType="split" diffType='modify' hunks={diff.hunks || EMPTY_HUNKS}>
+              {hunks =>
+                  hunks.map(hunk => (
+                      <Hunk key={hunk.content} hunk={hunk} />
+                  ))
+              }
+          </Diff>
+
           <Accordion type="single" collapsible className="mt-10">
             <AccordionItem value="item-1">
               <AccordionTrigger>
