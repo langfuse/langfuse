@@ -15,6 +15,7 @@ import {
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type DatasetItem,
+  DatasetStatus,
   extractVariables,
   UnauthorizedError,
 } from "@langfuse/shared";
@@ -114,13 +115,14 @@ export const experimentsRouter = createTRPCRouter({
         where: {
           datasetId: input.datasetId,
           projectId: input.projectId,
+          status: DatasetStatus.ACTIVE,
         },
       });
 
       if (!Boolean(datasetItems.length)) {
         return {
           isValid: false,
-          message: "Selected dataset is empty.",
+          message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
