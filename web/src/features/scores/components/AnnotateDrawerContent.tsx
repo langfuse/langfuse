@@ -199,6 +199,9 @@ export function AnnotateDrawerContent({
   setEmptySelectedConfigIds,
   observationId,
   projectId,
+  showSaving,
+  setShowSaving,
+  isDrawerOpen = true,
   type = "trace",
   source = "TraceDetail",
   isSelectHidden = false,
@@ -212,6 +215,9 @@ export function AnnotateDrawerContent({
   setEmptySelectedConfigIds: (ids: string[]) => void;
   observationId?: string;
   projectId: string;
+  showSaving: boolean;
+  setShowSaving: (showSaving: boolean) => void;
+  isDrawerOpen?: boolean;
   type?: "trace" | "observation" | "session";
   source?: "TraceDetail" | "SessionDetail";
   isSelectHidden?: boolean;
@@ -220,7 +226,6 @@ export function AnnotateDrawerContent({
 }) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
-  const [showSaving, setShowSaving] = useState(false);
 
   const form = useForm<AnnotateFormSchemaType>({
     resolver: zodResolver(AnnotateFormSchema),
@@ -328,6 +333,8 @@ export function AnnotateDrawerContent({
         utils.traces.invalidate(),
         utils.sessions.invalidate(),
       ]);
+
+      if (!isDrawerOpen) setShowSaving(false);
     },
   });
 
@@ -356,6 +363,8 @@ export function AnnotateDrawerContent({
       utils.traces.invalidate(),
       utils.sessions.invalidate(),
     ]);
+
+    if (!isDrawerOpen) setShowSaving(false);
   };
 
   const mutCreateScores = api.scores.createAnnotationScore.useMutation({
@@ -538,9 +547,8 @@ export function AnnotateDrawerContent({
     mutUpdateScores.isLoading,
     mutCreateScores.isLoading,
     mutDeleteScore.isLoading,
+    setShowSaving,
   ]);
-
-  // TODO: don't allow closing while saving data
 
   function handleOnCheckedChange(
     values: Record<string, string>[],

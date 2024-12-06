@@ -39,6 +39,7 @@ export function AnnotateDrawer({
   hasGroupedButton?: boolean;
 }) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [showSaving, setShowSaving] = useState(false);
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -64,7 +65,7 @@ export function AnnotateDrawer({
         {variant === "button" ? (
           <Button
             variant="secondary"
-            disabled={!hasAccess}
+            disabled={!hasAccess || showSaving}
             className={hasGroupedButton ? "rounded-r-none" : ""}
             onClick={() => {
               setIsDrawerOpen(true);
@@ -81,6 +82,8 @@ export function AnnotateDrawer({
           >
             {!hasAccess ? (
               <LockIcon className="mr-1.5 h-3 w-3" />
+            ) : showSaving ? (
+              <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
             ) : (
               <SquarePen className="mr-1.5 h-4 w-4" />
             )}
@@ -89,7 +92,7 @@ export function AnnotateDrawer({
         ) : (
           <Button
             className="h-6 rounded-full px-3 text-xs"
-            disabled={!hasAccess}
+            disabled={!hasAccess || showSaving}
             onClick={() => {
               setIsDrawerOpen(true);
               capture(
@@ -138,6 +141,9 @@ export function AnnotateDrawer({
             projectId={projectId}
             type={type}
             source={source}
+            showSaving={showSaving}
+            setShowSaving={setShowSaving}
+            isDrawerOpen={isDrawerOpen}
           />
         )}
       </DrawerContent>
