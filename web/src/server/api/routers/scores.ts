@@ -24,6 +24,8 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
+  LangfuseNotFoundError,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 import {
@@ -374,11 +376,12 @@ export const scoresRouter = createTRPCRouter({
         );
 
         if (!clickhouseTrace) {
-          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
           );
-          return validateDbScore(score);
+          throw new LangfuseNotFoundError(
+            `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+          );
         }
 
         const clickhouseScore = await searchExistingAnnotationScore(
@@ -390,11 +393,12 @@ export const scoresRouter = createTRPCRouter({
         );
 
         if (clickhouseScore) {
-          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
           );
-          return validateDbScore(score);
+          throw new InvalidRequestError(
+            `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+          );
         }
 
         await upsertScore({
@@ -434,8 +438,10 @@ export const scoresRouter = createTRPCRouter({
           ScoreSource.ANNOTATION,
         );
         if (!clickhouseScore) {
-          // Continue processing the update in Postgres
           logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+          throw new LangfuseNotFoundError(
             `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
           );
         } else {
@@ -543,8 +549,10 @@ export const scoresRouter = createTRPCRouter({
           ScoreSource.ANNOTATION,
         );
         if (!clickhouseScore) {
-          // Continue processing the update in Postgres
           logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+          throw new LangfuseNotFoundError(
             `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
           );
         } else {
