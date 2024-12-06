@@ -4,7 +4,6 @@ import {
   type CreateCommentData,
 } from "@langfuse/shared";
 import { type z } from "zod";
-import { env } from "@/src/env.mjs";
 import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
 
 type PrismaModelName = keyof Omit<
