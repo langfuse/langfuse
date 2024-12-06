@@ -678,6 +678,15 @@ export const traceRouter = createTRPCRouter({
               projectId: input.projectId,
             },
           }),
+          // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: Cascade
+          ctx.prisma.datasetRunItems.deleteMany({
+            where: {
+              traceId: {
+                in: input.traceIds,
+              },
+              projectId: input.projectId,
+            },
+          }),
           // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
           ctx.prisma.jobExecution.updateMany({
             where: {
@@ -696,6 +705,8 @@ export const traceRouter = createTRPCRouter({
         ]);
 
         if (env.CLICKHOUSE_URL) {
+          // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: Cascade
+          // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
           await Promise.all([
             deleteTraces(input.projectId, input.traceIds),
             deleteObservationsByTraceIds(input.projectId, input.traceIds),
