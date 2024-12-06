@@ -465,7 +465,7 @@ export const scoresRouter = createTRPCRouter({
           });
 
           // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
-          if (!env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+          if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "false") {
             await auditLog({
               session: ctx.session,
               resourceType: "score",
@@ -579,7 +579,7 @@ export const scoresRouter = createTRPCRouter({
           );
         } else {
           // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
-          if (!env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+          if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "false") {
             await auditLog({
               session: ctx.session,
               resourceType: "score",
