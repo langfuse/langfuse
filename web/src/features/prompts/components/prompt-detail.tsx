@@ -330,7 +330,7 @@ export const PromptDetail = () => {
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
           <p className="mt-6 text-xs text-muted-foreground">
-            Fetch prompts via Python yeeeees or JS/TS SDKs. See{" "}
+            Fetch prompts via Python or JS/TS SDKs. See{" "}
             <a
               href="https://langfuse.com/docs/prompts"
               className="underline"
