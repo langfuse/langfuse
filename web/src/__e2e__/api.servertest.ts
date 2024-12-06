@@ -53,7 +53,7 @@ describe("Ingestion Pipeline", () => {
     }
   });
 
-  it.only("ingest a trace", async () => {
+  it("ingest a trace", async () => {
     const traceId = v4();
     const spanId = v4();
 
