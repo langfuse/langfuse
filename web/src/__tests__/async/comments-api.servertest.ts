@@ -1,9 +1,6 @@
 /** @jest-environment node */
 
-import {
-  makeZodVerifiedAPICall,
-  pruneDatabase,
-} from "@/src/__tests__/test-utils";
+import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,
   GetCommentV1Response,
@@ -21,10 +18,7 @@ import {
 } from "@/src/__tests__/fixtures/tracing-factory";
 
 describe("Create and get comments", () => {
-  beforeEach(async () => await pruneDatabase());
-  afterEach(async () => await pruneDatabase());
-
-  it("should create and get comment", async () => {
+  beforeAll(async () => {
     const traces = [
       createTrace({
         name: "trace-name",
@@ -34,7 +28,9 @@ describe("Create and get comments", () => {
     ];
 
     await createTracesCh(traces);
+  });
 
+  it("should create and get comment", async () => {
     const commentResponse = await makeZodVerifiedAPICall(
       PostCommentsV1Response,
       "POST",
@@ -92,16 +88,6 @@ describe("Create and get comments", () => {
 
   it("should fail to create comment if content is empty", async () => {
     try {
-      const traces = [
-        createTrace({
-          name: "trace-name",
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          id: "1234",
-        }),
-      ];
-
-      await createTracesCh(traces);
-
       await makeZodVerifiedAPICall(
         z.object({
           message: z.string(),
@@ -125,16 +111,6 @@ describe("Create and get comments", () => {
 
   it("should fail to create comment if content is larger than 3000 characters", async () => {
     try {
-      const traces = [
-        createTrace({
-          name: "trace-name",
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          id: "1234",
-        }),
-      ];
-
-      await createTracesCh(traces);
-
       await makeZodVerifiedAPICall(
         z.object({
           message: z.string(),
@@ -158,9 +134,7 @@ describe("Create and get comments", () => {
 });
 
 describe("GET /api/public/comments API Endpoint", () => {
-  beforeEach(async () => {
-    await pruneDatabase();
-
+  beforeAll(async () => {
     const traces = [
       createTrace({
         name: "trace-1",
@@ -181,6 +155,7 @@ describe("GET /api/public/comments API Endpoint", () => {
 
     await createObservationsCh([observation]);
 
+    await prisma.comment.deleteMany();
     await prisma.comment.createMany({
       data: [
         {
@@ -229,7 +204,6 @@ describe("GET /api/public/comments API Endpoint", () => {
       ],
     });
   });
-  afterEach(async () => await pruneDatabase());
 
   it("should return all comments", async () => {
     const comments = await makeZodVerifiedAPICall(

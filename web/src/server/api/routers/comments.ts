@@ -316,20 +316,6 @@ export const commentsRouter = createTRPCRouter({
             );
           },
           clickhouseExecution: async () => {
-            const postgresSession = await ctx.prisma.traceSession.findFirst({
-              where: {
-                id: input.sessionId,
-                projectId: input.projectId,
-              },
-            });
-
-            if (!postgresSession) {
-              throw new TRPCError({
-                code: "NOT_FOUND",
-                message: "Session not found in project",
-              });
-            }
-
             const clickhouseTraces = await getTracesIdentifierForSession(
               input.projectId,
               input.sessionId,

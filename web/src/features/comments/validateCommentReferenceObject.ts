@@ -49,7 +49,7 @@ export const validateCommentReferenceObject = async ({
 }): Promise<{ errorMessage?: string }> => {
   const { objectId, objectType, projectId } = input;
 
-  if (env.CLICKHOUSE_URL && isObservationOrTrace(objectType)) {
+  if (isObservationOrTrace(objectType)) {
     let clickhouseObject;
     if (objectType === CommentObjectType.OBSERVATION) {
       clickhouseObject = await getObservationById(objectId, projectId);
