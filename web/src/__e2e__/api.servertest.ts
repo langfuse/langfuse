@@ -1,14 +1,12 @@
 import { v4 } from "uuid";
 import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
-  clickhouseClient,
   getObservationById,
   getTraceById,
   OrgEnrichedApiKey,
   redis,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
-import { startTime } from "@/src/server/api/services/tableDefinitions";
 
 const generateAuth = (username: string, password: string) => {
   const auth = Buffer.from(`${username}:${password}`).toString("base64");
