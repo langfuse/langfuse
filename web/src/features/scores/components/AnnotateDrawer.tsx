@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { LockIcon, SquarePen, LoaderCircle } from "lucide-react";
 import {
@@ -14,6 +14,10 @@ import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
+import { useIsMutating } from "@tanstack/react-query";
+import { z } from "zod";
+
+const mutationKeySchema = z.array(z.array(z.string()));
 
 export function AnnotateDrawer({
   traceId,
@@ -56,6 +60,38 @@ export function AnnotateDrawer({
   );
 
   const configs = configsData.data?.configs ?? [];
+
+  // Validate if any of the scores mutations are in progress
+  const isMutating = useIsMutating({
+    predicate: (mutation) => {
+      const mutationKey = mutation.options.mutationKey;
+
+      const parsedMutationKey = mutationKeySchema.safeParse(mutationKey);
+      if (!parsedMutationKey.success) return false;
+
+      for (const key of parsedMutationKey.data) {
+        const parsedKey = key.join(".");
+        if (parsedKey === "scores.createAnnotationScore") return true;
+        if (parsedKey === "scores.updateAnnotationScore") return true;
+        if (parsedKey === "scores.deleteAnnotationScore") return true;
+      }
+
+      return false;
+    },
+  });
+
+  useEffect(() => {
+    if (isMutating > 0) {
+      setShowSaving(true);
+    } else {
+      // Add delay before setting showSaving to ensure loading state persists for a short time after the mutation key indicates completion, allowing for any pending operations to finish
+      const timer = setTimeout(() => {
+        setShowSaving(false);
+      }, 500); // 500ms delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [isMutating]);
 
   if (!hasAccess && variant === "badge") return null;
 
