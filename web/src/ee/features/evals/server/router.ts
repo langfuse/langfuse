@@ -21,6 +21,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   fetchLLMCompletion,
+  getScoreById,
   LLMApiKeySchema,
   logger,
 } from "@langfuse/shared/src/server";
@@ -28,6 +29,7 @@ import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
+import { isNotNullOrUndefined } from "@/src/utils/types";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -695,7 +697,7 @@ export const evalRouter = createTRPCRouter({
           endTime: true,
           error: true,
           jobInputTraceId: true,
-          score: true,
+          jobOutputScoreId: true,
           jobConfiguration: {
             select: {
               evalTemplateId: true,
@@ -720,8 +722,19 @@ export const evalRouter = createTRPCRouter({
             : undefined),
         },
       });
+
+      const scores = await Promise.all(
+        jobExecutions
+          .map((je) => je.jobOutputScoreId)
+          .filter(isNotNullOrUndefined)
+          .map((scoreId) => getScoreById(input.projectId, scoreId)),
+      );
+
       return {
-        data: jobExecutions,
+        data: jobExecutions.map((je) => ({
+          ...je,
+          score: scores.find((s) => s?.id === je.jobOutputScoreId),
+        })),
         totalCount: count,
       };
     }),
