@@ -308,32 +308,6 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const trace = await ctx.prisma.trace.findFirst({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      if (!trace) {
-        throw new Error("No trace with this id in this project.");
-      }
-
-      const existingScore = await ctx.prisma.score.findFirst({
-        where: {
-          projectId: input.projectId,
-          traceId: input.traceId,
-          observationId: input.observationId ?? null,
-          source: "ANNOTATION",
-          // configId functions as unique constraint for scores with source ANNOTATION
-          configId: input.configId,
-        },
-      });
-
-      if (existingScore) {
-        throw new Error(
-          `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
-        );
-      }
       const score = {
         id: v4(),
         projectId: input.projectId,
