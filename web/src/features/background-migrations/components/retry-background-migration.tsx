@@ -35,11 +35,8 @@ export function RetryBackgroundMigration({
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
-          This action retries the migration{" "}
-          <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
-            {backgroundMigrationName}
-          </code>{" "}
-          .
+          This action schedules the migration for retry. Restart the worker
+          containers to re-initiate the migration.
         </p>
         <div className="flex justify-end space-x-4">
           <Button

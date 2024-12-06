@@ -76,6 +76,7 @@ export default function BackgroundMigrationsTable() {
     {
       id: "actions",
       header: "Actions",
+      size: 65,
       cell: (row) => {
         const name = row.row.original.name;
         const isRetryable = row.row.original.failedAt !== null;
