@@ -763,17 +763,6 @@ describe("eval service tests", () => {
       openAIServer.respondWithDefault();
       const traceId = randomUUID();
 
-      await kyselyPrisma.$kysely
-        .insertInto("traces")
-        .values({
-          id: traceId,
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          user_id: "a",
-          input: { input: "This is a great prompt" },
-          output: { output: "This is a great response" },
-        })
-        .execute();
-
       await upsertTrace({
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -874,23 +863,23 @@ describe("eval service tests", () => {
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
 
-      await waitForExpect(
-        async () => {
-          const scores = await getScoresForTraces(
-            "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-            [traceId],
-          );
-
-          expect(scores.length).toBe(1);
-          expect(scores[0].traceId).toBe(traceId);
-          expect(scores[0].comment).not.toBeNull();
-          expect(scores[0].projectId).toBe(
-            "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          );
-        },
-        40000, // timeout
-        1000, // interval
-      );
+      await new Promise<void>((resolve, reject) => {
+        new Worker(
+          QueueName.IngestionQueue,
+          async (job: Job) => {
+            try {
+              expect(job.name).toBe("ingestion-job");
+              expect(job.data.payload.data.type).toBe("score-create");
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          },
+          {
+            connection: redis as ConnectionOptions,
+          },
+        );
+      });
     }, 50_000);
 
     test("fails to eval without llm api key", async () => {
@@ -1175,24 +1164,6 @@ describe("eval service tests", () => {
       expect(jobs[0].status.toString()).toBe("COMPLETED");
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
-
-      await waitForExpect(
-        async () => {
-          const scores = await getScoresForTraces(
-            "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-            [traceId],
-          );
-
-          expect(scores.length).toBe(1);
-          expect(scores[0].traceId).toBe(traceId);
-          expect(scores[0].comment).not.toBeNull();
-          expect(scores[0].projectId).toBe(
-            "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          );
-        },
-        40000,
-        1000,
-      );
 
       await new Promise<void>((resolve, reject) => {
         new Worker(

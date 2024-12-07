@@ -480,6 +480,10 @@ export const evaluate = async ({
       },
     });
   }
+  logger.error(`adding score to S3 and queue ${JSON.stringify(baseScore)}`);
+  logger.error(
+    `uploading to: ${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
+  );
 
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
