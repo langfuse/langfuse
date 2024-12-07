@@ -891,7 +891,7 @@ describe("eval service tests", () => {
         40000, // timeout
         1000, // interval
       );
-    }, 20_000);
+    }, 50_000);
 
     test("fails to eval without llm api key", async () => {
       const traceId = randomUUID();
