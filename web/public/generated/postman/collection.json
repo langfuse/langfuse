@@ -689,7 +689,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"traceId\": \"example\",\n    \"observationId\": \"example\",\n    \"contentType\": \"example\",\n    \"contentLength\": 0,\n    \"sha256Hash\": \"example\",\n    \"field\": \"example\"\n}",
+              "raw": "{\n    \"traceId\": \"example\",\n    \"observationId\": \"example\",\n    \"contentType\": \"image/png\",\n    \"contentLength\": 0,\n    \"sha256Hash\": \"example\",\n    \"field\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
