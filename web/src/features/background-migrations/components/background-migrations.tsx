@@ -44,7 +44,12 @@ export default function BackgroundMigrationsTable() {
         if (finishedAt) {
           return <StatusBadge type={"finished"} className="capitalize" />;
         }
-        return <StatusBadge type={"active"} className="capitalize" />;
+        const workerId = row.row.original.workerId;
+        if (workerId) {
+          return <StatusBadge type={"active"} className="capitalize" />;
+        }
+
+        return <StatusBadge type={"queued"} className="capitalize" />;
       },
     },
     {
