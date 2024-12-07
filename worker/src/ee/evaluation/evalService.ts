@@ -502,7 +502,6 @@ export const evaluate = async ({
     );
 
     if (redis) {
-      logger.error(`adding to fucking redis queue`);
       const queue = IngestionQueue.getInstance();
       if (!queue) {
         throw new Error("Ingestion queue not available");
