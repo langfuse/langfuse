@@ -329,7 +329,7 @@ export const scoresRouter = createTRPCRouter({
         timestamp: new Date(),
       };
 
-      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
         const trace = await ctx.prisma.trace.findFirst({
           where: {
             id: input.traceId,
@@ -488,7 +488,7 @@ export const scoresRouter = createTRPCRouter({
         }
       }
 
-      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
         const score = await ctx.prisma.score.findFirst({
           where: {
             id: input.id,
@@ -534,7 +534,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
         const score = await ctx.prisma.score.findFirst({
           where: {
             id: input.id,
