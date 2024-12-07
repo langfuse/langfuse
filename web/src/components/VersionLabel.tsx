@@ -130,19 +130,21 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             Releases
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/background-migrations">
-            <ArrowUp10 size={16} className="mr-2" />
-            Background Migrations
-            {showBackgroundMigrationStatus && (
-              <StatusBadge
-                type={backgroundMigrationStatus.data?.status.toLowerCase()}
-                showText={false}
-                className="bg-transparent"
-              />
-            )}
-          </Link>
-        </DropdownMenuItem>
+        {!isLangfuseCloud && (
+          <DropdownMenuItem asChild>
+            <Link href="/background-migrations">
+              <ArrowUp10 size={16} className="mr-2" />
+              Background Migrations
+              {showBackgroundMigrationStatus && (
+                <StatusBadge
+                  type={backgroundMigrationStatus.data?.status.toLowerCase()}
+                  showText={false}
+                  className="bg-transparent"
+                />
+              )}
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
             <Newspaper size={16} className="mr-2" />
