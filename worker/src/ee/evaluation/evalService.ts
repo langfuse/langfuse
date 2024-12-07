@@ -472,7 +472,7 @@ export const evaluate = async ({
     source: ScoreSource.EVAL,
   };
 
-  if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
+  if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
     await prisma.score.create({
       data: {
         ...baseScore,
