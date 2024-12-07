@@ -804,15 +804,17 @@ export const traceRouter = createTRPCRouter({
           after: input.public,
         });
 
-        const trace = await ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-          data: {
-            public: input.public,
-          },
-        });
+        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+          await ctx.prisma.trace.update({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
+            },
+            data: {
+              public: input.public,
+            },
+          });
+        }
 
         if (env.CLICKHOUSE_URL) {
           const clickhouseTrace = await getTraceById(
@@ -823,13 +825,15 @@ export const traceRouter = createTRPCRouter({
             logger.error(
               `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
             );
-            return trace;
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
           }
           clickhouseTrace.public = input.public;
           await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          return clickhouseTrace;
         }
-
-        return trace;
       } catch (error) {
         console.error(error);
         if (

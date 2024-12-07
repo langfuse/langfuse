@@ -210,11 +210,13 @@ export const getObservationById = async (
   id: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
+  startTime?: Date,
 ) => {
   const records = await getObservationByIdInternal(
     id,
     projectId,
     fetchWithInputOutput,
+    startTime,
   );
   const mapped = records.map(convertObservation);
 
@@ -311,6 +313,7 @@ const getObservationByIdInternal = async (
   id: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
+  startTime?: Date,
 ) => {
   const query = `
   SELECT
@@ -345,11 +348,18 @@ const getObservationByIdInternal = async (
   FROM observations
   WHERE id = {id: String}
   AND project_id = {projectId: String}
+  ${startTime ? `AND start_time = {startTime: DateTime64(3)}` : ""}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
   return await queryClickhouse<ObservationRecordReadType>({
     query,
-    params: { id, projectId },
+    params: {
+      id,
+      projectId,
+      ...(startTime
+        ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
+    },
   });
 };
 

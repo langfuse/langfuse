@@ -590,6 +590,7 @@ export default function GenerationsTable({
             observationId={observationId}
             traceId={traceId}
             projectId={projectId}
+            startTime={row.getValue("startTime")}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -611,6 +612,7 @@ export default function GenerationsTable({
             observationId={observationId}
             traceId={traceId}
             projectId={projectId}
+            startTime={row.getValue("startTime")}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -635,6 +637,7 @@ export default function GenerationsTable({
             observationId={observationId}
             traceId={traceId}
             projectId={projectId}
+            startTime={row.getValue("startTime")}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -854,12 +857,14 @@ const GenerationsDynamicCell = ({
   traceId,
   observationId,
   projectId,
+  startTime,
   col,
   singleLine = false,
 }: {
   traceId: string;
   observationId: string;
   projectId: string;
+  startTime?: Date;
   col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
@@ -868,6 +873,7 @@ const GenerationsDynamicCell = ({
       observationId,
       traceId,
       projectId,
+      startTime,
       queryClickhouse: useClickhouse(),
     },
     {
