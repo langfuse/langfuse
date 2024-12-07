@@ -1137,3 +1137,30 @@ export const getObservationCountOfProjectsSinceCreationDate = async ({
 
   return Number(rows[0]?.count ?? 0);
 };
+
+export const getTraceIdsForObservations = async (
+  projectId: string,
+  observationIds: string[],
+) => {
+  const query = `
+    SELECT 
+      trace_id,
+      id
+    FROM observations
+    WHERE project_id = {projectId: String}
+    AND id IN ({observationIds: Array(String)})
+  `;
+
+  const rows = await queryClickhouse<{ id: string; trace_id: string }>({
+    query,
+    params: {
+      projectId,
+      observationIds,
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    traceId: row.trace_id,
+  }));
+};
