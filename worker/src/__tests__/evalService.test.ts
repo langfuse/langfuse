@@ -26,12 +26,14 @@ import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 import {
   convertDateToClickhouseDateTime,
+  getScoresForTraces,
   QueueName,
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
 import { Worker, Job, ConnectionOptions } from "bullmq";
 import { compileHandlebarString } from "../features/utilities";
+import waitForExpect from "wait-for-expect";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
@@ -1167,16 +1169,19 @@ describe("eval service tests", () => {
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
 
-      const scores = await kyselyPrisma.$kysely
-        .selectFrom("scores")
-        .selectAll()
-        .where("trace_id", "=", traceId)
-        .execute();
+      await waitForExpect(async () => {
+        const scores = await getScoresForTraces(
+          "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          [traceId],
+        );
 
-      expect(scores.length).toBe(1);
-      expect(scores[0].trace_id).toBe(traceId);
-      expect(scores[0].comment).not.toBeNull();
-      expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+        expect(scores.length).toBe(1);
+        expect(scores[0].traceId).toBe(traceId);
+        expect(scores[0].comment).not.toBeNull();
+        expect(scores[0].projectId).toBe(
+          "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        );
+      });
 
       await new Promise<void>((resolve, reject) => {
         new Worker(
