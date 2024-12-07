@@ -874,16 +874,23 @@ describe("eval service tests", () => {
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
 
-      const scores = await kyselyPrisma.$kysely
-        .selectFrom("scores")
-        .selectAll()
-        .where("trace_id", "=", traceId)
-        .execute();
+      await waitForExpect(
+        async () => {
+          const scores = await getScoresForTraces(
+            "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+            [traceId],
+          );
 
-      expect(scores.length).toBe(1);
-      expect(scores[0].trace_id).toBe(traceId);
-      expect(scores[0].comment).not.toBeNull();
-      expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+          expect(scores.length).toBe(1);
+          expect(scores[0].traceId).toBe(traceId);
+          expect(scores[0].comment).not.toBeNull();
+          expect(scores[0].projectId).toBe(
+            "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          );
+        },
+        40000, // timeout
+        1000, // interval
+      );
     }, 20_000);
 
     test("fails to eval without llm api key", async () => {
