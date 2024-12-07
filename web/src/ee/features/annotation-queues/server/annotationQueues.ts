@@ -6,6 +6,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
@@ -530,32 +531,38 @@ export const queueRouter = createTRPCRouter({
         };
 
         if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED) {
-            const observation = await ctx.prisma.observation.findUnique({
-              where: {
-                id: item.objectId,
-                projectId: input.projectId,
-              },
-              select: {
-                id: true,
-                traceId: true,
-              },
-            });
+          await measureAndReturnApi({
+            input: { projectId: input.projectId, queryClickhouse: false },
+            operation: "fetchAndLockNext",
+            user: ctx.session.user,
+            pgExecution: async () => {
+              const observation = await ctx.prisma.observation.findUnique({
+                where: {
+                  id: item.objectId,
+                  projectId: input.projectId,
+                },
+                select: {
+                  id: true,
+                  traceId: true,
+                },
+              });
 
-            return {
-              ...inflatedUpdatedItem,
-              parentTraceId: observation?.traceId,
-            };
-          } else {
-            const clickhouseObservation = await getObservationById(
-              item.objectId,
-              input.projectId,
-            );
-            return {
-              ...inflatedUpdatedItem,
-              parentTraceId: clickhouseObservation?.traceId,
-            };
-          }
+              return {
+                ...inflatedUpdatedItem,
+                parentTraceId: observation?.traceId,
+              };
+            },
+            clickhouseExecution: async () => {
+              const clickhouseObservation = await getObservationById(
+                item.objectId,
+                input.projectId,
+              );
+              return {
+                ...inflatedUpdatedItem,
+                parentTraceId: clickhouseObservation?.traceId,
+              };
+            },
+          });
         }
 
         return inflatedUpdatedItem;
