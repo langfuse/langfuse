@@ -480,10 +480,6 @@ export const evaluate = async ({
       },
     });
   }
-  logger.error(`adding score to S3 and queue ${JSON.stringify(baseScore)}`);
-  logger.error(
-    `uploading to: ${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
-  );
 
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
@@ -506,6 +502,7 @@ export const evaluate = async ({
     );
 
     if (redis) {
+      logger.error(`adding to fucking redis queue`);
       const queue = IngestionQueue.getInstance();
       if (!queue) {
         throw new Error("Ingestion queue not available");
