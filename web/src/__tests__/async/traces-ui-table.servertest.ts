@@ -1,12 +1,6 @@
 import { v4 } from "uuid";
-import {
-  createObservationsCh,
-  createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import {
-  createObservation,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+import { createObservationsCh, createTracesCh } from "@langfuse/shared";
+import { createObservation, createTrace } from "@langfuse/shared";
 import {
   getTracesTable,
   type TracesAllUiReturnType,

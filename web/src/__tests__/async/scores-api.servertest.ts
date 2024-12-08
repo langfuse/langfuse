@@ -1,13 +1,9 @@
-import {
-  createObservation,
-  createScore,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+import { createObservation, createScore, createTrace } from "@langfuse/shared";
 import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+} from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
   makeZodVerifiedAPICall,

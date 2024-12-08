@@ -2,14 +2,14 @@ import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+} from "@langfuse/shared";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createObservation,
   createScore,
   createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+} from "@langfuse/shared";
 import {
   createDatasetRunsTable,
   fetchDatasetItems,

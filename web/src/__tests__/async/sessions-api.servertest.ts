@@ -1,8 +1,8 @@
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
-import { createTracesCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import { createTrace } from "@/src/__tests__/fixtures/tracing-factory";
+import { createTracesCh } from "@langfuse/shared";
+import { createTrace } from "@langfuse/shared";
 import { GetSessionV1Response } from "@/src/features/public-api/types/sessions";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

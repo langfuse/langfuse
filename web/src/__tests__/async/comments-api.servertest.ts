@@ -8,14 +8,8 @@ import {
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
-import {
-  createObservationsCh,
-  createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import {
-  createObservation,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+import { createObservationsCh, createTracesCh } from "@langfuse/shared";
+import { createObservation, createTrace } from "@langfuse/shared";
 
 describe("Create and get comments", () => {
   beforeAll(async () => {
