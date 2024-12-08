@@ -4,8 +4,8 @@ import {
 } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
-import { createTracesCh } from "@langfuse/shared";
-import { createTrace } from "@langfuse/shared";
+import { createTracesCh } from "@langfuse/shared/src/server";
+import { createTrace } from "@langfuse/shared/src/server";
 import {
   GetSessionsV1Response,
   GetSessionV1Response,

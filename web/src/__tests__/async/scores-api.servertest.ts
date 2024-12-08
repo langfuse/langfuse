@@ -1,9 +1,13 @@
-import { createObservation, createScore, createTrace } from "@langfuse/shared";
+import {
+  createObservation,
+  createScore,
+  createTrace,
+} from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-} from "@langfuse/shared";
+} from "@langfuse/shared/src/server";
 import {
   createOrgProjectAndApiKey,
   makeZodVerifiedAPICall,

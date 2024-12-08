@@ -1,4 +1,4 @@
-import { createObservationsCh } from "@langfuse/shared";
+import { createObservationsCh } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationById,

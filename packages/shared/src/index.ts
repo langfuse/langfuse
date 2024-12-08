@@ -40,6 +40,3 @@ export { type DB } from "../prisma/generated/types";
 export * from "./errors/index";
 
 export * from "./utils/environment";
-
-// test utils
-export * from "./__test__";

@@ -1,5 +1,8 @@
-import { createObservation, createTrace } from "@langfuse/shared";
-import { createObservationsCh, createTracesCh } from "@langfuse/shared";
+import { createObservation, createTrace } from "@langfuse/shared/src/server";
+import {
+  createObservationsCh,
+  createTracesCh,
+} from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetTracesV1Response,
