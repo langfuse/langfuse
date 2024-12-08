@@ -25,6 +25,9 @@ import {
   FullObservationsWithScores,
   getPublicSessionsFilter,
   getSessionsTable,
+  getScoresForObservations,
+  getObservationsTableWithModelData,
+  getDistinctScoreNames,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
@@ -33,6 +36,12 @@ import Decimal from "decimal.js";
 
 const tableNameToTimeFilterColumn = {
   sessions: "createdAt",
+  traces: "timestamp",
+  generations: "startTime",
+};
+
+const tableNameToTimeFilterColumnCh = {
+  sessions: "min(timestamp)",
   traces: "timestamp",
   generations: "startTime",
 };
@@ -119,6 +128,13 @@ export const getDatabaseReadStream = async ({
     operator: "<",
     value: cutoffCreatedAt,
     type: "datetime",
+  };
+
+  const createdAtCutoffFilterCh = {
+    column: tableNameToTimeFilterColumnCh[tableName],
+    operator: "<" as const,
+    value: cutoffCreatedAt,
+    type: "datetime" as const,
   };
 
   switch (tableName) {
@@ -220,27 +236,105 @@ export const getDatabaseReadStream = async ({
             : [createdAtCutoffFilter],
         });
 
-      const emptyScoreColumns = await getEmptyScoreColumns(
-        projectId,
-        cutoffCreatedAt,
-        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
-        isGenerationTimestampFilter,
-      );
+      let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const query = createGenerationsQuery({
-            projectId,
-            limit: pageSize,
-            page: Math.floor(offset / pageSize),
-            filterCondition,
-            orderByCondition,
-            datetimeFilter,
-            selectScoreValues: true,
-            selectIOAndMetadata: true,
-          });
-          const chunk =
-            await prisma.$queryRaw<FullObservationsWithScores>(query);
+          let chunk: FullObservationsWithScores;
+          if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "false") {
+            emptyScoreColumns = await getEmptyScoreColumns(
+              projectId,
+              cutoffCreatedAt,
+              filter
+                ? [...filter, createdAtCutoffFilter]
+                : [createdAtCutoffFilter],
+              isGenerationTimestampFilter,
+            );
+
+            const query = createGenerationsQuery({
+              projectId,
+              limit: pageSize,
+              page: Math.floor(offset / pageSize),
+              filterCondition,
+              orderByCondition,
+              datetimeFilter,
+              selectScoreValues: true,
+              selectIOAndMetadata: true,
+            });
+
+            chunk = await prisma.$queryRaw<FullObservationsWithScores>(query);
+          } else {
+            const distinctScoreNames = await getDistinctScoreNames(
+              projectId,
+              cutoffCreatedAt,
+              filter
+                ? [...filter, createdAtCutoffFilterCh]
+                : [createdAtCutoffFilterCh],
+              isGenerationTimestampFilter,
+            );
+
+            emptyScoreColumns = distinctScoreNames.reduce(
+              (acc, name) => ({ ...acc, [name]: null }),
+              {} as Record<string, null>,
+            );
+
+            const generations = await getObservationsTableWithModelData({
+              projectId,
+              limit: pageSize,
+              offset: offset,
+              filter: filter
+                ? [...filter, createdAtCutoffFilterCh]
+                : [createdAtCutoffFilterCh],
+              orderBy: orderBy,
+              selectIOAndMetadata: true,
+            });
+            const scores = await getScoresForObservations(
+              projectId,
+              generations.map((gen) => gen.id),
+            );
+
+            chunk = generations.map((generation) => {
+              const filteredScores = scores.filter(
+                (s) => s.observationId === generation.id,
+              );
+
+              return {
+                ...generation,
+                scores: filteredScores.reduce(
+                  (acc, score) => {
+                    // If this score name already exists in acc, use its existing type
+                    const existingValues = acc[score.name];
+                    const newValue = score.value ?? score.stringValue;
+                    if (!newValue) return acc;
+
+                    if (!existingValues) {
+                      // First value determines the type
+                      if (typeof newValue === "number") {
+                        acc[score.name] = [newValue] as number[];
+                      } else {
+                        acc[score.name] = [String(newValue)] as string[];
+                      }
+                    } else if (typeof newValue === typeof existingValues[0]) {
+                      // Only add if same type as existing values
+                      if (typeof newValue === "number") {
+                        acc[score.name] = [
+                          ...existingValues,
+                          newValue,
+                        ] as number[];
+                      } else {
+                        acc[score.name] = [
+                          ...existingValues,
+                          String(newValue),
+                        ] as string[];
+                      }
+                    }
+                    return acc;
+                  },
+                  {} as Record<string, string[] | number[]>,
+                ),
+              };
+            });
+          }
 
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
