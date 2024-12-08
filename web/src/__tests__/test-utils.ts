@@ -143,9 +143,9 @@ export type CreateOrgProjectAndApiKeyOptions = {
   projectId?: string;
 };
 export const createOrgProjectAndApiKey = async (
-  props: CreateOrgProjectAndApiKeyOptions,
+  props?: CreateOrgProjectAndApiKeyOptions,
 ) => {
-  const projectId = props.projectId ?? v4();
+  const projectId = props?.projectId ?? v4();
   const org = await prisma.organization.create({
     data: {
       id: v4(),
