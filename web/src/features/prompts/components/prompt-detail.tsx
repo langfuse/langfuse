@@ -44,6 +44,7 @@ import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { parseDiff, Diff, Hunk, HunkProps } from "react-diff-view";
 import 'react-diff-view/style/index.css';
+import '@/src/styles/diff.css';
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -77,7 +78,7 @@ export const PromptDetail = () => {
       )
     : promptHistory.data?.promptVersions[0];
 
-  let oldPrompt = null;
+  let oldPrompt = prompt;
   const currentPromptVersionNumber = prompt?.version;
   if (currentPromptVersionNumber != null && currentPromptVersionNumber > 1) {
     const oldPromptVersionNumber = currentPromptVersionNumber - 1;
@@ -156,10 +157,7 @@ export const PromptDetail = () => {
   const unidiff = require('unidiff');
   const EMPTY_HUNKS: HunkProps['hunk'][] = [];
   const newText = prompt.prompt;
-  let oldText = newText;
-  if (oldPrompt != null){
-    oldText = oldPrompt['prompt'];
-  }
+  const oldText = oldPrompt?.prompt || newText;
   const diffText = unidiff.formatLines(unidiff.diffLines(oldText, newText), {context: 3});
   const [diff] = parseDiff(diffText, {nearbySequences: 'zip'});
 
@@ -342,13 +340,33 @@ export const PromptDetail = () => {
             for details.
           </p>
 
-          <Diff viewType="split" diffType='modify' hunks={diff.hunks || EMPTY_HUNKS}>
-              {hunks =>
-                  hunks.map(hunk => (
-                      <Hunk key={hunk.content} hunk={hunk} />
-                  ))
-              }
-          </Diff>
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Differences between current and previous prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="mx-auto mt-5 w-full rounded-lg border text-base">
+                  <div className="border-b px-3 py-1 text-xs font-medium">Differences</div>
+                  <div className="flex flex-wrap gap-2 p-2">
+                    <table className="diff diff-split">
+                      <tr>
+                        <th className="text-xs font-medium">Previous Prompt (Version {oldPrompt?.version || prompt.version})</th>
+                        <th className="text-xs font-medium">Current Prompt (Version {prompt.version})</th>
+                      </tr>
+                    </table>
+                    <Diff viewType="split" diffType='modify' hunks={diff.hunks || EMPTY_HUNKS}>
+                      {hunks =>
+                          hunks.map(hunk => (
+                              <Hunk key={hunk.content} hunk={hunk} />
+                          ))
+                      }
+                    </Diff>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           <Accordion type="single" collapsible className="mt-10">
             <AccordionItem value="item-1">

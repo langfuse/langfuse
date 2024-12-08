@@ -1,0 +1,8 @@
+.diff-code{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace !important;
+  font-size: .7rem !important;
+}
+
+.diff-gutter{
+  font-size: .7rem !important;
+}
