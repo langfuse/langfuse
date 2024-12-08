@@ -81,6 +81,61 @@ describe("batch export test suite", () => {
     );
   });
 
+  it("should export observations with filter and sorting", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const generations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test1",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test2",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test3",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(generations);
+
+    const stream = await getDatabaseReadStream({
+      projectId: projectId,
+      tableName: BatchExportTableName.Generations,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["test1", "test2"],
+        },
+      ],
+      orderBy: { column: "startTime", order: "ASC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].name).toBe("test1");
+    expect(rows[1].name).toBe("test2");
+  });
+
   it("should export sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -173,6 +228,113 @@ describe("batch export test suite", () => {
       ]),
     );
   });
+
+  it("should export sessions with filter and sorting", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const sessionId1 = randomUUID();
+    const sessionId2 = randomUUID();
+    const sessionId3 = randomUUID();
+
+    await prisma.traceSession.createMany({
+      data: [
+        {
+          id: sessionId1,
+          projectId,
+        },
+        {
+          id: sessionId2,
+          projectId,
+        },
+        {
+          id: sessionId3,
+          projectId,
+        },
+      ],
+    });
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        session_id: sessionId1,
+        name: "trace1",
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        session_id: sessionId2,
+        name: "trace2",
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        session_id: sessionId3,
+        name: "trace3",
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const generations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[2].id,
+        type: "GENERATION",
+      }),
+    ];
+
+    await createObservationsCh(generations);
+
+    const stream = await getDatabaseReadStream({
+      projectId: projectId,
+      tableName: BatchExportTableName.Sessions,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "ID",
+          value: [sessionId1, sessionId2],
+        },
+      ],
+      orderBy: { column: "id", order: "ASC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].id).toBe(sessionId1);
+    expect(rows[1].id).toBe(sessionId2);
+
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: sessionId1,
+          countTraces: 1,
+        }),
+        expect.objectContaining({
+          id: sessionId2,
+          countTraces: 1,
+        }),
+      ]),
+    );
+  });
+
   it("should export traces", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -246,5 +408,56 @@ describe("batch export test suite", () => {
         }),
       ]),
     );
+  });
+  it("should export traces with filter and sort", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace1",
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace2",
+        timestamp: new Date("2024-01-02").getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace3",
+        timestamp: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const stream = await getDatabaseReadStream({
+      projectId: projectId,
+      tableName: BatchExportTableName.Traces,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "name",
+          value: ["trace1", "trace2"],
+        },
+      ],
+      orderBy: { column: "timestamp", order: "ASC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].name).toBe("trace1");
+    expect(rows[1].name).toBe("trace2");
   });
 });
