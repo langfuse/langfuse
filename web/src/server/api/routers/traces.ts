@@ -738,29 +738,33 @@ export const traceRouter = createTRPCRouter({
           after: input.bookmarked,
         });
 
-        const trace = await ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-          data: {
-            bookmarked: input.bookmarked,
-          },
-        });
+        let trace;
+        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+          trace = await ctx.prisma.trace.update({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
+            },
+            data: {
+              bookmarked: input.bookmarked,
+            },
+          });
+        }
 
         if (env.CLICKHOUSE_URL) {
           const clickhouseTrace = await getTraceById(
             input.traceId,
             input.projectId,
           );
-          if (!clickhouseTrace) {
+          if (clickhouseTrace) {
+            trace = clickhouseTrace;
+            clickhouseTrace.bookmarked = input.bookmarked;
+            await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          } else {
             logger.error(
-              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,
             );
-            return trace;
           }
-          clickhouseTrace.bookmarked = input.bookmarked;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
 
         return trace;
