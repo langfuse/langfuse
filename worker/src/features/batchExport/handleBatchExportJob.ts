@@ -183,8 +183,8 @@ const getDatabaseReadStream = async ({
                 public: true,
               },
             });
-            return {
-              sessions: sessions.map((s) => ({
+            return sessions.map((s) => {
+              const row: BatchExportSessionsRow = {
                 id: s.session_id,
                 userIds: s.user_ids,
                 countTraces: s.trace_ids.length,
@@ -192,9 +192,7 @@ const getDatabaseReadStream = async ({
                 inputCost: new Decimal(s.session_input_cost),
                 outputCost: new Decimal(s.session_output_cost),
                 totalCost: new Decimal(s.session_total_cost),
-                promptTokens: Number(s.session_input_usage),
-                completionTokens: Number(s.session_output_usage),
-                totalTokens: Number(s.session_total_usage),
+                totalTokens: BigInt(s.session_total_usage),
                 traceTags: s.trace_tags,
                 createdAt: new Date(s.min_timestamp),
                 bookmarked:
@@ -203,8 +201,10 @@ const getDatabaseReadStream = async ({
                 public:
                   prismaSessionInfo.find((p) => p.id === s.session_id)
                     ?.public ?? false,
-              })),
-            };
+                totalCount: s.trace_count,
+              };
+              return row;
+            });
           }
         },
         1000,

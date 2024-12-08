@@ -139,8 +139,13 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
   return { body: resBody, status };
 }
 
-export const createOrgProjectAndApiKey = async () => {
-  const projectId = v4();
+export type CreateOrgProjectAndApiKeyOptions = {
+  projectId?: string;
+};
+export const createOrgProjectAndApiKey = async (
+  props: CreateOrgProjectAndApiKeyOptions,
+) => {
+  const projectId = props.projectId ?? v4();
   const org = await prisma.organization.create({
     data: {
       id: v4(),
