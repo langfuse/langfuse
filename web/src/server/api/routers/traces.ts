@@ -904,6 +904,9 @@ export const traceRouter = createTRPCRouter({
         }
       } catch (error) {
         console.error(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+        });
       }
     }),
 });
