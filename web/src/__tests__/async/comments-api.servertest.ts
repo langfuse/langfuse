@@ -11,11 +11,8 @@ import { z } from "zod";
 import {
   createObservationsCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import {
-  createObservation,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+} from "@langfuse/shared/src/server";
+import { createObservation, createTrace } from "@langfuse/shared/src/server";
 
 describe("Create and get comments", () => {
   beforeAll(async () => {

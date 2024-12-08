@@ -26,16 +26,10 @@ import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 import {
   convertDateToClickhouseDateTime,
-  getScoresForTraces,
-  logger,
-  QueueName,
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
-import { Worker, Job, ConnectionOptions } from "bullmq";
 import { compileHandlebarString } from "../features/utilities";
-import waitForExpect from "wait-for-expect";
-import { log } from "console";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
