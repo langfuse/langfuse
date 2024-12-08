@@ -40,6 +40,12 @@ export const convertObservation = (
   latency: number | null;
   timeToFirstToken: number | null;
 } => {
+  const usageDetails = reduceUsageOrCostDetails(record.usage_details);
+  const costDetails = reduceUsageOrCostDetails(record.cost_details);
+  const providedCostDetails = reduceUsageOrCostDetails(
+    record.provided_cost_details,
+  );
+
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -70,30 +76,24 @@ export const convertObservation = (
     promptId: record.prompt_id ?? null,
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: record.usage_details?.input
-      ? Number(record.usage_details?.input)
-      : 0,
-    completionTokens: record.usage_details?.output
-      ? Number(record.usage_details?.output)
-      : 0,
-    totalTokens: record.usage_details?.total
-      ? Number(record.usage_details?.total)
-      : 0,
-    calculatedInputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details.input)
-      : null,
-    calculatedOutputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details.output)
-      : null,
+    promptTokens: usageDetails.input ?? 0,
+    completionTokens: usageDetails.output ?? 0,
+    totalTokens: usageDetails.total ?? 0,
+    calculatedInputCost:
+      costDetails.input != null ? new Decimal(costDetails.input) : null,
+    calculatedOutputCost:
+      costDetails.output != null ? new Decimal(costDetails.output) : null,
     calculatedTotalCost: record.cost_details?.total
       ? new Decimal(record.cost_details.total)
       : null,
-    inputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details?.input)
-      : null,
-    outputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details?.output)
-      : null,
+    inputCost:
+      providedCostDetails.input != null
+        ? new Decimal(providedCostDetails.input)
+        : null,
+    outputCost:
+      providedCostDetails.output != null
+        ? new Decimal(providedCostDetails.output)
+        : null,
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
@@ -110,5 +110,29 @@ export const convertObservation = (
         ).getTime() -
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
+  };
+};
+
+export const reduceUsageOrCostDetails = (
+  details: Record<string, number> | null | undefined,
+): {
+  input: number | null;
+  output: number | null;
+  total: number | null;
+} => {
+  return {
+    input: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("input"))
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no input usage is found
+      ),
+    output: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("output"))
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no output usage is found
+      ),
+    total: Number(details?.total ?? 0),
   };
 };

@@ -56,6 +56,36 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
+const RawUsageOrCostDetails = z
+  .record(z.string(), z.number().nonnegative().nullish())
+  .nullish();
+export const UsageOrCostDetails = RawUsageOrCostDetails.transform(
+  (providedDetails) => {
+    if (!providedDetails) return;
+
+    // Transform OpenAI format
+    if (
+      "promptTokens" in providedDetails ||
+      "completionTokens" in providedDetails ||
+      "totalTokens" in providedDetails
+    ) {
+      const { promptTokens, completionTokens, totalTokens, ...rest } =
+        providedDetails;
+      return {
+        ...rest,
+        input: promptTokens,
+        output: completionTokens,
+        total: totalTokens,
+      };
+    }
+
+    // if the object is empty, we return undefined
+    if (lodash.isEmpty(providedDetails)) return;
+
+    return providedDetails;
+  },
+).pipe(RawUsageOrCostDetails);
+
 export const TraceBody = z.object({
   id: z.string().nullish(),
   timestamp: stringDateTime,
@@ -119,6 +149,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -147,6 +179,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -298,6 +332,8 @@ export const LegacyObservationBody = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
