@@ -41,7 +41,7 @@ const tableNameToTimeFilterColumn = {
 };
 
 const tableNameToTimeFilterColumnCh = {
-  sessions: "min(timestamp)",
+  sessions: "createdAt",
   traces: "timestamp",
   generations: "startTime",
 };
