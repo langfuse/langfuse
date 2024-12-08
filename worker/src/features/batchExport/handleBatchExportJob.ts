@@ -7,6 +7,7 @@ import {
   exportOptions,
   FilterCondition,
   Prisma,
+  Score,
   TimeFilter,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -579,24 +580,7 @@ export const handleBatchExportJob = async (
   }
 };
 function prepareScoresForOutput(
-  filteredScores: {
-    id: string;
-    timestamp: Date;
-    projectId: string;
-    traceId: string;
-    observationId: string | null;
-    name: string;
-    value: number | null;
-    source: import("/Users/maximiliandeichmann/development/github.com/langfuse/langfuse/packages/shared/dist/src/index").$Enums.ScoreSource;
-    comment: string | null;
-    authorUserId: string | null;
-    configId: string | null;
-    dataType: import("/Users/maximiliandeichmann/development/github.com/langfuse/langfuse/packages/shared/dist/src/index").$Enums.ScoreDataType;
-    stringValue: string | null;
-    queueId: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }[],
+  filteredScores: Score[],
 ): Record<string, string[] | number[]> {
   return filteredScores.reduce(
     (acc, score) => {
