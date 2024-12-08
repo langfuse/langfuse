@@ -44,4 +44,4 @@ export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
 
 // test utils
-export * from "./__test__";
+export * from "./test-utils";
