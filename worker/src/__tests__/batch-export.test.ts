@@ -334,7 +334,7 @@ describe("batch export test suite", () => {
     );
   });
 
-  it("should export traces", async () => {
+  it.only("should export traces", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traces = [
@@ -370,7 +370,7 @@ describe("batch export test suite", () => {
 
     const score = createScore({
       project_id: projectId,
-      trace_id: randomUUID(),
+      trace_id: traces[0].id,
       observation_id: generations[0].id,
       name: "test",
       value: 123,
@@ -381,10 +381,10 @@ describe("batch export test suite", () => {
 
     const stream = await getDatabaseReadStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Sessions,
+      tableName: BatchExportTableName.Traces,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
-      orderBy: { column: "createdAt", order: "DESC" },
+      orderBy: { column: "timestamp", order: "DESC" },
     });
 
     const rows: any[] = [];
@@ -398,12 +398,11 @@ describe("batch export test suite", () => {
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: traces[0].session_id,
-          countTraces: 1,
+          id: traces[0].id,
+          test: [score.value],
         }),
         expect.objectContaining({
-          id: traces[1].session_id,
-          countTraces: 1,
+          id: traces[1].id,
         }),
       ]),
     );

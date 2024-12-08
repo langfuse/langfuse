@@ -30,6 +30,7 @@ import {
   getDistinctScoreNames,
   getTracesTable,
   getTracesTableMetrics,
+  getScoresForTraces,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
@@ -300,40 +301,12 @@ export const getDatabaseReadStream = async ({
                 (s) => s.observationId === generation.id,
               );
 
+              const outputScores: Record<string, string[] | number[]> =
+                prepareScoresForOutput(filteredScores);
+
               return {
                 ...generation,
-                scores: filteredScores.reduce(
-                  (acc, score) => {
-                    // If this score name already exists in acc, use its existing type
-                    const existingValues = acc[score.name];
-                    const newValue = score.value ?? score.stringValue;
-                    if (!newValue) return acc;
-
-                    if (!existingValues) {
-                      // First value determines the type
-                      if (typeof newValue === "number") {
-                        acc[score.name] = [newValue] as number[];
-                      } else {
-                        acc[score.name] = [String(newValue)] as string[];
-                      }
-                    } else if (typeof newValue === typeof existingValues[0]) {
-                      // Only add if same type as existing values
-                      if (typeof newValue === "number") {
-                        acc[score.name] = [
-                          ...existingValues,
-                          newValue,
-                        ] as number[];
-                      } else {
-                        acc[score.name] = [
-                          ...existingValues,
-                          String(newValue),
-                        ] as string[];
-                      }
-                    }
-                    return acc;
-                  },
-                  {} as Record<string, string[] | number[]>,
-                ),
+                scores: outputScores,
               };
             });
           }
@@ -398,8 +371,17 @@ export const getDatabaseReadStream = async ({
               ],
             });
 
+            const scores = await getScoresForTraces(
+              projectId,
+              traces.map((t) => t.id),
+            );
             chunk = traces.map((t) => {
               const metric = metrics.find((m) => m.id === t.id);
+              const filteredScores = scores.filter((s) => s.traceId === t.id);
+
+              const outputScores: Record<string, string[] | number[]> =
+                prepareScoresForOutput(filteredScores);
+
               return {
                 ...t,
                 name: t.name ?? "",
@@ -408,6 +390,7 @@ export const getDatabaseReadStream = async ({
                   completionTokens: metric?.completionTokens,
                   totalTokens: metric?.totalTokens,
                 },
+                scores: outputScores,
               };
             });
           } else {
@@ -596,3 +579,50 @@ export const handleBatchExportJob = async (
     logger.info(`Batch export success email sent to user ${user.id}`);
   }
 };
+function prepareScoresForOutput(
+  filteredScores: {
+    id: string;
+    timestamp: Date;
+    projectId: string;
+    traceId: string;
+    observationId: string | null;
+    name: string;
+    value: number | null;
+    source: import("/Users/maximiliandeichmann/development/github.com/langfuse/langfuse/packages/shared/dist/src/index").$Enums.ScoreSource;
+    comment: string | null;
+    authorUserId: string | null;
+    configId: string | null;
+    dataType: import("/Users/maximiliandeichmann/development/github.com/langfuse/langfuse/packages/shared/dist/src/index").$Enums.ScoreDataType;
+    stringValue: string | null;
+    queueId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }[],
+): Record<string, string[] | number[]> {
+  return filteredScores.reduce(
+    (acc, score) => {
+      // If this score name already exists in acc, use its existing type
+      const existingValues = acc[score.name];
+      const newValue = score.value ?? score.stringValue;
+      if (!newValue) return acc;
+
+      if (!existingValues) {
+        // First value determines the type
+        if (typeof newValue === "number") {
+          acc[score.name] = [newValue] as number[];
+        } else {
+          acc[score.name] = [String(newValue)] as string[];
+        }
+      } else if (typeof newValue === typeof existingValues[0]) {
+        // Only add if same type as existing values
+        if (typeof newValue === "number") {
+          acc[score.name] = [...existingValues, newValue] as number[];
+        } else {
+          acc[score.name] = [...existingValues, String(newValue)] as string[];
+        }
+      }
+      return acc;
+    },
+    {} as Record<string, string[] | number[]>,
+  );
+}
