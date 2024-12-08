@@ -874,17 +874,19 @@ export const traceRouter = createTRPCRouter({
           after: input.tags,
         });
 
-        await ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-          data: {
-            tags: {
-              set: input.tags,
+        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+          await ctx.prisma.trace.update({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
             },
-          },
-        });
+            data: {
+              tags: {
+                set: input.tags,
+              },
+            },
+          });
+        }
 
         if (env.CLICKHOUSE_URL) {
           const clickhouseTrace = await getTraceById(
