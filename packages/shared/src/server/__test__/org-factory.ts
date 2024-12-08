@@ -1,9 +1,6 @@
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  hashSecretKey,
-  getDisplaySecretKey,
-} from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { prisma } from "../../db";
+import { hashSecretKey, getDisplaySecretKey } from "../auth/apiKeys";
 
 export function createBasicAuthHeader(
   username: string,
