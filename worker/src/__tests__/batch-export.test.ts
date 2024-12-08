@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { expect, test, describe, vi, beforeEach, it } from "vitest";
+import { expect, describe, it } from "vitest";
 import {
   createObservation,
   createObservationsCh,
@@ -12,7 +12,6 @@ import {
 import { getDatabaseReadStream } from "../features/batchExport/handleBatchExportJob";
 import { BatchExportTableName } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { array } from "zod";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
