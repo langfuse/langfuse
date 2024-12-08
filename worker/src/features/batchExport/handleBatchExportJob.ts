@@ -28,6 +28,8 @@ import {
   getScoresForObservations,
   getObservationsTableWithModelData,
   getDistinctScoreNames,
+  getTracesTable,
+  getTracesTableMetrics,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
@@ -352,49 +354,106 @@ export const getDatabaseReadStream = async ({
             : [createdAtCutoffFilter],
         });
 
-      const emptyScoreColumns = await getEmptyScoreColumns(
-        projectId,
-        cutoffCreatedAt,
-        filter ? [...filter, createdAtCutoffFilter] : [createdAtCutoffFilter],
-        isTraceTimestampFilter,
-      );
+      let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const query = createTracesQuery({
-            select: Prisma.sql`
-              t."bookmarked",
-              t."id",
-              t."timestamp",
-              t."name",
-              t."user_id" AS "userId",
-              observation_metrics."level" AS "level",
-              observation_metrics."observationCount" AS "observationCount",
-              s_avg."scores_values" AS "scores",
-              observation_metrics.latency AS "latency",
-              t."release",
-              t."version",
-              t.session_id AS "sessionId",
-              t."input",
-              t."output",
-              t."metadata",
-              t."tags",
-              COALESCE(generation_metrics."promptTokens", 0)::bigint AS "usage.promptTokens",
-              COALESCE(generation_metrics."completionTokens", 0)::bigint AS "usage.completionTokens",
-              COALESCE(generation_metrics."totalTokens", 0)::bigint AS "usage.totalTokens",
-              COALESCE(generation_metrics."calculatedInputCost", 0)::numeric AS "inputCost",
-              COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "outputCost",
-              COALESCE(generation_metrics."calculatedTotalCost", 0)::numeric AS "totalCost"
-              `,
-            projectId,
-            limit: pageSize,
-            page: Math.floor(offset / pageSize),
-            filterCondition,
-            orderByCondition,
-            observationTimeseriesFilter,
-            selectScoreValues: true,
-          });
-          const chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
+          let chunk: BatchExportTracesRow[];
+
+          if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
+            const distinctScoreNames = await getDistinctScoreNames(
+              projectId,
+              cutoffCreatedAt,
+              filter
+                ? [...filter, createdAtCutoffFilter]
+                : [createdAtCutoffFilter],
+              isTraceTimestampFilter,
+            );
+            emptyScoreColumns = distinctScoreNames.reduce(
+              (acc, name) => ({ ...acc, [name]: null }),
+              {} as Record<string, null>,
+            );
+
+            const traces = await getTracesTable(
+              projectId,
+              filter
+                ? [...filter, createdAtCutoffFilter]
+                : [createdAtCutoffFilter],
+              undefined,
+              orderBy,
+              pageSize,
+              Math.floor(offset / pageSize),
+            );
+
+            const metrics = await getTracesTableMetrics({
+              projectId,
+              filter: [
+                ...(filter ?? []),
+                {
+                  type: "stringOptions",
+                  operator: "any of",
+                  column: "ID",
+                  value: traces.map((t) => t.id),
+                },
+              ],
+            });
+
+            chunk = traces.map((t) => {
+              const metric = metrics.find((m) => m.id === t.id);
+              return {
+                ...t,
+                name: t.name ?? "",
+                usage: {
+                  promptTokens: metric?.promptTokens,
+                  completionTokens: metric?.completionTokens,
+                  totalTokens: metric?.totalTokens,
+                },
+              };
+            });
+          } else {
+            emptyScoreColumns = await getEmptyScoreColumns(
+              projectId,
+              cutoffCreatedAt,
+              filter
+                ? [...filter, createdAtCutoffFilter]
+                : [createdAtCutoffFilter],
+              isTraceTimestampFilter,
+            );
+            const query = createTracesQuery({
+              select: Prisma.sql`
+                t."bookmarked",
+                t."id", 
+                t."timestamp",
+                t."name",
+                t."user_id" AS "userId",
+                observation_metrics."level" AS "level",
+                observation_metrics."observationCount" AS "observationCount",
+                s_avg."scores_values" AS "scores",
+                observation_metrics.latency AS "latency",
+                t."release",
+                t."version", 
+                t.session_id AS "sessionId",
+                t."input",
+                t."output",
+                t."metadata",
+                t."tags",
+                COALESCE(generation_metrics."promptTokens", 0)::bigint AS "usage.promptTokens",
+                COALESCE(generation_metrics."completionTokens", 0)::bigint AS "usage.completionTokens",
+                COALESCE(generation_metrics."totalTokens", 0)::bigint AS "usage.totalTokens",
+                COALESCE(generation_metrics."calculatedInputCost", 0)::numeric AS "inputCost",
+                COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "outputCost",
+                COALESCE(generation_metrics."calculatedTotalCost", 0)::numeric AS "totalCost"
+                `,
+              projectId,
+              limit: pageSize,
+              page: Math.floor(offset / pageSize),
+              filterCondition,
+              orderByCondition,
+              observationTimeseriesFilter,
+              selectScoreValues: true,
+            });
+            chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
+          }
 
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },

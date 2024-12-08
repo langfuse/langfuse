@@ -81,7 +81,7 @@ describe("batch export test suite", () => {
     );
   });
 
-  it.only("should export sessions", async () => {
+  it("should export sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const sessionId = randomUUID();
@@ -160,7 +160,79 @@ describe("batch export test suite", () => {
 
     expect(rows).toHaveLength(2);
 
-    console.log(rows);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: traces[0].session_id,
+          countTraces: 1,
+        }),
+        expect.objectContaining({
+          id: traces[1].session_id,
+          countTraces: 1,
+        }),
+      ]),
+    );
+  });
+  it.only("should export traces", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const generations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        type: "GENERATION",
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        type: "GENERATION",
+      }),
+    ];
+
+    const score = createScore({
+      project_id: projectId,
+      trace_id: randomUUID(),
+      observation_id: generations[0].id,
+      name: "test",
+      value: 123,
+    });
+
+    await createScoresCh([score]);
+    await createObservationsCh(generations);
+
+    const stream = await getDatabaseReadStream({
+      projectId: projectId,
+      tableName: BatchExportTableName.Sessions,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(2);
 
     expect(rows).toEqual(
       expect.arrayContaining([
