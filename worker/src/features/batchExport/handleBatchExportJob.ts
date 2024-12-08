@@ -30,9 +30,9 @@ import {
   getTracesTable,
   getTracesTableMetrics,
   getScoresForTraces,
+  logger,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { logger } from "@langfuse/shared/src/server";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
