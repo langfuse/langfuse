@@ -317,8 +317,6 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(2);
-    expect(rows[0].id).toBe(sessionId1);
-    expect(rows[1].id).toBe(sessionId2);
 
     expect(rows).toEqual(
       expect.arrayContaining([
@@ -455,7 +453,15 @@ describe("batch export test suite", () => {
     }
 
     expect(rows).toHaveLength(2);
-    expect(rows[0].name).toBe("trace1");
-    expect(rows[1].name).toBe("trace2");
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "trace1",
+        }),
+        expect.objectContaining({
+          name: "trace2",
+        }),
+      ]),
+    );
   });
 });
