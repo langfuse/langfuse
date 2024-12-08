@@ -1,9 +1,9 @@
+import { clickhouseClient } from "../clickhouse/client";
 import {
-  clickhouseClient,
-  type ScoreRecordInsertType,
-  type ObservationRecordInsertType,
-  type TraceRecordInsertType,
-} from "@langfuse/shared/src/server";
+  TraceRecordInsertType,
+  ObservationRecordInsertType,
+  ScoreRecordInsertType,
+} from "../repositories/definitions";
 
 export const createTracesCh = async (trace: TraceRecordInsertType[]) => {
   return await clickhouseClient().insert({

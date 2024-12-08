@@ -2,10 +2,8 @@ import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
-  getDisplaySecretKey,
-  hashSecretKey,
+  createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
-import { v4 } from "uuid";
 import { type z } from "zod";
 
 export const pruneDatabase = async () => {
@@ -42,16 +40,6 @@ export const pruneDatabase = async () => {
     query: "TRUNCATE TABLE IF EXISTS traces",
   });
 };
-
-export function createBasicAuthHeader(
-  username: string,
-  password: string,
-): string {
-  const base64Credentials = Buffer.from(`${username}:${password}`).toString(
-    "base64",
-  );
-  return `Basic ${base64Credentials}`;
-}
 
 export type IngestionAPIResponse = {
   errors: ErrorIngestion[];
@@ -138,35 +126,3 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
 
   return { body: resBody, status };
 }
-
-export const createOrgProjectAndApiKey = async () => {
-  const projectId = v4();
-  const org = await prisma.organization.create({
-    data: {
-      id: v4(),
-      name: v4(),
-    },
-  });
-  await prisma.project.create({
-    data: {
-      id: projectId,
-      name: v4(),
-      orgId: org.id,
-    },
-  });
-  const publicKey = v4();
-  const secretKey = v4();
-
-  const auth = createBasicAuthHeader(publicKey, secretKey);
-  await prisma.apiKey.create({
-    data: {
-      id: v4(),
-      projectId: projectId,
-      publicKey: publicKey,
-      hashedSecretKey: await hashSecretKey(secretKey),
-      displaySecretKey: getDisplaySecretKey(secretKey),
-    },
-  });
-
-  return { projectId, publicKey, secretKey, auth };
-};

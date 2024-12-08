@@ -1,11 +1,8 @@
-import {
-  createObservation,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+} from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { randomUUID } from "crypto";
 import { GetMetricsDailyV1Response } from "@/src/features/public-api/types/metrics";

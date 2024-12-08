@@ -2,16 +2,14 @@ import {
   createObservation,
   createScore,
   createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+} from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import {
   createOrgProjectAndApiKey,
-  makeZodVerifiedAPICall,
-} from "@/src/__tests__/test-utils";
+} from "@langfuse/shared/src/server";
+import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetScoreResponse, GetScoresResponse } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";

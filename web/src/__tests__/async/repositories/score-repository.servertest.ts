@@ -1,4 +1,4 @@
-import { createScoresCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
+import { createScoresCh } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { getScoreById } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";

@@ -1,11 +1,11 @@
-import {
-  createOrgProjectAndApiKey,
-  makeZodVerifiedAPICall,
-} from "@/src/__tests__/test-utils";
+import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
-import { createTracesCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import { createTrace } from "@/src/__tests__/fixtures/tracing-factory";
+import {
+  createTracesCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
+import { createTrace } from "@langfuse/shared/src/server";
 import {
   GetSessionsV1Response,
   GetSessionV1Response,

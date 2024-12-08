@@ -1,4 +1,4 @@
-import { createTracesCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
+import { createTracesCh } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getTraceById,

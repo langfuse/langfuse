@@ -8,3 +8,4 @@ export * from "./scores_converters";
 export * from "./observations_converters";
 export * from "./clickhouse";
 export * from "./constants";
+export * from "./trace-sessions";

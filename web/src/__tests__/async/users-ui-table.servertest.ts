@@ -1,11 +1,11 @@
 import {
   createObservation as createObservationObject,
   createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+} from "@langfuse/shared/src/server";
 import {
   createObservationsCh as createObservationsInClickhouse,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+} from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import { getUserMetrics } from "@langfuse/shared/src/server";
 

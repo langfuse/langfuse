@@ -5,8 +5,11 @@ import {
   queryClickhouse,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
-import { FilterState } from "../../types";
+import {
+  Filter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
@@ -628,4 +631,39 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     projectId: row.project_id,
     count: Number(row.count),
   }));
+};
+
+export const getDistinctScoreNames = async (
+  projectId: string,
+  cutoffCreatedAt: Date,
+  filter: FilterState,
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
+) => {
+  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+
+  const query = `
+    SELECT DISTINCT
+      name
+    FROM scores s 
+    WHERE s.project_id = {projectId: String}
+    AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
+    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
+  `;
+
+  const rows = await queryClickhouse<{ name: string }>({
+    query,
+    params: {
+      projectId,
+      cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
+      ...(scoreTimestampFilter
+        ? {
+            filterTimestamp: convertDateToClickhouseDateTime(
+              scoreTimestampFilter.value,
+            ),
+          }
+        : {}),
+    },
+  });
+
+  return rows.map((row) => row.name);
 };
