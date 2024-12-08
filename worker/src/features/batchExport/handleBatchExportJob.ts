@@ -23,10 +23,13 @@ import {
   parseGetAllGenerationsInput,
   parseTraceAllFilters,
   FullObservationsWithScores,
+  getPublicSessionsFilter,
+  getSessionsTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
+import Decimal from "decimal.js";
 
 const tableNameToTimeFilterColumn = {
   sessions: "createdAt",
@@ -122,8 +125,13 @@ const getDatabaseReadStream = async ({
     case "sessions":
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const query = createSessionsAllQuery(
-            Prisma.sql`
+          const finalFilter = filter
+            ? [...filter, createdAtCutoffFilter]
+            : [createdAtCutoffFilter];
+
+          if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "false") {
+            const query = createSessionsAllQuery(
+              Prisma.sql`
             s.id,
             s."created_at" AS "createdAt",
             s.bookmarked,
@@ -140,17 +148,64 @@ const getDatabaseReadStream = async ({
             t."tags" AS "traceTags",
             (count(*) OVER ())::int AS "totalCount" 
           `,
-            {
+              {
+                projectId,
+                filter: finalFilter,
+                orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+              },
+            );
+            return prisma.$queryRaw<BatchExportSessionsRow[]>(query);
+          } else {
+            const sessionsFilter = await getPublicSessionsFilter(
               projectId,
-              filter: filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-              orderBy,
+              finalFilter ?? [],
+            );
+            const sessions = await getSessionsTable({
+              projectId: projectId,
+              filter: sessionsFilter,
+              orderBy: orderBy,
               limit: pageSize,
               page: Math.floor(offset / pageSize),
-            },
-          );
-          return prisma.$queryRaw<BatchExportSessionsRow[]>(query);
+            });
+
+            const prismaSessionInfo = await prisma.traceSession.findMany({
+              where: {
+                id: {
+                  in: sessions.map((s) => s.session_id),
+                },
+                projectId: projectId,
+              },
+              select: {
+                id: true,
+                bookmarked: true,
+                public: true,
+              },
+            });
+            return {
+              sessions: sessions.map((s) => ({
+                id: s.session_id,
+                userIds: s.user_ids,
+                countTraces: s.trace_ids.length,
+                sessionDuration: Number(s.duration) / 1000,
+                inputCost: new Decimal(s.session_input_cost),
+                outputCost: new Decimal(s.session_output_cost),
+                totalCost: new Decimal(s.session_total_cost),
+                promptTokens: Number(s.session_input_usage),
+                completionTokens: Number(s.session_output_usage),
+                totalTokens: Number(s.session_total_usage),
+                traceTags: s.trace_tags,
+                createdAt: new Date(s.min_timestamp),
+                bookmarked:
+                  prismaSessionInfo.find((p) => p.id === s.session_id)
+                    ?.bookmarked ?? false,
+                public:
+                  prismaSessionInfo.find((p) => p.id === s.session_id)
+                    ?.public ?? false,
+              })),
+            };
+          }
         },
         1000,
         env.BATCH_EXPORT_ROW_LIMIT,
