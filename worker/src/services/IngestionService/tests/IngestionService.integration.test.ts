@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -14,6 +14,7 @@ import {
   TraceEventType,
   traceRecordReadSchema,
   TraceRecordReadType,
+  ingestionEvent,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 
@@ -22,6 +23,7 @@ import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const IngestionEventBatchSchema = z.array(ingestionEvent);
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -285,8 +287,8 @@ describe("Ingestion end-to-end tests", () => {
       usage: { input: 1 },
       usageDetails: { input: 2 },
       costDetails: { input: 3 },
-      expectedUsageDetails: { input: 2 },
-      expectedCostDetails: { input: 3 },
+      expectedUsageDetails: { input: 2, total: 2 },
+      expectedCostDetails: { input: 3, total: 3 },
     },
     {
       usage: { input: 1 },
@@ -295,7 +297,7 @@ describe("Ingestion end-to-end tests", () => {
         cached: 2,
         reasoning: 3,
       },
-      expectedUsageDetails: { input: 1, cached: 2, reasoning: 3 },
+      expectedUsageDetails: { input: 1, cached: 2, reasoning: 3, total: 6 },
     },
     {
       usage: {},
@@ -304,13 +306,41 @@ describe("Ingestion end-to-end tests", () => {
         output: null,
         total: undefined,
       },
-      expectedUsageDetails: { input: 1 },
+      expectedUsageDetails: { input: 1, total: 1 },
       costDetails: {
         input: 123,
         output: null,
         cached: undefined,
       },
-      expectedCostDetails: { input: 123 },
+      expectedCostDetails: { input: 123, total: 123 },
+    },
+    // OpenAI format
+    {
+      usage: null,
+      usageDetails: {
+        prompt_tokens: 5,
+        completion_tokens: 11,
+        total_tokens: 16,
+        prompt_tokens_details: {
+          cached_tokens: 2,
+          audio_tokens: 3,
+        },
+        completion_tokens_details: {
+          text_tokens: 3,
+          audio_tokens: 4,
+          reasoning_tokens: 4,
+        },
+      },
+      expectedUsageDetails: {
+        input: 0,
+        output: 0,
+        total: 16,
+        input_cached_tokens: 2,
+        input_audio_tokens: 3,
+        output_text_tokens: 3,
+        output_audio_tokens: 4,
+        output_reasoning_tokens: 4,
+      },
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
@@ -341,36 +371,37 @@ describe("Ingestion end-to-end tests", () => {
         },
       ];
 
-      const generationEventList: ObservationEvent[] = [
-        {
-          id: randomUUID(),
-          type: "generation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            traceId: traceId,
-            name: "generation-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            modelParameters: { key: "value" },
-            input: { key: "value" },
-            metadata: { key: "value" },
-            version: "2.0.0",
+      const generationEventList: ObservationEvent[] =
+        IngestionEventBatchSchema.parse([
+          {
+            id: randomUUID(),
+            type: "generation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              name: "generation-name",
+              startTime: "2021-01-01T00:00:00.000Z",
+              endTime: "2021-01-01T00:00:00.000Z",
+              modelParameters: { key: "value" },
+              input: { key: "value" },
+              metadata: { key: "value" },
+              version: "2.0.0",
+            },
           },
-        },
-        {
-          id: randomUUID(),
-          type: "generation-update",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            output: { key: "this is a great gpt output" },
-            usage: testConfig.usage,
-            usageDetails: testConfig.usageDetails,
-            costDetails: testConfig.costDetails,
+          {
+            id: randomUUID(),
+            type: "generation-update",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              output: { key: "this is a great gpt output" },
+              usage: testConfig.usage,
+              usageDetails: testConfig.usageDetails,
+              costDetails: testConfig.costDetails,
+            },
           },
-        },
-      ];
+        ]);
 
       const spanEventList: ObservationEvent[] = [
         {

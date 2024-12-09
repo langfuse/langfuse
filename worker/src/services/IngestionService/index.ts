@@ -647,8 +647,16 @@ export class IngestionService {
       return { usage_details, provided_usage_details: providedUsageDetails };
     }
 
+    const usageDetails = { ...providedUsageDetails };
+    if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {
+      usageDetails.total = Object.values(providedUsageDetails).reduce(
+        (acc, value) => acc + value,
+        0,
+      );
+    }
+
     return {
-      usage_details: providedUsageDetails,
+      usage_details: usageDetails,
       provided_usage_details: providedUsageDetails,
     };
   }
@@ -931,12 +939,16 @@ export class IngestionService {
 
       const newTotalCount =
         ("usage" in obs.body ? obs.body.usage?.total : undefined) ||
-        (newInputCount !== undefined &&
-        newOutputCount !== undefined &&
-        newInputCount &&
-        newOutputCount
-          ? newInputCount + newOutputCount
-          : (newInputCount ?? newOutputCount));
+        (Object.keys(
+          "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
+        ).length === 0
+          ? newInputCount !== undefined &&
+            newOutputCount !== undefined &&
+            newInputCount &&
+            newOutputCount
+            ? newInputCount + newOutputCount
+            : (newInputCount ?? newOutputCount)
+          : undefined);
 
       let provided_usage_details: Record<string, number> = {};
 
