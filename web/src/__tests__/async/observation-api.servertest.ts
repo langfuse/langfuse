@@ -1,18 +1,23 @@
-import { createObservation as createObservationObject } from "@langfuse/shared/src/server";
+import {
+  createObservation as createObservationObject,
+  createTrace,
+  createTracesCh,
+} from "@langfuse/shared/src/server";
 import { createObservationsCh as createObservationsInClickhouse } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationV1Response } from "@/src/features/public-api/types/observations";
-import { v4 } from "uuid";
 import { v4 as uuidv4 } from "uuid";
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
+import { randomUUID } from "crypto";
+import { snakeCase } from "lodash";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("/api/public/observations API Endpoint", () => {
   describe("GET /api/public/observations/:id", () => {
     it("should GET an observation", async () => {
-      const observationId = v4();
-      const traceId = v4();
+      const observationId = uuidv4();
+      const traceId = uuidv4();
 
       const observation = createObservationObject({
         id: observationId,
@@ -137,8 +142,6 @@ describe("/api/public/observations API Endpoint", () => {
       undefined,
     );
 
-    console.log(fetchedObservations.body);
-
     expect(fetchedObservations.status).toBe(200);
 
     expect(fetchedObservations.body.data.length).toBe(1);
@@ -148,8 +151,55 @@ describe("/api/public/observations API Endpoint", () => {
     expect(fetchedObservations.body.data[0]?.type).toEqual("GENERATION");
   });
 
+  it.each([
+    ["userId", randomUUID()],
+    ["traceId", randomUUID()],
+    ["name", randomUUID()],
+    ["version", randomUUID()],
+  ])(
+    "should fetch all observations filtered by a value (%s, %s)",
+    async (prop: string, value: string) => {
+      const traceId = uuidv4();
+
+      if (prop === "userId") {
+        const createdTrace = createTrace({
+          id: traceId,
+          [snakeCase(prop)]: value,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        });
+
+        await createTracesCh([createdTrace]);
+      }
+
+      const observation = createObservationObject({
+        id: uuidv4(),
+        trace_id: traceId,
+        start_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+        end_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        type: "GENERATION",
+        [snakeCase(prop)]: value,
+      });
+
+      await createObservationsInClickhouse([observation]);
+
+      const observations = await makeZodVerifiedAPICall(
+        GetObservationsV1Response,
+        "GET",
+        `/api/public/observations?${prop}=${value}`,
+      );
+
+      expect(observations.body.meta.totalItems).toBe(1);
+      expect(observations.body.data.length).toBe(1);
+      const obsResult = observations.body.data[0];
+      expect(obsResult.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      if (prop === "userId") return;
+      expect((obsResult as any)[prop]).toBe(value);
+    },
+  );
+
   it("GET /observations with timestamp filters and pagination", async () => {
-    const traceId = v4();
+    const traceId = uuidv4();
     const obs1 = createObservationObject({
       id: "observation-2021-01-01",
       trace_id: traceId,
