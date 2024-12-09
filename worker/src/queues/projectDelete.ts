@@ -8,6 +8,7 @@ import {
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@prisma/client";
 
 export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
@@ -44,12 +45,24 @@ export const projectDeleteProcessor: Processor = async (
 
   // Finally, delete the project itself which should delete all related
   // resources due to the referential actions defined via Prisma
-  await prisma.project.delete({
-    where: {
-      id: projectId,
-      orgId,
-    },
-  });
+  try {
+    await prisma.project.delete({
+      where: {
+        id: projectId,
+        orgId,
+      },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      if (e.code === "P2025" || e.code === "P2016") {
+        logger.warning(
+          `Tried to delete project ${projectId} in org ${orgId}, but it does not exist`,
+        );
+        return;
+      }
+    }
+    throw e;
+  }
 
   logger.info(`Deleted ${projectId} in org ${orgId}`);
 };
