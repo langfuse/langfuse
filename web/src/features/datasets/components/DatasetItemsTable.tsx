@@ -11,12 +11,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
-import { Archive, ListTree, MoreVertical } from "lucide-react";
+import { Archive, ListTree, MoreVertical, UploadIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -25,6 +25,23 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Input } from "@/src/components/ui/input";
+import { z } from "zod";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import {
+  type CsvPreviewResult,
+  parseCsvPreview,
+} from "@/src/features/datasets/lib/parseCsvFile";
+import { ImportCard } from "./ImportCard";
+import { findDefaultColumn } from "../lib/findDefaultColumn";
+import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 
 type RowData = {
   id: string;
@@ -39,6 +56,13 @@ type RowData = {
   metadata: Prisma.JsonValue;
 };
 
+const ACCEPTED_FILE_TYPES = ["text/csv", "application/csv"] as const;
+
+const FileSchema = z.object({
+  type: z.enum([...ACCEPTED_FILE_TYPES]),
+  size: z.number().min(1),
+});
+
 export function DatasetItemsTable({
   projectId,
   datasetId,
@@ -51,6 +75,7 @@ export function DatasetItemsTable({
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -272,6 +297,304 @@ export function DatasetItemsTable({
     "datasetItemsColumnOrder",
     columns,
   );
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const result = FileSchema.safeParse(file);
+    if (!result.success) {
+      showErrorToast("Invalid file type", "Please select a valid CSV file");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const preview = await parseCsvPreview(file);
+      setPreview(preview);
+    } catch (error) {
+      showErrorToast(
+        "Failed to parse CSV",
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const [selectedInputColumn, setSelectedInputColumn] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedExpectedColumn, setSelectedExpectedColumn] = useState<
+    Set<string>
+  >(new Set());
+  const [selectedMetadataColumn, setSelectedMetadataColumn] = useState<
+    Set<string>
+  >(new Set());
+  const [excludedColumns, setExcludedColumns] = useState<Set<string>>(
+    new Set(),
+  );
+
+  useEffect(() => {
+    if (preview) {
+      // Only set defaults if no columns are currently selected
+      if (
+        selectedInputColumn.size === 0 &&
+        selectedExpectedColumn.size === 0 &&
+        selectedMetadataColumn.size === 0
+      ) {
+        // Set default columns based on names
+        setSelectedInputColumn(
+          new Set([findDefaultColumn(preview.columns, "Input", 0)]),
+        );
+        setSelectedExpectedColumn(
+          new Set([findDefaultColumn(preview.columns, "Expected", 1)]),
+        );
+        setSelectedMetadataColumn(
+          new Set([findDefaultColumn(preview.columns, "Metadata", 2)]),
+        );
+      }
+
+      // Update excluded columns based on current selections
+      const newExcluded = new Set(
+        preview.columns
+          .filter(
+            (col) =>
+              !selectedInputColumn.has(col.name) &&
+              !selectedExpectedColumn.has(col.name) &&
+              !selectedMetadataColumn.has(col.name),
+          )
+          .map((col) => col.name),
+      );
+
+      setExcludedColumns(newExcluded);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview]); // Only depend on preview changes
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over) return;
+
+    const columnName = active.id as string;
+    const fromCardId = active.data.current?.fromCardId;
+    const toCardId = over.id;
+
+    console.log({ fromCardId, toCardId });
+
+    if (fromCardId === toCardId) return;
+
+    // Handle moving column between cards
+    switch (toCardId) {
+      case "input":
+        setSelectedInputColumn(new Set([...selectedInputColumn, columnName]));
+        break;
+      case "expected":
+        setSelectedExpectedColumn(
+          new Set([...selectedExpectedColumn, columnName]),
+        );
+        break;
+      case "metadata":
+        setSelectedMetadataColumn(
+          new Set([...selectedMetadataColumn, columnName]),
+        );
+        break;
+      case "unmapped":
+        setExcludedColumns(new Set([...excludedColumns, columnName]));
+        break;
+    }
+  };
+
+  if (items.data?.totalDatasetItems === 0) {
+    return (
+      <>
+        <DataTableToolbar
+          columns={columns}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          actionButtons={menuItems}
+        />
+        {preview ? (
+          <Card className="h-full items-center justify-center overflow-hidden p-2">
+            <CardHeader className="text-center">
+              <CardTitle className="text-lg">
+                Import {preview.fileName}
+              </CardTitle>
+              <CardDescription>
+                Map your CSV columns to dataset fields. The CSV file must have
+                column headers in the first row.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="h-3/5 overflow-hidden">
+                <DndContext
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="grid h-full grid-cols-4 gap-4">
+                    <ImportCard
+                      id="input"
+                      title="Input"
+                      columns={preview.columns.filter((col) =>
+                        selectedInputColumn.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setSelectedInputColumn(
+                          new Set([...selectedInputColumn, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setSelectedInputColumn(
+                          new Set(
+                            [...selectedInputColumn].filter(
+                              (col) => col !== columnName,
+                            ),
+                          ),
+                        );
+                      }}
+                    />
+                    <ImportCard
+                      id="expected"
+                      title="Expected"
+                      columns={preview.columns.filter((col) =>
+                        selectedExpectedColumn.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setSelectedExpectedColumn(
+                          new Set([...selectedExpectedColumn, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setSelectedExpectedColumn(
+                          new Set(
+                            [...selectedExpectedColumn].filter(
+                              (col) => col !== columnName,
+                            ),
+                          ),
+                        );
+                      }}
+                    />
+                    <ImportCard
+                      id="metadata"
+                      title="Metadata"
+                      columns={preview.columns.filter((col) =>
+                        selectedMetadataColumn.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setSelectedMetadataColumn(
+                          new Set([...selectedMetadataColumn, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setSelectedMetadataColumn(
+                          new Set(
+                            [...selectedMetadataColumn].filter(
+                              (col) => col !== columnName,
+                            ),
+                          ),
+                        );
+                      }}
+                    />
+                    <ImportCard
+                      id="unmapped"
+                      title="Not mapped"
+                      columns={preview.columns.filter((col) =>
+                        excludedColumns.has(col.name),
+                      )}
+                      onColumnSelect={(columnName) => {
+                        setExcludedColumns(
+                          new Set([...excludedColumns, columnName]),
+                        );
+                      }}
+                      onColumnRemove={(columnName) => {
+                        setExcludedColumns(
+                          new Set(
+                            [...excludedColumns].filter(
+                              (col) => col !== columnName,
+                            ),
+                          ),
+                        );
+                      }}
+                    />
+                  </div>
+                </DndContext>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPreview(null);
+                    setSelectedInputColumn(new Set());
+                    setSelectedExpectedColumn(new Set());
+                    setSelectedMetadataColumn(new Set());
+                    setExcludedColumns(new Set());
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={selectedInputColumn.size === 0}
+                  onClick={() => {
+                    // TODO: Handle import
+                    console.log({
+                      inputColumn: selectedInputColumn,
+                      expectedColumn: selectedExpectedColumn,
+                      metadataColumn: selectedMetadataColumn,
+                      excludedColumns: Array.from(excludedColumns),
+                    });
+                  }}
+                >
+                  Import
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="h-full items-center justify-center p-2">
+            <CardHeader className="text-center">
+              <CardTitle className="text-lg">
+                Your dataset has no items
+              </CardTitle>
+              <CardDescription>
+                Add items to the dataset by uploading a file, adding items
+                manually or via our SDKs/API
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Hidden file input */}
+              <Input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept=".csv"
+                onChange={handleFileSelect}
+              />
+
+              {/* Clickable upload area */}
+              <div
+                className="flex max-h-full min-h-0 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-y-auto rounded-lg border border-dashed bg-secondary/50 p-4"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <UploadIcon className="h-6 w-6 text-secondary-foreground" />
+                <div className="text-sm text-secondary-foreground">
+                  Click to select a CSV file
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
