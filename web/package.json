@@ -109,6 +109,7 @@
     "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "dompurify": "^3.1.5",
+    "fastest-levenshtein": "^1.0.16",
     "graphql": "^16.9.0",
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
