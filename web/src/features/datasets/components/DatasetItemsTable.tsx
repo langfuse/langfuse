@@ -63,6 +63,33 @@ const FileSchema = z.object({
   size: z.number().min(1),
 });
 
+const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
+type CardId = z.infer<typeof CardIdSchema>;
+
+function moveColumn(
+  fromId: CardId,
+  toId: CardId,
+  columnName: string,
+  sets: {
+    input: Set<string>;
+    expected: Set<string>;
+    metadata: Set<string>;
+    unmapped: Set<string>;
+  },
+  setters: {
+    input: (s: Set<string>) => void;
+    expected: (s: Set<string>) => void;
+    metadata: (s: Set<string>) => void;
+    unmapped: (s: Set<string>) => void;
+  },
+) {
+  sets[fromId].delete(columnName);
+  setters[fromId](new Set(sets[fromId]));
+
+  sets[toId].add(columnName);
+  setters[toId](new Set(sets[toId]));
+}
+
 export function DatasetItemsTable({
   projectId,
   datasetId,
@@ -347,31 +374,35 @@ export function DatasetItemsTable({
         selectedExpectedColumn.size === 0 &&
         selectedMetadataColumn.size === 0
       ) {
+        const defaultInput = new Set([
+          findDefaultColumn(preview.columns, "Input", 0),
+        ]);
+        const defaultExpected = new Set([
+          findDefaultColumn(preview.columns, "Expected", 1),
+        ]);
+        const defaultMetadata = new Set([
+          findDefaultColumn(preview.columns, "Metadata", 2),
+        ]);
+
         // Set default columns based on names
-        setSelectedInputColumn(
-          new Set([findDefaultColumn(preview.columns, "Input", 0)]),
+        setSelectedInputColumn(defaultInput);
+        setSelectedExpectedColumn(defaultExpected);
+        setSelectedMetadataColumn(defaultMetadata);
+
+        // Update excluded columns based on current selections
+        const newExcluded = new Set(
+          preview.columns
+            .filter(
+              (col) =>
+                !defaultInput.has(col.name) &&
+                !defaultExpected.has(col.name) &&
+                !defaultMetadata.has(col.name),
+            )
+            .map((col) => col.name),
         );
-        setSelectedExpectedColumn(
-          new Set([findDefaultColumn(preview.columns, "Expected", 1)]),
-        );
-        setSelectedMetadataColumn(
-          new Set([findDefaultColumn(preview.columns, "Metadata", 2)]),
-        );
+
+        setExcludedColumns(newExcluded);
       }
-
-      // Update excluded columns based on current selections
-      const newExcluded = new Set(
-        preview.columns
-          .filter(
-            (col) =>
-              !selectedInputColumn.has(col.name) &&
-              !selectedExpectedColumn.has(col.name) &&
-              !selectedMetadataColumn.has(col.name),
-          )
-          .map((col) => col.name),
-      );
-
-      setExcludedColumns(newExcluded);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview]); // Only depend on preview changes
@@ -385,29 +416,31 @@ export function DatasetItemsTable({
     const fromCardId = active.data.current?.fromCardId;
     const toCardId = over.id;
 
-    console.log({ fromCardId, toCardId });
-
     if (fromCardId === toCardId) return;
 
+    const parsedFromCardId = CardIdSchema.safeParse(fromCardId);
+    const parsedToCardId = CardIdSchema.safeParse(toCardId);
+
+    if (!parsedFromCardId.success || !parsedToCardId.success) return;
+
     // Handle moving column between cards
-    switch (toCardId) {
-      case "input":
-        setSelectedInputColumn(new Set([...selectedInputColumn, columnName]));
-        break;
-      case "expected":
-        setSelectedExpectedColumn(
-          new Set([...selectedExpectedColumn, columnName]),
-        );
-        break;
-      case "metadata":
-        setSelectedMetadataColumn(
-          new Set([...selectedMetadataColumn, columnName]),
-        );
-        break;
-      case "unmapped":
-        setExcludedColumns(new Set([...excludedColumns, columnName]));
-        break;
-    }
+    moveColumn(
+      parsedFromCardId.data,
+      parsedToCardId.data,
+      columnName,
+      {
+        input: selectedInputColumn,
+        expected: selectedExpectedColumn,
+        metadata: selectedMetadataColumn,
+        unmapped: excludedColumns,
+      },
+      {
+        input: setSelectedInputColumn,
+        expected: setSelectedExpectedColumn,
+        metadata: setSelectedMetadataColumn,
+        unmapped: setExcludedColumns,
+      },
+    );
   };
 
   if (items.data?.totalDatasetItems === 0) {
