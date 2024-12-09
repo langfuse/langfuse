@@ -13,7 +13,10 @@ import { jsonSchema } from "../../utils/zod";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
-): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
+): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> & {
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
+} => {
   // these cost are not used from the view. They are in the select statement but not in the
   // Prisma file. We will not clean this up but keep it as it is for now.
   // eslint-disable-next-line no-unused-vars
@@ -39,10 +42,12 @@ export const convertObservation = (
   promptVersion: number | null;
   latency: number | null;
   timeToFirstToken: number | null;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
 } => {
-  const usageDetails = reduceUsageOrCostDetails(record.usage_details);
-  const costDetails = reduceUsageOrCostDetails(record.cost_details);
-  const providedCostDetails = reduceUsageOrCostDetails(
+  const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
+  const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
+  const reducedProvidedCostDetails = reduceUsageOrCostDetails(
     record.provided_cost_details,
   );
 
@@ -76,25 +81,41 @@ export const convertObservation = (
     promptId: record.prompt_id ?? null,
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: usageDetails.input ?? 0,
-    completionTokens: usageDetails.output ?? 0,
-    totalTokens: usageDetails.total ?? 0,
+    promptTokens: reducedUsageDetails.input ?? 0,
+    completionTokens: reducedUsageDetails.output ?? 0,
+    totalTokens: reducedUsageDetails.total ?? 0,
     calculatedInputCost:
-      costDetails.input != null ? new Decimal(costDetails.input) : null,
+      reducedCostDetails.input != null
+        ? new Decimal(reducedCostDetails.input)
+        : null,
     calculatedOutputCost:
-      costDetails.output != null ? new Decimal(costDetails.output) : null,
+      reducedCostDetails.output != null
+        ? new Decimal(reducedCostDetails.output)
+        : null,
     calculatedTotalCost: record.cost_details?.total
       ? new Decimal(record.cost_details.total)
       : null,
     inputCost:
-      providedCostDetails.input != null
-        ? new Decimal(providedCostDetails.input)
+      reducedProvidedCostDetails.input != null
+        ? new Decimal(reducedProvidedCostDetails.input)
         : null,
     outputCost:
-      providedCostDetails.output != null
-        ? new Decimal(providedCostDetails.output)
+      reducedProvidedCostDetails.output != null
+        ? new Decimal(reducedProvidedCostDetails.output)
         : null,
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
+    usageDetails: Object.fromEntries(
+      Object.entries(record.usage_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
+    costDetails: Object.fromEntries(
+      Object.entries(record.cost_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     unit: "TOKENS", // to be removed.
