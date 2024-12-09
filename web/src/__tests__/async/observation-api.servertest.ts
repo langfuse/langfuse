@@ -1,5 +1,5 @@
-import { createObservation as createObservationObject } from "@/src/__tests__/fixtures/tracing-factory";
-import { createObservationsCh as createObservationsInClickhouse } from "@/src/__tests__/async/repositories/clickhouse-helpers";
+import { createObservation as createObservationObject } from "@langfuse/shared/src/server";
+import { createObservationsCh as createObservationsInClickhouse } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationV1Response } from "@/src/features/public-api/types/observations";
 import { v4 } from "uuid";

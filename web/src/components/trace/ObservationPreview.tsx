@@ -69,8 +69,13 @@ export const ObservationPreview = ({
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
 
+  const currentObservation = observations.find(
+    (o) => o.id === currentObservationId,
+  );
+
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
+    startTime: currentObservation?.startTime,
     traceId: traceId,
     projectId: projectId,
     queryClickhouse: useClickhouse(),

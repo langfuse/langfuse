@@ -24,6 +24,7 @@ import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { v4 } from "uuid";
 import { compileHandlebarString } from "../../features/utilities";
+import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,
@@ -142,6 +143,7 @@ export const createExperimentJob = async ({
     where: {
       datasetId,
       projectId,
+      status: DatasetStatus.ACTIVE,
     },
     orderBy: {
       createdAt: "desc",

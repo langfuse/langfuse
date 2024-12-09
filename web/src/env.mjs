@@ -46,7 +46,10 @@ export const env = createEnv({
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
-    LANGFUSE_CSP_ENFORCE_HTTPS: z.enum(["true", "false"]).optional().default("false"),
+    LANGFUSE_CSP_ENFORCE_HTTPS: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
     // AUTH
@@ -188,9 +191,6 @@ export const env = createEnv({
       .positive()
       .int()
       .default(1_000_000_000),
-    LANGFUSE_S3_MEDIA_UPLOAD_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -217,7 +217,7 @@ export const env = createEnv({
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
 
-    // TODO: Remove entire block for go-live
+    // TODO: Remove entire block during V3 clean up
     // Settings to toggle Clickhouse vs Postgres behaviour
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z
       .enum(["true", "false"])
@@ -231,6 +231,9 @@ export const env = createEnv({
     LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
       .enum(["true", "false"])
       .default("true"),
+    LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
@@ -399,8 +402,6 @@ export const env = createEnv({
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
       process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
-    LANGFUSE_S3_MEDIA_UPLOAD_ENABLED:
-      process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENABLED,
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX:
@@ -465,6 +466,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_READ_FROM_POSTGRES_ONLY:
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
+    LANGFUSE_POSTGRES_INGESTION_ENABLED:
+      process.env.LANGFUSE_POSTGRES_INGESTION_ENABLED,
     LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
       process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
     LANGFUSE_RETURN_FROM_CLICKHOUSE:

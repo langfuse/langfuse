@@ -1,9 +1,9 @@
-import {
-  type ScoreRecordInsertType,
-  type ObservationRecordInsertType,
-  type TraceRecordInsertType,
-} from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import {
+  TraceRecordInsertType,
+  ObservationRecordInsertType,
+  ScoreRecordInsertType,
+} from "../repositories/definitions";
 
 export const createTrace = (trace: Partial<TraceRecordInsertType>) => {
   return {

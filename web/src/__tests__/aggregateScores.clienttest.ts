@@ -54,6 +54,33 @@ describe("aggregateScores", () => {
     });
   });
 
+  it("should correctly aggregate multiple numeric scores with the same key and value", () => {
+    const scores = [
+      {
+        name: "test",
+        source: "API",
+        dataType: "NUMERIC",
+        value: 5,
+        comment: "test comment",
+      },
+      {
+        name: "test",
+        source: "API",
+        dataType: "NUMERIC",
+        value: 5,
+        comment: "another comment",
+      },
+    ] as APIScore[];
+    expect(aggregateScores(scores)).toEqual({
+      "test-API-NUMERIC": {
+        type: "NUMERIC",
+        values: [5, 5],
+        average: 5,
+        comment: undefined,
+      },
+    });
+  });
+
   it("should correctly aggregate scores with different keys", () => {
     const scores: APIScore[] = [
       {

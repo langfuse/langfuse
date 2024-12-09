@@ -152,7 +152,7 @@ export const IOPreview: React.FC<{
 
   // If there are additional input fields beyond the messages, render them
   const additionalInput =
-    typeof input === "object"
+    typeof input === "object" && input !== null
       ? Object.fromEntries(
           Object.entries(input as object).filter(([key]) => key !== "messages"),
         )

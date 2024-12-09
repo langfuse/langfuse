@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.0.0-rc.3",
+  "version": "3.0.0-rc.6",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -16,6 +16,7 @@
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
     "test": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects async-server",
     "test-sync": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects sync-server",
+    "test-client": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects client",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
     "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",

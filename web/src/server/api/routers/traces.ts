@@ -738,29 +738,33 @@ export const traceRouter = createTRPCRouter({
           after: input.bookmarked,
         });
 
-        const trace = await ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-          data: {
-            bookmarked: input.bookmarked,
-          },
-        });
+        let trace;
+        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+          trace = await ctx.prisma.trace.update({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
+            },
+            data: {
+              bookmarked: input.bookmarked,
+            },
+          });
+        }
 
         if (env.CLICKHOUSE_URL) {
           const clickhouseTrace = await getTraceById(
             input.traceId,
             input.projectId,
           );
-          if (!clickhouseTrace) {
+          if (clickhouseTrace) {
+            trace = clickhouseTrace;
+            clickhouseTrace.bookmarked = input.bookmarked;
+            await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          } else {
             logger.error(
-              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
+              `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,
             );
-            return trace;
           }
-          clickhouseTrace.bookmarked = input.bookmarked;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
 
         return trace;
@@ -804,15 +808,17 @@ export const traceRouter = createTRPCRouter({
           after: input.public,
         });
 
-        const trace = await ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-          data: {
-            public: input.public,
-          },
-        });
+        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+          await ctx.prisma.trace.update({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
+            },
+            data: {
+              public: input.public,
+            },
+          });
+        }
 
         if (env.CLICKHOUSE_URL) {
           const clickhouseTrace = await getTraceById(
@@ -823,13 +829,15 @@ export const traceRouter = createTRPCRouter({
             logger.error(
               `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
             );
-            return trace;
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Trace not found",
+            });
           }
           clickhouseTrace.public = input.public;
           await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+          return clickhouseTrace;
         }
-
-        return trace;
       } catch (error) {
         console.error(error);
         if (
@@ -870,17 +878,19 @@ export const traceRouter = createTRPCRouter({
           after: input.tags,
         });
 
-        await ctx.prisma.trace.update({
-          where: {
-            id: input.traceId,
-            projectId: input.projectId,
-          },
-          data: {
-            tags: {
-              set: input.tags,
+        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+          await ctx.prisma.trace.update({
+            where: {
+              id: input.traceId,
+              projectId: input.projectId,
             },
-          },
-        });
+            data: {
+              tags: {
+                set: input.tags,
+              },
+            },
+          });
+        }
 
         if (env.CLICKHOUSE_URL) {
           const clickhouseTrace = await getTraceById(
@@ -898,6 +908,9 @@ export const traceRouter = createTRPCRouter({
         }
       } catch (error) {
         console.error(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+        });
       }
     }),
 });

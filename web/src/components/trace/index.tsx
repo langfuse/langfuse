@@ -379,6 +379,7 @@ export function TracePage({
               invalidateFunc={() => void utils.traces.all.invalidate()}
               type="trace"
               redirectUrl={`/project/${router.query.projectId as string}/traces`}
+              deleteConfirmation={trace.data.name ?? ""}
             />
           </>
         }
