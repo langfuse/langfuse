@@ -17,6 +17,7 @@ import {
   LangfuseNotFoundError,
   Prisma,
   extractVariables,
+  datasetItemMatchesVariable,
   stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
@@ -67,7 +68,7 @@ const validateDatasetItem = (
     return false;
   }
   return variables.some((variable) =>
-    Object.keys(itemInput).includes(variable),
+    datasetItemMatchesVariable(itemInput, variable),
   );
 };
 
