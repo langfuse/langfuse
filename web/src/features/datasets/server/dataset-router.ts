@@ -31,7 +31,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { traceException } from "@langfuse/shared/src/server";
-import { TempFileStorage } from "@/src/features/datasets/lib/tempStorage";
+import { TempFileStorage } from "@/src/features/datasets/server/tempStorage";
 
 // refactor to reuse existing code
 function parseValue(value: string): string | Record<string, Prisma.JsonValue> {
@@ -614,6 +614,28 @@ export const datasetRouter = createTRPCRouter({
 
       return { id: newDataset.id };
     }),
+  storeCsv: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        file: z.object({
+          base64: z.string(),
+          name: z.string(),
+          type: z.string(),
+        }),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const buffer = Buffer.from(input.file.base64, "base64");
+
+      const fileId = await TempFileStorage.store(
+        buffer,
+        input.file.name,
+        input.file.type,
+      );
+      return fileId;
+    }),
   importFromCsv: protectedProjectProcedure
     .input(
       z.object({
@@ -629,11 +651,12 @@ export const datasetRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { projectId, datasetId, fileId, mapping } = input;
+      console.log("fileId", fileId);
       const file = TempFileStorage.get(fileId);
       if (!file) throw new InternalServerError("File not found or expired");
 
       // Parse CSV content
-      const fileContent = await file.text();
+      const fileContent = Buffer.from(file.content).toString();
       const lines = fileContent.split(/\r?\n/).filter((line) => line.trim());
       if (lines.length < 2) throw new Error("CSV must have headers and data");
 
