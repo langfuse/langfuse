@@ -73,6 +73,8 @@ export type ObservationReturnType = Omit<
   | "metadata"
 > & {
   traceId: string;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
 };
 
 export const traceRouter = createTRPCRouter({
@@ -561,7 +563,11 @@ export const traceRouter = createTRPCRouter({
             ...trace,
             scores: validatedScores,
             latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-            observations: observations as ObservationReturnType[],
+            observations: observations.map((o) => ({
+              ...o,
+              usageDetails: {}, // no usageDetails in legacy postgres
+              costDetails: {}, // no costDetails in legacy postgres
+            })) as ObservationReturnType[],
           };
         },
         clickhouseExecution: async () => {

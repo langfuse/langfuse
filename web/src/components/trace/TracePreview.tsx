@@ -38,6 +38,8 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export const TracePreview = ({
   trace,
@@ -133,7 +135,14 @@ export const TracePreview = ({
                     {formatIntervalSeconds(trace.latency)}
                   </Badge>
                 )}
-                <AggUsageBadge observations={observations} />
+                <BreakdownTooltip
+                  details={observations.map((o) => o.usageDetails)}
+                >
+                  <AggUsageBadge
+                    observations={observations}
+                    rightIcon={<InfoIcon className="h-3 w-3" />}
+                  />
+                </BreakdownTooltip>
                 {!!trace.release && (
                   <Badge variant="outline">Release: {trace.release}</Badge>
                 )}
@@ -141,9 +150,17 @@ export const TracePreview = ({
                   <Badge variant="outline">Version: {trace.version}</Badge>
                 )}
                 {totalCost && (
-                  <Badge variant="outline">
-                    ∑ {usdFormatter(totalCost.toNumber())}
-                  </Badge>
+                  <BreakdownTooltip
+                    details={observations.map((o) => o.costDetails)}
+                    isCost
+                  >
+                    <Badge variant="outline">
+                      <span className="flex items-center gap-1">
+                        Total Cost: {usdFormatter(totalCost.toNumber())}
+                        <InfoIcon className="h-3 w-3" />
+                      </span>
+                    </Badge>
+                  </BreakdownTooltip>
                 )}
               </div>
             )}

@@ -126,6 +126,8 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
+      usageDetails: optional<map<string, integer>>
+      costDetails: optional<map<string, float>>
       promptName: optional<string>
       promptVersion: optional<integer>
 
@@ -137,6 +139,8 @@ types:
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
       promptName: optional<string>
+      usageDetails: optional<map<string, integer>>
+      costDetails: optional<map<string, float>>
       promptVersion: optional<integer>
 
   ObservationBody:

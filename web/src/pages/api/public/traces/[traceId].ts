@@ -125,7 +125,7 @@ export default withMiddlewares({
                 })
               : [];
 
-          const observationsView: ObservationView[] = observations.map((o) => {
+          const observationsView = observations.map((o) => {
             const model = models.find((m) => m.id === o.modelId);
             const inputPrice =
               model?.Price.find((p) => p.usageType === "input")?.price ??
