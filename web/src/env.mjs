@@ -217,7 +217,7 @@ export const env = createEnv({
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
 
-    // TODO: Remove entire block for go-live
+    // TODO: Remove entire block during V3 clean up
     // Settings to toggle Clickhouse vs Postgres behaviour
     LANGFUSE_READ_FROM_POSTGRES_ONLY: z
       .enum(["true", "false"])
@@ -231,6 +231,9 @@ export const env = createEnv({
     LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
       .enum(["true", "false"])
       .default("true"),
+    LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
 
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
@@ -463,6 +466,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     LANGFUSE_READ_FROM_POSTGRES_ONLY:
       process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
+    LANGFUSE_POSTGRES_INGESTION_ENABLED:
+      process.env.LANGFUSE_POSTGRES_INGESTION_ENABLED,
     LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
       process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
     LANGFUSE_RETURN_FROM_CLICKHOUSE:

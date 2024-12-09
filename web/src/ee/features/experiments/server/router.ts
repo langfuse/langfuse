@@ -15,7 +15,9 @@ import {
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type DatasetItem,
+  DatasetStatus,
   extractVariables,
+  datasetItemMatchesVariable,
   UnauthorizedError,
 } from "@langfuse/shared";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -48,11 +50,9 @@ const validateDatasetItems = (
       continue;
     }
 
-    const inputKeys = Object.keys(input);
-
     // For each variable, increment its count if it exists in this item
     for (const variable of variables) {
-      if (inputKeys.includes(variable)) {
+      if (datasetItemMatchesVariable(input, variable)) {
         variableMap[variable] = (variableMap[variable] || 0) + 1;
       }
     }
@@ -114,13 +114,14 @@ export const experimentsRouter = createTRPCRouter({
         where: {
           datasetId: input.datasetId,
           projectId: input.projectId,
+          status: DatasetStatus.ACTIVE,
         },
       });
 
       if (!Boolean(datasetItems.length)) {
         return {
           isValid: false,
-          message: "Selected dataset is empty.",
+          message: "Selected dataset is empty or all items are inactive.",
         };
       }
 

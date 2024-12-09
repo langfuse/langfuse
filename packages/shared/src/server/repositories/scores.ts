@@ -5,8 +5,11 @@ import {
   queryClickhouse,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
-import { FilterState } from "../../types";
+import {
+  Filter,
+  FilterList,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
@@ -91,6 +94,32 @@ export const getScoreById = async (
     },
   });
   return rows.map(convertToScore).shift();
+};
+
+export const getScoresByIds = async (
+  projectId: string,
+  scoreId: string[],
+  source?: ScoreSource,
+) => {
+  const query = `
+    SELECT *
+    FROM scores s
+    WHERE s.project_id = {projectId: String}
+    AND s.id IN ({scoreId: Array(String)})
+    ${source ? `AND s.source = {source: String}` : ""}
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
+  `;
+
+  const rows = await queryClickhouse<ScoreRecordReadType>({
+    query,
+    params: {
+      projectId,
+      scoreId,
+      ...(source !== undefined ? { source } : {}),
+    },
+  });
+  return rows.map(convertToScore);
 };
 
 /**
@@ -482,6 +511,22 @@ export const deleteScoresByTraceIds = async (
   });
 };
 
+export const deleteScoresByProjectId = async (projectId: string) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
 export const getNumericScoreHistogram = async (
   projectId: string,
   filter: FilterState,
@@ -492,10 +537,14 @@ export const getNumericScoreHistogram = async (
   );
   const chFilterRes = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
     select s.value
     from scores s
+    ${traceFilter ? `LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
     WHERE s.project_id = {projectId: String}
+    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     ORDER BY s.event_ts DESC
     LIMIT 1 BY s.id, s.project_id
@@ -582,4 +631,39 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     projectId: row.project_id,
     count: Number(row.count),
   }));
+};
+
+export const getDistinctScoreNames = async (
+  projectId: string,
+  cutoffCreatedAt: Date,
+  filter: FilterState,
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
+) => {
+  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+
+  const query = `
+    SELECT DISTINCT
+      name
+    FROM scores s 
+    WHERE s.project_id = {projectId: String}
+    AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
+    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
+  `;
+
+  const rows = await queryClickhouse<{ name: string }>({
+    query,
+    params: {
+      projectId,
+      cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
+      ...(scoreTimestampFilter
+        ? {
+            filterTimestamp: convertDateToClickhouseDateTime(
+              scoreTimestampFilter.value,
+            ),
+          }
+        : {}),
+    },
+  });
+
+  return rows.map((row) => row.name);
 };

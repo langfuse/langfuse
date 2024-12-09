@@ -15,10 +15,12 @@ export const StatusBadge = ({
   type,
   isLive = true,
   className,
+  showText = true,
 }: {
   type: Status | (string & {});
   isLive?: boolean;
   className?: string;
+  showText?: boolean;
 }) => {
   let badgeColor = "bg-muted-gray text-primary";
   let dotColor = "bg-muted-foreground";
@@ -66,7 +68,7 @@ export const StatusBadge = ({
           ></span>
         </span>
       )}
-      <span>{type}</span>
+      {showText && <span>{type}</span>}
     </div>
   );
 };

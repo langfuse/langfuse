@@ -21,3 +21,16 @@ export function extractVariables(mustacheString: string): string[] {
 
   return Array.from(uniqueVariables);
 }
+
+export function stringifyValue(value: unknown) {
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "number":
+      return value.toString();
+    case "boolean":
+      return value.toString();
+    default:
+      return JSON.stringify(value);
+  }
+}

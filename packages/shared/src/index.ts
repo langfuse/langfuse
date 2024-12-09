@@ -32,6 +32,9 @@ export * from "./features/scores";
 // comments
 export * from "./features/comments/types";
 
+// experiments
+export * from "./features/experiments/utils";
+
 // export db types only
 export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";

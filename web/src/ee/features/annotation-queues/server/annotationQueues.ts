@@ -5,6 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
@@ -14,7 +15,7 @@ import {
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { getObservationById, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -529,21 +530,38 @@ export const queueRouter = createTRPCRouter({
         };
 
         if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          const observation = await ctx.prisma.observation.findUnique({
-            where: {
-              id: item.objectId,
-              projectId: input.projectId,
+          await measureAndReturnApi({
+            input: { projectId: input.projectId, queryClickhouse: false },
+            operation: "fetchAndLockNext",
+            user: ctx.session.user,
+            pgExecution: async () => {
+              const observation = await ctx.prisma.observation.findUnique({
+                where: {
+                  id: item.objectId,
+                  projectId: input.projectId,
+                },
+                select: {
+                  id: true,
+                  traceId: true,
+                },
+              });
+
+              return {
+                ...inflatedUpdatedItem,
+                parentTraceId: observation?.traceId,
+              };
             },
-            select: {
-              id: true,
-              traceId: true,
+            clickhouseExecution: async () => {
+              const clickhouseObservation = await getObservationById(
+                item.objectId,
+                input.projectId,
+              );
+              return {
+                ...inflatedUpdatedItem,
+                parentTraceId: clickhouseObservation?.traceId,
+              };
             },
           });
-
-          return {
-            ...inflatedUpdatedItem,
-            parentTraceId: observation?.traceId,
-          };
         }
 
         return inflatedUpdatedItem;

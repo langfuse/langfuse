@@ -9,6 +9,7 @@ import { IngestionQueue } from "./ingestionQueue";
 import { LegacyIngestionQueue } from "./legacyIngestion";
 import { TraceUpsertQueue } from "./traceUpsert";
 import { TraceDeleteQueue } from "./traceDelete";
+import { ProjectDeleteQueue } from "./projectDelete";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -30,6 +31,8 @@ export function getQueue(queueName: QueueName): Queue | null {
       return TraceDeleteQueue.getInstance();
     case QueueName.IngestionQueue:
       return IngestionQueue.getInstance();
+    case QueueName.ProjectDelete:
+      return ProjectDeleteQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

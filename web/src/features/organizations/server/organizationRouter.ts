@@ -101,6 +101,7 @@ export const organizationsRouter = createTRPCRouter({
       const countProjects = await ctx.prisma.project.count({
         where: {
           orgId: input.orgId,
+          deletedAt: null,
         },
       });
       if (countProjects > 0) {
