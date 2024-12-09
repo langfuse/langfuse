@@ -516,6 +516,7 @@ const getObservationsTableInternal = async <T>(
       ? "count(*) as count"
       : `
         o.id as id,
+        o.project_id as "project_id",
         o.name as name,
         o."model_parameters" as model_parameters,
         o.start_time as "start_time",
