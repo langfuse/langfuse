@@ -58,6 +58,7 @@ export const projectDeleteProcessor: Processor = async (
         logger.warning(
           `Tried to delete project ${projectId} in org ${orgId}, but it does not exist`,
         );
+        return;
       }
     }
     throw e;
