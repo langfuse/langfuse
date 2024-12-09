@@ -17,6 +17,7 @@ import {
   LangfuseNotFoundError,
   Prisma,
   extractVariables,
+  stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -65,11 +66,29 @@ const validateDatasetItem = (
   if (!isValidPrismaJsonObject(itemInput)) {
     return false;
   }
-  return variables.some(
-    (variable) =>
-      Object.keys(itemInput).includes(variable) &&
-      typeof itemInput[variable] === "string",
+  return variables.some((variable) =>
+    Object.keys(itemInput).includes(variable),
   );
+};
+
+const parseDatasetItemInput = (
+  itemInput: Prisma.JsonObject,
+  variables: string[],
+): Prisma.JsonObject => {
+  try {
+    const filteredInput = Object.fromEntries(
+      Object.entries(itemInput)
+        .filter(([key]) => variables.includes(key))
+        .map(([key, value]) => [
+          key,
+          value === null ? null : stringifyValue(value),
+        ]),
+    );
+    return filteredInput;
+  } catch (error) {
+    logger.info("Error parsing dataset item input:", error);
+    return itemInput;
+  }
 };
 
 export const createExperimentJob = async ({
@@ -150,9 +169,15 @@ export const createExperimentJob = async ({
     },
   });
 
-  const validatedDatasetItems = datasetItems.filter(({ input }) =>
-    validateDatasetItem(input, extractedVariables),
-  );
+  const validatedDatasetItems = datasetItems
+    .filter(({ input }) => validateDatasetItem(input, extractedVariables))
+    .map((datasetItem) => ({
+      ...datasetItem,
+      input: parseDatasetItemInput(
+        datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
+        extractedVariables,
+      ),
+    }));
 
   if (!validatedDatasetItems.length) {
     logger.error(
@@ -188,7 +213,7 @@ export const createExperimentJob = async ({
 
     const messages = replaceVariablesInPrompt(
       validatePromptContent.data,
-      datasetItem.input as Prisma.JsonObject, // validated format
+      datasetItem.input, // validated format
       extractedVariables,
     );
 
