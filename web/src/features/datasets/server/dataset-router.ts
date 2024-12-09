@@ -13,6 +13,8 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import {
+  DatasetStatus,
+  InternalServerError,
   type PrismaClient,
   type ScoreAggregate,
   type ScoreSimplified,
@@ -29,6 +31,68 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { traceException } from "@langfuse/shared/src/server";
+import { TempFileStorage } from "@/src/features/datasets/lib/tempStorage";
+
+// refactor to reuse existing code
+function parseValue(value: string): string | Record<string, Prisma.JsonValue> {
+  // Try parsing as JSON first
+  try {
+    return JSON.parse(value);
+  } catch {
+    // If not valid JSON, use the raw string value
+    // For numbers, convert them
+    if (!isNaN(Number(value))) {
+      return Number(value).toString();
+    }
+    // For booleans, convert them
+    if (value.toLowerCase() === "true") return "true";
+    if (value.toLowerCase() === "false") return "false";
+    // For null
+    if (value.toLowerCase() === "null") return "null";
+    // Otherwise keep as string
+    return value;
+  }
+}
+
+function parseColumn(
+  column: string[],
+  row: string[],
+  headerMap: Map<string, number>,
+): string | Record<string, Prisma.JsonValue> {
+  return column.length === 1
+    ? parseValue(row[headerMap.get(column[0])!])
+    : Object.fromEntries(
+        column.map((col) => [col, parseValue(row[headerMap.get(col)!])]),
+      );
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let inQuotes = false;
+  let currentValue = "";
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Handle escaped quotes
+        currentValue += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(currentValue.trim());
+      currentValue = "";
+    } else {
+      currentValue += char;
+    }
+  }
+
+  result.push(currentValue.trim());
+  return result;
+}
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -550,6 +614,76 @@ export const datasetRouter = createTRPCRouter({
 
       return { id: newDataset.id };
     }),
+  importFromCsv: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        fileId: z.string(),
+        mapping: z.object({
+          input: z.array(z.string()),
+          expected: z.array(z.string()),
+          metadata: z.array(z.string()),
+        }),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { projectId, datasetId, fileId, mapping } = input;
+      const file = TempFileStorage.get(fileId);
+      if (!file) throw new InternalServerError("File not found or expired");
+
+      // Parse CSV content
+      const fileContent = await file.text();
+      const lines = fileContent.split(/\r?\n/).filter((line) => line.trim());
+      if (lines.length < 2) throw new Error("CSV must have headers and data");
+
+      const headers = parseCsvLine(lines[0]);
+      const headerMap = new Map(headers.map((h, i) => [h, i]));
+
+      // Validate all requested columns exist
+      const allColumns = [
+        ...mapping.input,
+        ...mapping.expected,
+        ...mapping.metadata,
+      ];
+      const missingColumns = allColumns.filter((col) => !headerMap.has(col));
+      if (missingColumns.length > 0) {
+        throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
+      }
+
+      // Process each data row
+      const items: Prisma.DatasetItemCreateManyInput[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const row = parseCsvLine(lines[i]);
+
+        try {
+          // Process all column mappings
+          const input = parseColumn(mapping.input, row, headerMap);
+          const expected = parseColumn(mapping.expected, row, headerMap);
+          const metadata = parseColumn(mapping.metadata, row, headerMap);
+
+          items.push({
+            projectId,
+            datasetId,
+            input,
+            expectedOutput: expected,
+            metadata,
+            status: DatasetStatus.ACTIVE,
+          });
+        } catch (error) {
+          throw new Error(
+            `Error processing row ${i + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
+        }
+      }
+
+      // Batch create items
+      await ctx.prisma.datasetItem.createMany({
+        data: items,
+      });
+
+      return { importedCount: items.length };
+    }),
   createDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -1002,7 +1136,7 @@ async function runsByDatasetIdPg(
       ...run,
       scores: aggregateScores(
         scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
-      ) as ScoreAggregate | undefined
+      ) as ScoreAggregate | undefined,
     })),
   };
 }

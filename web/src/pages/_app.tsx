@@ -34,6 +34,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { TempFileStorage } from "@/src/features/datasets/lib/tempStorage";
 
 const setProjectInPosthog = () => {
   // project
@@ -85,6 +86,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    TempFileStorage.initialize();
+    return () => TempFileStorage.destroy();
   }, []);
 
   return (

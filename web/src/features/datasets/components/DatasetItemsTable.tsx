@@ -42,6 +42,7 @@ import {
 import { ImportCard } from "./ImportCard";
 import { findDefaultColumn } from "../lib/findDefaultColumn";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
+import { TempFileStorage } from "@/src/features/datasets/lib/tempStorage";
 
 type RowData = {
   id: string;
@@ -134,6 +135,14 @@ export function DatasetItemsTable({
 
   const mutUpdate = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
+  });
+
+  const mutImport = api.datasets.importFromCsv.useMutation({
+    onSuccess: () => {
+      utils.datasets.invalidate();
+      setPreview(null);
+      TempFileStorage.cleanup();
+    },
   });
 
   const columns: LangfuseColumnDef<RowData>[] = [
@@ -341,8 +350,14 @@ export function DatasetItemsTable({
     }
 
     try {
+      const fileId = TempFileStorage.store(file);
+      if (!fileId) {
+        showErrorToast("Failed to parse CSV", "Memory limit exceeded");
+        event.target.value = "";
+        return;
+      }
       const preview = await parseCsvPreview(file);
-      setPreview(preview);
+      setPreview({ ...preview, fileId });
     } catch (error) {
       showErrorToast(
         "Failed to parse CSV",
@@ -442,6 +457,13 @@ export function DatasetItemsTable({
       },
     );
   };
+
+  useEffect(() => {
+    return () => {
+      // Clean up any stored files when component unmounts
+      TempFileStorage.cleanup();
+    };
+  }, []);
 
   if (items.data?.totalDatasetItems === 0) {
     return (
@@ -570,19 +592,24 @@ export function DatasetItemsTable({
                     setSelectedExpectedColumn(new Set());
                     setSelectedMetadataColumn(new Set());
                     setExcludedColumns(new Set());
+                    TempFileStorage.cleanup();
                   }}
                 >
                   Cancel
                 </Button>
                 <Button
                   disabled={selectedInputColumn.size === 0}
-                  onClick={() => {
-                    // TODO: Handle import
-                    console.log({
-                      inputColumn: selectedInputColumn,
-                      expectedColumn: selectedExpectedColumn,
-                      metadataColumn: selectedMetadataColumn,
-                      excludedColumns: Array.from(excludedColumns),
+                  onClick={async () => {
+                    if (!preview.fileId) return;
+                    mutImport.mutate({
+                      projectId,
+                      datasetId,
+                      fileId: preview.fileId,
+                      mapping: {
+                        input: Array.from(selectedInputColumn),
+                        expected: Array.from(selectedExpectedColumn),
+                        metadata: Array.from(selectedMetadataColumn),
+                      },
                     });
                   }}
                 >
@@ -598,8 +625,8 @@ export function DatasetItemsTable({
                 Your dataset has no items
               </CardTitle>
               <CardDescription>
-                Add items to the dataset by uploading a file, adding items
-                manually or via our SDKs/API
+                Add items to dataset by uploading a file, add items manually or
+                via our SDKs/API
               </CardDescription>
             </CardHeader>
             <CardContent>

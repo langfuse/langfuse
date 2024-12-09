@@ -11,6 +11,7 @@ export type CsvPreviewResult = {
   columns: CsvColumnPreview[];
   totalColumns: number;
   previewRows: number;
+  fileId?: string;
 };
 
 function parseCsvLine(line: string): string[] {
