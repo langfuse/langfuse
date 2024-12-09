@@ -43,12 +43,14 @@ export const APIObservation = z
     promptVersion: z.number().int().positive().nullable(),
 
     // usage
+    usageDetails: z.record(z.string(), z.number().nonnegative()),
+    costDetails: z.record(z.string(), z.number().nonnegative()),
     usage: z.object({
       unit: z.string().nullable(),
       input: z.number(),
       output: z.number(),
       total: z.number(),
-    }),
+    }), // backwards compatibility
     unit: z.string().nullable(), // backwards compatibility
     promptTokens: z.number(), // backwards compatibility
     completionTokens: z.number(), // backwards compatibility
@@ -89,6 +91,8 @@ export const transformDbToApiObservation = (
     observation;
 
   return {
+    usageDetails: {}, // Important: order matters here, in PG there are no usageDetails but in CH there are and will be written by rest
+    costDetails: {}, // Important: order matters here, in PG there are no costDetails but in CH there are and will be written by rest
     ...rest,
     unit,
     promptTokens,
