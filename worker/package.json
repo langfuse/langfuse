@@ -61,7 +61,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/express-serve-static-core": "^4.19.3",
-    "@types/lodash": "^4.17.10",
+    "@types/lodash": "^4.17.13",
     "@types/node": "^20.11.19",
     "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
