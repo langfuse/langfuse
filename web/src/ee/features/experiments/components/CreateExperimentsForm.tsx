@@ -70,8 +70,8 @@ import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 const CreateExperimentData = z.object({
   name: z
     .string()
-    .transform((str) => str.trim())
-    .transform((str) => (str === "" ? undefined : str))
+    .trim()
+    .transform((str) => str || undefined)
     .optional(),
   promptId: z.string().min(1, "Please select a prompt"),
   datasetId: z.string().min(1, "Please select a dataset"),
