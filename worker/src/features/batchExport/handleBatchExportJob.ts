@@ -392,7 +392,9 @@ export const getDatabaseReadStream = async ({
 
               const outputScores: Record<string, string[] | number[]> =
                 prepareScoresForOutput(filteredScores);
-              const fullTrace = fullTraces.find((t) => t.id === t.id);
+              const fullTrace = fullTraces.find(
+                (fullTrace) => fullTrace.id === t.id,
+              );
 
               return {
                 ...t,
