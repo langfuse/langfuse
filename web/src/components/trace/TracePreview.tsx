@@ -136,7 +136,9 @@ export const TracePreview = ({
                   </Badge>
                 )}
                 <BreakdownTooltip
-                  details={observations.map((o) => o.usageDetails)}
+                  details={observations
+                    .filter((o) => o.type === "GENERATION")
+                    .map((o) => o.usageDetails)}
                 >
                   <AggUsageBadge
                     observations={observations}
@@ -151,7 +153,9 @@ export const TracePreview = ({
                 )}
                 {totalCost && (
                   <BreakdownTooltip
-                    details={observations.map((o) => o.costDetails)}
+                    details={observations
+                      .filter((o) => o.type === "GENERATION")
+                      .map((o) => o.costDetails)}
                     isCost
                   >
                     <Badge variant="outline">
