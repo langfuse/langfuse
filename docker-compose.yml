@@ -1,6 +1,7 @@
 services:
   langfuse-worker:
-    image: langfuse/langfuse-worker:main # TODO: Switch to :3 after go-live
+    image: langfuse/langfuse-worker:3
+    restart: always
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -42,7 +43,8 @@ services:
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
 
   langfuse-web:
-    image: langfuse/langfuse:main # TODO: Switch to :3 after go-live
+    image: langfuse/langfuse:3
+    restart: always
     depends_on: *langfuse-depends-on
     ports:
       - "3000:3000"
@@ -66,6 +68,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server
+    restart: always
     user: "101:101"
     container_name: clickhouse
     hostname: clickhouse
@@ -88,6 +91,7 @@ services:
 
   minio:
     image: minio/minio
+    restart: always
     container_name: minio
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
