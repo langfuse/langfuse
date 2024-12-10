@@ -126,7 +126,7 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
-      usageDetails: optional<map<string, integer>>
+      usageDetails: optional<UsageDetails>
       costDetails: optional<map<string, float>>
       promptName: optional<string>
       promptVersion: optional<integer>
@@ -139,7 +139,7 @@ types:
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
       promptName: optional<string>
-      usageDetails: optional<map<string, integer>>
+      usageDetails: optional<UsageDetails>
       costDetails: optional<map<string, float>>
       promptVersion: optional<integer>
 
@@ -316,3 +316,17 @@ types:
     properties:
       successes: list<IngestionSuccess>
       errors: list<IngestionError>
+
+  OpenAIUsageSchema:
+    properties:
+      prompt_tokens: integer
+      completion_tokens: integer
+      total_tokens: integer
+      prompt_tokens_details: optional<map<string, integer>>
+      completion_tokens_details: optional<map<string, integer>>
+
+  UsageDetails:
+    discriminated: false
+    union:
+      - map<string, integer>
+      - OpenAIUsageSchema
