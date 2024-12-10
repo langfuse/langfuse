@@ -42,3 +42,6 @@ export * from "./logger";
 export * from "./queries";
 export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
+
+// test utils
+export * from "./test-utils";

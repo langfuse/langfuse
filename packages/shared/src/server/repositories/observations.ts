@@ -210,11 +210,13 @@ export const getObservationById = async (
   id: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
+  startTime?: Date,
 ) => {
   const records = await getObservationByIdInternal(
     id,
     projectId,
     fetchWithInputOutput,
+    startTime,
   );
   const mapped = records.map(convertObservation);
 
@@ -311,6 +313,7 @@ const getObservationByIdInternal = async (
   id: string,
   projectId: string,
   fetchWithInputOutput: boolean = false,
+  startTime?: Date,
 ) => {
   const query = `
   SELECT
@@ -345,11 +348,18 @@ const getObservationByIdInternal = async (
   FROM observations
   WHERE id = {id: String}
   AND project_id = {projectId: String}
+  ${startTime ? `AND start_time = {startTime: DateTime64(3)}` : ""}
   ORDER BY event_ts desc
   LIMIT 1 by id, project_id`;
   return await queryClickhouse<ObservationRecordReadType>({
     query,
-    params: { id, projectId },
+    params: {
+      id,
+      projectId,
+      ...(startTime
+        ? { startTime: convertDateToClickhouseDateTime(startTime) }
+        : {}),
+    },
   });
 };
 
@@ -506,6 +516,7 @@ const getObservationsTableInternal = async <T>(
       ? "count(*) as count"
       : `
         o.id as id,
+        o.project_id as "project_id",
         o.name as name,
         o."model_parameters" as model_parameters,
         o.start_time as "start_time",
@@ -1126,4 +1137,31 @@ export const getObservationCountOfProjectsSinceCreationDate = async ({
   });
 
   return Number(rows[0]?.count ?? 0);
+};
+
+export const getTraceIdsForObservations = async (
+  projectId: string,
+  observationIds: string[],
+) => {
+  const query = `
+    SELECT 
+      trace_id,
+      id
+    FROM observations
+    WHERE project_id = {projectId: String}
+    AND id IN ({observationIds: Array(String)})
+  `;
+
+  const rows = await queryClickhouse<{ id: string; trace_id: string }>({
+    query,
+    params: {
+      projectId,
+      observationIds,
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    traceId: row.trace_id,
+  }));
 };

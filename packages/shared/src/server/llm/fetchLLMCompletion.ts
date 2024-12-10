@@ -7,6 +7,7 @@ import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
 import {
   AIMessage,
+  BaseMessage,
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
@@ -131,14 +132,22 @@ export async function fetchLLMCompletion(
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
-  const finalMessages = messages.map((message) => {
-    if (message.role === ChatMessageRole.User)
-      return new HumanMessage(message.content);
-    if (message.role === ChatMessageRole.System)
-      return new SystemMessage(message.content);
+  let finalMessages: BaseMessage[];
+  // VertexAI requires at least 1 user message
+  if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
+    finalMessages = [new HumanMessage(messages[0].content)];
+  } else {
+    finalMessages = messages.map((message) => {
+      if (message.role === ChatMessageRole.User)
+        return new HumanMessage(message.content);
+      if (message.role === ChatMessageRole.System)
+        return new SystemMessage(message.content);
 
-    return new AIMessage(message.content);
-  });
+      return new AIMessage(message.content);
+    });
+  }
+
+  finalMessages = finalMessages.filter((m) => m.content.length > 0);
 
   let chatModel:
     | ChatOpenAI

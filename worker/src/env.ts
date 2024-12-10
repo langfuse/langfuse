@@ -106,10 +106,9 @@ const EnvSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
 
-  // TODO: Toggle for go-live and overwrite for Langfuse Cloud
   LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
 
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
@@ -142,6 +141,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

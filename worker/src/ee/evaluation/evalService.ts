@@ -40,7 +40,10 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
 import { env } from "../../env";
-import { callStructuredLLM, compileHandlebarString } from "../utilities";
+import {
+  callStructuredLLM,
+  compileHandlebarString,
+} from "../../features/utilities";
 
 let s3StorageServiceClient: StorageService;
 
@@ -469,13 +472,14 @@ export const evaluate = async ({
     source: ScoreSource.EVAL,
   };
 
-  // TODO: Remove foreign key on jobExecutions when removing this
-  await prisma.score.create({
-    data: {
-      ...baseScore,
-      projectId: event.projectId,
-    },
-  });
+  if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+    await prisma.score.create({
+      data: {
+        ...baseScore,
+        projectId: event.projectId,
+      },
+    });
+  }
 
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
