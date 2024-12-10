@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { type CsvColumnPreview } from "../lib/parseCsvFile";
+import { type CsvColumnPreview } from "@/src/features/datasets/lib/csvHelpers";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { type UniqueIdentifier } from "@dnd-kit/core";
