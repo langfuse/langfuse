@@ -1,6 +1,5 @@
 import { Job } from "bullmq";
 import { ApiError, BaseError } from "@langfuse/shared";
-import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -9,6 +8,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
+import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,

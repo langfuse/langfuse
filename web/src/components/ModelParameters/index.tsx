@@ -114,7 +114,7 @@ export const ModelParameters: React.FC<
             setModelParamEnabled={setModelParamEnabled}
             value={modelParams.max_tokens.value}
             min={1}
-            max={4096}
+            max={16384}
             step={1}
             tooltip="The maximum number of tokens that can be generated in the chat completion."
             updateModelParam={updateModelParamValue}
