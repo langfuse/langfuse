@@ -32,6 +32,7 @@ import {
   getTracesTableMetrics,
   getScoresForTraces,
   logger,
+  getTracesByIds,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
@@ -358,18 +359,28 @@ export const getDatabaseReadStream = async ({
               Math.floor(offset / pageSize),
             );
 
-            const metrics = await getTracesTableMetrics({
-              projectId,
-              filter: [
-                ...(filter ?? []),
-                {
-                  type: "stringOptions",
-                  operator: "any of",
-                  column: "ID",
-                  value: traces.map((t) => t.id),
-                },
-              ],
-            });
+            const [metrics, fullTraces] = await Promise.all([
+              getTracesTableMetrics({
+                projectId,
+                filter: [
+                  ...(filter ?? []),
+                  {
+                    type: "stringOptions",
+                    operator: "any of",
+                    column: "ID",
+                    value: traces.map((t) => t.id),
+                  },
+                ],
+              }),
+              getTracesByIds(
+                traces.map((t) => t.id),
+                projectId,
+                traces.reduce(
+                  (min, t) => (!min || t.timestamp < min ? t.timestamp : min),
+                  undefined as Date | undefined,
+                ),
+              ),
+            ]);
 
             const scores = await getScoresForTraces(
               projectId,
@@ -381,9 +392,15 @@ export const getDatabaseReadStream = async ({
 
               const outputScores: Record<string, string[] | number[]> =
                 prepareScoresForOutput(filteredScores);
+              const fullTrace = fullTraces.find(
+                (fullTrace) => fullTrace.id === t.id,
+              );
 
               return {
                 ...t,
+                input: fullTrace?.input,
+                output: fullTrace?.output,
+                metadata: fullTrace?.metadata,
                 name: t.name ?? "",
                 usage: {
                   promptTokens: metric?.promptTokens,
