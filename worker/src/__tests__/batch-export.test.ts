@@ -332,17 +332,27 @@ describe("batch export test suite", () => {
     );
   });
 
-  it("should export traces", async () => {
+  it.only("should export traces", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traces = [
       createTrace({
         project_id: projectId,
         id: randomUUID(),
+        input: "test",
+        output: "test",
+        metadata: {
+          test: "test",
+        },
       }),
       createTrace({
         project_id: projectId,
         id: randomUUID(),
+        input: "test",
+        output: "test",
+        metadata: {
+          test: "test",
+        },
       }),
     ];
 
@@ -398,9 +408,20 @@ describe("batch export test suite", () => {
         expect.objectContaining({
           id: traces[0].id,
           test: [score.value],
+          input: "test",
+          output: "test",
+          metadata: {
+            test: "test",
+          },
         }),
+
         expect.objectContaining({
           id: traces[1].id,
+          input: "test",
+          output: "test",
+          metadata: {
+            test: "test",
+          },
         }),
       ]),
     );
