@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -32,67 +31,7 @@ import {
 } from "@/src/features/datasets/server/service";
 import { traceException } from "@langfuse/shared/src/server";
 import { TempFileStorage } from "@/src/features/datasets/server/tempStorage";
-
-// refactor to reuse existing code
-function parseValue(value: string): string | Record<string, Prisma.JsonValue> {
-  // Try parsing as JSON first
-  try {
-    return JSON.parse(value);
-  } catch {
-    // If not valid JSON, use the raw string value
-    // For numbers, convert them
-    if (!isNaN(Number(value))) {
-      return Number(value).toString();
-    }
-    // For booleans, convert them
-    if (value.toLowerCase() === "true") return "true";
-    if (value.toLowerCase() === "false") return "false";
-    // For null
-    if (value.toLowerCase() === "null") return "null";
-    // Otherwise keep as string
-    return value;
-  }
-}
-
-function parseColumn(
-  column: string[],
-  row: string[],
-  headerMap: Map<string, number>,
-): string | Record<string, Prisma.JsonValue> {
-  return column.length === 1
-    ? parseValue(row[headerMap.get(column[0])!])
-    : Object.fromEntries(
-        column.map((col) => [col, parseValue(row[headerMap.get(col)!])]),
-      );
-}
-
-function parseCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let inQuotes = false;
-  let currentValue = "";
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        // Handle escaped quotes
-        currentValue += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === "," && !inQuotes) {
-      result.push(currentValue.trim());
-      currentValue = "";
-    } else {
-      currentValue += char;
-    }
-  }
-
-  result.push(currentValue.trim());
-  return result;
-}
+import { MAX_PREVIEW_ROWS, parseColumns, parseCsv } from "../lib/csvHelpers";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -620,14 +559,15 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         file: z.object({
-          base64: z.string(),
+          buffer: z.string(), // Expect a Base64-encoded string
           name: z.string(),
           type: z.string(),
         }),
       }),
     )
     .mutation(async ({ input }) => {
-      const buffer = Buffer.from(input.file.base64, "base64");
+      // Decode Base64 string back into a Buffer
+      const buffer = Buffer.from(input.file.buffer, "base64");
 
       const fileId = await TempFileStorage.store(
         buffer,
@@ -636,6 +576,19 @@ export const datasetRouter = createTRPCRouter({
       );
       return fileId;
     }),
+
+  csvPreview: protectedProjectProcedure
+    .input(z.object({ fileId: z.string(), projectId: z.string() }))
+    .mutation(async ({ input }) => {
+      const file = TempFileStorage.get(input.fileId);
+      if (!file) throw new InternalServerError("File not found or expired");
+
+      return parseCsv(file, {
+        preview: MAX_PREVIEW_ROWS + 1,
+        collectSamples: true,
+      });
+    }),
+
   importFromCsv: protectedProjectProcedure
     .input(
       z.object({
@@ -651,59 +604,54 @@ export const datasetRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { projectId, datasetId, fileId, mapping } = input;
-      console.log("fileId", fileId);
       const file = TempFileStorage.get(fileId);
       if (!file) throw new InternalServerError("File not found or expired");
 
-      // Parse CSV content
-      const fileContent = Buffer.from(file.content).toString();
-      const lines = fileContent.split(/\r?\n/).filter((line) => line.trim());
-      if (lines.length < 2) throw new Error("CSV must have headers and data");
-
-      const headers = parseCsvLine(lines[0]);
-      const headerMap = new Map(headers.map((h, i) => [h, i]));
-
-      // Validate all requested columns exist
-      const allColumns = [
-        ...mapping.input,
-        ...mapping.expected,
-        ...mapping.metadata,
-      ];
-      const missingColumns = allColumns.filter((col) => !headerMap.has(col));
-      if (missingColumns.length > 0) {
-        throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
-      }
-
-      // Process each data row
       const items: Prisma.DatasetItemCreateManyInput[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const row = parseCsvLine(lines[i]);
+      let headerMap: Map<string, number>;
 
-        try {
-          // Process all column mappings
-          const input = parseColumn(mapping.input, row, headerMap);
-          const expected = parseColumn(mapping.expected, row, headerMap);
-          const metadata = parseColumn(mapping.metadata, row, headerMap);
+      await parseCsv(file, {
+        onHeader: (headers) => {
+          headerMap = new Map(headers.map((h, i) => [h, i]));
 
-          items.push({
-            projectId,
-            datasetId,
-            input,
-            expectedOutput: expected,
-            metadata,
-            status: DatasetStatus.ACTIVE,
-          });
-        } catch (error) {
-          throw new Error(
-            `Error processing row ${i + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
-          );
-        }
-      }
+          // Validate columns exist
+          const missingColumns = [
+            ...mapping.input,
+            ...mapping.expected,
+            ...mapping.metadata,
+          ].filter((col) => !headerMap.has(col));
+          if (missingColumns.length > 0) {
+            throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
+          }
+        },
+        onRow: (row, _, index) => {
+          try {
+            // Process all column mappings
+            const input =
+              parseColumns(mapping.input, row, headerMap) ?? undefined;
+            const expectedOutput =
+              parseColumns(mapping.expected, row, headerMap) ?? undefined;
+            const metadata =
+              parseColumns(mapping.metadata, row, headerMap) ?? undefined;
 
-      // Batch create items
-      await ctx.prisma.datasetItem.createMany({
-        data: items,
+            items.push({
+              projectId: projectId,
+              datasetId: datasetId,
+              input,
+              expectedOutput,
+              metadata,
+              status: DatasetStatus.ACTIVE,
+            });
+          } catch (error) {
+            throw new Error(
+              `Error processing row ${index + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+            );
+          }
+        },
       });
+
+      await ctx.prisma.datasetItem.createMany({ data: items });
+      TempFileStorage.cleanup();
 
       return { importedCount: items.length };
     }),

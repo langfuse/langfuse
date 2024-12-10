@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { type Readable } from "stream";
 
-type StoredFile = {
+export type StoredFile = {
   content: Buffer;
   filename: string;
   mimetype: string;

@@ -11,7 +11,7 @@ import { findDefaultColumn } from "../lib/findDefaultColumn";
 import { type DragEndEvent } from "@dnd-kit/core";
 import { z } from "zod";
 import { useEffect, useState } from "react";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/parseCsvFile";
+import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 
@@ -47,11 +47,13 @@ export function PreviewCsvImport({
   projectId,
   datasetId,
   setPreview,
+  setOpen,
 }: {
   preview: CsvPreviewResult;
   projectId: string;
   datasetId: string;
   setPreview: (preview: CsvPreviewResult | null) => void;
+  setOpen?: (open: boolean) => void;
 }) {
   const [selectedInputColumn, setSelectedInputColumn] = useState<Set<string>>(
     new Set(),
@@ -147,8 +149,8 @@ export function PreviewCsvImport({
   const mutImport = api.datasets.importFromCsv.useMutation({
     onSuccess: () => {
       utils.datasets.invalidate();
+      setOpen?.(false);
       setPreview(null);
-      // TempFileStorage.cleanup(); >> need to do in trpc route
     },
   });
 
@@ -161,7 +163,7 @@ export function PreviewCsvImport({
           headers in the first row.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex max-h-full min-h-0 flex-col gap-4">
         <div className="h-3/5 overflow-hidden">
           <DndContext
             collisionDetection={closestCenter}

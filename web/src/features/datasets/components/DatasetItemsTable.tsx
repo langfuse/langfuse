@@ -10,13 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-
-import { Archive, ListTree, MoreVertical, UploadIcon } from "lucide-react";
+import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -25,21 +24,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { Input } from "@/src/components/ui/input";
-import { z } from "zod";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import {
-  type CsvPreviewResult,
-  parseCsvPreview,
-} from "@/src/features/datasets/lib/parseCsvFile";
+import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
+import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 
 type RowData = {
   id: string;
@@ -53,13 +40,6 @@ type RowData = {
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
 };
-
-const ACCEPTED_FILE_TYPES = ["text/csv", "application/csv"] as const;
-
-const FileSchema = z.object({
-  type: z.enum([...ACCEPTED_FILE_TYPES]),
-  size: z.number().min(1),
-});
 
 export function DatasetItemsTable({
   projectId,
@@ -106,8 +86,6 @@ export function DatasetItemsTable({
   const mutUpdate = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
-
-  const mutStoreCsv = api.datasets.storeCsv.useMutation({});
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
@@ -298,62 +276,6 @@ export function DatasetItemsTable({
     columns,
   );
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const result = FileSchema.safeParse(file);
-    if (!result.success) {
-      showErrorToast("Invalid file type", "Please select a valid CSV file");
-      event.target.value = "";
-      return;
-    }
-
-    try {
-      // Convert file to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === "string") {
-            // Remove the data URL prefix (e.g., "data:text/csv;base64,")
-            const base64 = reader.result.split(",")[1];
-            resolve(base64);
-          }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      const fileId = await mutStoreCsv.mutateAsync({
-        projectId,
-        datasetId,
-        file: {
-          base64,
-          name: file.name,
-          type: file.type,
-        },
-      });
-      if (!fileId) {
-        showErrorToast("Failed to parse CSV", "Memory limit exceeded");
-        event.target.value = "";
-        return;
-      }
-      const preview = await parseCsvPreview(file);
-      setPreview({ ...preview, fileId });
-    } catch (error) {
-      showErrorToast(
-        "Failed to parse CSV",
-        error instanceof Error ? error.message : "Unknown error",
-      );
-    } finally {
-      event.target.value = "";
-    }
-  };
-
   useEffect(() => {
     return () => {
       // Clean up any stored files when component unmounts
@@ -382,38 +304,11 @@ export function DatasetItemsTable({
             setPreview={setPreview}
           />
         ) : (
-          <Card className="h-full items-center justify-center p-2">
-            <CardHeader className="text-center">
-              <CardTitle className="text-lg">
-                Your dataset has no items
-              </CardTitle>
-              <CardDescription>
-                Add items to dataset by uploading a file, add items manually or
-                via our SDKs/API
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Hidden file input */}
-              <Input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept=".csv"
-                onChange={handleFileSelect}
-              />
-
-              {/* Clickable upload area */}
-              <div
-                className="flex max-h-full min-h-0 w-full cursor-pointer flex-col items-center justify-center gap-2 overflow-y-auto rounded-lg border border-dashed bg-secondary/50 p-4"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <UploadIcon className="h-6 w-6 text-secondary-foreground" />
-                <div className="text-sm text-secondary-foreground">
-                  Click to select a CSV file
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <UploadDatasetCsv
+            projectId={projectId}
+            datasetId={datasetId}
+            setPreview={setPreview}
+          />
         )}
       </>
     );
