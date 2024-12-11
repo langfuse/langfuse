@@ -80,6 +80,7 @@ export class TempFileStorage {
   static cleanupByProjectId(projectId: string) {
     for (const [id, file] of this.files.entries()) {
       if (file.projectId === projectId) {
+        this.currentSize -= file.content.length;
         this.files.delete(id);
       }
     }
