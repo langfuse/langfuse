@@ -22,10 +22,7 @@ import {
   convertToScore,
   ScoreAggregation,
 } from "./scores_converters";
-import {
-  OBSERVATIONS_TO_TRACE_INTERVAL,
-  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-} from "./constants";
+import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";

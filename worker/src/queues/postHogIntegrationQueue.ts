@@ -17,7 +17,6 @@ export const postHogIntegrationProcessor: Processor = async (job) => {
 
 export const postHogIntegrationProcessingProcessor: Processor = async (job) => {
   if (job.name === QueueJobs.PostHogIntegrationProcessingJob) {
-    logger.info("Executing PostHog Integration Processing Job");
     try {
       return await handlePostHogIntegrationProjectJob(job);
     } catch (error) {

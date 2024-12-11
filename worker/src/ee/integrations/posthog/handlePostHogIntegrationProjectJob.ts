@@ -119,6 +119,7 @@ export const handlePostHogIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.PostHogIntegrationProcessingQueue]>,
 ) => {
   const projectId = job.data.payload.projectId;
+  logger.info(`Processing PostHog integration for project ${projectId}`);
 
   // Fetch PostHog integration information for project
   const postHogIntegration = await prisma.posthogIntegration.findFirst({

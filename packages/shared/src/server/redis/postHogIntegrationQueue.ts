@@ -36,7 +36,7 @@ export class PostHogIntegrationQueue {
     });
 
     if (PostHogIntegrationQueue.instance) {
-      logger.info("Scheduling jobs for PostHogIntegrationQueue");
+      logger.debug("Scheduling jobs for PostHogIntegrationQueue");
       PostHogIntegrationQueue.instance
         .add(
           QueueJobs.PostHogIntegrationJob,
@@ -45,12 +45,6 @@ export class PostHogIntegrationQueue {
             repeat: { pattern: "0 3 * * *" }, // 3am daily
           },
         )
-        .catch((err) => {
-          logger.error("Error adding PostHogIntegrationJob schedule", err);
-        });
-
-      PostHogIntegrationQueue.instance
-        .add(QueueJobs.PostHogIntegrationJob, {})
         .catch((err) => {
           logger.error("Error adding PostHogIntegrationJob schedule", err);
         });
