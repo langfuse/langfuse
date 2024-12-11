@@ -70,6 +70,41 @@ export const apiKeysRouter = createTRPCRouter({
 
       return apiKeyMeta;
     }),
+  updateNote: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        keyId: z.string(),
+        note: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "apiKeys:create",
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.keyId,
+        action: "update",
+      });
+
+      await ctx.prisma.apiKey.update({
+        where: {
+          id: input.keyId,
+          projectId: input.projectId,
+        },
+        data: {
+          note: input.note,
+        },
+      });
+
+      // do not return the api key
+      return;
+    }),
   delete: protectedProjectProcedure
     .input(
       z.object({
