@@ -127,9 +127,6 @@ export const handlePostHogIntegrationProjectJob = async (
       projectId,
       enabled: true,
     },
-    include: {
-      project: true,
-    },
   });
 
   if (!postHogIntegration) {
