@@ -6,19 +6,20 @@ export type StoredFile = {
   filename: string;
   mimetype: string;
   expiry: number;
+  projectId: string;
 };
 
 export class TempFileStorage {
   private static files = new Map<string, StoredFile>();
 
-  private static EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-  private static MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100 MB
+  private static EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+  private static MAX_TOTAL_SIZE = 1024 * 1024 * 1024 * 2; // 2 GB
   private static currentSize = 0;
   private static cleanupInterval: NodeJS.Timeout | null = null;
 
   static initialize() {
     if (!this.cleanupInterval) {
-      this.cleanupInterval = setInterval(() => this.cleanup(), 600_000);
+      this.cleanupInterval = setInterval(() => this.cleanup(), 1_200_000); // 20 minutes
     }
   }
 
@@ -35,6 +36,7 @@ export class TempFileStorage {
     fileData: Buffer | Readable,
     filename: string,
     mimetype: string,
+    projectId: string,
   ): Promise<string> {
     const content = Buffer.isBuffer(fileData)
       ? fileData
@@ -51,6 +53,7 @@ export class TempFileStorage {
       filename,
       mimetype,
       expiry: Date.now() + this.EXPIRY_MS,
+      projectId,
     });
     this.currentSize += fileSize;
     return id;
@@ -64,7 +67,7 @@ export class TempFileStorage {
     return Buffer.concat(chunks);
   }
 
-  static cleanup() {
+  private static cleanup() {
     const now = Date.now();
     for (const [id, file] of this.files.entries()) {
       if (now > file.expiry) {
@@ -74,9 +77,17 @@ export class TempFileStorage {
     }
   }
 
-  static get(id: string): StoredFile | undefined {
+  static cleanupByProjectId(projectId: string) {
+    for (const [id, file] of this.files.entries()) {
+      if (file.projectId === projectId) {
+        this.files.delete(id);
+      }
+    }
+  }
+
+  static get(id: string, projectId: string): StoredFile | undefined {
     const file = this.files.get(id);
-    if (!file) return undefined;
+    if (!file || file.projectId !== projectId) return undefined;
 
     if (Date.now() > file.expiry) {
       this.currentSize -= file.content.length;

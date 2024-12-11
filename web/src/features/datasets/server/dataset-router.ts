@@ -573,14 +573,21 @@ export const datasetRouter = createTRPCRouter({
         buffer,
         input.file.name,
         input.file.type,
+        input.projectId,
       );
       return fileId;
+    }),
+
+  clearFileStorage: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input }) => {
+      TempFileStorage.cleanupByProjectId(input.projectId);
     }),
 
   csvPreview: protectedProjectProcedure
     .input(z.object({ fileId: z.string(), projectId: z.string() }))
     .mutation(async ({ input }) => {
-      const file = TempFileStorage.get(input.fileId);
+      const file = TempFileStorage.get(input.fileId, input.projectId);
       if (!file) throw new InternalServerError("File not found or expired");
 
       return parseCsv(file, {
@@ -604,7 +611,7 @@ export const datasetRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { projectId, datasetId, fileId, mapping } = input;
-      const file = TempFileStorage.get(fileId);
+      const file = TempFileStorage.get(fileId, projectId);
       if (!file) throw new InternalServerError("File not found or expired");
 
       const items: Prisma.DatasetItemCreateManyInput[] = [];
@@ -651,10 +658,11 @@ export const datasetRouter = createTRPCRouter({
       });
 
       await ctx.prisma.datasetItem.createMany({ data: items });
-      TempFileStorage.cleanup();
+      TempFileStorage.cleanupByProjectId(projectId);
 
       return { importedCount: items.length };
     }),
+
   createDatasetItem: protectedProjectProcedure
     .input(
       z.object({

@@ -276,13 +276,6 @@ export function DatasetItemsTable({
     columns,
   );
 
-  useEffect(() => {
-    return () => {
-      // Clean up any stored files when component unmounts
-      // TempFileStorage.cleanup(); >> need to do in trpc route
-    };
-  }, []);
-
   if (items.data?.totalDatasetItems === 0) {
     return (
       <>

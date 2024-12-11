@@ -154,6 +154,8 @@ export function PreviewCsvImport({
     },
   });
 
+  const mutClearFileStorage = api.datasets.clearFileStorage.useMutation({});
+
   return (
     <Card className="h-full items-center justify-center overflow-hidden p-2">
       <CardHeader className="text-center">
@@ -262,7 +264,7 @@ export function PreviewCsvImport({
               setSelectedExpectedColumn(new Set());
               setSelectedMetadataColumn(new Set());
               setExcludedColumns(new Set());
-              // TempFileStorage.cleanup(); >> need to do in trpc route
+              mutClearFileStorage.mutate({ projectId });
             }}
           >
             Cancel
