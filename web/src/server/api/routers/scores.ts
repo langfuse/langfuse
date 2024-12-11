@@ -466,24 +466,23 @@ export const scoresRouter = createTRPCRouter({
 
           // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
           if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "false") {
+            const updatedScore = {
+              ...clickhouseScore,
+              value: input.value ?? null,
+              stringValue: input.stringValue ?? null,
+              comment: input.comment ?? null,
+              authorUserId: ctx.session.user.id,
+              queueId: input.queueId ?? null,
+            };
             await auditLog({
               session: ctx.session,
               resourceType: "score",
               resourceId: input.id,
               action: "update",
               before: clickhouseScore,
-              after: {
-                ...clickhouseScore,
-                timestamp: convertDateToClickhouseDateTime(
-                  clickhouseScore.timestamp,
-                ),
-                value: input.value !== null ? input.value : undefined,
-                stringValue: input.stringValue,
-                comment: input.comment,
-                authorUserId: ctx.session.user.id,
-                queueId: input.queueId,
-              },
+              after: updatedScore,
             });
+            return validateDbScore(updatedScore);
           }
         }
       }
