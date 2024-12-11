@@ -688,11 +688,13 @@ export const getScoresForPostHog = async (
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM scores s
-    JOIN traces t on s.trace_id = t.id and s.project_id = t.project_id
+    LEFT JOIN traces t on s.trace_id = t.id and s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}
     AND s.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
   const records = await queryClickhouse<Record<string, unknown>>({

@@ -1195,11 +1195,13 @@ export const getGenerationsForPostHog = async (
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM observations o FINAL
-    JOIN traces t FINAL on o.trace_id = t.id and o.project_id = t.project_id
+    LEFT JOIN traces t FINAL on o.trace_id = t.id and o.project_id = t.project_id
     WHERE o.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND o.start_time >= {minTimestamp: DateTime64(3)}
     AND o.start_time <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
     AND o.type = 'GENERATION'
   `;
 
