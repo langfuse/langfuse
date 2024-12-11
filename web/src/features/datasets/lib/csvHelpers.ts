@@ -40,6 +40,22 @@ type ParseCsvOptions = {
   collectSamples?: boolean;
 };
 
+const FORMULA_TRIGGERS = ["=", "+", "-", "@", "\t", "\r", "\n"];
+
+function sanitizeCsvValue(value: string): string {
+  // Convert to string and trim
+  const str = String(value).trim();
+
+  // Check for formula triggers at start
+  if (FORMULA_TRIGGERS.some((trigger) => str.startsWith(trigger))) {
+    // Prefix with single quote to prevent formula execution
+    return `'${str}`;
+  }
+
+  // Remove any control characters
+  return str.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
+}
+
 export async function parseCsv(
   file: StoredFile,
   options: ParseCsvOptions = {},
@@ -54,6 +70,9 @@ export async function parseCsv(
       trim: true,
       bom: true,
       to: options.preview,
+      // Add quote and escape characters to prevent injection
+      quote: '"',
+      escape: '"',
     });
 
     parser.on("data", async (row: string[]) => {
@@ -61,7 +80,7 @@ export async function parseCsv(
         const currentRowIndex = rowCount++;
         if (currentRowIndex === 0) {
           // Header row
-          headerRow = row;
+          headerRow = row.map((header) => sanitizeCsvValue(header));
           if (options.collectSamples) {
             headerRow.forEach((header) => columnSamples.set(header, []));
           }
@@ -70,8 +89,10 @@ export async function parseCsv(
           }
         } else {
           // Data rows
+          const sanitizedRow = row.map((value) => sanitizeCsvValue(value));
+
           if (options.collectSamples) {
-            row.forEach((value, colIndex) => {
+            sanitizedRow.forEach((value, colIndex) => {
               const header = headerRow[colIndex];
               const samples = columnSamples.get(header) ?? [];
               samples.push(value);
@@ -79,7 +100,7 @@ export async function parseCsv(
             });
           }
           if (options.onRow) {
-            await options.onRow(row, headerRow, currentRowIndex);
+            await options.onRow(sanitizedRow, headerRow, currentRowIndex);
           }
         }
       } catch (error) {

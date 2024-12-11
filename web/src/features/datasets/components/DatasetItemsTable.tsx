@@ -289,20 +289,21 @@ export function DatasetItemsTable({
           setRowHeight={setRowHeight}
           actionButtons={menuItems}
         />
-        {preview ? (
-          <PreviewCsvImport
-            preview={preview}
-            projectId={projectId}
-            datasetId={datasetId}
-            setPreview={setPreview}
-          />
-        ) : (
-          <UploadDatasetCsv
-            projectId={projectId}
-            datasetId={datasetId}
-            setPreview={setPreview}
-          />
-        )}
+        {hasAccess &&
+          (preview ? (
+            <PreviewCsvImport
+              preview={preview}
+              projectId={projectId}
+              datasetId={datasetId}
+              setPreview={setPreview}
+            />
+          ) : (
+            <UploadDatasetCsv
+              projectId={projectId}
+              datasetId={datasetId}
+              setPreview={setPreview}
+            />
+          ))}
       </>
     );
   }

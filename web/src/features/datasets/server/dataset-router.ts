@@ -565,7 +565,13 @@ export const datasetRouter = createTRPCRouter({
         }),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
       // Decode Base64 string back into a Buffer
       const buffer = Buffer.from(input.file.buffer, "base64");
 
@@ -580,13 +586,25 @@ export const datasetRouter = createTRPCRouter({
 
   clearFileStorage: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
       TempFileStorage.cleanupByProjectId(input.projectId);
     }),
 
   csvPreview: protectedProjectProcedure
     .input(z.object({ fileId: z.string(), projectId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
       const file = TempFileStorage.get(input.fileId, input.projectId);
       if (!file) throw new InternalServerError("File not found or expired");
 
@@ -610,6 +628,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
       const { projectId, datasetId, fileId, mapping } = input;
       const file = TempFileStorage.get(fileId, projectId);
       if (!file) throw new InternalServerError("File not found or expired");
