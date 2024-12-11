@@ -5,10 +5,7 @@ import {
   queryClickhouse,
   upsertClickhouse,
 } from "./clickhouse";
-import {
-  Filter,
-  FilterList,
-} from "../queries/clickhouse-sql/clickhouse-filter";
+import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -25,9 +22,13 @@ import {
   convertToScore,
   ScoreAggregation,
 } from "./scores_converters";
-import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+} from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
+import { env } from "../../env";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -666,4 +667,62 @@ export const getDistinctScoreNames = async (
   });
 
   return rows.map((row) => row.name);
+};
+
+export const getScoresForPostHog = async (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) => {
+  const query = `
+    SELECT
+      s.id as id,
+      s.timestamp as timestamp,
+      s.name as name,
+      s.value as value,
+      s.comment as comment,
+      t.name as trace_name,
+      t.session_id as trace_session_id,
+      t.user_id as trace_user_id,
+      t.release as trace_release,
+      t.tags as trace_tags,
+      t.metadata['$posthog_session_id'] as posthog_session_id
+    FROM scores s
+    JOIN traces t on s.trace_id = t.id and s.project_id = t.project_id
+    WHERE s.project_id = {projectId: String}
+    AND t.project_id = {projectId: String}
+    AND s.timestamp >= {minTimestamp: DateTime64(3)}
+    AND s.timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = await queryClickhouse<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+  });
+
+  const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
+  return records.map((record) => ({
+    timestamp: record.timestamp,
+    langfuse_score_name: record.name,
+    langfuse_score_value: record.value,
+    langfuse_score_comment: record.comment,
+    langfuse_trace_name: record.trace_name,
+    langfuse_id: record.id,
+    langfuse_session_id: record.trace_session_id,
+    langfuse_project_id: projectId,
+    langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+    langfuse_release: record.trace_release,
+    langfuse_tags: record.trace_tags,
+    langfuse_integration_version: "1.0.0",
+    $session_id: record.posthog_session_id ?? null,
+    $set: {
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+        : null,
+    },
+  }));
 };

@@ -1,6 +1,5 @@
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { LockIcon } from "lucide-react";
 import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
@@ -20,6 +19,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
+import { ActionButton } from "@/src/components/ActionButton";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -127,7 +127,7 @@ export default function SettingsPage() {
 }
 
 const Integrations = (props: { projectId: string }) => {
-  const entitled = useHasEntitlement("integration-posthog");
+  const hasEntitlement = useHasEntitlement("integration-posthog");
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "integrations:CRUD",
@@ -144,24 +144,14 @@ const Integrations = (props: { projectId: string }) => {
           Langfuse Events/Metrics available in your Posthog Dashboards.
         </p>
         <div className="flex items-center gap-2">
-          {entitled && hasAccess ? (
-            <Button variant="secondary" asChild>
-              <Link
-                href={`/project/${props.projectId}/settings/integrations/posthog`}
-              >
-                Configure
-              </Link>
-            </Button>
-          ) : (
-            <Button variant="secondary" disabled>
-              <LockIcon className="mr-2 h-4 w-4" />
-              {!hasAccess
-                ? "Configure"
-                : !entitled
-                  ? "Public-beta on Langfuse Cloud"
-                  : ""}
-            </Button>
-          )}
+          <ActionButton
+            variant="secondary"
+            hasAccess={hasAccess}
+            hasEntitlement={hasEntitlement}
+            href={`/project/${props.projectId}/settings/integrations/posthog`}
+          >
+            Configure
+          </ActionButton>
           <Button asChild variant="ghost">
             <Link href="https://langfuse.com/docs/analytics/posthog">
               Integration Docs ↗
