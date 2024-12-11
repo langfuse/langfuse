@@ -52,7 +52,7 @@ export const apiKeysRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "apiKeys:create",
+        scope: "apiKeys:CUD",
       });
 
       const apiKeyMeta = await createAndAddApiKeysToDb({
@@ -82,7 +82,7 @@ export const apiKeysRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "apiKeys:create",
+        scope: "apiKeys:CUD",
       });
 
       await auditLog({
@@ -116,7 +116,7 @@ export const apiKeysRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "apiKeys:delete",
+        scope: "apiKeys:CUD",
       });
       await auditLog({
         session: ctx.session,

@@ -127,7 +127,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "apiKeys:delete",
+    scope: "apiKeys:CUD",
   });
 
   const utils = api.useUtils();
@@ -196,6 +196,10 @@ function ApiKeyNote({
       utils.apiKeys.invalidate();
     },
   });
+  const hasEditAccess = useHasProjectAccess({
+    projectId,
+    scope: "apiKeys:CUD",
+  });
 
   const [note, setNote] = useState(apiKey.note ?? "");
   const [isEditing, setIsEditing] = useState(false);
@@ -210,6 +214,8 @@ function ApiKeyNote({
       });
     }
   };
+
+  if (!hasEditAccess) return note ?? "";
 
   if (isEditing) {
     return (
