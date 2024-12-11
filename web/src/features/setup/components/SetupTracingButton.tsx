@@ -36,7 +36,7 @@ const SetupTracingButton = () => {
 
   const hasAccess = useHasProjectAccess({
     projectId: project?.id,
-    scope: "apiKeys:create",
+    scope: "apiKeys:CUD",
   });
 
   if (isLoading || hasAnyTrace || !project) {
