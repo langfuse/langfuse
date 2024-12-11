@@ -186,8 +186,8 @@ importers:
         specifier: ^5.12.10
         version: 5.12.10
       dd-trace:
-        specifier: ^5.23.1
-        version: 5.23.1
+        specifier: ^5.28.0
+        version: 5.28.0
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -556,8 +556,8 @@ importers:
         specifier: ^3.3.1
         version: 3.6.0
       dd-trace:
-        specifier: ^5.23.1
-        version: 5.23.1
+        specifier: ^5.28.0
+        version: 5.28.0
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -852,8 +852,8 @@ importers:
         specifier: ^2.8.5
         version: 2.8.5
       dd-trace:
-        specifier: ^5.23.1
-        version: 5.23.1
+        specifier: ^5.28.0
+        version: 5.28.0
       decimal.js:
         specifier: ^10.4.3
         version: 10.4.3
@@ -1717,24 +1717,27 @@ packages:
   '@dabh/diagnostics@2.0.3':
     resolution: {integrity: sha512-hrlQOIi7hAfzsMqlGSFyVucrx38O+j6wiGOf//H2ecvIEqYN4ADBSS2iLMh5UFyDunCNniUIPk/q3riFv45xRA==}
 
-  '@datadog/native-appsec@8.1.1':
-    resolution: {integrity: sha512-mf+Ym/AzET4FeUTXOs8hz0uLOSsVIUnavZPUx8YoKWK5lKgR2L+CLfEzOpjBwgFpDgbV8I1/vyoGelgGpsMKHA==}
+  '@datadog/libdatadog@0.2.2':
+    resolution: {integrity: sha512-rTWo96mEPTY5UbtGoFj8/wY0uKSViJhsPg/Z6aoFWBFXQ8b45Ix2e/yvf92AAwrhG+gPLTxEqTXh3kef2dP8Ow==}
+
+  '@datadog/native-appsec@8.3.0':
+    resolution: {integrity: sha512-RYHbSJ/MwJcJaLzaCaZvUyNLUKFbMshayIiv4ckpFpQJDiq1T8t9iM2k7008s75g1vRuXfsRNX7MaLn4aoFuWA==}
     engines: {node: '>=16'}
 
-  '@datadog/native-iast-rewriter@2.4.1':
-    resolution: {integrity: sha512-j3auTmyyn63e2y+SL28CGNy/l+jXQyh+pxqoGTacWaY5FW/dvo5nGQepAismgJ3qJ8VhQfVWRdxBSiT7wu9clw==}
+  '@datadog/native-iast-rewriter@2.5.0':
+    resolution: {integrity: sha512-WRu34A3Wwp6oafX8KWNAbedtDaaJO+nzfYQht7pcJKjyC2ggfPeF7SoP+eDo9wTn4/nQwEOscSR4hkJqTRlpXQ==}
     engines: {node: '>= 10'}
 
-  '@datadog/native-iast-taint-tracking@3.1.0':
-    resolution: {integrity: sha512-rw6qSjmxmu1yFHVvZLXFt/rVq2tUZXocNogPLB8n7MPpA0jijNGb109WokWw5ITImiW91GcGDuBW6elJDVKouQ==}
+  '@datadog/native-iast-taint-tracking@3.2.0':
+    resolution: {integrity: sha512-Mc6FzCoyvU5yXLMsMS9yKnEqJMWoImAukJXolNWCTm+JQYCMf2yMsJ8pBAm7KyZKliamM9rCn7h7Tr2H3lXwjA==}
 
-  '@datadog/native-metrics@2.0.0':
-    resolution: {integrity: sha512-YklGVwUtmKGYqFf1MNZuOHvTYdKuR4+Af1XkWcMD8BwOAjxmd9Z+97328rCOY8TFUJzlGUPaXzB8j2qgG/BMwA==}
-    engines: {node: '>=12'}
+  '@datadog/native-metrics@3.0.1':
+    resolution: {integrity: sha512-0GuMyYyXf+Qpb/F+Fcekz58f2mO37lit9U3jMbWY/m8kac44gCPABzL5q3gWbdH+hWgqYfQoEYsdNDGSrKfwoQ==}
+    engines: {node: '>=16'}
 
-  '@datadog/pprof@5.3.0':
-    resolution: {integrity: sha512-53z2Q3K92T6Pf4vz4Ezh8kfkVEvLzbnVqacZGgcbkP//q0joFzO8q00Etw1S6NdnCX0XmX08ULaF4rUI5r14mw==}
-    engines: {node: '>=14'}
+  '@datadog/pprof@5.4.1':
+    resolution: {integrity: sha512-IvpL96e/cuh8ugP5O8Czdup7XQOLHeIDgM5pac5W7Lc1YzGe5zTtebKFpitvb1CPw1YY+1qFx0pWGgKP2kOfHg==}
+    engines: {node: '>=16'}
 
   '@datadog/sketches-js@2.1.1':
     resolution: {integrity: sha512-d5RjycE+MObE/hU+8OM5Zp4VjTwiPLRa8299fj7muOmR16fb942z8byoMbCErnGh0lBevvgkGrLclQDvINbIyg==}
@@ -2265,6 +2268,10 @@ packages:
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
 
+  '@isaacs/ttlcache@1.4.1':
+    resolution: {integrity: sha512-RQgQ4uQ+pLbqXfOmieB91ejmLwvSgv9nLx6sT6sD83s7umBypgg+OIBOBbEUiJXrfpnp9j0mRhYYdzp9uqq3lA==}
+    engines: {node: '>=12'}
+
   '@istanbuljs/load-nyc-config@1.1.0':
     resolution: {integrity: sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ==}
     engines: {node: '>=8'}
@@ -2368,18 +2375,6 @@ packages:
 
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
-
-  '@jsep-plugin/assignment@1.2.1':
-    resolution: {integrity: sha512-gaHqbubTi29aZpVbBlECRpmdia+L5/lh2BwtIJTmtxdbecEyyX/ejAOg7eQDGNvGOUmPY7Z2Yxdy9ioyH/VJeA==}
-    engines: {node: '>= 10.16.0'}
-    peerDependencies:
-      jsep: ^0.4.0||^1.0.0
-
-  '@jsep-plugin/regex@1.0.3':
-    resolution: {integrity: sha512-XfZgry4DwEZvSFtS/6Y+R48D7qJYJK6R9/yJFyUFHCIUMEEHuJ4X95TDgJp5QkmzfLYvapMPzskV5HpIDrREug==}
-    engines: {node: '>= 10.16.0'}
-    peerDependencies:
-      jsep: ^0.4.0||^1.0.0
 
   '@langchain/anthropic@0.3.8':
     resolution: {integrity: sha512-7qeRDhNnCf1peAbjY825R2HNszobJeGvqi2cfPl+YsduDIYEGUzfoGRRarPI5joIGX5YshCsch6NFtap2bLfmw==}
@@ -2810,12 +2805,6 @@ packages:
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
-  '@opentelemetry/core@1.25.1':
-    resolution: {integrity: sha512-GeT/l6rBYWVQ4XArluLVB6WWQ8flHbdb6r2FCHC3smtdOAbrJBIv35tpV/yp9bmYUJf+xmZpu9DRTIeJVhFbEQ==}
-    engines: {node: '>=14'}
-    peerDependencies:
-      '@opentelemetry/api': '>=1.0.0 <1.10.0'
-
   '@opentelemetry/core@1.26.0':
     resolution: {integrity: sha512-1iKxXXE8415Cdv0yjG3G6hQnB5eVEsJce3QaawX8SjDn0mAS0ZM8fAbZZJD4ajvhC15cePvosSCut404KrIIvQ==}
     engines: {node: '>=14'}
@@ -3131,10 +3120,6 @@ packages:
     engines: {node: '>=14'}
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
-
-  '@opentelemetry/semantic-conventions@1.25.1':
-    resolution: {integrity: sha512-ZDjMJJQRlyk8A1KZFCc+bCbsyrn1wTwdNt56F7twdfUfnHUZUq77/WfONCj8p72NZOyP7pNTdUWSTYC3GTbuuQ==}
-    engines: {node: '>=14'}
 
   '@opentelemetry/semantic-conventions@1.27.0':
     resolution: {integrity: sha512-sAay1RrB+ONOem0OZanAR1ZI/k7yDpnOQSQmTMuGImUQb2y8EbSaCJ94FQluM74xoU03vlb2d2U90hZluL6nQg==}
@@ -6376,8 +6361,8 @@ packages:
     resolution: {integrity: sha512-UV33cugmCC49a5uWAApM+6Ev9ZdvIUMTrtCO9fj96TPGOQiea54oeO3tiEVdVeo3J9N2UdJEmbS4zOkkEA35uQ==}
     engines: {node: '>=12.17'}
 
-  dd-trace@5.23.1:
-    resolution: {integrity: sha512-cdpJuiP1sYVgyagTt+BBjN3Wfa24a/fZw2L1oXg885uUy3bK9GYTiX0U6njlXY4krDiCZt+hii1sGEQPLYK6TQ==}
+  dd-trace@5.28.0:
+    resolution: {integrity: sha512-jyF7JLx2Yw16MHcD97sYKXbVd7ZT1hKJ5/NkRRGeG9cgen5+d/ilIvfzgh2qRjeow+9a5ligoZoUOYJ3nYn9hw==}
     engines: {node: '>=18'}
 
   debug@2.6.9:
@@ -8250,10 +8235,6 @@ packages:
       canvas:
         optional: true
 
-  jsep@1.3.9:
-    resolution: {integrity: sha512-i1rBX5N7VPl0eYb6+mHNp52sEuaS2Wi8CDYx1X5sn9naevL78+265XJqy1qENEk7mRKwS06NHpUqiBwR7qeodw==}
-    engines: {node: '>= 10.16.0'}
-
   jsesc@0.5.0:
     resolution: {integrity: sha512-uZz5UnB7u4T9LvwmFqXii7pZSouaRPorGs5who1Ip7VO0wxanFvBL7GkM6dTHlgX+jhBApRetaWpnDabOeTcnA==}
     hasBin: true
@@ -8302,11 +8283,6 @@ packages:
 
   jsonfile@6.1.0:
     resolution: {integrity: sha512-5dgndWOriYSm5cnYaJNhalLNDKOqFwyDB/rr1E9ZsGciGvKPs8R2xYGCacuf3z6K1YKDz182fd+fY3cn3pMqXQ==}
-
-  jsonpath-plus@10.0.7:
-    resolution: {integrity: sha512-GDA8d8fu9+s4QzAzo5LMGiLL/9YjecAX+ytlnqdeXYpU55qME57StDgaHt9R2pA7Dr8U31nwzxNJMJiHkrkRgw==}
-    engines: {node: '>=18.0.0'}
-    hasBin: true
 
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
@@ -13285,25 +13261,27 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
-  '@datadog/native-appsec@8.1.1':
+  '@datadog/libdatadog@0.2.2': {}
+
+  '@datadog/native-appsec@8.3.0':
     dependencies:
       node-gyp-build: 3.9.0
 
-  '@datadog/native-iast-rewriter@2.4.1':
+  '@datadog/native-iast-rewriter@2.5.0':
     dependencies:
       lru-cache: 7.18.3
       node-gyp-build: 4.8.2
 
-  '@datadog/native-iast-taint-tracking@3.1.0':
+  '@datadog/native-iast-taint-tracking@3.2.0':
     dependencies:
       node-gyp-build: 3.9.0
 
-  '@datadog/native-metrics@2.0.0':
+  '@datadog/native-metrics@3.0.1':
     dependencies:
       node-addon-api: 6.1.0
       node-gyp-build: 3.9.0
 
-  '@datadog/pprof@5.3.0':
+  '@datadog/pprof@5.4.1':
     dependencies:
       delay: 5.0.0
       node-gyp-build: 3.9.0
@@ -13765,6 +13743,8 @@ snapshots:
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
 
+  '@isaacs/ttlcache@1.4.1': {}
+
   '@istanbuljs/load-nyc-config@1.1.0':
     dependencies:
       camelcase: 5.3.1
@@ -14003,14 +13983,6 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.0
 
   '@js-sdsl/ordered-map@4.4.2': {}
-
-  '@jsep-plugin/assignment@1.2.1(jsep@1.3.9)':
-    dependencies:
-      jsep: 1.3.9
-
-  '@jsep-plugin/regex@1.0.3(jsep@1.3.9)':
-    dependencies:
-      jsep: 1.3.9
 
   '@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.72.0(zod@3.23.8)))':
     dependencies:
@@ -14480,10 +14452,10 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.0
 
-  '@opentelemetry/core@1.25.1(@opentelemetry/api@1.8.0)':
+  '@opentelemetry/core@1.26.0(@opentelemetry/api@1.8.0)':
     dependencies:
       '@opentelemetry/api': 1.8.0
-      '@opentelemetry/semantic-conventions': 1.25.1
+      '@opentelemetry/semantic-conventions': 1.27.0
 
   '@opentelemetry/core@1.26.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -14935,8 +14907,6 @@ snapshots:
       '@opentelemetry/propagator-jaeger': 1.26.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 1.26.0(@opentelemetry/api@1.9.0)
       semver: 7.6.3
-
-  '@opentelemetry/semantic-conventions@1.25.1': {}
 
   '@opentelemetry/semantic-conventions@1.27.0': {}
 
@@ -18853,24 +18823,25 @@ snapshots:
 
   dc-polyfill@0.1.6: {}
 
-  dd-trace@5.23.1:
+  dd-trace@5.28.0:
     dependencies:
-      '@datadog/native-appsec': 8.1.1
-      '@datadog/native-iast-rewriter': 2.4.1
-      '@datadog/native-iast-taint-tracking': 3.1.0
-      '@datadog/native-metrics': 2.0.0
-      '@datadog/pprof': 5.3.0
+      '@datadog/libdatadog': 0.2.2
+      '@datadog/native-appsec': 8.3.0
+      '@datadog/native-iast-rewriter': 2.5.0
+      '@datadog/native-iast-taint-tracking': 3.2.0
+      '@datadog/native-metrics': 3.0.1
+      '@datadog/pprof': 5.4.1
       '@datadog/sketches-js': 2.1.1
+      '@isaacs/ttlcache': 1.4.1
       '@opentelemetry/api': 1.8.0
-      '@opentelemetry/core': 1.25.1(@opentelemetry/api@1.8.0)
+      '@opentelemetry/core': 1.26.0(@opentelemetry/api@1.8.0)
       crypto-randomuuid: 1.0.0
       dc-polyfill: 0.1.6
-      ignore: 5.3.1
+      ignore: 5.3.2
       import-in-the-middle: 1.11.2
       int64-buffer: 0.1.10
       istanbul-lib-coverage: 3.2.0
       jest-docblock: 29.7.0
-      jsonpath-plus: 10.0.7
       koalas: 1.0.2
       limiter: 1.1.5
       lodash.sortby: 4.7.0
@@ -18883,7 +18854,7 @@ snapshots:
       protobufjs: 7.3.2
       retry: 0.13.1
       rfdc: 1.4.1
-      semver: 7.6.2
+      semver: 7.6.3
       shell-quote: 1.8.1
       tlhunter-sorted-set: 0.1.0
 
@@ -21378,8 +21349,6 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  jsep@1.3.9: {}
-
   jsesc@0.5.0: {}
 
   jsesc@2.5.2: {}
@@ -21417,12 +21386,6 @@ snapshots:
       universalify: 2.0.1
     optionalDependencies:
       graceful-fs: 4.2.11
-
-  jsonpath-plus@10.0.7:
-    dependencies:
-      '@jsep-plugin/assignment': 1.2.1(jsep@1.3.9)
-      '@jsep-plugin/regex': 1.0.3(jsep@1.3.9)
-      jsep: 1.3.9
 
   jsonpointer@5.0.1: {}
 
