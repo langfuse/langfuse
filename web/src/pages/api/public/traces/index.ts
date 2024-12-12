@@ -206,10 +206,7 @@ export default withMiddlewares({
             },
           };
         },
-        clickhouseExecution: async () => {
-          if (query.page === 0) {
-            throw new InvalidRequestError("Page must be greater than 0");
-          }
+        clickhouseExecution: async () => {    
 
           const filterProps = {
             projectId: auth.scope.projectId,
