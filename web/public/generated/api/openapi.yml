@@ -3072,6 +3072,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        log:
+          type: string
+          nullable: true
       required:
         - id
         - datasetRunId
