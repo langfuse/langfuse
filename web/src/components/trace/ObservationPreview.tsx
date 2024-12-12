@@ -38,6 +38,8 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { BreakdownTooltip } from "./BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export const ObservationPreview = ({
   observations,
@@ -185,11 +187,22 @@ export const ObservationPreview = ({
                   </Badge>
                 ) : null}
                 {preloadedObservation.type === "GENERATION" && (
-                  <Badge variant="outline">
-                    {preloadedObservation.promptTokens} prompt →{" "}
-                    {preloadedObservation.completionTokens} completion (∑{" "}
-                    {preloadedObservation.totalTokens})
-                  </Badge>
+                  <BreakdownTooltip
+                    details={preloadedObservation.usageDetails}
+                    isCost={false}
+                  >
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      <span>
+                        {preloadedObservation.promptTokens} prompt →{" "}
+                        {preloadedObservation.completionTokens} completion (∑{" "}
+                        {preloadedObservation.totalTokens})
+                      </span>
+                      <InfoIcon className="h-3 w-3" />
+                    </Badge>
+                  </BreakdownTooltip>
                 )}
                 {preloadedObservation.version ? (
                   <Badge variant="outline">
@@ -200,9 +213,18 @@ export const ObservationPreview = ({
                   <Badge variant="outline">{preloadedObservation.model}</Badge>
                 ) : null}
                 {thisCost ? (
-                  <Badge variant="outline">
-                    {usdFormatter(thisCost.toNumber())}
-                  </Badge>
+                  <BreakdownTooltip
+                    details={preloadedObservation.costDetails}
+                    isCost={true}
+                  >
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      <span>{usdFormatter(thisCost.toNumber())}</span>
+                      <InfoIcon className="h-3 w-3" />
+                    </Badge>
+                  </BreakdownTooltip>
                 ) : undefined}
                 {totalCost && totalCost !== thisCost ? (
                   <Badge variant="outline">

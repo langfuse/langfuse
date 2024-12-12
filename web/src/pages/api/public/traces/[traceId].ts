@@ -9,7 +9,6 @@ import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   filterAndValidateDbScoreList,
   LangfuseNotFoundError,
-  type ObservationView,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -125,7 +124,7 @@ export default withMiddlewares({
                 })
               : [];
 
-          const observationsView: ObservationView[] = observations.map((o) => {
+          const observationsView = observations.map((o) => {
             const model = models.find((m) => m.id === o.modelId);
             const inputPrice =
               model?.Price.find((p) => p.usageType === "input")?.price ??
