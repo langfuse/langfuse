@@ -84,7 +84,7 @@ export function DeleteOrganizationButton() {
           </DialogTitle>
           <DialogDescription>
             {hasProjects
-              ? "You can only delete an organization if it has no projects associated with it. Please delete all projects first."
+              ? "You can only delete an organization if it has no projects associated with it. Please delete or transfer all projects first. Deleting projects may take a few minutes."
               : `To confirm, type "${confirmMessage}" in the input box `}
           </DialogDescription>
         </DialogHeader>
