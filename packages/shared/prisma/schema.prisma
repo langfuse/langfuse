@@ -679,6 +679,7 @@ model DatasetRunItems {
   observationId String?     @map("observation_id")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+  log           String?     @map("log")
 
   @@id([id, projectId])
   @@index([datasetRunId], type: Hash)
