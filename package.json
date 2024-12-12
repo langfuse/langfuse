@@ -81,10 +81,10 @@
       }
     }
   },
+  "packageManager": "pnpm@9.5.0",
   "pnpm": {
     "overrides": {
       "jsonpath-plus": "10.0.7"
     }
-  },
-  "packageManager": "pnpm@9.5.0"
+  }
 }
