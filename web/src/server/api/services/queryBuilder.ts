@@ -20,7 +20,7 @@ export type InternalDatabaseRow = {
 };
 
 export type DatabaseRow = {
-  [key: string]: string | number | Date | null;
+  [key: string]: string | number | Date | null | object;
 };
 
 export const executeQuery = async (
