@@ -68,7 +68,11 @@ import { Input } from "@/src/components/ui/input";
 import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 
 const CreateExperimentData = z.object({
-  name: z.string().min(1, "Please enter a name").optional(),
+  name: z
+    .union([z.string().length(0), z.string().min(1)])
+    .optional()
+    .transform((str) => str?.trim())
+    .transform((str) => (str === "" ? undefined : str)),
   promptId: z.string().min(1, "Please select a prompt"),
   datasetId: z.string().min(1, "Please select a dataset"),
   description: z.string().max(1000).optional(),
