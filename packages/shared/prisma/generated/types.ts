@@ -217,6 +217,7 @@ export type DatasetRunItems = {
     observation_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    log: string | null;
 };
 export type DatasetRuns = {
     id: string;

@@ -330,6 +330,7 @@ types:
       observationId: optional<string>
       createdAt: datetime
       updatedAt: datetime
+      log: optional<string>
   DatasetRun:
     properties:
       id:

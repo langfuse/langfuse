@@ -586,6 +586,7 @@ export const getRunItemsByRunIdOrItemId = async (
       id: ri.id,
       createdAt: ri.createdAt,
       datasetItemId: ri.datasetItemId,
+      log: ri.log,
       observation,
       trace,
       scores: aggregateScores([

@@ -9,6 +9,7 @@ import {
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
+import { TRACE_ID_FAILED_TO_CREATE } from "@langfuse/shared";
 import { ClockIcon, ListTree } from "lucide-react";
 import { type ReactNode } from "react";
 
@@ -37,7 +38,8 @@ const DatasetAggregateCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId },
     {
-      enabled: observationId === undefined,
+      enabled:
+        observationId === undefined && traceId !== TRACE_ID_FAILED_TO_CREATE,
       trpc: {
         context: {
           skipBatch: true,
@@ -72,6 +74,12 @@ const DatasetAggregateCell = ({
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
+
+  if (traceId === TRACE_ID_FAILED_TO_CREATE) {
+    return (
+      <IOTableCell isLoading={false} data={null} singleLine={singleLine} />
+    );
+  }
 
   return (
     <div

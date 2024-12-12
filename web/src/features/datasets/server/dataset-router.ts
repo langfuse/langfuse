@@ -651,6 +651,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: string;
           projectId: string;
           datasetRunId: string;
+          log: string | null;
         }>
       >`
         SELECT 
@@ -662,7 +663,8 @@ export const datasetRouter = createTRPCRouter({
           dri.created_at AS "createdAt",
           dri.updated_at AS "updatedAt",
           dri.project_id AS "projectId",
-          dri.dataset_run_id AS "datasetRunId"
+          dri.dataset_run_id AS "datasetRunId",
+          dri.log
         FROM dataset_run_items dri
         INNER JOIN dataset_items di
           ON dri.dataset_item_id = di.id 
@@ -767,6 +769,7 @@ export const datasetRouter = createTRPCRouter({
               scores: aggregateScores(
                 validatedTraceScores.filter((s) => s.traceId === ri.traceId),
               ),
+              log: ri.log,
             };
           });
 
@@ -778,6 +781,7 @@ export const datasetRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
+
           return {
             totalRunItems,
             runItems: await getRunItemsByRunIdOrItemId(
@@ -1002,7 +1006,7 @@ async function runsByDatasetIdPg(
       ...run,
       scores: aggregateScores(
         scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
-      ) as ScoreAggregate | undefined
+      ) as ScoreAggregate | undefined,
     })),
   };
 }

@@ -49,6 +49,7 @@ const APIDatasetRunItem = z
     observationId: z.string().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+    log: z.string().nullable(),
   })
   .strict();
 
