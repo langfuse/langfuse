@@ -19,6 +19,7 @@ import {
   extractVariables,
   datasetItemMatchesVariable,
   stringifyValue,
+  TRACE_ID_FAILED_TO_CREATE,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -251,21 +252,36 @@ export const createExperimentJob = async ({
       },
     };
 
-    await backOff(
-      async () =>
-        await callLLM(
-          datasetItem.id,
-          parsedKey.data,
-          messages,
-          model_params,
-          provider,
-          model,
-          traceParams,
-        ),
-      {
-        numOfAttempts: 5, // turn off retries as Langchain is doing that for us already.
-      },
-    );
+    try {
+      await backOff(
+        async () =>
+          await callLLM(
+            datasetItem.id,
+            parsedKey.data,
+            messages,
+            model_params,
+            provider,
+            model,
+            traceParams,
+          ),
+        {
+          numOfAttempts: 5, // turn off retries as Langchain is doing that for us already.
+        },
+      );
+    } catch (e) {
+      const errorMessage =
+        e instanceof Error
+          ? e.message
+          : "Dataset run item failed to call LLM. No valid trace created.";
+      const log = errorMessage + "Eval will fail.";
+
+      await prisma.datasetRunItems.update({
+        where: {
+          id_projectId: { id: runItem.id, projectId: runItem.projectId },
+        },
+        data: { log, traceId: TRACE_ID_FAILED_TO_CREATE },
+      });
+    }
 
     /********************
      * ASYNC RUN ITEM EVAL *
