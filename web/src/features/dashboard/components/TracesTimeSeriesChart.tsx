@@ -137,14 +137,12 @@ export const TracesAndObservationsTimeSeriesChart = ({
       data: transformedTraces,
       totalMetric: total,
       metricDescription: `Traces tracked`,
-      // formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Observations",
+      tabTitle: "Observations by Level",
       data: transformedObservations,
       totalMetric: totalObservations,
       metricDescription: `Observations tracked`,
-      // formatter: oneValueUsdFormatter,
     },
   ];
 
