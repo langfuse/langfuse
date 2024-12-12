@@ -59,8 +59,6 @@ export const checkTraceExists = async (
   const tracesFilterRes = tracesFilter.apply();
   const observationFilterRes = observationFilter?.apply();
 
-  console.log(JSON.stringify(observationFilter, null, 2));
-
   const query = `
     WITH observations_agg AS (
         SELECT
@@ -88,9 +86,6 @@ export const checkTraceExists = async (
     ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY t.id, t.project_id
   `;
-
-  console.log(JSON.stringify(tracesFilter, null, 2));
-  console.log(query);
 
   const rows = await queryClickhouse<{ id: string; project_id: string }>({
     query,
