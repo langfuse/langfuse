@@ -42,6 +42,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import {
+  type AdapterUser,
+  type Adapter,
+  type AdapterAccount,
+} from "next-auth/adapters";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   // if no allowlist is set or no active EE key, allow all users to create organizations
@@ -306,7 +311,7 @@ if (
 const prismaAdapter = PrismaAdapter(prisma);
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
-  async createUser(profile) {
+  async createUser(profile: Omit<AdapterUser, "id">) {
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
     if (
@@ -329,7 +334,7 @@ const extendedPrismaAdapter: Adapter = {
     return user;
   },
 
-  async linkAccount(data) {
+  async linkAccount(data: AdapterAccount) {
     if (!prismaAdapter.linkAccount)
       throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
 
