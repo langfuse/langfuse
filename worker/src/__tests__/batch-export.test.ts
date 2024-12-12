@@ -339,20 +339,10 @@ describe("batch export test suite", () => {
       createTrace({
         project_id: projectId,
         id: randomUUID(),
-        input: "test",
-        output: "test",
-        metadata: {
-          test: "test",
-        },
       }),
       createTrace({
         project_id: projectId,
         id: randomUUID(),
-        input: "test",
-        output: "test",
-        metadata: {
-          test: "test",
-        },
       }),
     ];
 
@@ -408,20 +398,9 @@ describe("batch export test suite", () => {
         expect.objectContaining({
           id: traces[0].id,
           test: [score.value],
-          input: "test",
-          output: "test",
-          metadata: {
-            test: "test",
-          },
         }),
-
         expect.objectContaining({
           id: traces[1].id,
-          input: "test",
-          output: "test",
-          metadata: {
-            test: "test",
-          },
         }),
       ]),
     );
@@ -433,20 +412,30 @@ describe("batch export test suite", () => {
       createTrace({
         project_id: projectId,
         id: randomUUID(),
-        name: "trace1",
+        name: "trace0",
         timestamp: new Date("2024-01-01").getTime(),
+        bookmarked: true,
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        name: "trace1",
+        timestamp: new Date("2024-01-02").getTime(),
+        bookmarked: true,
       }),
       createTrace({
         project_id: projectId,
         id: randomUUID(),
         name: "trace2",
         timestamp: new Date("2024-01-02").getTime(),
+        bookmarked: false,
       }),
       createTrace({
         project_id: projectId,
         id: randomUUID(),
         name: "trace3",
-        timestamp: new Date("2024-01-03").getTime(),
+        timestamp: new Date("2024-01-02").getTime(),
+        bookmarked: false,
       }),
     ];
 
@@ -455,13 +444,19 @@ describe("batch export test suite", () => {
     const stream = await getDatabaseReadStream({
       projectId: projectId,
       tableName: BatchExportTableName.Traces,
-      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      cutoffCreatedAt: new Date("2024-01-02"),
       filter: [
         {
           type: "stringOptions",
           operator: "any of",
           column: "name",
-          value: ["trace1", "trace2"],
+          value: ["trace0", "trace2"],
+        },
+        {
+          type: "boolean",
+          operator: "=",
+          column: "bookmarked",
+          value: true,
         },
       ],
       orderBy: { column: "timestamp", order: "ASC" },
@@ -473,14 +468,11 @@ describe("batch export test suite", () => {
       rows.push(chunk);
     }
 
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "trace1",
-        }),
-        expect.objectContaining({
-          name: "trace2",
+          name: "trace0",
         }),
       ]),
     );

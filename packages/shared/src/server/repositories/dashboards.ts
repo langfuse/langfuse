@@ -1,4 +1,7 @@
-import { queryClickhouse } from "./clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { FilterState } from "../../types";
 import {
@@ -624,6 +627,50 @@ export const getCategoricalScoreTimeSeries = async (
       ...(chFilterRes ? chFilterRes.params : {}),
     },
   });
+};
+
+export const getObservationsStatusTimeSeries = async (
+  projectId: string,
+  filter: FilterState,
+  groupBy: DateTrunc | undefined,
+) => {
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
+  const query = `
+    SELECT 
+      ${groupBy ? selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket") + ", " : ""}
+      count(*) as observation_count,
+      level as level
+    FROM observations o
+    ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+    WHERE project_id = {projectId: String}
+    AND o.level IS NOT NULL
+    AND ${chFilterRes?.query}
+    GROUP BY level ${groupBy ? ", start_time_bucket" : ""}
+    ${groupBy ? orderByTimeSeries(groupBy, "start_time_bucket") : ""}
+  `;
+
+  const result = await queryClickhouse<{
+    start_time_bucket?: string;
+    observation_count: string;
+    level: string;
+  }>({
+    query,
+    params: { projectId, ...(chFilterRes ? chFilterRes.params : {}) },
+  });
+
+  return result.map((row) => ({
+    start_time_bucket: row.start_time_bucket
+      ? parseClickhouseUTCDateTimeFormat(row.start_time_bucket)
+      : undefined,
+    count: Number(row.observation_count),
+    level: row.level,
+  }));
 };
 
 const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {

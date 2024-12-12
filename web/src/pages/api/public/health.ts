@@ -2,7 +2,12 @@ import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, traceException } from "@langfuse/shared/src/server";
+import {
+  convertDateToClickhouseDateTime,
+  logger,
+  queryClickhouse,
+  traceException,
+} from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(
@@ -31,35 +36,37 @@ export default async function handler(
 
     try {
       if (failIfNoRecentEvents) {
-        const now = Date.now();
-        const trace = await prisma.trace.findFirst({
-          where: {
-            createdAt: {
-              gte: new Date(now - 180000), // 3 minutes ago
-              lte: new Date(now),
-            },
-          },
-          select: {
-            id: true,
-          },
-        });
-        const observation = await prisma.observation.findFirst({
-          where: {
-            createdAt: {
-              gte: new Date(now - 180000), // 3 minutes ago
-              lte: new Date(now),
-            },
-          },
-          select: {
-            id: true,
+        const now = new Date();
+        const traces = await queryClickhouse({
+          query: `
+            SELECT id
+            FROM traces
+            WHERE created_at <= {now: DateTime64(3)}
+            AND created_at >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+            LIMIT 1
+          `,
+          params: {
+            now: convertDateToClickhouseDateTime(now),
           },
         });
-        if (!!!trace || !!!observation) {
+        const observations = await queryClickhouse({
+          query: `
+            SELECT id
+            FROM observations
+            WHERE created_at <= {now: DateTime64(3)}
+            AND created_at >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+            LIMIT 1
+          `,
+          params: {
+            now: convertDateToClickhouseDateTime(now),
+          },
+        });
+        if (traces.length === 0 || observations.length === 0) {
           return res.status(503).json({
             status: `No ${
-              !!!trace
+              traces.length === 0
                 ? "traces"
-                : !!!observation
+                : observations.length === 0
                   ? "observations"
                   : "<should not happen>"
             } within the last 3 minutes`,
