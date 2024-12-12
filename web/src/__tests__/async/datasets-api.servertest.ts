@@ -69,8 +69,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     await createObservationsCh([observation]);
   });
 
-  afterEach(async () => await pruneDatabase());
-
   it("should create and get a dataset (v1), include special characters", async () => {
     const createRes = await makeZodVerifiedAPICall(
       PostDatasetsV1Response,
@@ -159,6 +157,63 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(getDatasetV2.body).not.toHaveProperty("items");
     expect(getDatasetV2.body).not.toHaveProperty("runs");
+  });
+
+  it("should not return ARCHIVED dataset items when getting a dataset", async () => {
+    // Create dataset
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-with-archived",
+        description: "dataset with archived items",
+      },
+      auth,
+    );
+
+    // Create an archived dataset item
+    const archivedItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-with-archived",
+        id: "archived-item-id",
+        input: { key: "value" },
+        status: "ARCHIVED",
+      },
+      auth,
+    );
+    expect(archivedItem.status).toBe(200);
+
+    // Create an active dataset item
+    const activeItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-with-archived",
+        id: "active-item-id",
+        input: { key: "value" },
+        status: "ACTIVE",
+      },
+      auth,
+    );
+    expect(activeItem.status).toBe(200);
+
+    // Get dataset and verify only active item is returned
+    const getDataset = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent("dataset-with-archived")}`,
+      undefined,
+      auth,
+    );
+
+    expect(getDataset.status).toBe(200);
+    expect(getDataset.body.items).toHaveLength(1);
+    expect(getDataset.body.items[0].id).toEqual("active-item-id");
   });
 
   it("GET datasets (v1 & v2)", async () => {
@@ -306,6 +361,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     }
     const dbDatasetItems = await prisma.datasetItem.findMany({
       where: {
+        projectId: projectId,
         dataset: {
           name: "dataset-name",
         },
@@ -348,6 +404,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     const dbDatasetItemsOther = await prisma.datasetItem.findMany({
       where: {
+        projectId: projectId,
         dataset: {
           name: "dataset-name-other",
         },
@@ -613,6 +670,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     const dbRunObservation = await prisma.datasetRuns.findFirst({
       where: {
+        projectId,
         name: "run + only + observation",
       },
       include: {
@@ -674,6 +732,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const dbRunTrace = await prisma.datasetRuns.findFirst({
       where: {
+        projectId,
         name: "run-only-trace",
       },
       include: {
@@ -705,6 +764,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
     const dbRunBoth = await prisma.datasetRuns.findFirst({
       where: {
+        projectId,
         name: "run-name-both",
       },
       include: {
@@ -814,6 +874,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     // check runs in db
     const dbRuns = await prisma.datasetRuns.findMany({
       where: {
+        projectId: projectId,
         dataset: { name: "dataset-name" },
       },
       orderBy: {
