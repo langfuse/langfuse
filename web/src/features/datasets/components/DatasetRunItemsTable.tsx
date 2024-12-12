@@ -18,7 +18,10 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate } from "@langfuse/shared";
+import {
+  TRACE_ID_FAILED_TO_CREATE,
+  type ScoreAggregate,
+} from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
@@ -40,6 +43,7 @@ export type DatasetRunItemRowData = {
   scores: ScoreAggregate;
   latency?: number;
   totalCost?: string;
+  log?: string | null;
 };
 
 export function DatasetRunItemsTable(
@@ -219,6 +223,20 @@ export function DatasetRunItemsTable(
         ) : null;
       },
     },
+    {
+      accessorKey: "log",
+      header: "Error log",
+      id: "log",
+      size: 200,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const log: DatasetRunItemRowData["log"] = row.getValue("log");
+        return (
+          !!log && <IOTableCell data={log} singleLine={rowHeight === "s"} />
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -256,6 +274,7 @@ export function DatasetRunItemsTable(
                 : undefined,
             latency:
               item.observation?.latency ?? item.trace?.duration ?? undefined,
+            log: item.log,
           };
         })
       : [];
@@ -321,7 +340,8 @@ const TraceObservationIOCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId, projectId },
     {
-      enabled: observationId === undefined,
+      enabled:
+        observationId === undefined && traceId !== TRACE_ID_FAILED_TO_CREATE,
       trpc: {
         context: {
           skipBatch: true,
@@ -350,6 +370,12 @@ const TraceObservationIOCell = ({
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
+
+  if (traceId === TRACE_ID_FAILED_TO_CREATE) {
+    return (
+      <IOTableCell isLoading={false} data={null} singleLine={singleLine} />
+    );
+  }
 
   return (
     <IOTableCell
