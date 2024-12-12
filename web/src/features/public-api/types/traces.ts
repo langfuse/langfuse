@@ -1,9 +1,9 @@
 import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
   APIScoreSchema,
-  paginationZod,
   paginationMetaResponseZod,
   orderBy,
+  publicApiPaginationZod,
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod";
@@ -48,7 +48,7 @@ const APIExtendedTrace = APITrace.extend({
 
 // GET /api/public/traces
 export const GetTracesV1Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
   userId: z.string().nullish(),
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),

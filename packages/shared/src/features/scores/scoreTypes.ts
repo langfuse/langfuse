@@ -6,7 +6,7 @@ import { isPresent, stringDateTime } from "../../utils/typeChecks";
 import {
   NonEmptyString,
   paginationMetaResponseZod,
-  paginationZod,
+  publicApiPaginationZod,
 } from "../../utils/zod";
 import { Category as ConfigCategory } from "./scoreConfigTypes";
 
@@ -231,7 +231,7 @@ export const PostScoresResponse = z.object({ id: z.string() });
 
 // GET /scores
 export const GetScoresQuery = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
   userId: z.string().nullish(),
   dataType: z.enum(ScoreDataType).nullish(),
   configId: z.string().nullish(),
