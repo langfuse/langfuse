@@ -43,6 +43,7 @@ export function DeleteOrganizationButton() {
   });
 
   const deleteOrganization = api.organizations.delete.useMutation();
+  const hasProjects = !!organization && organization.projects.length > 0;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,7 +53,7 @@ export function DeleteOrganizationButton() {
   });
 
   const onSubmit = async () => {
-    if (!organization) return;
+    if (!organization || hasProjects) return;
     try {
       await deleteOrganization.mutateAsync({
         orgId: organization.id,
@@ -82,7 +83,9 @@ export function DeleteOrganizationButton() {
             Delete Organization
           </DialogTitle>
           <DialogDescription>
-            {`To confirm, type "${confirmMessage}" in the input box `}
+            {hasProjects
+              ? "You can only delete an organization if it has no projects associated with it. Please delete all projects first."
+              : `To confirm, type "${confirmMessage}" in the input box `}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -91,22 +94,25 @@ export function DeleteOrganizationButton() {
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-8"
           >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input placeholder={confirmMessage} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {!hasProjects && (
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input placeholder={confirmMessage} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <Button
               type="submit"
               variant="destructive"
               loading={deleteOrganization.isLoading}
+              disabled={hasProjects}
               className="w-full"
             >
               Delete Organization
