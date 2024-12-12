@@ -11,7 +11,7 @@ import { Prisma } from "@langfuse/shared/src/db";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import { tokenCount } from "@/src/features/ingest/usage";
 
-import { InvalidRequestError, type Trace } from "@langfuse/shared";
+import { type Trace } from "@langfuse/shared";
 import {
   eventTypes,
   logger,
@@ -206,8 +206,7 @@ export default withMiddlewares({
             },
           };
         },
-        clickhouseExecution: async () => {    
-
+        clickhouseExecution: async () => {
           const filterProps = {
             projectId: auth.scope.projectId,
             page: query.page ?? undefined,
