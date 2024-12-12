@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import {
