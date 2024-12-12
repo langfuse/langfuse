@@ -3,7 +3,10 @@ import {
   createObservationsCh,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import {
+  makeZodVerifiedAPICall,
+  makeZodVerifiedAPICallSilent,
+} from "@/src/__tests__/test-utils";
 import {
   GetTracesV1Response,
   GetTraceV1Response,
@@ -257,5 +260,14 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace1.name).toBe("trace-name2");
     const trace2 = traces.body.data[1];
     expect(trace2.name).toBe("trace-name1");
+  });
+  it("should return 400 error when page=0", async () => {
+    const response = await makeZodVerifiedAPICallSilent(
+      GetTracesV1Response,
+      "GET",
+      "/api/public/traces?page=0&limit=10",
+    );
+
+    expect(response.status).toBe(400);
   });
 });
