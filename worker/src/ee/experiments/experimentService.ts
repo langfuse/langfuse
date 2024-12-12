@@ -12,7 +12,6 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
   ForbiddenError,
-  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   Prisma,
@@ -148,7 +147,7 @@ export const createExperimentJob = async ({
     logger.error(
       `Prompt content not in expected format ${prompt_id} not found for project ${projectId}`,
     );
-    throw new InternalServerError(
+    throw new InvalidRequestError(
       `Prompt ${prompt_id} not found in expected format for project ${projectId}`,
     );
   }
