@@ -1,9 +1,9 @@
 import {
   type ModelUsageUnit as PrismaModelUsageUnit,
   paginationMetaResponseZod,
-  paginationZod,
   type Model as PrismaModel,
   jsonSchema,
+  publicApiPaginationZod,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -67,7 +67,7 @@ export function prismaToApiModelDefinition({
 
 // GET /models
 export const GetModelsV1Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetModelsV1Response = z
   .object({

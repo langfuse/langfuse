@@ -1,7 +1,7 @@
 import {
   type ObservationView,
   paginationMetaResponseZod,
-  paginationZod,
+  publicApiPaginationZod,
 } from "@langfuse/shared";
 
 import { stringDateTime } from "@langfuse/shared/src/server";
@@ -115,7 +115,7 @@ export const transformDbToApiObservation = (
 
 // GET /observations
 export const GetObservationsV1Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
