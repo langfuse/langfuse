@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError } from "@langfuse/shared";
+import { BaseError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
