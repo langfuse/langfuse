@@ -48,7 +48,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       AND t.project_id = {projectId: String}
       ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-      GROUP BY date, model
+      GROUP BY date, model, usage_details
     ), daily_model_usage AS (
       SELECT
         "date",

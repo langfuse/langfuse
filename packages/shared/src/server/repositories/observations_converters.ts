@@ -105,13 +105,13 @@ export const convertObservation = (
         : null,
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
     usageDetails: Object.fromEntries(
-      Object.entries(record.usage_details).map(([key, value]) => [
+      Object.entries(record.usage_details ?? {}).map(([key, value]) => [
         key,
         Number(value),
       ]),
     ),
     costDetails: Object.fromEntries(
-      Object.entries(record.cost_details).map(([key, value]) => [
+      Object.entries(record.cost_details ?? {}).map(([key, value]) => [
         key,
         Number(value),
       ]),

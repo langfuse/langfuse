@@ -52,7 +52,7 @@ export const BreakdownTooltip = ({
       const formatted = value.toFixed(maxDecimals);
       return `$${formatted}`;
     }
-    return value.toLocaleString();
+    return value?.toLocaleString();
   };
 
   const maxDecimals = isCost

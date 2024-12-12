@@ -9,7 +9,6 @@ import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   filterAndValidateDbScoreList,
   LangfuseNotFoundError,
-  type ObservationView,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
