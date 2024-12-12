@@ -20,13 +20,21 @@ import helmet from "helmet";
 import { legacyIngestionQueueProcessor } from "./queues/legacyIngestionQueue";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { WorkerManager } from "./queues/workerManager";
-import { QueueName, logger } from "@langfuse/shared/src/server";
+import {
+  QueueName,
+  logger,
+  PostHogIntegrationQueue,
+} from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessor } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { projectDeleteProcessor } from "./queues/projectDelete";
+import {
+  postHogIntegrationProcessingProcessor,
+  postHogIntegrationProcessor,
+} from "./queues/postHogIntegrationQueue";
 
 const app = express();
 
@@ -137,6 +145,27 @@ if (env.QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED === "true") {
     experimentCreateQueueProcessor,
     {
       concurrency: env.LANGFUSE_EXPERIMENT_CREATOR_WORKER_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  PostHogIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.PostHogIntegrationQueue,
+    postHogIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.PostHogIntegrationProcessingQueue,
+    postHogIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
     },
   );
 }

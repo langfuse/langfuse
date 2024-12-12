@@ -46,7 +46,7 @@ export default function PosthogIntegrationSettings() {
   return (
     <div className="md:container">
       <Header
-        title="PostHog Integration"
+        title="PostHog Integration (Beta)"
         breadcrumb={[
           { name: "Settings", href: `/project/${projectId}/settings` },
         ]}
