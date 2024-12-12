@@ -160,7 +160,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
   it("should not return ARCHIVED dataset items when getting a dataset", async () => {
     // Create dataset
-    const dataset = await makeZodVerifiedAPICall(
+    await makeZodVerifiedAPICall(
       PostDatasetsV1Response,
       "POST",
       "/api/public/datasets",
