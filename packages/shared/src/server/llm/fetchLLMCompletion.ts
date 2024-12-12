@@ -163,7 +163,7 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
-      clientOptions: { maxRetries },
+      clientOptions: { maxRetries, timeout: 1000 * 60 * 2 }, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
@@ -178,6 +178,7 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL,
       },
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
     chatModel = new ChatOpenAI({
@@ -190,6 +191,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     const { region } = BedrockConfigSchema.parse(config);
@@ -204,10 +206,13 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
     const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
 
+    // Requests time out after 60 seconds for both public and private endpoints by default
+    // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     chatModel = new ChatVertexAI({
       modelName: modelParams.model,
       temperature: modelParams.temperature,
@@ -266,6 +271,7 @@ export async function fetchLLMCompletion(
         configuration: {
           baseURL,
         },
+        timeout: 1000 * 60 * 2, // 2 minutes timeout
       })
         .pipe(new StringOutputParser())
         .invoke(
