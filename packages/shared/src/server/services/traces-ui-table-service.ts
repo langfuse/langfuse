@@ -68,6 +68,8 @@ export type TracesMetricsUiReturnType = {
   calculatedInputCost: Decimal | null;
   calculatedOutputCost: Decimal | null;
   scores: ScoreAggregate;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
 };
 
 export const convertToUiTableRows = (
@@ -100,6 +102,18 @@ export const convertToUITableMetrics = (
     promptTokens: BigInt(usageDetails.input ?? 0),
     completionTokens: BigInt(usageDetails.output ?? 0),
     totalTokens: BigInt(usageDetails.total ?? 0),
+    usageDetails: Object.fromEntries(
+      Object.entries(row.usage_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
+    costDetails: Object.fromEntries(
+      Object.entries(row.cost_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)
