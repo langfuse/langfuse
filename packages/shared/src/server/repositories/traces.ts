@@ -854,7 +854,7 @@ export const getTracesForPostHog = async (
     langfuse_release: record.release,
     langfuse_version: record.version,
     langfuse_tags: record.tags,
-    langfuse_integration_version: "1.0.0",
+    langfuse_event_version: "1.0.0",
     $session_id: record.posthog_session_id ?? null,
     $set: {
       langfuse_user_url: record.user_id

@@ -716,7 +716,7 @@ export const getScoresForPostHog = async (
     langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
     langfuse_release: record.trace_release,
     langfuse_tags: record.trace_tags,
-    langfuse_integration_version: "1.0.0",
+    langfuse_event_version: "1.0.0",
     $session_id: record.posthog_session_id ?? null,
     $set: {
       langfuse_user_url: record.user_id
