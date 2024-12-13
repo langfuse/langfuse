@@ -32,6 +32,7 @@ import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { HUGGINGFACE_EMBEDDED_HOSTS } from "@/src/pages/auth/hf-spaces";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -65,7 +66,22 @@ export type PageProps = {
 
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
-export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
+export const getServerSideProps: GetServerSideProps<PageProps> = async (
+  context,
+) => {
+  // if on huggingface, redirect to the hf-spaces page
+  if (
+    context.req.headers.host &&
+    HUGGINGFACE_EMBEDDED_HOSTS.includes(context.req.headers.host)
+  ) {
+    return {
+      redirect: {
+        destination: "/auth/hf-spaces",
+        permanent: false,
+      },
+    };
+  }
+
   const sso: boolean = await isAnySsoConfigured();
   return {
     props: {
