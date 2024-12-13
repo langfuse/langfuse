@@ -29,7 +29,7 @@ const cspHeader = `
 `;
 
 // Match rules for Hugging Face
-const huggingFaceHosts = ["huggingface.co", ".*\\.hf\\.space$", "localhost", "127.0.0.1"];
+const huggingFaceHosts = ["huggingface.co", ".*\\.hf\\.space$"];
 
 const reportToHeader = {
   key: "Report-To",

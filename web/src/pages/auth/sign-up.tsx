@@ -34,9 +34,9 @@ export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
 export default function SignIn({
   authProviders,
-  runningOnHuggingFace,
+  runningOnHuggingFaceSpaces,
 }: PageProps) {
-  useHuggingFaceRedirect(runningOnHuggingFace);
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
