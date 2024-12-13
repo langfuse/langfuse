@@ -60,6 +60,7 @@ export type PageProps = {
       | false;
     sso: boolean;
   };
+  runningOnHuggingFaceSpaces: boolean;
   signUpDisabled: boolean;
 };
 
@@ -114,6 +115,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      runningOnHuggingFaceSpaces: env.NEXTAUTH_URL?.replace(
+        "/api/auth",
+        "",
+      ).endsWith(".hf.space"),
     },
   };
 };
@@ -263,6 +268,33 @@ export function SSOButtons({
   );
 }
 
+/**
+ * Redirect to HuggingFace Spaces auth page (/auth/hf-spaces) if running in an iframe on a HuggingFace host.
+ * The iframe detection needs to happen client-side since window/document objects are not available during SSR.
+ * @param runningOnHuggingFaceSpaces - whether the app is running on a HuggingFace spaces, needs to be checked server-side
+ */
+export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const isInIframe = () => {
+      try {
+        return window.self !== window.top;
+      } catch (e) {
+        return true;
+      }
+    };
+
+    if (
+      runningOnHuggingFaceSpaces &&
+      typeof window !== "undefined" &&
+      isInIframe()
+    ) {
+      void router.push("/auth/hf-spaces");
+    }
+  }, [router, runningOnHuggingFaceSpaces]);
+}
+
 const signInErrors = [
   {
     code: "OAuthAccountNotLinked",
@@ -271,8 +303,13 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
+export default function SignIn({
+  authProviders,
+  signUpDisabled,
+  runningOnHuggingFaceSpaces,
+}: PageProps) {
   const router = useRouter();
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =

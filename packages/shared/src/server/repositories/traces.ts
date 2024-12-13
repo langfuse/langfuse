@@ -23,7 +23,10 @@ import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
-import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  TRACE_TO_OBSERVATIONS_INTERVAL,
+} from "./constants";
 import { env } from "../../env";
 
 export const checkTraceExists = async (
@@ -36,6 +39,11 @@ export const checkTraceExists = async (
     tracesPrefix: "t",
   });
 
+  const timeStampFilter = tracesFilter.find(
+    (f) =>
+      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
   tracesFilter.push(
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
     new StringFilter({
@@ -46,19 +54,46 @@ export const checkTraceExists = async (
     }),
   );
 
+  const observationFilter = tracesFilter.find(
+    (f) => f.clickhouseTable === "observations",
+  );
   const tracesFilterRes = tracesFilter.apply();
+  const observationFilterRes = observationFilter?.apply();
 
   const query = `
-    SELECT id, project_id
-    FROM traces t FINAL
+    WITH observations_agg AS (
+        SELECT
+          
+            multiIf(
+              arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
+              arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
+              arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
+              'DEBUG'
+            ) AS level,
+            trace_id,
+            project_id
+        FROM observations o FINAL 
+        WHERE o.project_id = {projectId: String}
+        ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+        GROUP BY trace_id, project_id
+      )
+    SELECT 
+      t.id as id, 
+      t.project_id as project_id
+    FROM traces t FINAL 
+    ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
     WHERE ${tracesFilterRes.query}
+    AND t.project_id = {projectId: String}
     ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+    GROUP BY t.id, t.project_id
   `;
 
   const rows = await queryClickhouse<{ id: string; project_id: string }>({
     query,
     params: {
+      projectId,
       ...tracesFilterRes.params,
+      ...(observationFilterRes ? observationFilterRes.params : {}),
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),

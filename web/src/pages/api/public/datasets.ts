@@ -59,6 +59,9 @@ export default withMiddlewares({
           updatedAt: true,
           id: true,
           datasetItems: {
+            where: {
+              status: "ACTIVE",
+            },
             select: {
               id: true,
             },
