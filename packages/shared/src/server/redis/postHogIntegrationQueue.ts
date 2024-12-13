@@ -42,7 +42,7 @@ export class PostHogIntegrationQueue {
           QueueJobs.PostHogIntegrationJob,
           {},
           {
-            repeat: { pattern: "0 3 * * *" }, // 3am daily
+            repeat: { pattern: "30 * * * *" }, // every hour at 30 minutes past
           },
         )
         .catch((err) => {
