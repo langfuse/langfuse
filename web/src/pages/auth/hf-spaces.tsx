@@ -16,24 +16,7 @@ type PageProps = {
   deploymentDomain: string;
 };
 
-export const HUGGINGFACE_EMBEDDED_HOSTS = ["huggingface.co", "huggingface.com"];
-
-export const getServerSideProps: GetServerSideProps<PageProps> = async (
-  context,
-) => {
-  // if not on huggingface, redirect to the login page
-  if (
-    context.req.headers.host &&
-    !HUGGINGFACE_EMBEDDED_HOSTS.includes(context.req.headers.host)
-  ) {
-    return {
-      redirect: {
-        destination: "/auth/sign-in",
-        permanent: false,
-      },
-    };
-  }
-
+export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   // remove /api/auth from the URL as it needs to be added for custom base url
   const deploymentDomain = env.NEXTAUTH_URL?.replace("/api/auth", "");
   return {

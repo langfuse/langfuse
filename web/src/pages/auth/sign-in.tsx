@@ -32,7 +32,6 @@ import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { HUGGINGFACE_EMBEDDED_HOSTS } from "@/src/pages/auth/hf-spaces";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -61,27 +60,13 @@ export type PageProps = {
       | false;
     sso: boolean;
   };
+  runningOnHuggingFaceSpaces: boolean;
   signUpDisabled: boolean;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
 // eslint-disable-next-line @typescript-eslint/require-await
-export const getServerSideProps: GetServerSideProps<PageProps> = async (
-  context,
-) => {
-  // if on huggingface, redirect to the hf-spaces page
-  if (
-    context.req.headers.host &&
-    HUGGINGFACE_EMBEDDED_HOSTS.includes(context.req.headers.host)
-  ) {
-    return {
-      redirect: {
-        destination: "/auth/hf-spaces",
-        permanent: false,
-      },
-    };
-  }
-
+export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
   return {
     props: {
@@ -130,6 +115,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      runningOnHuggingFaceSpaces: env.NEXTAUTH_URL?.replace(
+        "/api/auth",
+        "",
+      ).endsWith(".hf.space"),
     },
   };
 };
@@ -279,6 +268,33 @@ export function SSOButtons({
   );
 }
 
+/**
+ * Redirect to HuggingFace Spaces auth page (/auth/hf-spaces) if running in an iframe on a HuggingFace host.
+ * The iframe detection needs to happen client-side since window/document objects are not available during SSR.
+ * @param runningOnHuggingFaceSpaces - whether the app is running on a HuggingFace spaces, needs to be checked server-side
+ */
+export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const isInIframe = () => {
+      try {
+        return window.self !== window.top;
+      } catch (e) {
+        return true;
+      }
+    };
+
+    if (
+      runningOnHuggingFaceSpaces &&
+      typeof window !== "undefined" &&
+      isInIframe()
+    ) {
+      void router.push("/auth/hf-spaces");
+    }
+  }, [router, runningOnHuggingFaceSpaces]);
+}
+
 const signInErrors = [
   {
     code: "OAuthAccountNotLinked",
@@ -287,8 +303,13 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
+export default function SignIn({
+  authProviders,
+  signUpDisabled,
+  runningOnHuggingFaceSpaces,
+}: PageProps) {
   const router = useRouter();
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =

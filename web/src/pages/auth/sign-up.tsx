@@ -20,7 +20,11 @@ import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
-import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
+import {
+  SSOButtons,
+  useHuggingFaceRedirect,
+  type PageProps,
+} from "@/src/pages/auth/sign-in";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
@@ -28,7 +32,12 @@ import { Turnstile } from "@marsidev/react-turnstile";
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
-export default function SignIn({ authProviders }: PageProps) {
+export default function SignIn({
+  authProviders,
+  runningOnHuggingFace,
+}: PageProps) {
+  useHuggingFaceRedirect(runningOnHuggingFace);
+
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
