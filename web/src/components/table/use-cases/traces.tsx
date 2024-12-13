@@ -520,7 +520,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
+        return cost != null ? (
           <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
             <div className="flex items-center gap-1">
               {cost ? (
@@ -531,7 +531,7 @@ export default function TracesTable({
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
-        );
+        ) : null;
       },
       enableHiding: true,
       enableSorting: true,
