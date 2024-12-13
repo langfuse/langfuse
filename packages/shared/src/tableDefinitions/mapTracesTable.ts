@@ -73,14 +73,14 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "inputTokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), usage_details)))",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
   },
   {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), usage_details)))",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
   },
   {
     uiTableName: "Total Tokens",
@@ -115,14 +115,14 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "inputCost",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), cost_details)))",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
   {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), cost_details))",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details)))",
   },
   {
     uiTableName: "Total Cost ($)",

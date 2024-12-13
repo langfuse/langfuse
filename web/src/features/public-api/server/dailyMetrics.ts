@@ -38,8 +38,8 @@ export const generateDailyMetrics = async (props: QueryType) => {
         o.provided_model_name as model,
         count(o.id) as countObservations,
         count(distinct t.id) as countTraces,
-        arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), o.usage_details))) as inputUsage,
-        arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), o.usage_details))) as outputUsage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, o.usage_details))) as inputUsage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, o.usage_details))) as outputUsage,
         sumMap(o.usage_details)['total'] as totalUsage,
         sum(coalesce(o.total_cost, 0)) as totalCost
       FROM traces t FINAL

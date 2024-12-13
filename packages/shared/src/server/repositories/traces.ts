@@ -528,11 +528,11 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             date_diff('milliseconds', min(min_start_time), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
             sumMap(o.sum_cost_details) as session_cost_details,
-            arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), sumMap(o.sum_cost_details)))) as session_input_cost,
-            arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), sumMap(o.sum_cost_details)))) as session_output_cost,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_cost_details)))) as session_output_cost,
             sumMap(o.sum_cost_details)['total'] as session_total_cost,          
-            arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), sumMap(o.sum_usage_details)))) as session_input_usage,
-            arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), sumMap(o.sum_usage_details)))) as session_output_usage,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_usage_details)))) as session_input_usage,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_usage_details)))) as session_output_usage,
             sumMap(o.sum_usage_details)['total'] as session_total_usage
         FROM traces t FINAL
         LEFT JOIN observations_agg o
@@ -748,8 +748,8 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
             t.user_id
     )
     SELECT
-        arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'input'), sum_usage_details))) as input_usage,
-        arraySum(mapValues(mapFilter(x -> startsWith(x.1, 'output'), sum_usage_details))) as output_usage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
         sum_usage_details [ 'total' ] as total_usage,
         obs_count,
         trace_count,
