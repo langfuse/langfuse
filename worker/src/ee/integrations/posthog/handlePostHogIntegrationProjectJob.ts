@@ -139,7 +139,8 @@ export const handlePostHogIntegrationProjectJob = async (
   // Fetch relevant data and send it to PostHog
   const executionConfig: PostHogExecutionConfig = {
     projectId,
-    minTimestamp: postHogIntegration.lastSyncAt || new Date(0), // Start from the beginning of time if no lastSyncAt
+    // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
+    minTimestamp: postHogIntegration.lastSyncAt || new Date("2000-01-01"),
     maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
     decryptedPostHogApiKey: decrypt(postHogIntegration.encryptedPosthogApiKey),
     postHogHost: postHogIntegration.posthogHostName,
