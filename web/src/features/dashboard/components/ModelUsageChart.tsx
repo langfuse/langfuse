@@ -59,7 +59,7 @@ export const ModelUsageChart = ({
 
   const isAllSelected = selectedModels.length === allModels.length;
   const buttonText = isAllSelected
-    ? "All"
+    ? "All models"
     : `${selectedModels.length} selected`;
 
   const handleSelectAll = () => {
@@ -261,73 +261,69 @@ export const ModelUsageChart = ({
       className={className}
       title="Model Usage"
       isLoading={queryResult.isLoading && selectedModels.length > 0}
+      headerRight={
+        <div className="flex items-center justify-end">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className="w-56 justify-between"
+              >
+                {buttonText}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-0">
+              <Command>
+                <CommandInput placeholder="Search models..." />
+                <CommandEmpty>No model found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={handleSelectAll}
+                    className="border-b border-gray-200 bg-gray-50 font-medium hover:bg-gray-100"
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        isAllSelected ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <span>Select All</span>
+                  </CommandItem>
+                  <CommandSeparator />
+                  <CommandList>
+                    {allModels.map((model) => (
+                      <CommandItem
+                        key={model}
+                        onSelect={() => {
+                          setSelectedModels((prev) =>
+                            prev.includes(model)
+                              ? prev.filter((m) => m !== model)
+                              : [...prev, model],
+                          );
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedModels.includes(model)
+                              ? "opacity-100"
+                              : "opacity-0",
+                          )}
+                        />
+                        {model}
+                      </CommandItem>
+                    ))}
+                  </CommandList>
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+      }
     >
-      <div className="mb-4 flex items-center">
-        <label
-          htmlFor="model-select"
-          className="mr-2 text-sm font-medium text-gray-700"
-        >
-          Select Models:
-        </label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              className="w-72 justify-between"
-            >
-              {buttonText}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-72 p-0">
-            <Command>
-              <CommandInput placeholder="Search models..." />
-              <CommandEmpty>No model found.</CommandEmpty>
-              <CommandGroup>
-                <CommandItem
-                  onSelect={handleSelectAll}
-                  className="border-b border-gray-200 bg-gray-50 font-medium hover:bg-gray-100"
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      isAllSelected ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  <span>Select All</span>
-                </CommandItem>
-                <CommandSeparator />
-                <CommandList>
-                  {allModels.map((model) => (
-                    <CommandItem
-                      key={model}
-                      onSelect={() => {
-                        setSelectedModels((prev) =>
-                          prev.includes(model)
-                            ? prev.filter((m) => m !== model)
-                            : [...prev, model],
-                        );
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          selectedModels.includes(model)
-                            ? "opacity-100"
-                            : "opacity-0",
-                        )}
-                      />
-                      {model}
-                    </CommandItem>
-                  ))}
-                </CommandList>
-              </CommandGroup>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
       <TabComponent
         tabs={data.map((item) => {
           return {
