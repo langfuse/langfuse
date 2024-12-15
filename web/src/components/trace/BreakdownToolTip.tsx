@@ -8,7 +8,7 @@ import { useState } from "react";
 import Decimal from "decimal.js";
 
 interface Details {
-  [key: string]: number;
+  [key: string]: number | undefined;
 }
 
 interface BreakdownTooltipProps {
@@ -26,19 +26,19 @@ export const BreakdownTooltip = ({
 
   // Aggregate details if array is provided
   const aggregatedDetails = Array.isArray(details)
-    ? details.reduce((acc, curr) => {
+    ? details.reduce<Details>((acc, curr) => {
         Object.entries(curr).forEach(([key, value]) => {
           acc[key] = new Decimal(acc[key] || 0)
-            .plus(new Decimal(value))
+            .plus(new Decimal(value || 0))
             .toNumber();
         });
         return acc;
-      }, {} as Details)
+      }, {})
     : details;
 
   // For costs, calculate the maximum number of decimal places needed
-  const getMaxDecimals = (value: number): number => {
-    if (value === 0) return 0;
+  const getMaxDecimals = (value: number | undefined): number => {
+    if (!value) return 0;
     // Convert to string and split on decimal point
     const parts = value.toString().split(".");
     // If no decimal point, return 0
@@ -52,7 +52,7 @@ export const BreakdownTooltip = ({
       const formatted = value.toFixed(maxDecimals);
       return `$${formatted}`;
     }
-    return value?.toLocaleString() ?? "0";
+    return value.toLocaleString() ?? "0";
   };
 
   const maxDecimals = isCost
@@ -111,7 +111,10 @@ export const BreakdownTooltip = ({
                 {isCost ? "Total cost" : "Total usage"}
               </span>
               <span className="font-mono text-xs font-semibold">
-                {formatValueWithPadding(aggregatedDetails.total, maxDecimals)}
+                {formatValueWithPadding(
+                  aggregatedDetails.total ?? 0,
+                  maxDecimals,
+                )}
               </span>
             </div>
           </div>
@@ -131,10 +134,11 @@ interface SectionProps {
 const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
   const filteredEntries = Object.entries(details)
     .filter(([key]) => filterFn(key))
-    .sort(([, a], [, b]) => b - a);
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 
   const sectionTotal = filteredEntries.reduce(
-    (sum, [_, value]) => new Decimal(sum).plus(new Decimal(value)).toNumber(),
+    (sum, [_, value]) =>
+      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
     0,
   );
 
@@ -152,7 +156,7 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
           className="flex justify-between text-xs text-muted-foreground"
         >
           <span className="mr-4">{key}</span>
-          <span className="font-mono">{formatValue(value)}</span>
+          <span className="font-mono">{formatValue(value ?? 0)}</span>
         </div>
       ))}
     </div>
@@ -173,7 +177,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
         !key.startsWith("output") &&
         key !== "total",
     )
-    .sort(([, a], [, b]) => b - a);
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 
   if (otherEntries.length === 0) return null;
 
@@ -184,7 +188,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
           {isCost ? "Other cost" : "Other usage"}
         </span>
         <span className="text-right font-mono text-xs font-medium">
-          {formatValue(details.total)}
+          {formatValue(details.total ?? 0)}
         </span>
       </div>
       {otherEntries.map(([key, value]) => (
@@ -193,7 +197,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
           className="flex justify-between text-xs text-muted-foreground"
         >
           <span className="mr-4">{key}</span>
-          <span className="font-mono">{formatValue(value)}</span>
+          <span className="font-mono">{formatValue(value ?? 0)}</span>
         </div>
       ))}
     </div>
