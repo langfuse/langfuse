@@ -39,20 +39,18 @@ export const BreakdownTooltip = ({
   // For costs, calculate the maximum number of decimal places needed
   const getMaxDecimals = (value: number | undefined): number => {
     if (!value) return 0;
-    // Convert to string and split on decimal point
     const parts = value.toString().split(".");
-    // If no decimal point, return 0
-    if (parts.length === 1) return 0;
-    // Return length of decimal part
-    return parts[1].length;
+
+    // If no decimal point, return 0, else return length of decimal part
+    return parts.length === 1 ? 0 : parts[1].length;
   };
 
   const formatValueWithPadding = (value: number, maxDecimals: number) => {
-    if (isCost) {
-      const formatted = value.toFixed(maxDecimals);
-      return `$${formatted}`;
-    }
-    return value.toLocaleString() ?? "0";
+    return !value
+      ? "0"
+      : isCost
+        ? `$${value.toFixed(maxDecimals)}`
+        : value.toLocaleString();
   };
 
   const maxDecimals = isCost
@@ -86,7 +84,7 @@ export const BreakdownTooltip = ({
             <Section
               title={isCost ? "Input cost" : "Input usage"}
               details={aggregatedDetails}
-              filterFn={(key) => key.startsWith("input")}
+              filterFn={(key) => key.includes("input")}
               formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
             />
 
@@ -94,7 +92,7 @@ export const BreakdownTooltip = ({
             <Section
               title={isCost ? "Output cost" : "Output usage"}
               details={aggregatedDetails}
-              filterFn={(key) => key.startsWith("output")}
+              filterFn={(key) => key.includes("output")}
               formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
             />
 
@@ -173,9 +171,7 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
   const otherEntries = Object.entries(details)
     .filter(
       ([key]) =>
-        !key.startsWith("input") &&
-        !key.startsWith("output") &&
-        key !== "total",
+        !key.includes("input") && !key.includes("output") && key !== "total",
     )
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 
