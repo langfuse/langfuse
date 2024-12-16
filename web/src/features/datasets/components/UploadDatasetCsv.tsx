@@ -14,7 +14,6 @@ import {
   type CsvPreviewResult,
   parseCsvClient,
 } from "@/src/features/datasets/lib/csvHelpers";
-import { MAX_FILE_SIZE_BYTES } from "@/src/server/api/routers/utilities";
 
 const ACCEPTED_FILE_TYPES = ["text/csv", "application/csv"] as const;
 
@@ -45,7 +44,7 @@ export const UploadDatasetCsv = ({
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    if (file.size > 1024 * 1024 * 100) {
       showErrorToast("File too large", "Maximum file size is 100MB"); // extract to const
       event.target.value = ""; // Reset input
       return;

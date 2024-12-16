@@ -14,7 +14,7 @@ const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
 const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
 
-export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 100; // 100MB
+const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 100; // 100MB
 
 /**
  * Check if the ipAddress is a private IP address
