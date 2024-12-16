@@ -17,15 +17,10 @@ import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import Link from "next/link";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -45,7 +40,6 @@ export default function DatasetCompare() {
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const hasEntitlement = useHasEntitlement("prompt-experiments");
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -112,49 +106,30 @@ export default function DatasetCompare() {
           description: "Compare your dataset runs side by side",
         }}
         actionButtons={[
-          hasEntitlement ? (
-            <Dialog
-              key="create-experiment-dialog"
-              open={isCreateExperimentDialogOpen}
-              onOpenChange={setIsCreateExperimentDialogOpen}
-            >
-              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-                <Button
-                  variant="secondary"
-                  disabled={!hasExperimentWriteAccess}
-                >
-                  <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2">New experiment</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Set up experiment</DialogTitle>
-                  <DialogDescription>
-                    Create an experiment to test a prompt version on a dataset.
-                    See{" "}
-                    <Link
-                      href="https://langfuse.com/docs/datasets/prompt-experiments"
-                      target="_blank"
-                      className="underline"
-                    >
-                      documentation
-                    </Link>{" "}
-                    to learn more.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateExperimentsForm
-                  key={`create-experiment-form-${datasetId}`}
-                  projectId={projectId as string}
-                  setFormOpen={setIsCreateExperimentDialogOpen}
-                  defaultValues={{
-                    datasetId,
-                  }}
-                  handleExperimentSettled={handleExperimentSettled}
-                />
-              </DialogContent>
-            </Dialog>
-          ) : null,
+          <Dialog
+            key="create-experiment-dialog"
+            open={isCreateExperimentDialogOpen}
+            onOpenChange={setIsCreateExperimentDialogOpen}
+          >
+            <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+              <Button variant="secondary" disabled={!hasExperimentWriteAccess}>
+                <FlaskConical className="h-4 w-4" />
+                <span className="ml-2">New experiment</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <CreateExperimentsForm
+                key={`create-experiment-form-${datasetId}`}
+                projectId={projectId as string}
+                setFormOpen={setIsCreateExperimentDialogOpen}
+                defaultValues={{
+                  datasetId,
+                }}
+                handleExperimentSettled={handleExperimentSettled}
+                showSDKRunInfoPage
+              />
+            </DialogContent>
+          </Dialog>,
           <Popover key="show-dataset-details">
             <PopoverTrigger asChild>
               <Button variant="outline">
