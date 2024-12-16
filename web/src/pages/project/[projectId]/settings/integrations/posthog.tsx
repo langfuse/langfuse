@@ -103,9 +103,6 @@ export default function PosthogIntegrationSettings() {
               ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
           </p>
-          <p className="mt-2 text-sm text-primary">
-            While in Beta, the sync is scheduled to run once a day.
-          </p>
         </>
       )}
     </div>
