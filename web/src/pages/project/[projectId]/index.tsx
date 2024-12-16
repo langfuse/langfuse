@@ -6,7 +6,7 @@ import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBa
 import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
+import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { api } from "@/src/utils/api";
@@ -28,6 +28,7 @@ import SetupTracingButton from "@/src/features/setup/components/SetupTracingButt
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -36,6 +37,8 @@ export default function Dashboard() {
     useDashboardDateRange();
 
   const uiCustomization = useUiCustomization();
+
+  const lookbackLimit = useEntitlementLimit("data-access-days");
 
   const session = useSession();
   const disableExpensiveDashboardComponents =
@@ -152,6 +155,16 @@ export default function Dashboard() {
             setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
             selectedOption={selectedOption}
             className="my-0 max-w-full overflow-x-auto"
+            disabled={
+              lookbackLimit
+                ? {
+                    before: new Date(
+                      new Date().getTime() -
+                        lookbackLimit * 24 * 60 * 60 * 1000,
+                    ),
+                  }
+                : undefined
+            }
           />
           <PopoverFilterBuilder
             columns={filterColumns}
@@ -200,7 +213,7 @@ export default function Dashboard() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <TracesTimeSeriesChart
+        <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}

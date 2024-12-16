@@ -23,7 +23,7 @@ import { Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
@@ -116,7 +116,7 @@ export function MembersTable({
     scope: "projectMembers:CUD",
   });
 
-  const projectRolesEntitlement = useHasOrgEntitlement("rbac-project-roles");
+  const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
 
   const columns: LangfuseColumnDef<MembersTableRow>[] = [
     {
@@ -235,7 +235,7 @@ export function MembersTable({
                 "meta",
               ) as MembersTableRow["meta"];
 
-              if (!projectRolesEntitlement) return "N/A";
+              if (!projectRolesEntitlement) return "N/A on plan";
 
               return (
                 <ProjectRoleDropdown

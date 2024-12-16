@@ -220,6 +220,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
           },
           where: {
             id: projectId,
+            deletedAt: null,
           },
         });
         if (!dbProject) {

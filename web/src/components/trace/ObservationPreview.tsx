@@ -28,7 +28,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useMemo } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -38,6 +38,8 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { BreakdownTooltip } from "./BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export const ObservationPreview = ({
   observations,
@@ -65,12 +67,17 @@ export const ObservationPreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
 
+  const currentObservation = observations.find(
+    (o) => o.id === currentObservationId,
+  );
+
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
+    startTime: currentObservation?.startTime,
     traceId: traceId,
     projectId: projectId,
     queryClickhouse: useClickhouse(),
@@ -180,11 +187,22 @@ export const ObservationPreview = ({
                   </Badge>
                 ) : null}
                 {preloadedObservation.type === "GENERATION" && (
-                  <Badge variant="outline">
-                    {preloadedObservation.promptTokens} prompt →{" "}
-                    {preloadedObservation.completionTokens} completion (∑{" "}
-                    {preloadedObservation.totalTokens})
-                  </Badge>
+                  <BreakdownTooltip
+                    details={preloadedObservation.usageDetails}
+                    isCost={false}
+                  >
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      <span>
+                        {preloadedObservation.promptTokens} prompt →{" "}
+                        {preloadedObservation.completionTokens} completion (∑{" "}
+                        {preloadedObservation.totalTokens})
+                      </span>
+                      <InfoIcon className="h-3 w-3" />
+                    </Badge>
+                  </BreakdownTooltip>
                 )}
                 {preloadedObservation.version ? (
                   <Badge variant="outline">
@@ -195,9 +213,18 @@ export const ObservationPreview = ({
                   <Badge variant="outline">{preloadedObservation.model}</Badge>
                 ) : null}
                 {thisCost ? (
-                  <Badge variant="outline">
-                    {usdFormatter(thisCost.toNumber())}
-                  </Badge>
+                  <BreakdownTooltip
+                    details={preloadedObservation.costDetails}
+                    isCost={true}
+                  >
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      <span>{usdFormatter(thisCost.toNumber())}</span>
+                      <InfoIcon className="h-3 w-3" />
+                    </Badge>
+                  </BreakdownTooltip>
                 ) : undefined}
                 {totalCost && totalCost !== thisCost ? (
                   <Badge variant="outline">

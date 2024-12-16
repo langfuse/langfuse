@@ -18,7 +18,7 @@ import {
   type UIModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -42,7 +42,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
-  const available = useHasOrgEntitlement("playground");
+  const available = useHasEntitlement("playground");
 
   useEffect(() => {
     if (props.source === "prompt") {

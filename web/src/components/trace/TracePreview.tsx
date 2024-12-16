@@ -28,7 +28,7 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
@@ -38,6 +38,8 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export const TracePreview = ({
   trace,
@@ -61,7 +63,7 @@ export const TracePreview = ({
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
@@ -133,7 +135,16 @@ export const TracePreview = ({
                     {formatIntervalSeconds(trace.latency)}
                   </Badge>
                 )}
-                <AggUsageBadge observations={observations} />
+                <BreakdownTooltip
+                  details={observations
+                    .filter((o) => o.type === "GENERATION")
+                    .map((o) => o.usageDetails)}
+                >
+                  <AggUsageBadge
+                    observations={observations}
+                    rightIcon={<InfoIcon className="h-3 w-3" />}
+                  />
+                </BreakdownTooltip>
                 {!!trace.release && (
                   <Badge variant="outline">Release: {trace.release}</Badge>
                 )}
@@ -141,9 +152,19 @@ export const TracePreview = ({
                   <Badge variant="outline">Version: {trace.version}</Badge>
                 )}
                 {totalCost && (
-                  <Badge variant="outline">
-                    ∑ {usdFormatter(totalCost.toNumber())}
-                  </Badge>
+                  <BreakdownTooltip
+                    details={observations
+                      .filter((o) => o.type === "GENERATION")
+                      .map((o) => o.costDetails)}
+                    isCost
+                  >
+                    <Badge variant="outline">
+                      <span className="flex items-center gap-1">
+                        Total Cost: {usdFormatter(totalCost.toNumber())}
+                        <InfoIcon className="h-3 w-3" />
+                      </span>
+                    </Badge>
+                  </BreakdownTooltip>
                 )}
               </div>
             )}

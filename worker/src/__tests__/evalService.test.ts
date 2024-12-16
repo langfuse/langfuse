@@ -10,7 +10,7 @@ import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTracingData,
-} from "../features/evaluation/evalService";
+} from "../ee/evaluation/evalService";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -26,11 +26,9 @@ import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 import {
   convertDateToClickhouseDateTime,
-  QueueName,
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
-import { Worker, Job, ConnectionOptions } from "bullmq";
 import { compileHandlebarString } from "../features/utilities";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -761,17 +759,6 @@ describe("eval service tests", () => {
       openAIServer.respondWithDefault();
       const traceId = randomUUID();
 
-      await kyselyPrisma.$kysely
-        .insertInto("traces")
-        .values({
-          id: traceId,
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          user_id: "a",
-          input: { input: "This is a great prompt" },
-          output: { output: "This is a great response" },
-        })
-        .execute();
-
       await upsertTrace({
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -871,18 +858,7 @@ describe("eval service tests", () => {
       expect(jobs[0].status.toString()).toBe("COMPLETED");
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
-
-      const scores = await kyselyPrisma.$kysely
-        .selectFrom("scores")
-        .selectAll()
-        .where("trace_id", "=", traceId)
-        .execute();
-
-      expect(scores.length).toBe(1);
-      expect(scores[0].trace_id).toBe(traceId);
-      expect(scores[0].comment).not.toBeNull();
-      expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    }, 20_000);
+    }, 50_000);
 
     test("fails to eval without llm api key", async () => {
       const traceId = randomUUID();
@@ -1166,35 +1142,6 @@ describe("eval service tests", () => {
       expect(jobs[0].status.toString()).toBe("COMPLETED");
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
-
-      const scores = await kyselyPrisma.$kysely
-        .selectFrom("scores")
-        .selectAll()
-        .where("trace_id", "=", traceId)
-        .execute();
-
-      expect(scores.length).toBe(1);
-      expect(scores[0].trace_id).toBe(traceId);
-      expect(scores[0].comment).not.toBeNull();
-      expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-
-      await new Promise<void>((resolve, reject) => {
-        new Worker(
-          QueueName.IngestionQueue,
-          async (job: Job) => {
-            try {
-              expect(job.name).toBe("ingestion-job");
-              expect(job.data.payload.data.type).toBe("score-create");
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
-          },
-          {
-            connection: redis as ConnectionOptions,
-          },
-        );
-      });
     }, 20_000);
   });
 

@@ -1,8 +1,8 @@
-import { api, directApi } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   NumberParam,
@@ -20,21 +20,15 @@ import {
   type FilterState,
   type ObservationOptions,
   BatchExportTableName,
-  isCloudPlan,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import {
-  exportOptions,
-  type BatchExportFileFormat,
-  observationsTableColsWithOptions,
-} from "@langfuse/shared";
+import { observationsTableColsWithOptions } from "@langfuse/shared";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import type Decimal from "decimal.js";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
@@ -46,16 +40,9 @@ import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndivi
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useOrganizationPlan } from "@/src/features/entitlements/hooks";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
-import { ChevronDownIcon, Loader } from "lucide-react";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export type GenerationsTableRow = {
   id: string;
@@ -84,6 +71,8 @@ export type GenerationsTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
@@ -103,9 +92,6 @@ export default function GenerationsTable({
   promptVersion,
   omittedFilter = [],
 }: GenerationsTableProps) {
-  const capture = usePostHogClientCapture();
-  const plan = useOrganizationPlan();
-  const [isExporting, setIsExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -231,52 +217,6 @@ export default function GenerationsTable({
     return observationsTableColsWithOptions(filterOptions).filter(
       (col) => !omittedFilter?.includes(col.name),
     );
-  };
-
-  const handleExport = async (fileFormat: BatchExportFileFormat) => {
-    if (isExporting) return;
-
-    setIsExporting(true);
-    capture("generations:export", { file_format: fileFormat });
-    try {
-      const fileData = await directApi.generations.export.query({
-        projectId,
-        fileFormat,
-        filter: filterState,
-        searchQuery,
-        orderBy: orderByState,
-      });
-
-      let url: string;
-      if (fileData.type === "s3") {
-        url = fileData.url;
-      } else {
-        const file = new File([fileData.data], fileData.fileName, {
-          type: exportOptions[fileFormat].fileType,
-        });
-
-        // create url from file
-        url = URL.createObjectURL(file);
-      }
-
-      // Use a dynamically created anchor element to trigger the download
-      const a = document.createElement("a");
-      document.body.appendChild(a);
-      a.href = url;
-      a.download = fileData.fileName; // name of the downloaded file
-      a.click();
-      a.remove();
-
-      // Revoke the blob URL after using it
-      if (fileData.type === "data") {
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-      }
-
-      setIsExporting(false);
-    } catch (e) {
-      console.error(e);
-      setIsExporting(false);
-    }
   };
 
   const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
@@ -449,7 +389,12 @@ export default function GenerationsTable({
         const value: Decimal | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value.toNumber())}</span>
+          <BreakdownTooltip details={row.original.costDetails} isCost>
+            <div className="flex items-center gap-1">
+              <span>{usdFormatter(value.toNumber())}</span>
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
         ) : undefined;
       },
       enableHiding: true,
@@ -566,12 +511,17 @@ export default function GenerationsTable({
           totalTokens: number;
         } = row.getValue("usage");
         return (
-          <TokenUsageBadge
-            promptTokens={value.promptTokens}
-            completionTokens={value.completionTokens}
-            totalTokens={value.totalTokens}
-            inline
-          />
+          <BreakdownTooltip details={row.original.usageDetails}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                promptTokens={value.promptTokens}
+                completionTokens={value.completionTokens}
+                totalTokens={value.totalTokens}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
         );
       },
       enableHiding: true,
@@ -590,6 +540,7 @@ export default function GenerationsTable({
             observationId={observationId}
             traceId={traceId}
             projectId={projectId}
+            startTime={row.getValue("startTime")}
             col="input"
             singleLine={rowHeight === "s"}
           />
@@ -611,6 +562,7 @@ export default function GenerationsTable({
             observationId={observationId}
             traceId={traceId}
             projectId={projectId}
+            startTime={row.getValue("startTime")}
             col="output"
             singleLine={rowHeight === "s"}
           />
@@ -635,6 +587,7 @@ export default function GenerationsTable({
             observationId={observationId}
             traceId={traceId}
             projectId={projectId}
+            startTime={row.getValue("startTime")}
             col="metadata"
             singleLine={rowHeight === "s"}
           />
@@ -749,6 +702,8 @@ export default function GenerationsTable({
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
+            usageDetails: generation.usageDetails ?? {},
+            costDetails: generation.costDetails ?? {},
           };
         })
       : [];
@@ -776,44 +731,11 @@ export default function GenerationsTable({
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         actionButtons={
-          plan && isCloudPlan(plan) ? (
-            <BatchExportTableButton
-              {...{ projectId, filterState, orderByState }}
-              tableName={BatchExportTableName.Generations}
-              key="batchExport"
-            />
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto whitespace-nowrap">
-                  <span className="hidden @6xl:inline">
-                    {filterState.length > 0 || searchQuery
-                      ? "Export selection"
-                      : "Export all"}{" "}
-                  </span>
-                  <span className="@6xl:hidden">Export</span>
-                  {isExporting ? (
-                    <Loader className="ml-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <ChevronDownIcon className="ml-2 h-4 w-4" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {Object.entries(exportOptions).map(([key, options]) => (
-                  <DropdownMenuItem
-                    key={key}
-                    className="capitalize"
-                    onClick={() =>
-                      void handleExport(key as BatchExportFileFormat)
-                    }
-                  >
-                    as {options.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Generations}
+            key="batchExport"
+          />
         }
       />
       <DataTable
@@ -854,12 +776,14 @@ const GenerationsDynamicCell = ({
   traceId,
   observationId,
   projectId,
+  startTime,
   col,
   singleLine = false,
 }: {
   traceId: string;
   observationId: string;
   projectId: string;
+  startTime?: Date;
   col: "input" | "output" | "metadata";
   singleLine: boolean;
 }) => {
@@ -868,6 +792,7 @@ const GenerationsDynamicCell = ({
       observationId,
       traceId,
       projectId,
+      startTime,
       queryClickhouse: useClickhouse(),
     },
     {

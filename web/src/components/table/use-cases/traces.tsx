@@ -50,6 +50,8 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -75,6 +77,8 @@ export type TracesTableRow = {
     completionTokens?: bigint;
     totalTokens?: bigint;
   };
+  usageDetails?: Record<string, number>;
+  costDetails?: Record<string, number>;
   inputCost?: Decimal;
   outputCost?: Decimal;
   totalCost?: Decimal;
@@ -444,12 +448,17 @@ export default function TracesTable({
         const value: TracesTableRow["usage"] = row.getValue("usage");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
         return (
-          <TokenUsageBadge
-            promptTokens={value.promptTokens ?? 0}
-            completionTokens={value.completionTokens ?? 0}
-            totalTokens={value.totalTokens ?? 0}
-            inline
-          />
+          <BreakdownTooltip details={row.original.usageDetails ?? []}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                promptTokens={value.promptTokens ?? 0}
+                completionTokens={value.completionTokens ?? 0}
+                totalTokens={value.totalTokens ?? 0}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
         );
       },
       enableSorting: true,
@@ -511,15 +520,18 @@ export default function TracesTable({
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return (
-          <div>
-            {cost ? (
-              <span>{usdFormatter(cost.toNumber())}</span>
-            ) : (
-              <span>-</span>
-            )}
-          </div>
-        );
+        return cost != null ? (
+          <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
+            <div className="flex items-center gap-1">
+              {cost ? (
+                <span>{usdFormatter(cost.toNumber())}</span>
+              ) : (
+                <span>-</span>
+              )}
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
+        ) : null;
       },
       enableHiding: true,
       enableSorting: true,
@@ -742,6 +754,8 @@ export default function TracesTable({
               completionTokens: trace.completionTokens,
               totalTokens: trace.totalTokens,
             },
+            usageDetails: trace.usageDetails,
+            costDetails: trace.costDetails,
             scores: trace.scores
               ? verifyAndPrefixScoreDataAgainstKeys(
                   scoreKeysAndProps,

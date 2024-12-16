@@ -2,6 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { Input } from "@/src/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -66,7 +67,7 @@ export function ApiKeyList(props: { projectId: string }) {
               <TableHead className="hidden text-primary md:table-cell">
                 Created
               </TableHead>
-              {/* <TableHead className="text-primary">Note</TableHead> */}
+              <TableHead className="text-primary">Note</TableHead>
               <TableHead className="text-primary">Public Key</TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
               {/* <TableHead className="text-primary">Last used</TableHead> */}
@@ -89,7 +90,9 @@ export function ApiKeyList(props: { projectId: string }) {
                   <TableCell className="hidden md:table-cell">
                     {apiKey.createdAt.toLocaleDateString()}
                   </TableCell>
-                  {/* <TableCell>{apiKey.note ?? ""}</TableCell> */}
+                  <TableCell>
+                    <ApiKeyNote apiKey={apiKey} projectId={props.projectId} />
+                  </TableCell>
                   <TableCell className="font-mono">
                     <CodeView
                       className="inline-block text-xs"
@@ -124,7 +127,7 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "apiKeys:delete",
+    scope: "apiKeys:CUD",
   });
 
   const utils = api.useUtils();
@@ -177,5 +180,61 @@ function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ApiKeyNote({
+  apiKey,
+  projectId,
+}: {
+  apiKey: { id: string; note: string | null };
+  projectId: string;
+}) {
+  const utils = api.useUtils();
+  const updateNote = api.apiKeys.updateNote.useMutation({
+    onSuccess: () => {
+      utils.apiKeys.invalidate();
+    },
+  });
+  const hasEditAccess = useHasProjectAccess({
+    projectId,
+    scope: "apiKeys:CUD",
+  });
+
+  const [note, setNote] = useState(apiKey.note ?? "");
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    if (note !== apiKey.note) {
+      updateNote.mutate({
+        projectId,
+        keyId: apiKey.id,
+        note,
+      });
+    }
+  };
+
+  if (!hasEditAccess) return note ?? "";
+
+  if (isEditing) {
+    return (
+      <Input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onBlur={handleBlur}
+        autoFocus
+        className="h-8"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={() => setIsEditing(true)}
+      className="-mx-2 cursor-pointer rounded px-2 py-1 hover:bg-secondary/50"
+    >
+      {note || "Click to add note"}
+    </div>
   );
 }

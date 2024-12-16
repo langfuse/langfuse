@@ -156,91 +156,106 @@ export const processEventBatch = async (
    * ASYNC PROCESSING *
    ********************/
   let s3UploadErrored = false;
-  if (env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true") {
-    await instrumentAsync({ name: "s3-upload-events" }, async () => {
-      if (env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET === undefined) {
-        throw new Error("S3 event store is enabled but no bucket is set");
-      }
-      const s3Client = getS3StorageServiceClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      );
-      // S3 Event Upload is currently blocking, but non-failing.
-      // If a promise rejects, we log it below, but do not throw an error.
-      // In this case, we upload the full batch into the Redis queue.
-      const results = await Promise.allSettled(
-        Object.keys(sortedBatchByEventBodyId).map(async (id) => {
-          // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
-          // That way we batch updates from the same invocation into a single file and reduce
-          // write operations on S3.
-          const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-          return s3Client.uploadJson(
-            `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
-            data,
-          );
-        }),
-      );
-      results.forEach((result) => {
-        if (result.status === "rejected") {
-          s3UploadErrored = true;
-          logger.error("Failed to upload event to S3", {
-            error: result.reason,
-          });
-        }
-      });
-    });
-  }
-
-  // Send each event individually to IngestionQueue for new processing
-  if (
-    env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" &&
-    env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" &&
-    env.LANGFUSE_ASYNC_CLICKHOUSE_INGESTION_PROCESSING === "true" &&
-    redis &&
-    !s3UploadErrored
-  ) {
-    const queue = IngestionQueue.getInstance();
+  await instrumentAsync({ name: "s3-upload-events" }, async () => {
+    const s3Client = getS3StorageServiceClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    // S3 Event Upload is blocking, but non-failing.
+    // If a promise rejects, we log it below, but do not throw an error.
+    // In this case, we upload the full batch into the Redis queue.
     const results = await Promise.allSettled(
-      Object.keys(sortedBatchByEventBodyId).map(async (id) =>
-        queue
-          ? queue.add(
-              QueueJobs.IngestionJob,
-              {
-                id: randomUUID(),
-                timestamp: new Date(),
-                name: QueueJobs.IngestionJob as const,
-                payload: {
-                  data: {
-                    type: sortedBatchByEventBodyId[id].type,
-                    eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
-                  },
-                  authCheck,
-                },
-              },
-              {
-                delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
-              },
-            )
-          : Promise.reject("Failed to instantiate queue"),
-      ),
+      Object.keys(sortedBatchByEventBodyId).map(async (id) => {
+        // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
+        // That way we batch updates from the same invocation into a single file and reduce
+        // write operations on S3.
+        const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
+        return s3Client.uploadJson(
+          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
+          data,
+        );
+      }),
     );
     results.forEach((result) => {
       if (result.status === "rejected") {
-        logger.error("Failed to add event to IngestionQueue", {
+        s3UploadErrored = true;
+        logger.error("Failed to upload event to S3", {
           error: result.reason,
         });
       }
     });
+  });
+
+  // This is a workaround to allow us to disable async ingestion processing for SDK CI testing
+  // TODO: remove this block after SDKs are ready for V3 async ingestion processing
+  if (env.LANGFUSE_SDK_CI_SYNC_PROCESSING_ENABLED === "true") {
+    const result = await handleBatch(
+      sortedBatch,
+      authCheck,
+      tokenCountDelegate,
+    );
+
+    //  in case we did not return early, we return the result here
+    return aggregateBatchResult(
+      [...validationErrors, ...authenticationErrors, ...result.errors],
+      result.results,
+      authCheck.scope.projectId,
+    );
   }
 
-  // As part of the legacy processing we sent the entire batch to the worker.
-  if (env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" && redis) {
-    const queue = LegacyIngestionQueue.getInstance();
+  // Send each event individually to IngestionQueue for ClickHouse processing
+  if (env.LANGFUSE_CLICKHOUSE_INGESTION_ENABLED === "true") {
+    if (s3UploadErrored) {
+      throw new Error(
+        "Failed to upload events to blob storage, aborting event processing",
+      );
+    }
 
-    if (queue) {
-      let addToQueueFailed = false;
+    if (redis) {
+      const queue = IngestionQueue.getInstance();
+      await Promise.all(
+        Object.keys(sortedBatchByEventBodyId).map(async (id) =>
+          queue
+            ? queue.add(
+                QueueJobs.IngestionJob,
+                {
+                  id: randomUUID(),
+                  timestamp: new Date(),
+                  name: QueueJobs.IngestionJob as const,
+                  payload: {
+                    data: {
+                      type: sortedBatchByEventBodyId[id].type,
+                      eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
+                    },
+                    authCheck,
+                  },
+                },
+                {
+                  delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
+                },
+              )
+            : Promise.reject("Failed to instantiate queue"),
+        ),
+      );
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED !== "true") {
+        // If postgres ingestion is disabled, we return early
+        return aggregateBatchResult(
+          [...validationErrors, ...authenticationErrors],
+          sortedBatch.map((event) => ({ id: event.id, result: event })),
+          authCheck.scope.projectId,
+        );
+      }
+    }
+  }
 
-      const queuePayload: LegacyIngestionEventType =
-        env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED === "true" && !s3UploadErrored
+  if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+    // As part of the legacy processing we sent the entire batch to the worker.
+    if (redis) {
+      const queue = LegacyIngestionQueue.getInstance();
+
+      if (queue) {
+        let addToQueueFailed = false;
+
+        const queuePayload: LegacyIngestionEventType = !s3UploadErrored
           ? {
               data: Object.keys(sortedBatchByEventBodyId).map((id) => {
                 const { key, type, eventBodyId } = sortedBatchByEventBodyId[id];
@@ -255,44 +270,55 @@ export const processEventBatch = async (
             }
           : { data: sortedBatch, authCheck, useS3EventStore: false };
 
-      try {
-        await queue.add(QueueJobs.LegacyIngestionJob, {
-          payload: queuePayload,
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.LegacyIngestionJob as const,
-        });
-      } catch (e: unknown) {
-        logger.warn(
-          "Failed to add batch to queue, falling back to sync processing",
-          e,
-        );
-        addToQueueFailed = true;
-      }
+        try {
+          await queue.add(QueueJobs.LegacyIngestionJob, {
+            payload: queuePayload,
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.LegacyIngestionJob as const,
+          });
+        } catch (e: unknown) {
+          logger.warn(
+            "Failed to add batch to queue, falling back to sync processing",
+            e,
+          );
+          addToQueueFailed = true;
+        }
 
-      if (!addToQueueFailed) {
-        return aggregateBatchResult(
-          // we are not sending additional server errors to the client in case of early return
-          [...validationErrors, ...authenticationErrors],
-          sortedBatch.map((event) => ({ id: event.id, result: event })),
+        if (!addToQueueFailed) {
+          return aggregateBatchResult(
+            // we are not sending additional server errors to the client in case of early return
+            [...validationErrors, ...authenticationErrors],
+            sortedBatch.map((event) => ({ id: event.id, result: event })),
+            authCheck.scope.projectId,
+          );
+        }
+      } else {
+        logger.warn(
+          "Ingestion queue not initialized, falling back to sync processing",
         );
       }
-    } else {
-      logger.error(
-        "Ingestion queue not initialized, falling back to sync processing",
-      );
     }
+
+    /*******************
+     * SYNC PROCESSING *
+     *******************/
+    const result = await handleBatch(
+      sortedBatch,
+      authCheck,
+      tokenCountDelegate,
+    );
+
+    //  in case we did not return early, we return the result here
+    return aggregateBatchResult(
+      [...validationErrors, ...authenticationErrors, ...result.errors],
+      result.results,
+      authCheck.scope.projectId,
+    );
   }
 
-  /*******************
-   * SYNC PROCESSING *
-   *******************/
-  const result = await handleBatch(sortedBatch, authCheck, tokenCountDelegate);
-
-  //  in case we did not return early, we return the result here
-  return aggregateBatchResult(
-    [...validationErrors, ...authenticationErrors, ...result.errors],
-    result.results,
+  throw new Error(
+    "Either Clickhouse or Postgres ingestion (or both) must be enabled",
   );
 };
 
@@ -336,6 +362,7 @@ const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
 export const aggregateBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
+  projectId?: string,
 ) => {
   const returnedErrors: {
     id: string;
@@ -382,7 +409,10 @@ export const aggregateBatchResult = (
 
   if (returnedErrors.length > 0) {
     traceException(errors);
-    logger.error("Error processing events", returnedErrors);
+    logger.error("Error processing events", {
+      errors: returnedErrors,
+      "langfuse.project.id": projectId,
+    });
   }
 
   results.forEach((result) => {

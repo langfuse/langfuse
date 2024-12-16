@@ -1,1 +1,1 @@
-export const MAX_OBSERVATIONS_FREE_PLAN = 50_000;
+export const MAX_EVENTS_FREE_PLAN = 50_000;

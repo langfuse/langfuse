@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -12,6 +11,7 @@ import {
   singleFilter,
   variableMapping,
   ChatMessageRole,
+  paginationZod,
   type JobConfiguration,
   JobConfigState,
   JobType,
@@ -21,6 +21,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   fetchLLMCompletion,
+  getScoresByIds,
   LLMApiKeySchema,
   logger,
 } from "@langfuse/shared/src/server";
@@ -28,6 +29,8 @@ import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
+import { isNotNullOrUndefined } from "@/src/utils/types";
+import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -111,8 +114,7 @@ export const evalRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number(),
-        page: z.number(),
+        ...paginationZod,
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -696,7 +698,7 @@ export const evalRouter = createTRPCRouter({
           endTime: true,
           error: true,
           jobInputTraceId: true,
-          score: true,
+          jobOutputScoreId: true,
           jobConfiguration: {
             select: {
               evalTemplateId: true,
@@ -721,8 +723,36 @@ export const evalRouter = createTRPCRouter({
             : undefined),
         },
       });
+
+      const scoreIds = jobExecutions
+        .map((je) => je.jobOutputScoreId)
+        .filter(isNotNullOrUndefined);
+
+      const scores =
+        scoreIds.length > 0
+          ? await measureAndReturnApi({
+              input: { projectId: input.projectId, queryClickhouse: false },
+              operation: "get-scores-eval-log",
+              user: ctx.session.user,
+              pgExecution: async () => {
+                return await ctx.prisma.score.findMany({
+                  where: {
+                    projectId: input.projectId,
+                    id: { in: scoreIds },
+                  },
+                });
+              },
+              clickhouseExecution: async () => {
+                return await getScoresByIds(input.projectId, scoreIds);
+              },
+            })
+          : [];
+
       return {
-        data: jobExecutions,
+        data: jobExecutions.map((je) => ({
+          ...je,
+          score: scores.find((s) => s?.id === je.jobOutputScoreId),
+        })),
         totalCount: count,
       };
     }),

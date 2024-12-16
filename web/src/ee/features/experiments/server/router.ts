@@ -8,7 +8,6 @@ import {
   ZodModelConfig,
   ExperimentCreateQueue,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -16,7 +15,9 @@ import {
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import {
   type DatasetItem,
+  DatasetStatus,
   extractVariables,
+  datasetItemMatchesVariable,
   UnauthorizedError,
 } from "@langfuse/shared";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -49,11 +50,9 @@ const validateDatasetItems = (
       continue;
     }
 
-    const inputKeys = Object.keys(input);
-
     // For each variable, increment its count if it exists in this item
     for (const variable of variables) {
-      if (inputKeys.includes(variable)) {
+      if (datasetItemMatchesVariable(input, variable)) {
         variableMap[variable] = (variableMap[variable] || 0) + 1;
       }
     }
@@ -74,14 +73,14 @@ export const experimentsRouter = createTRPCRouter({
     .output(ConfigResponse)
     .query(async ({ input, ctx }) => {
       throwIfNoEntitlement({
-        entitlement: "experiments",
+        entitlement: "prompt-experiments",
         projectId: input.projectId,
         sessionUser: ctx.session.user,
       });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "experiments:CUD",
+        scope: "promptExperiments:CUD",
       });
 
       const prompt = await ctx.prisma.prompt.findFirst({
@@ -115,13 +114,14 @@ export const experimentsRouter = createTRPCRouter({
         where: {
           datasetId: input.datasetId,
           projectId: input.projectId,
+          status: DatasetStatus.ACTIVE,
         },
       });
 
       if (!Boolean(datasetItems.length)) {
         return {
           isValid: false,
-          message: "Selected dataset is empty.",
+          message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
@@ -161,17 +161,17 @@ export const experimentsRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       throwIfNoEntitlement({
-        entitlement: "experiments",
+        entitlement: "prompt-experiments",
         projectId: input.projectId,
         sessionUser: ctx.session.user,
       });
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "experiments:CUD",
+        scope: "promptExperiments:CUD",
       });
 
-      if (!redis || !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
       }
 

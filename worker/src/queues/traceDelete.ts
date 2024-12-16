@@ -14,32 +14,47 @@ import { env } from "../env";
 export const traceDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.TraceDelete]>,
 ): Promise<void> => {
-  const { traceId, projectId } = job.data.payload;
-  logger.info(`Deleting trace ${traceId} in project ${projectId}`);
+  const projectId = job.data.payload.projectId;
+  const traceIds =
+    "traceIds" in job.data.payload
+      ? job.data.payload.traceIds
+      : [job.data.payload.traceId];
+
+  logger.info(
+    `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId}`,
+  );
   try {
     await prisma.$transaction([
       prisma.trace.deleteMany({
         where: {
-          id: traceId,
+          id: {
+            in: traceIds,
+          },
           projectId: projectId,
         },
       }),
       prisma.observation.deleteMany({
         where: {
-          traceId,
+          traceId: {
+            in: traceIds,
+          },
           projectId: projectId,
         },
       }),
       prisma.score.deleteMany({
         where: {
-          traceId,
+          traceId: {
+            in: traceIds,
+          },
           projectId: projectId,
         },
       }),
       // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
       prisma.jobExecution.updateMany({
         where: {
-          jobInputTraceId: traceId,
+          jobInputTraceId: {
+            in: traceIds,
+          },
           projectId: projectId,
         },
         data: {
@@ -54,7 +69,7 @@ export const traceDeleteProcessor: Processor = async (
     ]);
   } catch (e) {
     logger.error(
-      `Error deleting trace ${traceId} in project ${projectId} from Postgres`,
+      `Error deleting trace ${JSON.stringify(traceIds)} in project ${projectId} from Postgres`,
       e,
     );
     traceException(e);
@@ -64,13 +79,13 @@ export const traceDeleteProcessor: Processor = async (
   if (env.CLICKHOUSE_URL) {
     try {
       await Promise.all([
-        deleteTraces(projectId, [traceId]),
-        deleteObservationsByTraceIds(projectId, [traceId]),
-        deleteScoresByTraceIds(projectId, [traceId]),
+        deleteTraces(projectId, traceIds),
+        deleteObservationsByTraceIds(projectId, traceIds),
+        deleteScoresByTraceIds(projectId, traceIds),
       ]);
     } catch (e) {
       logger.error(
-        `Error deleting trace ${traceId} in project ${projectId} from Clickhouse`,
+        `Error deleting trace ${JSON.stringify(traceIds)} in project ${projectId} from Clickhouse`,
         e,
       );
       traceException(e);

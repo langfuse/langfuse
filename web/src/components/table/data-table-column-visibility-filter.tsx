@@ -324,7 +324,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         <DropdownMenuContent
           align="end"
           onPointerDownOutside={() => setIsOpen(false)}
-          className="max-h-96 overflow-y-auto"
+          className="max-h-[40dvh] overflow-y-auto"
         >
           <SortableContext
             items={columnIdsOrder}
@@ -364,7 +364,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                         </DropdownMenuSubTrigger>
                       )}
                       <DropdownMenuPortal>
-                        <DropdownMenuSubContent>
+                        <DropdownMenuSubContent className="max-h-[40dvh] overflow-y-auto">
                           <DropdownMenuCheckboxItem
                             checked={
                               groupVisibleCount === groupTotalCount

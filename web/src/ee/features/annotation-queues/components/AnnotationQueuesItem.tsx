@@ -3,7 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { AnnotationQueueItemPage } from "@/src/ee/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
@@ -22,7 +22,7 @@ export const AnnotationQueuesItem = ({
     projectId,
     scope: "annotationQueues:read",
   });
-  const hasEntitlement = useHasOrgEntitlement("annotation-queues");
+  const hasEntitlement = useHasEntitlement("annotation-queues");
 
   const queue = api.annotationQueues.byId.useQuery(
     {

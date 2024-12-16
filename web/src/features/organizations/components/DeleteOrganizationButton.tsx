@@ -23,6 +23,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"; // Import success toast function
+import { env } from "@/src/env.mjs";
 
 export function DeleteOrganizationButton() {
   const capture = usePostHogClientCapture();
@@ -43,6 +44,7 @@ export function DeleteOrganizationButton() {
   });
 
   const deleteOrganization = api.organizations.delete.useMutation();
+  const hasProjects = !!organization && organization.projects.length > 0;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,7 +54,7 @@ export function DeleteOrganizationButton() {
   });
 
   const onSubmit = async () => {
-    if (!organization) return;
+    if (!organization || hasProjects) return;
     try {
       await deleteOrganization.mutateAsync({
         orgId: organization.id,
@@ -63,7 +65,7 @@ export function DeleteOrganizationButton() {
         description: "The organization has been successfully deleted.",
       });
       await new Promise((resolve) => setTimeout(resolve, 5000)); // Delay for 5 seconds
-      window.location.href = "/"; // Browser reload to refresh jwt
+      window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/"; // Browser reload to refresh jwt
     } catch (error) {
       console.error(error);
     }
@@ -82,7 +84,9 @@ export function DeleteOrganizationButton() {
             Delete Organization
           </DialogTitle>
           <DialogDescription>
-            {`To confirm, type "${confirmMessage}" in the input box `}
+            {hasProjects
+              ? "You can only delete an organization if it has no projects associated with it. Please delete or transfer all projects first. Deleting projects may take a few minutes."
+              : `To confirm, type "${confirmMessage}" in the input box `}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -91,22 +95,25 @@ export function DeleteOrganizationButton() {
             onSubmit={form.handleSubmit(onSubmit)}
             className="space-y-8"
           >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input placeholder={confirmMessage} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {!hasProjects && (
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input placeholder={confirmMessage} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <Button
               type="submit"
               variant="destructive"
               loading={deleteOrganization.isLoading}
+              disabled={hasProjects}
               className="w-full"
             >
               Delete Organization
