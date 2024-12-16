@@ -407,7 +407,6 @@ jobs:
         working-directory: .
 
   push-docker-image:
-    needs: all-ci-passed
     runs-on: ubuntu-latest
     permissions:
       packages: write
