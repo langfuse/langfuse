@@ -27,6 +27,7 @@ import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
+import { env } from "../../env";
 
 export const checkTraceExists = async (
   projectId: string,
@@ -789,6 +790,78 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     observationCount: Number(row.obs_count),
     traceCount: Number(row.trace_count),
     totalCost: Number(row.sum_total_cost),
+  }));
+};
+
+export const getTracesForPostHog = async (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) => {
+  const query = `
+    WITH observations_agg AS (
+      SELECT o.project_id,
+             o.trace_id,
+             sum(total_cost) as total_cost,
+             count(*) as observation_count,
+             date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+      AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+      GROUP BY o.project_id, o.trace_id
+    )
+
+    SELECT 
+      t.id as id,
+      t.timestamp as timestamp,
+      t.name as name,
+      t.session_id as session_id,
+      t.user_id as user_id,
+      t.release as release,
+      t.version as version,
+      t.tags as tags,
+      t.metadata['$posthog_session_id'] as posthog_session_id,
+      o.total_cost as total_cost,
+      o.latency_milliseconds / 1000 as latency,
+      o.observation_count as observation_count
+    FROM traces t FINAL
+    LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
+    WHERE t.project_id = {projectId: String}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)}
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = await queryClickhouse<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+  });
+
+  const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
+  return records.map((record) => ({
+    timestamp: record.timestamp,
+    langfuse_id: record.id,
+    langfuse_trace_name: record.name,
+    langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.id as string)}`,
+    langfuse_cost_usd: record.total_cost,
+    langfuse_count_observations: record.observation_count,
+    langfuse_session_id: record.session_id,
+    langfuse_project_id: projectId,
+    langfuse_user_id: record.user_id || "langfuse_unknown_user",
+    langfuse_latency: record.latency,
+    langfuse_release: record.release,
+    langfuse_version: record.version,
+    langfuse_tags: record.tags,
+    langfuse_event_version: "1.0.0",
+    $session_id: record.posthog_session_id ?? null,
+    $set: {
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+        : null,
+    },
   }));
 };
 
