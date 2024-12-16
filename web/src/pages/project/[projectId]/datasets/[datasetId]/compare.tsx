@@ -128,6 +128,7 @@ export default function DatasetCompare() {
                   datasetId,
                 }}
                 handleExperimentSettled={handleExperimentSettled}
+                showSDKRunInfoPage
               />
             </DialogContent>
           </Dialog>,
