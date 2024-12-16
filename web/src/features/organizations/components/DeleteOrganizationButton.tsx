@@ -23,6 +23,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"; // Import success toast function
+import { env } from "@/src/env.mjs";
 
 export function DeleteOrganizationButton() {
   const capture = usePostHogClientCapture();
@@ -64,7 +65,7 @@ export function DeleteOrganizationButton() {
         description: "The organization has been successfully deleted.",
       });
       await new Promise((resolve) => setTimeout(resolve, 5000)); // Delay for 5 seconds
-      window.location.href = "/"; // Browser reload to refresh jwt
+      window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/"; // Browser reload to refresh jwt
     } catch (error) {
       console.error(error);
     }
