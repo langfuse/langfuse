@@ -21,7 +21,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -41,7 +40,6 @@ export default function DatasetCompare() {
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const hasEntitlement = useHasEntitlement("prompt-experiments");
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
