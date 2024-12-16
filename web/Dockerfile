@@ -4,6 +4,9 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:20-alpine3.20 AS alpine
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
 RUN echo "I am running on $BUILDPLATFORM, building for $TARGETPLATFORM"
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
     echo Downloading golang migrate https://github.com/golang-migrate/migrate/releases/download/v4.18.0/migrate.$MIGRATE_TARGET_ARCH.tar.gz
