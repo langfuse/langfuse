@@ -217,8 +217,8 @@ export const getObservationUsageByTime = async (
 
   const result = await queryClickhouse<{
     start_time: string;
-    units: string;
-    cost: number;
+    units: Record<string, number>;
+    cost: Record<string, number>;
     provided_model_name: string;
   }>({
     query,
