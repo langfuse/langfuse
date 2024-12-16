@@ -472,6 +472,7 @@ jobs:
           labels: ${{ steps.meta-web.outputs.labels }}
           platforms: |
             linux/amd64
+            linux/arm64
             ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-worker
