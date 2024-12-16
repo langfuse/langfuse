@@ -942,10 +942,7 @@ export class IngestionService {
         (Object.keys(
           "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
         ).length === 0
-          ? newInputCount !== undefined &&
-            newOutputCount !== undefined &&
-            newInputCount &&
-            newOutputCount
+          ? newInputCount && newOutputCount
             ? newInputCount + newOutputCount
             : (newInputCount ?? newOutputCount)
           : undefined);
