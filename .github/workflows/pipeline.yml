@@ -408,8 +408,6 @@ jobs:
 
   push-docker-image:
     needs: all-ci-passed
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    environment: "protected branches"
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -428,17 +426,6 @@ jobs:
         uses: actions/checkout@v4
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Log in to the GitHub Container registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -467,7 +454,6 @@ jobs:
         with:
           context: .
           file: ./web/Dockerfile
-          push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
           platforms: |
@@ -496,9 +482,9 @@ jobs:
         with:
           context: .
           file: ./worker/Dockerfile
-          push: true
           tags: ${{ steps.meta-worker.outputs.tags }}
           labels: ${{ steps.meta-worker.outputs.labels }}
           platforms: |
             linux/amd64
+            linux/arm64
             ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
