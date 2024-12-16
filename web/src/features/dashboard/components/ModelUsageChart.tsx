@@ -207,13 +207,19 @@ export const ModelUsageChart = ({
 
   const totalCost = usageData?.reduce(
     (acc, curr) =>
-      acc + (curr.usageType === "total" ? (curr.cost as number) : 0),
+      acc +
+      (curr.usageType === "total" && !isNaN(curr.cost as number)
+        ? (curr.cost as number)
+        : 0),
     0,
   );
 
   const totalTokens = usageData?.reduce(
     (acc, curr) =>
-      acc + (curr.usageType === "total" ? (curr.units as number) : 0),
+      acc +
+      (curr.usageType === "total" && !isNaN(curr.units as number)
+        ? (curr.units as number)
+        : 0),
     0,
   );
 
