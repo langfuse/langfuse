@@ -150,8 +150,8 @@ export const dashboardRouter = createTRPCRouter({
 
             return rowsObs.map((row) => ({
               startTime: row.start_time,
-              sumTotalTokens: row.sum_usage_details,
-              sumCalculatedTotalCost: row.sum_cost_details,
+              units: row.units,
+              cost: row.cost,
               model: row.provided_model_name,
             })) as DatabaseRow[];
 

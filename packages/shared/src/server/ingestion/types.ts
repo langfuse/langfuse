@@ -56,6 +56,62 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
+const RawUsageOrCostDetails = z.record(
+  z.string(),
+  z.number().nonnegative().nullish(),
+);
+
+const OpenAIUsageSchema = z
+  .object({
+    prompt_tokens: z.number().nonnegative(),
+    completion_tokens: z.number().nonnegative(),
+    total_tokens: z.number().nonnegative(),
+    prompt_tokens_details: z.record(z.string(), z.number().nonnegative()),
+    completion_tokens_details: z.record(z.string(), z.number().nonnegative()),
+  })
+  .strict()
+  .transform((v) => {
+    if (!v) return;
+
+    const {
+      prompt_tokens,
+      completion_tokens,
+      total_tokens,
+      prompt_tokens_details,
+      completion_tokens_details,
+    } = v;
+    const result: z.infer<typeof RawUsageOrCostDetails> & {
+      input: number;
+      output: number;
+      total: number;
+    } = {
+      input: prompt_tokens,
+      output: completion_tokens,
+      total: total_tokens,
+    };
+
+    if (prompt_tokens_details) {
+      for (const [key, value] of Object.entries(prompt_tokens_details)) {
+        result[`input_${key}`] = value;
+        result.input = Math.max(result.input - (value ?? 0), 0);
+      }
+    }
+
+    if (completion_tokens_details) {
+      for (const [key, value] of Object.entries(completion_tokens_details)) {
+        result[`output_${key}`] = value;
+        result.output = Math.max(result.output - (value ?? 0), 0);
+      }
+    }
+
+    return result;
+  })
+  .pipe(RawUsageOrCostDetails);
+
+export const UsageOrCostDetails = z
+  .union([OpenAIUsageSchema, RawUsageOrCostDetails])
+  .nullish();
+
 export const TraceBody = z.object({
   id: z.string().nullish(),
   timestamp: stringDateTime,
@@ -119,6 +175,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -147,6 +205,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -298,6 +358,8 @@ export const LegacyObservationBody = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   usage: usage,
+  usageDetails: UsageOrCostDetails,
+  costDetails: UsageOrCostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),

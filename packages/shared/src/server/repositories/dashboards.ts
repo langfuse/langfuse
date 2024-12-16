@@ -203,8 +203,8 @@ export const getObservationUsageByTime = async (
   const query = `
     SELECT 
       ${selectTimeseriesColumn(groupBy, "start_time", "start_time")},
-      sumMap(usage_details)['total'] as sum_usage_details,
-      sumMap(cost_details)['total'] as sum_cost_details,
+      sumMap(usage_details) as units,
+      sumMap(cost_details) as cost, 
       provided_model_name
     FROM observations o FINAL
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -217,8 +217,8 @@ export const getObservationUsageByTime = async (
 
   const result = await queryClickhouse<{
     start_time: string;
-    sum_usage_details: string;
-    sum_cost_details: number;
+    units: Record<string, number>;
+    cost: Record<string, number>;
     provided_model_name: string;
   }>({
     query,
@@ -233,8 +233,18 @@ export const getObservationUsageByTime = async (
 
   return result.map((row) => ({
     start_time: new Date(row.start_time),
-    sum_usage_details: Number(row.sum_usage_details),
-    sum_cost_details: row.sum_cost_details,
+    units: Object.fromEntries(
+      Object.entries(row.units ?? {}).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
+    cost: Object.fromEntries(
+      Object.entries(row.cost ?? {}).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     provided_model_name: row.provided_model_name,
   }));
 };

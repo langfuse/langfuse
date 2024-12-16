@@ -101,29 +101,29 @@ export const TracesAndObservationsTimeSeriesChart = ({
 
   const transformedObservations = observations.data
     ? Object.values(
-        observations.data.reduce(
-          (acc, item) => {
-            const ts = (item.start_time_bucket as Date).getTime();
-            if (!acc[ts]) {
-              acc[ts] = {
-                ts,
-                values: [],
-              };
-            }
-            acc[ts].values.push({
-              label: item.level as string,
-              value: typeof item.count === "number" ? item.count : undefined,
-            });
-            return acc;
-          },
-          {} as Record<
+        observations.data.reduce<
+          Record<
             number,
             {
               ts: number;
               values: { label: string; value: number | undefined }[];
             }
-          >,
-        ),
+          >
+        >((acc, item) => {
+          const ts = (item.start_time_bucket as Date).getTime();
+          if (!acc[ts]) {
+            acc[ts] = {
+              ts,
+              values: [],
+            };
+          }
+          acc[ts].values.push({
+            label: item.level as string,
+            value: typeof item.count === "number" ? item.count : undefined,
+          });
+
+          return acc;
+        }, {}),
       )
     : [];
 
