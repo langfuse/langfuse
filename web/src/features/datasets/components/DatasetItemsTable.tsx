@@ -54,6 +54,7 @@ export function DatasetItemsTable({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -293,16 +294,14 @@ export function DatasetItemsTable({
           (preview ? (
             <PreviewCsvImport
               preview={preview}
+              csvFile={csvFile}
               projectId={projectId}
               datasetId={datasetId}
+              setCsvFile={setCsvFile}
               setPreview={setPreview}
             />
           ) : (
-            <UploadDatasetCsv
-              projectId={projectId}
-              datasetId={datasetId}
-              setPreview={setPreview}
-            />
+            <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
           ))}
       </>
     );

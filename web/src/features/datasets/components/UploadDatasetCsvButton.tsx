@@ -21,6 +21,7 @@ export const UploadDatasetCsvButton = (props: {
 }) => {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
@@ -48,17 +49,15 @@ export const UploadDatasetCsvButton = (props: {
         {preview ? (
           <PreviewCsvImport
             preview={preview}
+            csvFile={csvFile}
             projectId={props.projectId}
             datasetId={props.datasetId}
+            setCsvFile={setCsvFile}
             setPreview={setPreview}
             setOpen={setOpen}
           />
         ) : (
-          <UploadDatasetCsv
-            projectId={props.projectId}
-            datasetId={props.datasetId}
-            setPreview={setPreview}
-          />
+          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
         )}
       </DialogContent>
     </Dialog>

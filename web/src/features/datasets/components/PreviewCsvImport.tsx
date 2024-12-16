@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
+import { MediaContentType } from "@/src/features/media/validation";
 
 const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
 type CardId = z.infer<typeof CardIdSchema>;
@@ -44,14 +45,18 @@ function moveColumn(
 
 export function PreviewCsvImport({
   preview,
+  csvFile,
   projectId,
   datasetId,
+  setCsvFile,
   setPreview,
   setOpen,
 }: {
   preview: CsvPreviewResult;
+  csvFile: File | null;
   projectId: string;
   datasetId: string;
+  setCsvFile: (file: File | null) => void;
   setPreview: (preview: CsvPreviewResult | null) => void;
   setOpen?: (open: boolean) => void;
 }) {
@@ -146,6 +151,7 @@ export function PreviewCsvImport({
     );
   };
 
+  const generatePresignedUrl = api.utilities.generatePresignedUrl.useMutation();
   const mutImport = api.datasets.importFromCsv.useMutation({
     onSuccess: () => {
       utils.datasets.invalidate();
@@ -153,8 +159,6 @@ export function PreviewCsvImport({
       setPreview(null);
     },
   });
-
-  const mutClearFileStorage = api.datasets.clearFileStorage.useMutation({});
 
   return (
     <Card className="h-full items-center justify-center overflow-hidden p-2">
@@ -264,7 +268,7 @@ export function PreviewCsvImport({
               setSelectedExpectedColumn(new Set());
               setSelectedMetadataColumn(new Set());
               setExcludedColumns(new Set());
-              mutClearFileStorage.mutate({ projectId });
+              setCsvFile(null);
             }}
           >
             Cancel
@@ -272,11 +276,29 @@ export function PreviewCsvImport({
           <Button
             disabled={selectedInputColumn.size === 0}
             onClick={async () => {
-              if (!preview.fileId) return;
-              mutImport.mutate({
+              if (!csvFile) return;
+
+              const { uploadUrl, bucketPath } =
+                await generatePresignedUrl.mutateAsync({
+                  projectId,
+                  contentType: MediaContentType.CSV,
+                });
+
+              // TODO: review if this is the correct way to upload the file, we should probably extract somehow
+              const uploadResponse = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "text/csv",
+                },
+                body: csvFile,
+              });
+
+              if (!uploadResponse.ok) return;
+
+              await mutImport.mutateAsync({
                 projectId,
                 datasetId,
-                fileId: preview.fileId,
+                bucketPath,
                 mapping: {
                   input: Array.from(selectedInputColumn),
                   expected: Array.from(selectedExpectedColumn),

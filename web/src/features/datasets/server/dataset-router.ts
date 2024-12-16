@@ -29,9 +29,18 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { traceException } from "@langfuse/shared/src/server";
-import { TempFileStorage } from "@/src/features/datasets/server/tempStorage";
-import { MAX_PREVIEW_ROWS, parseColumns, parseCsv } from "../lib/csvHelpers";
+import {
+  StorageServiceFactory,
+  traceException,
+} from "@langfuse/shared/src/server";
+import { parseColumns, parseCsvServer } from "../lib/csvHelpers";
+import { env } from "@/src/env.mjs";
+
+const ImportCsvMappingSchema = z.object({
+  input: z.array(z.string()),
+  expected: z.array(z.string()),
+  metadata: z.array(z.string()),
+});
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -553,78 +562,14 @@ export const datasetRouter = createTRPCRouter({
 
       return { id: newDataset.id };
     }),
-  storeCsv: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        datasetId: z.string(),
-        file: z.object({
-          buffer: z.string(), // Expect a Base64-encoded string
-          name: z.string(),
-          type: z.string(),
-        }),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "datasets:CUD",
-      });
-
-      // Decode Base64 string back into a Buffer
-      const buffer = Buffer.from(input.file.buffer, "base64");
-
-      const fileId = await TempFileStorage.store(
-        buffer,
-        input.file.name,
-        input.file.type,
-        input.projectId,
-      );
-      return fileId;
-    }),
-
-  clearFileStorage: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "datasets:CUD",
-      });
-
-      TempFileStorage.cleanupByProjectId(input.projectId);
-    }),
-
-  csvPreview: protectedProjectProcedure
-    .input(z.object({ fileId: z.string(), projectId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "datasets:CUD",
-      });
-
-      const file = TempFileStorage.get(input.fileId, input.projectId);
-      if (!file) throw new InternalServerError("File not found or expired");
-
-      return parseCsv(file, {
-        preview: MAX_PREVIEW_ROWS + 1,
-        collectSamples: true,
-      });
-    }),
 
   importFromCsv: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        fileId: z.string(),
-        mapping: z.object({
-          input: z.array(z.string()),
-          expected: z.array(z.string()),
-          metadata: z.array(z.string()),
-        }),
+        bucketPath: z.string(),
+        mapping: ImportCsvMappingSchema,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -634,55 +579,69 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const { projectId, datasetId, fileId, mapping } = input;
-      const file = TempFileStorage.get(fileId, projectId);
+      const { projectId, datasetId, bucketPath, mapping } = input;
+
+      // now get the file from s3 with the upload url
+      const s3Client = StorageServiceFactory.getInstance({
+        bucketName: env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
+        accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+        secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+        endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+        region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+        forcePathStyle:
+          env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
+      });
+
+      const file = await s3Client.download(bucketPath);
       if (!file) throw new InternalServerError("File not found or expired");
 
       const items: Prisma.DatasetItemCreateManyInput[] = [];
       let headerMap: Map<string, number>;
+      const fileBuffer = Buffer.from(file);
 
-      await parseCsv(file, {
-        onHeader: (headers) => {
-          headerMap = new Map(headers.map((h, i) => [h, i]));
+      await parseCsvServer(fileBuffer, {
+        processor: {
+          onHeader: (headers) => {
+            headerMap = new Map(headers.map((h, i) => [h, i]));
 
-          // Validate columns exist
-          const missingColumns = [
-            ...mapping.input,
-            ...mapping.expected,
-            ...mapping.metadata,
-          ].filter((col) => !headerMap.has(col));
-          if (missingColumns.length > 0) {
-            throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
-          }
-        },
-        onRow: (row, _, index) => {
-          try {
-            // Process all column mappings
-            const input =
-              parseColumns(mapping.input, row, headerMap) ?? undefined;
-            const expectedOutput =
-              parseColumns(mapping.expected, row, headerMap) ?? undefined;
-            const metadata =
-              parseColumns(mapping.metadata, row, headerMap) ?? undefined;
+            // Validate columns exist
+            const missingColumns = [
+              ...mapping.input,
+              ...mapping.expected,
+              ...mapping.metadata,
+            ].filter((col) => !headerMap.has(col));
+            if (missingColumns.length > 0) {
+              throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
+            }
+          },
+          onRow: (row, _, index) => {
+            try {
+              // Process all column mappings
+              const input =
+                parseColumns(mapping.input, row, headerMap) ?? undefined;
+              const expectedOutput =
+                parseColumns(mapping.expected, row, headerMap) ?? undefined;
+              const metadata =
+                parseColumns(mapping.metadata, row, headerMap) ?? undefined;
 
-            items.push({
-              projectId: projectId,
-              datasetId: datasetId,
-              input,
-              expectedOutput,
-              metadata,
-              status: DatasetStatus.ACTIVE,
-            });
-          } catch (error) {
-            throw new Error(
-              `Error processing row ${index + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
-            );
-          }
+              items.push({
+                projectId: projectId,
+                datasetId: datasetId,
+                input,
+                expectedOutput,
+                metadata,
+                status: DatasetStatus.ACTIVE,
+              });
+            } catch (error) {
+              throw new Error(
+                `Error processing row ${index + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+              );
+            }
+          },
         },
       });
 
       await ctx.prisma.datasetItem.createMany({ data: items });
-      TempFileStorage.cleanupByProjectId(projectId);
 
       return { importedCount: items.length };
     }),

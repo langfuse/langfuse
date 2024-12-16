@@ -1,7 +1,5 @@
 import { parse } from "csv-parse";
-import { Readable } from "stream";
 import { type Prisma } from "@langfuse/shared";
-import { type StoredFile } from "@/src/features/datasets/server/tempStorage";
 
 export const MAX_PREVIEW_ROWS = 10;
 
@@ -21,23 +19,27 @@ export type CsvColumnPreview = {
   inferredType: ColumnType;
 };
 
+// Shared types
 export type CsvPreviewResult = {
-  fileName: string;
+  fileName?: string;
   columns: CsvColumnPreview[];
+  previewRows: string[][];
   totalColumns: number;
-  previewRows: number;
-  fileId?: string;
 };
 
-type ParseCsvOptions = {
-  preview?: number;
+type RowProcessor = {
   onHeader?: (headers: string[]) => void | Promise<void>;
   onRow?: (
     row: string[],
     headers: string[],
-    rowIndex: number,
+    index: number,
   ) => void | Promise<void>;
+};
+
+type ParseOptions = {
+  previewRows?: number;
   collectSamples?: boolean;
+  processor?: RowProcessor;
 };
 
 const FORMULA_TRIGGERS = ["=", "+", "-", "@", "\t", "\r", "\n"];
@@ -56,92 +58,123 @@ function sanitizeCsvValue(value: string): string {
   return str.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
 }
 
-export async function parseCsv(
-  file: StoredFile,
-  options: ParseCsvOptions = {},
-) {
-  return new Promise<CsvPreviewResult>((resolve, reject) => {
-    const columnSamples = new Map<string, string[]>();
-    let headerRow: string[] = [];
-    let rowCount = 0;
+// Shared parser configuration
+const getParserConfig = (options: ParseOptions) => ({
+  skip_empty_lines: true,
+  trim: true,
+  bom: true,
+  to: (options.previewRows || 10) + 1,
+  quote: '"',
+  escape: '"',
+});
 
-    const parser = parse({
-      skip_empty_lines: true,
-      trim: true,
-      bom: true,
-      to: options.preview,
-      // Add quote and escape characters to prevent injection
-      quote: '"',
-      escape: '"',
-    });
+// Shared parsing logic
+const createParser = async (
+  options: ParseOptions,
+  resolve: (result: CsvPreviewResult) => void,
+  reject: (error: Error) => void,
+  fileName?: string,
+) => {
+  const columnSamples = new Map<string, string[]>();
+  let headerRow: string[] = [];
+  const previewRows: string[][] = [];
+  let rowCount = 0;
 
-    parser.on("data", async (row: string[]) => {
-      try {
-        const currentRowIndex = rowCount++;
-        if (currentRowIndex === 0) {
-          // Header row
-          headerRow = row.map((header) => sanitizeCsvValue(header));
-          if (options.collectSamples) {
-            headerRow.forEach((header) => columnSamples.set(header, []));
-          }
-          if (options.onHeader) {
-            await options.onHeader(headerRow);
-          }
-        } else {
-          // Data rows
-          const sanitizedRow = row.map((value) => sanitizeCsvValue(value));
+  const parser = parse(getParserConfig(options));
 
-          if (options.collectSamples) {
-            sanitizedRow.forEach((value, colIndex) => {
-              const header = headerRow[colIndex];
-              const samples = columnSamples.get(header) ?? [];
-              samples.push(value);
-              columnSamples.set(header, samples);
-            });
-          }
-          if (options.onRow) {
-            await options.onRow(sanitizedRow, headerRow, currentRowIndex);
-          }
-        }
-      } catch (error) {
-        reject(error);
+  parser.on("data", async (row: string[]) => {
+    const currentRowIndex = rowCount++;
+    if (currentRowIndex === 0) {
+      // Header row
+      headerRow = row.map((value) => value.trim());
+      if (options.collectSamples) {
+        headerRow.forEach((header) => columnSamples.set(header, []));
       }
-    });
-
-    parser.on("end", () => {
-      if (rowCount === 0) {
-        reject(new Error("CSV file is empty"));
-        return;
+      if (options.processor?.onHeader) {
+        await options.processor.onHeader(headerRow);
       }
+    } else if (!options.previewRows || currentRowIndex <= options.previewRows) {
+      // Data rows
+      const sanitizedRow = row.map((value) => sanitizeCsvValue(value));
+      previewRows.push(sanitizedRow);
 
-      const result: CsvPreviewResult = {
-        fileName: file.filename,
-        columns: headerRow.map((header) => ({
-          name: header,
-          samples: options.collectSamples
-            ? (columnSamples.get(header) ?? [])
-            : [],
-          inferredType: options.collectSamples
-            ? inferColumnType(columnSamples.get(header) ?? [])
-            : "string",
-        })),
-        totalColumns: headerRow.length,
-        previewRows: Math.max(0, rowCount - 1), // Subtract header row
-      };
+      if (options.collectSamples) {
+        sanitizedRow.forEach((value, colIndex) => {
+          const header = headerRow[colIndex];
+          const samples = columnSamples.get(header) ?? [];
+          samples.push(value);
+          columnSamples.set(header, samples);
+        });
+      }
+      if (options.processor?.onRow) {
+        await options.processor.onRow(sanitizedRow, headerRow, currentRowIndex);
+      }
+    }
+  });
 
-      resolve(result);
+  parser.on("end", () => {
+    if (rowCount === 0) {
+      reject(new Error("CSV file is empty"));
+      return;
+    }
+
+    resolve({
+      fileName,
+      columns: headerRow.map((header) => ({
+        name: header,
+        samples: options.collectSamples
+          ? (columnSamples.get(header) ?? [])
+          : [],
+        inferredType: options.collectSamples
+          ? inferColumnType(columnSamples.get(header) ?? [])
+          : "string",
+      })),
+      previewRows,
+      totalColumns: headerRow.length,
     });
+  });
 
-    parser.on("error", (error: Error) => {
-      reject(new Error(`Failed to parse CSV: ${error.message}`));
-    });
+  parser.on("error", (error: Error) => {
+    reject(new Error(`Failed to parse CSV: ${error.message}`));
+  });
 
-    const stream = Readable.from(
-      file.content
-        .subarray(0, options.preview ? 64 * 1024 : undefined)
-        .toString(),
-    );
-    stream.pipe(parser);
+  return parser;
+};
+
+// Browser implementation
+export async function parseCsvClient(
+  file: File,
+  options: Omit<ParseOptions, "processor"> = {
+    previewRows: 10,
+    collectSamples: true,
+  },
+): Promise<CsvPreviewResult> {
+  return new Promise((resolve, reject) => {
+    const chunk = file.slice(0, 64 * 1024);
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+      const parser = await createParser(options, resolve, reject, file.name);
+      parser.write(reader.result as string);
+      parser.end();
+    };
+
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsText(chunk);
+  });
+}
+
+// Node implementation
+export async function parseCsvServer(
+  buffer: Buffer,
+  options: Omit<ParseOptions, "previewRows">,
+): Promise<CsvPreviewResult> {
+  return new Promise(async (resolve, reject) => {
+    const parser = await createParser(options, resolve, reject);
+
+    // Full processing mode: process entire buffer
+    parser.write(buffer);
+    parser.end();
   });
 }
 

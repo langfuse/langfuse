@@ -2,13 +2,19 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { z } from "zod";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, StorageServiceFactory } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { randomUUID } from "crypto";
+import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
+import { MediaContentType } from "@/src/features/media/validation";
 
 const IP_4_LOOPBACK_SUBNET = "127.0.0.0/8";
 const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
 const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
 const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
+
+export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 100; // 100MB
 
 /**
  * Check if the ipAddress is a private IP address
@@ -206,5 +212,37 @@ export const utilsRouter = createTRPCRouter({
 
       const isValidImg = await isValidImageUrl(url);
       return { isValid: isValidImg };
+    }),
+
+  generatePresignedUrl: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        contentType: z.nativeEnum(MediaContentType),
+      }),
+    )
+    .mutation(async ({ input: { projectId, contentType } }) => {
+      const s3Client = StorageServiceFactory.getInstance({
+        bucketName: env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
+        accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+        secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+        endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+        region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+        forcePathStyle:
+          env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
+      });
+
+      const mediaId = randomUUID();
+      const fileExtension = getFileExtensionFromContentType(contentType);
+      const bucketPath = `${projectId}/${mediaId}.${fileExtension}`;
+
+      const uploadUrl = await s3Client.getSignedUploadUrl({
+        path: bucketPath,
+        ttlSeconds: 60 * 15, // 15 minutes
+        contentType,
+        contentLength: MAX_FILE_SIZE_BYTES, // 100MB
+      });
+
+      return { uploadUrl, bucketPath };
     }),
 });

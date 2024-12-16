@@ -10,8 +10,11 @@ import { UploadIcon } from "lucide-react";
 import { useRef } from "react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { z } from "zod";
-import { api } from "@/src/utils/api";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
+import {
+  type CsvPreviewResult,
+  parseCsvClient,
+} from "@/src/features/datasets/lib/csvHelpers";
+import { MAX_FILE_SIZE_BYTES } from "@/src/server/api/routers/utilities";
 
 const ACCEPTED_FILE_TYPES = ["text/csv", "application/csv"] as const;
 
@@ -21,18 +24,13 @@ const FileSchema = z.object({
 });
 
 export const UploadDatasetCsv = ({
-  projectId,
-  datasetId,
   setPreview,
+  setCsvFile,
 }: {
-  projectId: string;
-  datasetId: string;
   setPreview: (preview: CsvPreviewResult | null) => void;
+  setCsvFile: (file: File | null) => void;
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const mutStoreCsv = api.datasets.storeCsv.useMutation({});
-  const mutPreviewCsv = api.datasets.csvPreview.useMutation({});
 
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -47,30 +45,17 @@ export const UploadDatasetCsv = ({
       return;
     }
 
-    try {
-      const fileBuffer = await file.arrayBuffer();
-      const fileUint8Array = new Uint8Array(fileBuffer);
-      const base64Buffer = Buffer.from(fileUint8Array).toString("base64");
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      showErrorToast("File too large", "Maximum file size is 100MB"); // extract to const
+      event.target.value = ""; // Reset input
+      return;
+    }
 
-      const fileId = await mutStoreCsv.mutateAsync({
-        projectId,
-        datasetId,
-        file: {
-          buffer: base64Buffer,
-          name: file.name,
-          type: file.type,
-        },
-      });
-      if (!fileId) {
-        showErrorToast("Failed to parse CSV", "Memory limit exceeded");
-        event.target.value = "";
-        return;
-      }
-      const preview = await mutPreviewCsv.mutateAsync({
-        projectId,
-        fileId,
-      });
-      setPreview({ ...preview, fileId });
+    try {
+      // Store full file for later
+      setCsvFile(file);
+      const preview = await parseCsvClient(file);
+      setPreview(preview);
     } catch (error) {
       showErrorToast(
         "Failed to parse CSV",
