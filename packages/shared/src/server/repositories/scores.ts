@@ -684,8 +684,8 @@ export const getScoresForPostHog = async (
       t.release as trace_release,
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id
-    FROM scores s
-    LEFT JOIN traces t on s.trace_id = t.id and s.project_id = t.project_id
+    FROM scores s FINAL
+    LEFT JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
     WHERE s.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND s.timestamp >= {minTimestamp: DateTime64(3)}

@@ -1195,7 +1195,7 @@ export const getGenerationsForPostHog = async (
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id
     FROM observations o FINAL
-    LEFT JOIN traces t FINAL on o.trace_id = t.id and o.project_id = t.project_id
+    LEFT JOIN traces t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
     WHERE o.project_id = {projectId: String}
     AND t.project_id = {projectId: String}
     AND o.start_time >= {minTimestamp: DateTime64(3)}

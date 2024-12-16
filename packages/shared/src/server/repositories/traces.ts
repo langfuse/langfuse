@@ -800,14 +800,15 @@ export const getTracesForPostHog = async (
 ) => {
   const query = `
     WITH observations_agg AS (
-      SELECT o.trace_id,
+      SELECT o.project_id,
+             o.trace_id,
              sum(total_cost) as total_cost,
              count(*) as observation_count,
              date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
       FROM observations o FINAL
       WHERE o.project_id = {projectId: String}
       AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-      GROUP BY o.trace_id
+      GROUP BY o.project_id, o.trace_id
     )
 
     SELECT 
@@ -824,7 +825,7 @@ export const getTracesForPostHog = async (
       o.latency_milliseconds / 1000 as latency,
       o.observation_count as observation_count
     FROM traces t FINAL
-    LEFT JOIN observations_agg o ON t.id = o.trace_id
+    LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
     WHERE t.project_id = {projectId: String}
     AND t.timestamp >= {minTimestamp: DateTime64(3)}
     AND t.timestamp <= {maxTimestamp: DateTime64(3)}
