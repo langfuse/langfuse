@@ -600,6 +600,7 @@ export const scoresRouter = createTRPCRouter({
       });
 
       const hasClickhouseConfigured = env.CLICKHOUSE_URL;
+      let score: Score | null | undefined = null;
 
       if (hasClickhouseConfigured) {
         // Fetch the current score from Clickhouse
@@ -629,11 +630,12 @@ export const scoresRouter = createTRPCRouter({
 
           // Delete the score from Clickhouse
           await deleteScore(input.projectId, clickhouseScore.id);
+          score = clickhouseScore;
         }
       }
 
       if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
-        const score = await ctx.prisma.score.findFirst({
+        const scorePostgres = await ctx.prisma.score.findFirst({
           where: {
             id: input.id,
             source: "ANNOTATION",
@@ -641,7 +643,7 @@ export const scoresRouter = createTRPCRouter({
           },
         });
         // Fail silently while Clickhouse is in lead and return early
-        if (!score) {
+        if (!scorePostgres) {
           if (!hasClickhouseConfigured) {
             throw new InternalServerError(
               "No annotation score with this id in this project in Postgres.",
@@ -657,9 +659,9 @@ export const scoresRouter = createTRPCRouter({
         await auditLog({
           session: ctx.session,
           resourceType: "score",
-          resourceId: score.id,
+          resourceId: scorePostgres.id,
           action: "delete",
-          before: score,
+          before: scorePostgres,
         });
 
         // Fail silently while Clickhouse is in lead and return early
@@ -667,10 +669,11 @@ export const scoresRouter = createTRPCRouter({
           // Delete the score from Postgres
           await ctx.prisma.score.delete({
             where: {
-              id: score.id,
+              id: scorePostgres.id,
               projectId: input.projectId,
             },
           });
+          score = hasClickhouseConfigured ? score : scorePostgres;
         } catch (error) {
           if (!hasClickhouseConfigured) {
             throw new InternalServerError(
@@ -682,6 +685,14 @@ export const scoresRouter = createTRPCRouter({
           }
         }
       }
+
+      if (!score) {
+        throw new InternalServerError(
+          `Annotation score could not be deleted in project ${input.projectId}`,
+        );
+      }
+
+      return validateDbScore(score);
     }),
   getScoreKeysAndProps: protectedProjectProcedure
     .input(
