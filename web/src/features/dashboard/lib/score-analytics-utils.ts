@@ -1,14 +1,19 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
-
-// types
-type HistogramBin = { binLabel: string; count: number };
-type CategoryCounts = Record<string, number>;
-type ChartBin = { binLabel: string } & CategoryCounts;
+import {
+  type CategoryCounts,
+  type ChartBin,
+  type HistogramBin,
+} from "@/src/features/scores/types";
+import { type RouterOutputs } from "@/src/utils/api";
 
 // numeric score analytics helpers
 function round(value: number, precision = 2) {
   return parseFloat(value.toFixed(precision));
+}
+
+export function uniqueAndSort(labels: string[]): string[] {
+  return Array.from(new Set(labels)).sort();
 }
 
 function computeBinSize(
@@ -123,8 +128,72 @@ function groupCategoricalScoreDataByTimestamp(
   );
 }
 
-function uniqueAndSort(labels: string[]): string[] {
-  return Array.from(new Set(labels)).sort();
+export function transformAggregatedRunMetricsToChartData(
+  runMetrics: RouterOutputs["datasets"]["runsByDatasetIdMetrics"]["runs"],
+  scoreIdToName: Map<string, string>,
+) {
+  return runMetrics.reduce((acc, run) => {
+    Object.entries(run.scores ?? {}).forEach(([scoreId, score]) => {
+      if (!acc.has(scoreId)) {
+        acc.set(scoreId, { chartData: [], chartLabels: [] });
+      }
+      const currentScores = acc.get(scoreId)?.chartData ?? [];
+      let chartLabels: string[] = [];
+      let chartBin: ChartBin | null = null;
+      if (score.type === "NUMERIC") {
+        const scoreName = scoreIdToName.get(scoreId) ?? "score";
+        chartLabels = [scoreName];
+        chartBin = {
+          binLabel: run.name,
+          [scoreName]: score.average,
+        } as ChartBin;
+      } else {
+        const categoryCounts: CategoryCounts = {
+          ...score.valueCounts.reduce(
+            (counts, { value, count }) => ({
+              ...counts,
+              [value]: count,
+            }),
+            {},
+          ),
+        };
+        chartLabels = [...score.values];
+        chartBin = {
+          binLabel: run.name,
+          ...categoryCounts,
+        } as ChartBin;
+      }
+      acc.set(scoreId, {
+        chartData: [...currentScores, chartBin],
+        chartLabels,
+      });
+    });
+
+    // handle resource metrics
+    const key = "latency";
+    const currentResourceData = acc.get(key)?.chartData ?? [];
+    const chartBin = {
+      binLabel: run.name,
+      [key]: run.avgLatency ?? 0,
+    } as unknown as ChartBin;
+    acc.set(key, {
+      chartData: [...currentResourceData, chartBin],
+      chartLabels: [key],
+    });
+
+    const costKey = "cost";
+    const currentCostData = acc.get(costKey)?.chartData ?? [];
+    const costChartBin = {
+      binLabel: run.name,
+      [costKey]: run.avgTotalCost ?? 0,
+    } as unknown as ChartBin;
+    acc.set(costKey, {
+      chartData: [...currentCostData, costChartBin],
+      chartLabels: [costKey],
+    });
+
+    return acc;
+  }, new Map<string, { chartData: ChartBin[]; chartLabels: string[] }>());
 }
 
 export function transformCategoricalScoresToChartData(
@@ -157,7 +226,7 @@ export function transformCategoricalScoresToChartData(
   }
 }
 
-export function isEmptyBarChart({ data }: { data: ChartBin[] }) {
+export function isEmptyChart({ data }: { data: ChartBin[] }) {
   return (
     data.length === 0 || data.every((item) => Object.keys(item).length === 1)
   );

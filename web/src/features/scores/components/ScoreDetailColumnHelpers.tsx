@@ -11,17 +11,11 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
-import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
 import { type TableRowTypesWithIndividualScoreColumns } from "@/src/features/scores/lib/types";
-
-type ScoreDetailColumnProps = {
-  key: string;
-  name: string;
-  dataType: ScoreDataType;
-  source: ScoreSource;
-};
+import { type ScoreData } from "@/src/features/scores/types";
 
 const prefixScoreColKey = (
   key: string,
@@ -48,7 +42,7 @@ const parseScoreColumn = <
     | DatasetRunItemRowData
     | PromptVersionTableRow,
 >(
-  col: ScoreDetailColumnProps,
+  col: ScoreData,
   prefix?: "Trace" | "Generation",
 ): LangfuseColumnDef<T> => {
   const { key, name, source, dataType } = col;
@@ -73,7 +67,7 @@ const parseScoreColumn = <
 };
 
 export function verifyAndPrefixScoreDataAgainstKeys(
-  scoreKeys: ScoreDetailColumnProps[],
+  scoreKeys: ScoreData[],
   scoreData: ScoreAggregate,
   prefix?: "Trace" | "Generation",
 ): ScoreAggregate {
@@ -101,7 +95,7 @@ export const constructIndividualScoreColumns = <
   scoreColumnPrefix,
   cellsLoading = false,
 }: {
-  scoreColumnProps: ScoreDetailColumnProps[];
+  scoreColumnProps: ScoreData[];
   scoreColumnKey: keyof T & string;
   showAggregateViewOnly?: boolean;
   scoreColumnPrefix?: "Trace" | "Generation";

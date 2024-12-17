@@ -25,90 +25,20 @@ import {
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
-import {
-  isBooleanDataType,
-  isNumericDataType,
-} from "@/src/features/scores/lib/helpers";
-import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
-import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
-import { isEmptyBarChart } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { BarChart, LineChart } from "@tremor/react";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import Link from "next/link";
-// import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
-import { compactNumberFormatter } from "@/src/utils/numbers";
-
-// fix import
-type CategoryCounts = Record<string, number>;
-type ChartBin = { binLabel: string } & CategoryCounts;
+import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
+import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { CompareViewAdapter } from "@/src/features/scores/adapters";
+import { transformAggregatedRunMetricsToChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 
 const RESOURCE_KEY_TO_LABEL = new Map([
   ["latency", "Latency (ms)"],
   ["cost", "Total Cost ($)"],
 ]);
-
-function CategoricalChart(props: {
-  chartData: ChartBin[];
-  chartLabels: string[];
-}) {
-  const barCategoryGap = (chartLength: number): string => {
-    if (chartLength > 7) return "10%";
-    if (chartLength > 5) return "20%";
-    if (chartLength > 3) return "30%";
-    else return "40%";
-  };
-  const colors = getColorsForCategories(props.chartLabels);
-
-  return isEmptyBarChart({ data: props.chartData }) ? (
-    <NoDataOrLoading isLoading={false} />
-  ) : (
-    <Card className="h-full w-full rounded-tremor-default border">
-      <BarChart
-        className="h-full"
-        data={props.chartData}
-        index="binLabel"
-        categories={props.chartLabels}
-        colors={colors}
-        valueFormatter={(number: number) =>
-          Intl.NumberFormat("en-US").format(number).toString()
-        }
-        yAxisWidth={48}
-        barCategoryGap={barCategoryGap(props.chartData.length)}
-        stack
-      />
-    </Card>
-  );
-}
-
-function NumericChart(props: { chartData: ChartBin[]; chartLabels: string[] }) {
-  const colors = getColorsForCategories(props.chartLabels);
-
-  return (
-    <Card className="h-full w-full rounded-tremor-default border">
-      <LineChart
-        className="h-full"
-        data={props.chartData}
-        index="binLabel"
-        categories={props.chartLabels}
-        colors={colors}
-        valueFormatter={compactNumberFormatter}
-        noDataText="No data"
-        showAnimation={true}
-        onValueChange={() => {}}
-        enableLegendSlider={true}
-      />
-    </Card>
-  );
-}
-
-function uniqueAndSort(labels: string[]): string[] {
-  return Array.from(new Set(labels)).sort();
-}
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -154,7 +84,7 @@ export default function DatasetCompare() {
     datasetId,
     queryClickhouse: useClickhouse(),
     page: 0,
-    limit: 100, // need to drop this limit for the query to work properly
+    limit: 100, // TODO: need to drop this limit for the query to work properly >> how to do this?
   });
 
   // TODO: refactor write new query to pull scores for runs
@@ -171,70 +101,10 @@ export default function DatasetCompare() {
   }, [scoreKeysAndProps.data]);
 
   const runAggregatedMetrics = useMemo(() => {
-    return runMetrics.data?.runs
-      .filter((run) => runIds?.includes(run.id))
-      .reduce((acc, run) => {
-        Object.entries(run.scores ?? {}).forEach(([scoreId, score]) => {
-          if (!acc.has(scoreId)) {
-            acc.set(scoreId, { chartData: [], chartLabels: [] });
-          }
-          const currentScores = acc.get(scoreId)?.chartData ?? [];
-          let chartLabels: string[] = [];
-          let chartBin: ChartBin | null = null;
-          if (score.type === "NUMERIC") {
-            const scoreName = scoreIdToName.get(scoreId) ?? "score";
-            chartLabels = [scoreName];
-            chartBin = {
-              binLabel: run.name,
-              [scoreName]: score.average,
-            } as ChartBin;
-          } else {
-            const categoryCounts: CategoryCounts = {
-              ...score.valueCounts.reduce(
-                (counts, { value, count }) => ({
-                  ...counts,
-                  [value]: count,
-                }),
-                {},
-              ),
-            };
-            chartLabels = [...score.values];
-            chartBin = {
-              binLabel: run.name,
-              ...categoryCounts,
-            } as ChartBin;
-          }
-          acc.set(scoreId, {
-            chartData: [...currentScores, chartBin],
-            chartLabels,
-          });
-        });
-
-        // handle resource metrics
-        const key = "latency";
-        const currentResourceData = acc.get(key)?.chartData ?? [];
-        const chartBin = {
-          binLabel: run.name,
-          [key]: run.avgLatency ?? 0,
-        } as unknown as ChartBin;
-        acc.set(key, {
-          chartData: [...currentResourceData, chartBin],
-          chartLabels: [key],
-        });
-
-        const costKey = "cost";
-        const currentCostData = acc.get(costKey)?.chartData ?? [];
-        const costChartBin = {
-          binLabel: run.name,
-          [costKey]: run.avgTotalCost ?? 0,
-        } as unknown as ChartBin;
-        acc.set(costKey, {
-          chartData: [...currentCostData, costChartBin],
-          chartLabels: [costKey],
-        });
-
-        return acc;
-      }, new Map<string, { chartData: ChartBin[]; chartLabels: string[] }>());
+    return transformAggregatedRunMetricsToChartData(
+      runMetrics.data?.runs.filter((run) => runIds?.includes(run.id)) ?? [],
+      scoreIdToName,
+    );
   }, [runMetrics.data, runIds, scoreIdToName]);
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
@@ -410,64 +280,36 @@ export default function DatasetCompare() {
             <CardContent className="mt-2 h-full">
               <div className="flex h-full w-full gap-4 overflow-x-auto">
                 {selectedMetrics.map((key) => {
+                  const adapter = new CompareViewAdapter(
+                    runAggregatedMetrics,
+                    key,
+                  );
+                  const { chartData, chartLabels } = adapter.toChartData();
+
                   const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData) {
+                  if (!scoreData)
                     return (
-                      <div
+                      <TimeseriesChart
                         key={key}
-                        className="mb-2 flex w-[45%] flex-none flex-col overflow-hidden"
-                      >
-                        <div className="shrink-0 text-sm font-medium">
-                          {RESOURCE_KEY_TO_LABEL.get(key) ?? key}
-                        </div>
-                        <div className="mt-2 min-h-0 flex-1">
-                          <NumericChart
-                            chartLabels={uniqueAndSort(
-                              runAggregatedMetrics?.get(key)?.chartLabels ?? [],
-                            )}
-                            chartData={
-                              runAggregatedMetrics?.get(key)?.chartData ?? []
-                            }
-                          />
-                        </div>
-                      </div>
+                        chartData={chartData}
+                        chartLabels={chartLabels}
+                        title={RESOURCE_KEY_TO_LABEL.get(key) ?? key}
+                        type="numeric"
+                      />
                     );
-                  }
-                  const { name, dataType, source } = scoreData;
 
                   return (
-                    <div
+                    <TimeseriesChart
                       key={key}
-                      className="mb-2 flex w-[45%] flex-none flex-col overflow-hidden"
-                    >
-                      <div className="shrink-0 text-sm font-medium">
-                        {`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}
-                      </div>
-                      <div className="mt-2 min-h-0 flex-1">
-                        {/* timeseries */}
-                        {(isCategoricalDataType(dataType) ||
-                          isBooleanDataType(dataType)) && (
-                          <CategoricalChart
-                            chartLabels={uniqueAndSort(
-                              runAggregatedMetrics?.get(key)?.chartLabels ?? [],
-                            )}
-                            chartData={
-                              runAggregatedMetrics?.get(key)?.chartData ?? []
-                            }
-                          />
-                        )}
-                        {isNumericDataType(dataType) && (
-                          <NumericChart
-                            chartLabels={uniqueAndSort(
-                              runAggregatedMetrics?.get(key)?.chartLabels ?? [],
-                            )}
-                            chartData={
-                              runAggregatedMetrics?.get(key)?.chartData ?? []
-                            }
-                          />
-                        )}
-                      </div>
-                    </div>
+                      chartData={chartData}
+                      chartLabels={chartLabels}
+                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                      type={
+                        isNumericDataType(scoreData.dataType)
+                          ? "numeric"
+                          : "categorical"
+                      }
+                    />
                   );
                 })}
               </div>

@@ -123,19 +123,17 @@ export function ScoreAnalytics(props: {
                     {(isCategoricalDataType(dataType) ||
                       isBooleanDataType(dataType)) && (
                       <CategoricalScoreChart
-                        source={source}
-                        name={name}
-                        dataType={dataType}
                         projectId={props.projectId}
+                        scoreData={scoreData}
                         globalFilterState={props.globalFilterState}
                       />
                     )}
                     {isNumericDataType(dataType) && (
                       <NumericScoreHistogram
+                        projectId={props.projectId}
                         source={source}
                         name={name}
                         dataType={dataType}
-                        projectId={props.projectId}
                         globalFilterState={props.globalFilterState}
                       />
                     )}
@@ -150,11 +148,9 @@ export function ScoreAnalytics(props: {
                     {(isCategoricalDataType(dataType) ||
                       isBooleanDataType(dataType)) && (
                       <CategoricalScoreChart
-                        agg={props.agg}
-                        source={source}
-                        name={name}
-                        dataType={dataType}
                         projectId={props.projectId}
+                        agg={props.agg}
+                        scoreData={scoreData}
                         globalFilterState={props.globalFilterState}
                       />
                     )}
