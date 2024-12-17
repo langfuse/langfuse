@@ -34,7 +34,7 @@ export type RunMetrics = {
     latency?: number;
     totalCost?: string;
   };
-  traceId: string;
+  traceId: string | undefined;
   observationId: string | undefined;
   log: string | null;
 };
@@ -81,7 +81,7 @@ export function DatasetCompareRunsTable(props: {
   );
   const [traceAndObservationId, setTraceAndObservationId] = useState<{
     runId: string;
-    traceId: string;
+    traceId?: string;
     observationId?: string;
   } | null>(null);
   const [unchangedCounts, setUnchangedCounts] = useState<
@@ -186,7 +186,7 @@ export function DatasetCompareRunsTable(props: {
 
             itemsAcc[datasetItemId][runId] = {
               id: runId,
-              traceId: trace?.id ?? "",
+              traceId: trace?.id,
               observationId: observation?.id ?? undefined,
               resourceMetrics: {
                 latency:

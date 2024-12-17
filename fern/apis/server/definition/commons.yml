@@ -326,7 +326,7 @@ types:
       datasetRunId: string
       datasetRunName: string
       datasetItemId: string
-      traceId: string
+      traceId: optional<string>
       observationId: optional<string>
       createdAt: datetime
       updatedAt: datetime

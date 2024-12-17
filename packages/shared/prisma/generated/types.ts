@@ -213,7 +213,7 @@ export type DatasetRunItems = {
     project_id: string;
     dataset_run_id: string;
     dataset_item_id: string;
-    trace_id: string;
+    trace_id: string | null;
     observation_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;

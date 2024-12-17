@@ -3063,6 +3063,7 @@ components:
           type: string
         traceId:
           type: string
+          nullable: true
         observationId:
           type: string
           nullable: true

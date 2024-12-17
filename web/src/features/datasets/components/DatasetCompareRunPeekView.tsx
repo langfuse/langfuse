@@ -35,11 +35,11 @@ export function DatasetCompareRunPeekView({
   setClickedRow: (row: DatasetCompareRunRowData | null) => void;
   traceAndObservationId: {
     runId: string;
-    traceId: string;
+    traceId?: string;
     observationId?: string;
   } | null;
   setTraceAndObservationId: (
-    id: { runId: string; traceId: string; observationId?: string } | null,
+    id: { runId: string; traceId?: string; observationId?: string } | null,
   ) => void;
   runsData: RouterOutputs["datasets"]["baseRunDataByDatasetId"];
 }) {
@@ -115,7 +115,7 @@ export function DatasetCompareRunPeekView({
                 scores={trace.data?.scores ?? []}
                 currentObservationId={undefined}
                 setCurrentObservationId={(id) => {
-                  if (id)
+                  if (id && traceAndObservationId?.traceId)
                     window.open(
                       `/project/${projectId}/traces/${encodeURIComponent(traceAndObservationId?.traceId)}?observation=${encodeURIComponent(id)}`,
                       "_blank",
@@ -203,15 +203,17 @@ export function DatasetCompareRunPeekView({
                                 variant="outline"
                                 size="icon"
                                 title="View full trace"
-                                onClick={() =>
-                                  window.open(
-                                    run?.observationId
-                                      ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
-                                      : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
-                                    "_blank",
-                                    "noopener noreferrer",
-                                  )
-                                }
+                                onClick={() => {
+                                  if (run?.traceId) {
+                                    window.open(
+                                      run?.observationId
+                                        ? `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}?observation=${encodeURIComponent(run.observationId)}`
+                                        : `/project/${projectId}/traces/${encodeURIComponent(run.traceId)}`,
+                                      "_blank",
+                                      "noopener noreferrer",
+                                    );
+                                  }
+                                }}
                               >
                                 <ListTree className="h-4 w-4" />
                               </Button>
