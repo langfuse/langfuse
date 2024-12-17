@@ -317,6 +317,7 @@ if (
 
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
+const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
@@ -353,6 +354,12 @@ const extendedPrismaAdapter: Adapter = {
     if (data.provider === "keycloak") {
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
+    }
+
+    for (const ignoredField of ignoredAccountFields) {
+      if (ignoredField in data) {
+        delete data[ignoredField];
+      }
     }
 
     await prismaAdapter.linkAccount(data);
