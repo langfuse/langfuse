@@ -151,7 +151,9 @@ export const ModelUsageChart = ({
   });
 
   const usageData = Array.from(usageTypeMap.values()).flat();
-  const currentModels = [...new Set(usageData.map((row) => row.model))];
+  const currentModels = [
+    ...new Set(usageData.map((row) => row.model).filter(Boolean)),
+  ];
 
   const unitsByType =
     usageData && allModels.length > 0
@@ -319,7 +321,7 @@ export const ModelUsageChart = ({
                               : "opacity-0",
                           )}
                         />
-                        {model}
+                        {!model || model === "" ? <i>none</i> : model}
                       </CommandItem>
                     ))}
                   </CommandList>
