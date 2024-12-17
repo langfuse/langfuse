@@ -16,7 +16,7 @@ import {
 } from "@/src/features/datasets/lib/csvHelpers";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 100; // 100MB
-const ACCEPTED_FILE_TYPES = ["text/csv", "application/csv"] as const;
+const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
 
 const FileSchema = z.object({
   type: z.enum([...ACCEPTED_FILE_TYPES]),

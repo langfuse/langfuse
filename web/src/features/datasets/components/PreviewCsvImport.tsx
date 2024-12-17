@@ -295,7 +295,7 @@ export function PreviewCsvImport({
               const uploadResponse = await fetch(uploadUrl, {
                 method: "PUT",
                 headers: {
-                  "Content-Type": "text/csv",
+                  "Content-Type": MediaContentType.CSV,
                 },
                 body: csvFile,
               });
