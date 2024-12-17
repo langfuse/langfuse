@@ -1,4 +1,7 @@
-import { paginationMetaResponseZod, paginationZod } from "@langfuse/shared";
+import {
+  paginationMetaResponseZod,
+  publicApiPaginationZod,
+} from "@langfuse/shared";
 import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
@@ -8,7 +11,7 @@ import { z } from "zod";
 
 // Get /metrics/daily
 export const GetMetricsDailyV1Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
   traceName: z.string().nullish(),
   userId: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),

@@ -126,7 +126,7 @@ types:
         docs: The output data of the observation
       usage:
         type: optional<Usage>
-        docs: The usage data of the observation
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The usage data of the observation
       level:
         type: ObservationLevel
         docs: The level of the observation
@@ -139,6 +139,12 @@ types:
       promptId:
         type: optional<string>
         docs: The prompt ID associated with the observation
+      usageDetails:
+        type: optional<map<string, integer>>
+        docs: The usage details of the observation. Key is the name of the usage metric, value is the number of units consumed. The total key is the sum of all (non-total) usage metrics or the total value ingested.
+      costDetails:
+        type: optional<map<string, double>>
+        docs: The cost details of the observation. Key is the name of the cost metric, value is the cost in USD. The total key is the sum of all (non-total) cost metrics or the total value ingested.
 
   ObservationsView:
     extends: Observation
@@ -163,13 +169,13 @@ types:
         docs: The total price in USD.
       calculatedInputCost:
         type: optional<double>
-        docs: The calculated cost of the input in USD
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the input in USD
       calculatedOutputCost:
         type: optional<double>
-        docs: The calculated cost of the output in USD
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the output in USD
       calculatedTotalCost:
         type: optional<double>
-        docs: The calculated total cost in USD
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated total cost in USD
       latency:
         type: optional<double>
         docs: The latency in seconds.
@@ -178,7 +184,7 @@ types:
         docs: The time to the first token in seconds
 
   Usage:
-    docs: Standard interface for usage and cost
+    docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost
     properties:
       input:
         docs: Number of input units (e.g. tokens)

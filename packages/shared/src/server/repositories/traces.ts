@@ -23,7 +23,11 @@ import { sessionCols } from "../../tableDefinitions/mapSessionTable";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
-import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  TRACE_TO_OBSERVATIONS_INTERVAL,
+} from "./constants";
+import { env } from "../../env";
 
 export const checkTraceExists = async (
   projectId: string,
@@ -35,6 +39,11 @@ export const checkTraceExists = async (
     tracesPrefix: "t",
   });
 
+  const timeStampFilter = tracesFilter.find(
+    (f) =>
+      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
   tracesFilter.push(
     ...createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
     new StringFilter({
@@ -45,19 +54,46 @@ export const checkTraceExists = async (
     }),
   );
 
+  const observationFilter = tracesFilter.find(
+    (f) => f.clickhouseTable === "observations",
+  );
   const tracesFilterRes = tracesFilter.apply();
+  const observationFilterRes = observationFilter?.apply();
 
   const query = `
-    SELECT id, project_id
-    FROM traces t FINAL
+    WITH observations_agg AS (
+        SELECT
+          
+            multiIf(
+              arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
+              arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
+              arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
+              'DEBUG'
+            ) AS level,
+            trace_id,
+            project_id
+        FROM observations o FINAL 
+        WHERE o.project_id = {projectId: String}
+        ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+        GROUP BY trace_id, project_id
+      )
+    SELECT 
+      t.id as id, 
+      t.project_id as project_id
+    FROM traces t FINAL 
+    ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
     WHERE ${tracesFilterRes.query}
+    AND t.project_id = {projectId: String}
     ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+    GROUP BY t.id, t.project_id
   `;
 
   const rows = await queryClickhouse<{ id: string; project_id: string }>({
     query,
     params: {
+      projectId,
       ...tracesFilterRes.params,
+      ...(observationFilterRes ? observationFilterRes.params : {}),
       ...(timestamp
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
@@ -493,11 +529,11 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             date_diff('milliseconds', min(min_start_time), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
             sumMap(o.sum_cost_details) as session_cost_details,
-            sumMap(o.sum_cost_details)['input'] as session_input_cost,
-            sumMap(o.sum_cost_details)['output'] as session_output_cost,
-            sumMap(o.sum_cost_details)['total'] as session_total_cost,
-            sumMap(o.sum_usage_details)['input'] as session_input_usage,
-            sumMap(o.sum_usage_details)['output'] as session_output_usage,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_cost_details)))) as session_output_cost,
+            sumMap(o.sum_cost_details)['total'] as session_total_cost,          
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_usage_details)))) as session_input_usage,
+            arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_usage_details)))) as session_output_usage,
             sumMap(o.sum_usage_details)['total'] as session_total_usage
         FROM traces t FINAL
         LEFT JOIN observations_agg o
@@ -713,8 +749,8 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
             t.user_id
     )
     SELECT
-        sum_usage_details [ 'input' ] as input_usage,
-        sum_usage_details [ 'output' ] as output_usage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
+        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
         sum_usage_details [ 'total' ] as total_usage,
         obs_count,
         trace_count,
@@ -754,6 +790,78 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     observationCount: Number(row.obs_count),
     traceCount: Number(row.trace_count),
     totalCost: Number(row.sum_total_cost),
+  }));
+};
+
+export const getTracesForPostHog = async (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) => {
+  const query = `
+    WITH observations_agg AS (
+      SELECT o.project_id,
+             o.trace_id,
+             sum(total_cost) as total_cost,
+             count(*) as observation_count,
+             date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds
+      FROM observations o FINAL
+      WHERE o.project_id = {projectId: String}
+      AND o.start_time >= {minTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+      GROUP BY o.project_id, o.trace_id
+    )
+
+    SELECT 
+      t.id as id,
+      t.timestamp as timestamp,
+      t.name as name,
+      t.session_id as session_id,
+      t.user_id as user_id,
+      t.release as release,
+      t.version as version,
+      t.tags as tags,
+      t.metadata['$posthog_session_id'] as posthog_session_id,
+      o.total_cost as total_cost,
+      o.latency_milliseconds / 1000 as latency,
+      o.observation_count as observation_count
+    FROM traces t FINAL
+    LEFT JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id
+    WHERE t.project_id = {projectId: String}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)}
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = await queryClickhouse<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+  });
+
+  const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
+  return records.map((record) => ({
+    timestamp: record.timestamp,
+    langfuse_id: record.id,
+    langfuse_trace_name: record.name,
+    langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.id as string)}`,
+    langfuse_cost_usd: record.total_cost,
+    langfuse_count_observations: record.observation_count,
+    langfuse_session_id: record.session_id,
+    langfuse_project_id: projectId,
+    langfuse_user_id: record.user_id || "langfuse_unknown_user",
+    langfuse_latency: record.latency,
+    langfuse_release: record.release,
+    langfuse_version: record.version,
+    langfuse_tags: record.tags,
+    langfuse_event_version: "1.0.0",
+    $session_id: record.posthog_session_id ?? null,
+    $set: {
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+        : null,
+    },
   }));
 };
 

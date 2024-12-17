@@ -33,9 +33,6 @@ import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
@@ -179,21 +176,6 @@ export const PromptDetail = () => {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Set up experiment</DialogTitle>
-                        <DialogDescription>
-                          Create an experiment to test a prompt version on a
-                          dataset. See{" "}
-                          <Link
-                            href="https://langfuse.com/docs/datasets/prompt-experiments"
-                            target="_blank"
-                            className="underline"
-                          >
-                            documentation
-                          </Link>{" "}
-                          to learn more.
-                        </DialogDescription>
-                      </DialogHeader>
                       <CreateExperimentsForm
                         key={`create-experiment-form-${prompt.id}`}
                         projectId={projectId as string}

@@ -1095,7 +1095,10 @@ export function AnnotateDrawerContent({
                               type="button"
                               className="px-0 pl-1"
                               title="Delete score from trace/observation"
-                              disabled={isScoreUnsaved(score.scoreId)}
+                              disabled={
+                                isScoreUnsaved(score.scoreId) ||
+                                mutUpdateScores.isLoading
+                              }
                               loading={
                                 mutDeleteScore.isLoading &&
                                 !optimisticScores.some(

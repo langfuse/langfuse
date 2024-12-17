@@ -12,14 +12,12 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
   ForbiddenError,
-  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   Prisma,
   extractVariables,
   datasetItemMatchesVariable,
   stringifyValue,
-  TRACE_ID_FAILED_TO_CREATE,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -149,7 +147,7 @@ export const createExperimentJob = async ({
     logger.error(
       `Prompt content not in expected format ${prompt_id} not found for project ${projectId}`,
     );
-    throw new InternalServerError(
+    throw new InvalidRequestError(
       `Prompt ${prompt_id} not found in expected format for project ${projectId}`,
     );
   }
@@ -265,7 +263,7 @@ export const createExperimentJob = async ({
             traceParams,
           ),
         {
-          numOfAttempts: 5, // turn off retries as Langchain is doing that for us already.
+          numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
         },
       );
     } catch (e) {
@@ -279,7 +277,7 @@ export const createExperimentJob = async ({
         where: {
           id_projectId: { id: runItem.id, projectId: runItem.projectId },
         },
-        data: { log, traceId: TRACE_ID_FAILED_TO_CREATE },
+        data: { traceId: null, log },
       });
     }
 
