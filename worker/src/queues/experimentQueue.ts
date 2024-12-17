@@ -10,7 +10,9 @@ import {
   ForbiddenError,
   InvalidRequestError,
   LangfuseNotFoundError,
+  ExperimentError,
 } from "@langfuse/shared";
+import { kyselyPrisma } from "@langfuse/shared/src/db";
 
 export const experimentCreateQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.ExperimentCreate]>,
@@ -26,6 +28,24 @@ export const experimentCreateQueueProcessor = async (
     });
     return true;
   } catch (e) {
+    if (e instanceof ExperimentError) {
+      const displayError = e.message;
+      const runItemId = e.details.datasetRunItemId;
+
+      await kyselyPrisma.$kysely
+        .updateTable("dataset_run_items")
+        .set("trace_id", null)
+        .set("log", displayError)
+        .where("id", "=", runItemId)
+        .where("project_id", "=", job.data.payload.projectId)
+        .execute();
+      logger.info("Updated dataset run item", {
+        runItemId,
+        displayError,
+      });
+      return;
+    }
+
     if (
       e instanceof ForbiddenError ||
       e instanceof InvalidRequestError ||

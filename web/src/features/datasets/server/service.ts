@@ -531,7 +531,7 @@ export const getRunItemsByRunIdOrItemId = async (
     await Promise.all([
       getScoresForTraces(
         projectId,
-        runItems.map((ri) => ri.traceId),
+        runItems.filter((ri) => !!ri.traceId).map((ri) => ri.traceId as string),
       ),
       getLatencyAndTotalCostForObservations(
         projectId,
@@ -541,7 +541,7 @@ export const getRunItemsByRunIdOrItemId = async (
       ),
       getLatencyAndTotalCostForObservationsByTraces(
         projectId,
-        runItems.map((ri) => ri.traceId),
+        runItems.filter((ri) => !!ri.traceId).map((ri) => ri.traceId as string),
       ),
     ]);
 
@@ -551,18 +551,14 @@ export const getRunItemsByRunIdOrItemId = async (
   );
 
   return runItems.map((ri) => {
-    const trace = traceAggregate
-      .map((t) => ({
-        id: t.traceId,
-        duration: t.latency,
-        totalCost: t.totalCost,
-      }))
-      .find((t) => t.id === ri.traceId) ?? {
-      // we default to the traceId provided. The traceId must not be missing.
-      id: ri.traceId,
-      totalCost: 0,
-      duration: 0,
-    };
+    const trace =
+      traceAggregate
+        .map((t) => ({
+          id: t.traceId,
+          duration: t.latency,
+          totalCost: t.totalCost,
+        }))
+        .find((t) => t.id === ri.traceId) ?? undefined;
 
     const observation =
       observationAggregates

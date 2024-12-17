@@ -37,7 +37,7 @@ const DatasetAggregateCell = ({
   const trace = api.traces.byId.useQuery(
     { traceId: traceId as string, projectId },
     {
-      enabled: observationId === undefined && traceId !== undefined,
+      enabled: observationId === undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -57,7 +57,7 @@ const DatasetAggregateCell = ({
       traceId: traceId as string,
     },
     {
-      enabled: observationId !== undefined && traceId !== undefined,
+      enabled: observationId !== undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,

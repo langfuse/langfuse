@@ -18,10 +18,7 @@ import {
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import {
-  TRACE_ID_FAILED_TO_CREATE,
-  type ScoreAggregate,
-} from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
@@ -330,7 +327,7 @@ const TraceObservationIOCell = ({
   io,
   singleLine = false,
 }: {
-  traceId: string;
+  traceId?: string;
   projectId: string;
   observationId?: string;
   io: "input" | "output";
@@ -338,10 +335,9 @@ const TraceObservationIOCell = ({
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId: traceId as string, projectId },
     {
-      enabled:
-        observationId === undefined && traceId !== TRACE_ID_FAILED_TO_CREATE,
+      enabled: observationId === undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -355,10 +351,10 @@ const TraceObservationIOCell = ({
     {
       observationId: observationId as string, // disabled when observationId is undefined
       projectId,
-      traceId,
+      traceId: traceId as string,
     },
     {
-      enabled: observationId !== undefined,
+      enabled: observationId !== undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -371,7 +367,7 @@ const TraceObservationIOCell = ({
 
   const data = observationId === undefined ? trace.data : observation.data;
 
-  if (traceId === TRACE_ID_FAILED_TO_CREATE) {
+  if (!traceId) {
     return (
       <IOTableCell isLoading={false} data={null} singleLine={singleLine} />
     );

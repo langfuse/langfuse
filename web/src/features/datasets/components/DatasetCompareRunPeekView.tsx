@@ -58,7 +58,7 @@ export function DatasetCompareRunPeekView({
       queryClickhouse: useClickhouse(),
     },
     {
-      enabled: !!traceAndObservationId,
+      enabled: !!traceAndObservationId?.traceId,
       retry(failureCount, error) {
         if (error.data?.code === "UNAUTHORIZED") return false;
         return failureCount < 3;

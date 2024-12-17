@@ -18,6 +18,7 @@ import {
   extractVariables,
   datasetItemMatchesVariable,
   stringifyValue,
+  ExperimentError,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -267,18 +268,13 @@ export const createExperimentJob = async ({
         },
       );
     } catch (e) {
-      const errorMessage =
-        e instanceof Error
-          ? e.message
-          : "Dataset run item failed to call LLM. No valid trace created.";
-      const log = errorMessage + "Eval will fail.";
-
-      await prisma.datasetRunItems.update({
-        where: {
-          id_projectId: { id: runItem.id, projectId: runItem.projectId },
+      logger.error(e);
+      throw new ExperimentError(
+        "Dataset run item failed to call LLM. No valid trace created.",
+        {
+          datasetRunItemId: runItem.id,
         },
-        data: { traceId: null, log },
-      });
+      );
     }
 
     /********************

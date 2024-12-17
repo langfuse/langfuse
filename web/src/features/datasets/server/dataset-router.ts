@@ -643,7 +643,7 @@ export const datasetRouter = createTRPCRouter({
       const runItems = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
-          traceId: string;
+          traceId: string | null;
           observationId: string | null;
           createdAt: Date;
           updatedAt: Date;
@@ -697,7 +697,9 @@ export const datasetRouter = createTRPCRouter({
             where: {
               projectId: ctx.session.projectId,
               traceId: {
-                in: runItems.map((ri) => ri.traceId),
+                in: runItems
+                  .filter((ri) => !!ri.traceId)
+                  .map((ri) => ri.traceId as string),
               },
             },
           });
@@ -720,7 +722,7 @@ export const datasetRouter = createTRPCRouter({
 
           // Directly access 'traces' table and calculate duration via lateral join
           // Previously used 'traces_view' was not performant enough
-          const traceIdsSQL = Prisma.sql`ARRAY[${Prisma.join(runItems.map((ri) => ri.traceId))}]`;
+          const traceIdsSQL = Prisma.sql`ARRAY[${Prisma.join(runItems.filter((ri) => !!ri.traceId).map((ri) => ri.traceId as string))}]`;
           const traces = await ctx.prisma.$queryRaw<
             {
               id: string;
