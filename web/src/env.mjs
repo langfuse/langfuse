@@ -126,6 +126,18 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // CSV Import
+    LANGFUSE_CSV_IMPORT_ENABLED: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_CSV_IMPORT_BUCKET: z.string().optional(),
+    LANGFUSE_CSV_IMPORT_PREFIX: z.string().default(""),
+    LANGFUSE_CSV_IMPORT_REGION: z.string().optional(),
+    LANGFUSE_CSV_IMPORT_ENDPOINT: z.string().optional(),
+    LANGFUSE_CSV_IMPORT_ACCESS_KEY_ID: z.string().optional(),
+    LANGFUSE_CSV_IMPORT_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_CSV_IMPORT_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false"),
+
     // Database exports
     DB_EXPORT_PAGE_SIZE: z.number().optional(),
 
@@ -395,6 +407,19 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
     LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE:
       process.env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE,
+
+    // CSV Import
+    LANGFUSE_CSV_IMPORT_ENABLED: process.env.LANGFUSE_CSV_IMPORT_ENABLED,
+    LANGFUSE_CSV_IMPORT_BUCKET: process.env.LANGFUSE_CSV_IMPORT_BUCKET,
+    LANGFUSE_CSV_IMPORT_PREFIX: process.env.LANGFUSE_CSV_IMPORT_PREFIX,
+    LANGFUSE_CSV_IMPORT_REGION: process.env.LANGFUSE_CSV_IMPORT_REGION,
+    LANGFUSE_CSV_IMPORT_ENDPOINT: process.env.LANGFUSE_CSV_IMPORT_ENDPOINT,
+    LANGFUSE_CSV_IMPORT_ACCESS_KEY_ID:
+      process.env.LANGFUSE_CSV_IMPORT_ACCESS_KEY_ID,
+    LANGFUSE_CSV_IMPORT_SECRET_ACCESS_KEY:
+      process.env.LANGFUSE_CSV_IMPORT_SECRET_ACCESS_KEY,
+    LANGFUSE_CSV_IMPORT_FORCE_PATH_STYLE:
+      process.env.LANGFUSE_CSV_IMPORT_FORCE_PATH_STYLE,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:

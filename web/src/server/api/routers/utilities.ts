@@ -11,6 +11,7 @@ import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
 import { MediaContentType } from "@/src/features/media/validation";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 
 const IP_4_LOOPBACK_SUBNET = "127.0.0.0/8";
 const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
@@ -24,11 +25,11 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
     s3StorageServiceClient = StorageServiceFactory.getInstance({
       bucketName,
-      accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
-      region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
-      forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
+      accessKeyId: env.LANGFUSE_CSV_IMPORT_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_CSV_IMPORT_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_CSV_IMPORT_ENDPOINT,
+      region: env.LANGFUSE_CSV_IMPORT_REGION,
+      forcePathStyle: env.LANGFUSE_CSV_IMPORT_FORCE_PATH_STYLE === "true",
     });
   }
   return s3StorageServiceClient;
@@ -240,20 +241,31 @@ export const utilsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input: { projectId, contentType } }) => {
-      const s3Client = getS3StorageServiceClient(
-        env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
+      if (env.LANGFUSE_CSV_IMPORT_ENABLED === "true") {
+        if (!env.LANGFUSE_CSV_IMPORT_BUCKET) {
+          throw new LangfuseNotFoundError(
+            "S3 bucket name is required for csv import.",
+          );
+        }
+        const s3Client = getS3StorageServiceClient(
+          env.LANGFUSE_CSV_IMPORT_BUCKET,
+        );
+
+        const fileId = randomUUID();
+        const fileExtension = getFileExtensionFromContentType(contentType);
+        const bucketPath = `${projectId}/${fileId}.${fileExtension}`;
+
+        const uploadUrl = await s3Client.getSignedUploadUrl({
+          path: bucketPath,
+          ttlSeconds: 60 * 15, // 15 minutes
+          contentType,
+        });
+
+        return { uploadUrl, bucketPath };
+      }
+
+      throw new LangfuseNotFoundError(
+        "CSV import is not enabled. Please configure a S3 bucket for CSV import.",
       );
-
-      const mediaId = randomUUID();
-      const fileExtension = getFileExtensionFromContentType(contentType);
-      const bucketPath = `${projectId}/${mediaId}.${fileExtension}`;
-
-      const uploadUrl = await s3Client.getSignedUploadUrl({
-        path: bucketPath,
-        ttlSeconds: 60 * 15, // 15 minutes
-        contentType,
-      });
-
-      return { uploadUrl, bucketPath };
     }),
 });
