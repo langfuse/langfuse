@@ -40,11 +40,10 @@
 </div>
 </br>
 
-## Langfuse Overview
+## Langfuse Walkthrough
 
-_Unmute video for voice-over_
+[![langfuse-video-cover](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://www.youtube.com/watch?v=2E8iTvGo9Hs)
 
-https://github.com/langfuse/langfuse/assets/2834609/a94062e9-c782-4ee9-af59-dee6370149a8
 
 ### Develop
 
