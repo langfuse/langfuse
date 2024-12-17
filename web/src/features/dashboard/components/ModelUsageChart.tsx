@@ -288,19 +288,18 @@ export const ModelUsageChart = ({
                 <CommandInput placeholder="Search models..." />
                 <CommandEmpty>No model found.</CommandEmpty>
                 <CommandGroup>
-                  <CommandItem
-                    onSelect={handleSelectAll}
-                    className="border-b border-gray-200 bg-gray-50 font-medium hover:bg-gray-100"
-                  >
+                  <CommandItem onSelect={handleSelectAll}>
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
                         isAllSelected ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <span>Select All</span>
+                    <span>
+                      <p className="font-semibold">Select All</p>
+                    </span>
                   </CommandItem>
-                  <CommandSeparator />
+                  <CommandSeparator className="my-1" />
                   <CommandList>
                     {allModels.map((model) => (
                       <CommandItem
