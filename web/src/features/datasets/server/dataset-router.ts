@@ -643,7 +643,7 @@ export const datasetRouter = createTRPCRouter({
       const runItems = await ctx.prisma.$queryRaw<
         Array<{
           id: string;
-          traceId: string;
+          traceId: string | null;
           observationId: string | null;
           createdAt: Date;
           updatedAt: Date;
@@ -651,6 +651,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: string;
           projectId: string;
           datasetRunId: string;
+          log: string | null;
         }>
       >`
         SELECT 
@@ -662,7 +663,8 @@ export const datasetRouter = createTRPCRouter({
           dri.created_at AS "createdAt",
           dri.updated_at AS "updatedAt",
           dri.project_id AS "projectId",
-          dri.dataset_run_id AS "datasetRunId"
+          dri.dataset_run_id AS "datasetRunId",
+          dri.log
         FROM dataset_run_items dri
         INNER JOIN dataset_items di
           ON dri.dataset_item_id = di.id 
@@ -695,7 +697,9 @@ export const datasetRouter = createTRPCRouter({
             where: {
               projectId: ctx.session.projectId,
               traceId: {
-                in: runItems.map((ri) => ri.traceId),
+                in: runItems
+                  .filter((ri) => !!ri.traceId)
+                  .map((ri) => ri.traceId as string),
               },
             },
           });
@@ -718,7 +722,7 @@ export const datasetRouter = createTRPCRouter({
 
           // Directly access 'traces' table and calculate duration via lateral join
           // Previously used 'traces_view' was not performant enough
-          const traceIdsSQL = Prisma.sql`ARRAY[${Prisma.join(runItems.map((ri) => ri.traceId))}]`;
+          const traceIdsSQL = Prisma.sql`ARRAY[${Prisma.join(runItems.filter((ri) => !!ri.traceId).map((ri) => ri.traceId as string))}]`;
           const traces = await ctx.prisma.$queryRaw<
             {
               id: string;
@@ -767,6 +771,7 @@ export const datasetRouter = createTRPCRouter({
               scores: aggregateScores(
                 validatedTraceScores.filter((s) => s.traceId === ri.traceId),
               ),
+              log: ri.log,
             };
           });
 
@@ -778,6 +783,7 @@ export const datasetRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
+
           return {
             totalRunItems,
             runItems: await getRunItemsByRunIdOrItemId(
@@ -1002,7 +1008,7 @@ async function runsByDatasetIdPg(
       ...run,
       scores: aggregateScores(
         scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
-      ) as ScoreAggregate | undefined
+      ) as ScoreAggregate | undefined,
     })),
   };
 }

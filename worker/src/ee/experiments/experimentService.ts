@@ -18,6 +18,7 @@ import {
   extractVariables,
   datasetItemMatchesVariable,
   stringifyValue,
+  ExperimentError,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -250,21 +251,31 @@ export const createExperimentJob = async ({
       },
     };
 
-    await backOff(
-      async () =>
-        await callLLM(
-          datasetItem.id,
-          parsedKey.data,
-          messages,
-          model_params,
-          provider,
-          model,
-          traceParams,
-        ),
-      {
-        numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
-      },
-    );
+    try {
+      await backOff(
+        async () =>
+          await callLLM(
+            datasetItem.id,
+            parsedKey.data,
+            messages,
+            model_params,
+            provider,
+            model,
+            traceParams,
+          ),
+        {
+          numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
+        },
+      );
+    } catch (e) {
+      logger.error(e);
+      throw new ExperimentError(
+        "Dataset run item failed to call LLM. No valid trace created.",
+        {
+          datasetRunItemId: runItem.id,
+        },
+      );
+    }
 
     /********************
      * ASYNC RUN ITEM EVAL *

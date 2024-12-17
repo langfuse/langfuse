@@ -34,8 +34,9 @@ export type RunMetrics = {
     latency?: number;
     totalCost?: string;
   };
-  traceId: string;
+  traceId: string | undefined;
   observationId: string | undefined;
+  log: string | null;
 };
 
 export type RunAggregate = Record<string, RunMetrics>;
@@ -47,6 +48,7 @@ export type DatasetCompareRunRowData = {
   metadata: Prisma.JsonValue;
   // runs holds grouped column with individual run metrics
   runs?: RunAggregate;
+  log?: string | null;
 };
 
 const getRefetchInterval = (
@@ -79,7 +81,7 @@ export function DatasetCompareRunsTable(props: {
   );
   const [traceAndObservationId, setTraceAndObservationId] = useState<{
     runId: string;
-    traceId: string;
+    traceId?: string;
     observationId?: string;
   } | null>(null);
   const [unchangedCounts, setUnchangedCounts] = useState<
@@ -179,12 +181,12 @@ export function DatasetCompareRunsTable(props: {
         if (!items.data) return itemsAcc;
 
         items.data.runItems.forEach(
-          ({ datasetItemId, trace, observation, scores }) => {
+          ({ datasetItemId, trace, observation, scores, log }) => {
             if (!itemsAcc[datasetItemId]) itemsAcc[datasetItemId] = {};
 
             itemsAcc[datasetItemId][runId] = {
               id: runId,
-              traceId: trace?.id ?? "",
+              traceId: trace?.id,
               observationId: observation?.id ?? undefined,
               resourceMetrics: {
                 latency:
@@ -196,6 +198,7 @@ export function DatasetCompareRunsTable(props: {
                     : usdFormatter(trace?.totalCost)) ?? undefined,
               },
               scores,
+              log,
             };
           },
         );
@@ -324,6 +327,18 @@ export function DatasetCompareRunsTable(props: {
             />
           </div>
         ) : null;
+      },
+    },
+    {
+      accessorKey: "log",
+      id: "log",
+      header: "Error log",
+      size: 200,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const log: DatasetCompareRunRowData["log"] = row.getValue("log");
+        return !!log && <IOTableCell data={log} />;
       },
     },
     {
