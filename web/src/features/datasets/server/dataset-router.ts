@@ -30,6 +30,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import {
+  type StorageService,
   StorageServiceFactory,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -41,6 +42,22 @@ const ImportCsvMappingSchema = z.object({
   expected: z.array(z.string()),
   metadata: z.array(z.string()),
 });
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+      region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+      forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -581,16 +598,9 @@ export const datasetRouter = createTRPCRouter({
 
       const { projectId, datasetId, bucketPath, mapping } = input;
 
-      // now get the file from s3 with the upload url
-      const s3Client = StorageServiceFactory.getInstance({
-        bucketName: env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
-        accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-        secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
-        endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
-        region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
-        forcePathStyle:
-          env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
-      });
+      const s3Client = getS3StorageServiceClient(
+        env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
+      );
 
       const file = await s3Client.download(bucketPath);
       if (!file) throw new InternalServerError("File not found or expired");

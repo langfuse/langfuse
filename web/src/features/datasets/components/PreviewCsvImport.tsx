@@ -15,6 +15,8 @@ import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { MediaContentType } from "@/src/features/media/validation";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 
 const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
 type CardId = z.infer<typeof CardIdSchema>;
@@ -283,6 +285,11 @@ export function PreviewCsvImport({
                   projectId,
                   contentType: MediaContentType.CSV,
                 });
+
+              if (csvFile.size > MAX_FILE_SIZE_BYTES) {
+                showErrorToast("File too large", "Maximum file size is 100MB");
+                return;
+              }
 
               // TODO: review if this is the correct way to upload the file, we should probably extract somehow
               const uploadResponse = await fetch(uploadUrl, {

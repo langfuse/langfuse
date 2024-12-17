@@ -2,7 +2,11 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { z } from "zod";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
-import { logger, StorageServiceFactory } from "@langfuse/shared/src/server";
+import {
+  logger,
+  type StorageService,
+  StorageServiceFactory,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
@@ -14,7 +18,21 @@ const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
 const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
 
-const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 100; // 100MB
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+      region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
+      forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 /**
  * Check if the ipAddress is a private IP address
@@ -222,15 +240,9 @@ export const utilsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input: { projectId, contentType } }) => {
-      const s3Client = StorageServiceFactory.getInstance({
-        bucketName: env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
-        accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
-        secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
-        endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
-        region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
-        forcePathStyle:
-          env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
-      });
+      const s3Client = getS3StorageServiceClient(
+        env.LANGFUSE_S3_BATCH_EXPORT_BUCKET ?? "langfuse",
+      );
 
       const mediaId = randomUUID();
       const fileExtension = getFileExtensionFromContentType(contentType);
@@ -240,7 +252,6 @@ export const utilsRouter = createTRPCRouter({
         path: bucketPath,
         ttlSeconds: 60 * 15, // 15 minutes
         contentType,
-        contentLength: MAX_FILE_SIZE_BYTES, // 100MB
       });
 
       return { uploadUrl, bucketPath };

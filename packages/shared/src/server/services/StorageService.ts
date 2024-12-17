@@ -44,7 +44,7 @@ export interface StorageService {
     ttlSeconds: number;
     sha256Hash?: string;
     contentType: string;
-    contentLength: number;
+    contentLength?: number;
   }): Promise<string>;
 }
 
@@ -410,7 +410,7 @@ class S3StorageService implements StorageService {
     ttlSeconds: number;
     sha256Hash?: string;
     contentType: string;
-    contentLength: number;
+    contentLength?: number;
   }): Promise<string> {
     const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 

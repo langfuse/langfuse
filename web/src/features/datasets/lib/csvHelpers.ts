@@ -1,7 +1,8 @@
 import { parse } from "csv-parse";
 import { type Prisma } from "@langfuse/shared";
 
-export const MAX_PREVIEW_ROWS = 10;
+const MAX_PREVIEW_ROWS = 10;
+const PREVIEW_FILE_SIZE_BYTES = 64 * 1024; // 64KB
 
 type ColumnType =
   | "string"
@@ -42,28 +43,12 @@ type ParseOptions = {
   processor?: RowProcessor;
 };
 
-const FORMULA_TRIGGERS = ["=", "+", "-", "@", "\t", "\r", "\n"];
-
-function sanitizeCsvValue(value: string): string {
-  // Convert to string and trim
-  const str = String(value).trim();
-
-  // Check for formula triggers at start
-  if (FORMULA_TRIGGERS.some((trigger) => str.startsWith(trigger))) {
-    // Prefix with single quote to prevent formula execution
-    return `'${str}`;
-  }
-
-  // Remove any control characters
-  return str.replace(/[\x00-\x1F\x7F-\x9F]/g, "");
-}
-
 // Shared parser configuration
 const getParserConfig = (options: ParseOptions) => ({
   skip_empty_lines: true,
   trim: true,
   bom: true,
-  to: (options.previewRows || 10) + 1,
+  ...(options.previewRows ? { to: options.previewRows + 1 } : {}),
   quote: '"',
   escape: '"',
 });
@@ -95,7 +80,7 @@ const createParser = async (
       }
     } else if (!options.previewRows || currentRowIndex <= options.previewRows) {
       // Data rows
-      const sanitizedRow = row.map((value) => sanitizeCsvValue(value));
+      const sanitizedRow = row.map((value) => value.trim());
       previewRows.push(sanitizedRow);
 
       if (options.collectSamples) {
@@ -145,12 +130,12 @@ const createParser = async (
 export async function parseCsvClient(
   file: File,
   options: Omit<ParseOptions, "processor"> = {
-    previewRows: 10,
+    previewRows: MAX_PREVIEW_ROWS,
     collectSamples: true,
   },
 ): Promise<CsvPreviewResult> {
   return new Promise((resolve, reject) => {
-    const chunk = file.slice(0, 64 * 1024);
+    const chunk = file.slice(0, PREVIEW_FILE_SIZE_BYTES);
     const reader = new FileReader();
 
     reader.onload = async () => {
@@ -182,21 +167,7 @@ function inferColumnType(samples: string[]): ColumnType {
   if (samples.length === 0) return "unknown";
 
   // Try to parse all samples as JSON and get their types
-  const types = new Set(
-    samples.map((value) => {
-      if (!value || value.toLowerCase() === "null") return "null";
-
-      try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed)) return "array";
-        if (typeof parsed === "object") return "json";
-        return typeof parsed as ColumnType;
-      } catch {
-        // If JSON parsing fails, return unknown
-        return "unknown";
-      }
-    }),
-  );
+  const types = new Set(samples.map((value) => inferTypeFromValue(value)));
 
   // If all values are null, return null type
   if (types.size === 1 && types.has("null")) {
@@ -216,6 +187,20 @@ function inferColumnType(samples: string[]): ColumnType {
 
   // If we have multiple types, return mixed
   return "mixed";
+}
+
+function inferTypeFromValue(value: string): ColumnType {
+  if (!value || value.toLowerCase() === "null") return "null";
+
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return "array";
+    if (typeof parsed === "object") return "json";
+    return typeof parsed as ColumnType;
+  } catch {
+    // If JSON parsing fails, return unknown
+    return "unknown";
+  }
 }
 
 // Helper to parse a single value
