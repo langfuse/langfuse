@@ -21,6 +21,25 @@ import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDa
 const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
 type CardId = z.infer<typeof CardIdSchema>;
 
+// TODO: review if this is the correct way to upload the file
+async function uploadToS3({
+  uploadUrl,
+  file,
+  contentType,
+}: {
+  uploadUrl: string;
+  file: File;
+  contentType: MediaContentType;
+}) {
+  return fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": contentType,
+    },
+    body: file,
+  });
+}
+
 function moveColumn(
   fromId: CardId,
   toId: CardId,
@@ -291,16 +310,18 @@ export function PreviewCsvImport({
                 return;
               }
 
-              // TODO: review if this is the correct way to upload the file, we should probably extract somehow
-              const uploadResponse = await fetch(uploadUrl, {
-                method: "PUT",
-                headers: {
-                  "Content-Type": MediaContentType.CSV,
-                },
-                body: csvFile,
-              });
+              try {
+                const uploadResponse = await uploadToS3({
+                  uploadUrl,
+                  file: csvFile,
+                  contentType: MediaContentType.CSV,
+                });
 
-              if (!uploadResponse.ok) return;
+                if (!uploadResponse.ok) return;
+              } catch (error) {
+                showErrorToast("Failed to upload file", "Please try again");
+                return;
+              }
 
               await mutImport.mutateAsync({
                 projectId,
