@@ -50,6 +50,14 @@ import {
 } from "@/src/features/entitlements/server/getPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { HttpProxyAgent } from "http-proxy-agent";
+
+const proxyAgent = env.AUTH_HTTPS_PROXY
+  ? new HttpsProxyAgent(env.AUTH_HTTPS_PROXY)
+  : env.AUTH_HTTP_PROXY
+    ? new HttpProxyAgent(env.AUTH_HTTP_PROXY)
+    : undefined;
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -281,6 +289,9 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+      httpOptions: {
+        agent: proxyAgent,
+      },
     }),
   );
 
