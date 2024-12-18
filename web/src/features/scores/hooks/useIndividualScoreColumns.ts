@@ -48,7 +48,9 @@ export function useIndividualScoreColumns<
 
   const scoreColumns = useMemo(() => {
     return constructIndividualScoreColumns<T>({
-      scoreColumnProps: toOrderedScoresList(scoreKeysAndProps.data ?? []),
+      scoreColumnProps: scoreKeysAndProps.data
+        ? toOrderedScoresList(scoreKeysAndProps.data)
+        : [],
       scoreColumnKey,
       scoreColumnPrefix,
       showAggregateViewOnly,
