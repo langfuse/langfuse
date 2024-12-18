@@ -20,11 +20,12 @@ export class DashboardCategoricalScoreAdapter
   ) {}
 
   toChartData(): ChartData {
-    return transformCategoricalScoresToChartData(
+    const { chartData, chartLabels } = transformCategoricalScoresToChartData(
       this.data,
       this.timestamp,
       this.agg,
     );
+    return { chartData, chartLabels: uniqueAndSort(chartLabels) };
   }
 }
 

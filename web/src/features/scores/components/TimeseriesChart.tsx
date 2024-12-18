@@ -29,6 +29,7 @@ export function TimeseriesChart({
             chartLabels={chartLabels}
             chartData={chartData}
             className="h-full"
+            chartClass="h-full mt-0"
           />
         ) : (
           <NumericChart

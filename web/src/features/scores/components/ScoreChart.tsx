@@ -13,6 +13,7 @@ export function CategoricalChart(props: {
   isLoading?: boolean;
   stack?: boolean;
   className?: string;
+  chartClass?: string;
 }) {
   const barCategoryGap = (chartLength: number): string => {
     if (chartLength > 7) return "10%";
@@ -29,7 +30,7 @@ export function CategoricalChart(props: {
       className={cn("w-full rounded-tremor-default border", props.className)}
     >
       <BarChart
-        className="mt-4"
+        className={cn("mt-4", props.chartClass)}
         data={props.chartData}
         index="binLabel"
         categories={props.chartLabels}

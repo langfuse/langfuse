@@ -7,6 +7,21 @@ import {
 } from "@/src/features/scores/types";
 import { type RouterOutputs } from "@/src/utils/api";
 
+export const RESOURCE_METRICS = [
+  {
+    key: "latency",
+    value: "Latency",
+    objectKey: "avgLatency",
+    label: "Latency (ms)",
+  },
+  {
+    key: "cost",
+    value: "Cost",
+    objectKey: "avgTotalCost",
+    label: "Total Cost ($)",
+  },
+];
+
 // numeric score analytics helpers
 function round(value: number, precision = 2) {
   return parseFloat(value.toFixed(precision));
@@ -128,72 +143,110 @@ function groupCategoricalScoreDataByTimestamp(
   );
 }
 
+type ChartAccumulator = Map<
+  string,
+  { chartData: ChartBin[]; chartLabels: string[] }
+>;
+
+function initializeOrGetChartData(acc: ChartAccumulator, key: string) {
+  if (!acc.has(key)) {
+    acc.set(key, { chartData: [], chartLabels: [] });
+  }
+  return acc.get(key)!;
+}
+
+function createNumericScoreData(run: string, score: number, scoreName: string) {
+  return {
+    chartLabels: [scoreName],
+    chartBin: {
+      binLabel: run,
+      [scoreName]: score,
+    } as ChartBin,
+  };
+}
+
+function createCategoricalScoreData(
+  run: string,
+  valueCounts: Array<{ value: string; count: number }>,
+  values: string[],
+) {
+  const categoryCounts = valueCounts.reduce(
+    (counts, { value, count }) => ({
+      ...counts,
+      [value]: count,
+    }),
+    {} as CategoryCounts,
+  );
+
+  return {
+    chartLabels: values,
+    chartBin: {
+      binLabel: run,
+      ...categoryCounts,
+    } as ChartBin,
+  };
+}
+
+function addMetricToAccumulator(
+  acc: ChartAccumulator,
+  key: string,
+  chartBin: ChartBin,
+  chartLabels: string[],
+) {
+  const current = initializeOrGetChartData(acc, key);
+  acc.set(key, {
+    chartData: [...current.chartData, chartBin],
+    chartLabels,
+  });
+}
+
 export function transformAggregatedRunMetricsToChartData(
   runMetrics: RouterOutputs["datasets"]["runsByDatasetIdMetrics"]["runs"],
   scoreIdToName: Map<string, string>,
 ) {
   return runMetrics.reduce((acc, run) => {
+    // Handle scores
     Object.entries(run.scores ?? {}).forEach(([scoreId, score]) => {
-      if (!acc.has(scoreId)) {
-        acc.set(scoreId, { chartData: [], chartLabels: [] });
-      }
-      const currentScores = acc.get(scoreId)?.chartData ?? [];
-      let chartLabels: string[] = [];
-      let chartBin: ChartBin | null = null;
-      if (score.type === "NUMERIC") {
-        const scoreName = scoreIdToName.get(scoreId) ?? "score";
-        chartLabels = [scoreName];
-        chartBin = {
-          binLabel: run.name,
-          [scoreName]: score.average,
-        } as ChartBin;
-      } else {
-        const categoryCounts: CategoryCounts = {
-          ...score.valueCounts.reduce(
-            (counts, { value, count }) => ({
-              ...counts,
-              [value]: count,
-            }),
-            {},
-          ),
-        };
-        chartLabels = [...score.values];
-        chartBin = {
-          binLabel: run.name,
-          ...categoryCounts,
-        } as ChartBin;
-      }
-      acc.set(scoreId, {
-        chartData: [...currentScores, chartBin],
-        chartLabels,
-      });
+      const scoreData =
+        score.type === "NUMERIC"
+          ? createNumericScoreData(
+              run.name,
+              score.average,
+              scoreIdToName.get(scoreId) ?? scoreId,
+            )
+          : createCategoricalScoreData(
+              run.name,
+              score.valueCounts,
+              score.values,
+            );
+
+      addMetricToAccumulator(
+        acc,
+        scoreId,
+        scoreData.chartBin,
+        scoreData.chartLabels,
+      );
     });
 
-    // handle resource metrics
-    const key = "latency";
-    const currentResourceData = acc.get(key)?.chartData ?? [];
-    const chartBin = {
-      binLabel: run.name,
-      [key]: run.avgLatency ?? 0,
-    } as unknown as ChartBin;
-    acc.set(key, {
-      chartData: [...currentResourceData, chartBin],
-      chartLabels: [key],
-    });
+    // Handle resource metrics
+    RESOURCE_METRICS.forEach(({ key, objectKey }) => {
+      const resourceValue = run[objectKey as keyof typeof run];
+      const resourceData = createNumericScoreData(
+        run.name,
+        !!resourceValue ? Number(resourceValue) : 0,
+        key,
+      );
 
-    const costKey = "cost";
-    const currentCostData = acc.get(costKey)?.chartData ?? [];
-    const costChartBin = {
-      binLabel: run.name,
-      [costKey]: run.avgTotalCost ?? 0,
-    } as unknown as ChartBin;
-    acc.set(costKey, {
-      chartData: [...currentCostData, costChartBin],
-      chartLabels: [costKey],
+      addMetricToAccumulator(
+        acc,
+        key,
+        resourceData.chartBin,
+        resourceData.chartLabels,
+      );
     });
 
     return acc;
-  }, new Map<string, { chartData: ChartBin[]; chartLabels: string[] }>());
+  }, new Map());
 }
 
 export function transformCategoricalScoresToChartData(
@@ -222,7 +275,7 @@ export function transformCategoricalScoresToChartData(
       chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
     });
 
-    return { chartData, chartLabels: uniqueAndSort(chartLabels) };
+    return { chartData, chartLabels };
   }
 }
 

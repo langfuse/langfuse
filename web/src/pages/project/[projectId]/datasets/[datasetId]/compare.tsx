@@ -33,12 +33,10 @@ import Link from "next/link";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { transformAggregatedRunMetricsToChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
-
-const RESOURCE_KEY_TO_LABEL = new Map([
-  ["latency", "Latency (ms)"],
-  ["cost", "Total Cost ($)"],
-]);
+import {
+  RESOURCE_METRICS,
+  transformAggregatedRunMetricsToChartData,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -293,7 +291,10 @@ export default function DatasetCompare() {
                         key={key}
                         chartData={chartData}
                         chartLabels={chartLabels}
-                        title={RESOURCE_KEY_TO_LABEL.get(key) ?? key}
+                        title={
+                          RESOURCE_METRICS.find((metric) => metric.key === key)
+                            ?.label ?? key
+                        }
                         type="numeric"
                       />
                     );

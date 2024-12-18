@@ -1,9 +1,5 @@
+import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-
-const RESOURCE_METRICS = [
-  { key: "latency", value: "Latency" },
-  { key: "cost", value: "Cost" },
-];
 
 export function DatasetAnalytics(props: {
   projectId: string;
@@ -12,7 +8,6 @@ export function DatasetAnalytics(props: {
   setSelectedMetrics: (metrics: string[]) => void;
 }) {
   return (
-    // TODO: ideally group headers to segment scores vs resource metrics
     <MultiSelectKeyValues
       className="max-w-fit"
       placeholder="Search..."
