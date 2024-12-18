@@ -536,6 +536,9 @@ const getObservationsTableInternal = async <T>(
         o.updated_at as "updated_at",
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
+        o.prompt_id as "prompt_id",
+        o.prompt_name as "prompt_name",
+        o.prompt_version as "prompt_version",
         internal_model_id as "internal_model_id",
         if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`;
