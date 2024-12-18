@@ -197,7 +197,7 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
-            points: 2000,
+            points: 4000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -233,7 +233,7 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
-            points: 10000,
+            points: 20000,
             durationInSec: 60,
           };
         case "legacy-ingestion":

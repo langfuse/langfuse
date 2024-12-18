@@ -10,6 +10,7 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
+  toOrderedScoresList,
 } from "@/src/features/scores/lib/helpers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
@@ -46,11 +47,14 @@ export function ScoreAnalytics(props: {
   );
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions =
-      scoreKeysAndProps.data?.map(({ key, name, dataType, source }) => ({
-        key,
-        value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-      })) ?? [];
+    const scoreAnalyticsOptions = scoreKeysAndProps.data
+      ? toOrderedScoresList(scoreKeysAndProps.data).map(
+          ({ key, name, dataType, source }) => ({
+            key,
+            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+          }),
+        )
+      : [];
 
     return {
       scoreAnalyticsOptions,
