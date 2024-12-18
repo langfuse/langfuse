@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.2.0",
+  "version": "3.3.0-rc.1",
   "description": "",
   "license": "MIT",
   "private": true,
