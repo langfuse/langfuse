@@ -289,9 +289,11 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
-      httpOptions: {
-        agent: proxyAgent,
-      },
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
