@@ -7,7 +7,12 @@ import { api } from "@/src/utils/api";
 import { FlaskConical, FolderKanban } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
-import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
+import {
+  useQueryParams,
+  withDefault,
+  ArrayParam,
+  NumberParam,
+} from "use-query-params";
 import {
   Popover,
   PopoverTrigger,
@@ -45,6 +50,16 @@ export default function DatasetCompare() {
   const [runState, setRunState] = useQueryParams({
     runs: withDefault(ArrayParam, []),
   });
+
+  // reuse pagination state from runs table, if navigating from other page, must be most recent run ie pageIndex = 0 and pageSize = 50 are sensible defaults
+  const [paginationState] = useQueryParams({
+    pageIndex: NumberParam,
+    pageSize: NumberParam,
+  });
+
+  const pageIndex = paginationState.pageIndex ?? 0;
+  const pageSize = paginationState.pageSize ?? 50;
+
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [localRuns, setLocalRuns] = useState<
@@ -77,20 +92,30 @@ export default function DatasetCompare() {
   );
   const utils = api.useUtils();
 
-  const runMetrics = api.datasets.runsByDatasetIdMetrics.useQuery({
-    projectId,
-    datasetId,
-    queryClickhouse: useClickhouse(),
-    page: 0,
-    limit: 100, // TODO: need to drop this limit for the query to work properly >> how to do this?
-  });
+  const runMetrics = api.datasets.runsByDatasetIdMetrics.useQuery(
+    {
+      projectId,
+      datasetId,
+      queryClickhouse: useClickhouse(),
+      page: pageIndex,
+      limit: pageSize,
+    },
+    {
+      enabled: runIds && runIds.length > 1,
+    },
+  );
 
   // TODO: refactor write new query to pull scores for runs
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery({
-    projectId: projectId,
-    selectedTimeOption: { option: "All time", filterSource: "TABLE" },
-    queryClickhouse: useClickhouse(),
-  });
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: projectId,
+      selectedTimeOption: { option: "All time", filterSource: "TABLE" },
+      queryClickhouse: useClickhouse(),
+    },
+    {
+      enabled: runIds && runIds.length > 1,
+    },
+  );
 
   const scoreIdToName = useMemo(() => {
     return new Map(
@@ -150,7 +175,7 @@ export default function DatasetCompare() {
   }
 
   return (
-    <FullScreenPage key={runIds?.join(",") ?? "empty"}>
+    <FullScreenPage>
       <Header
         title={`Compare runs: ${dataset.data?.name ?? datasetId}`}
         breadcrumb={[
@@ -234,13 +259,15 @@ export default function DatasetCompare() {
               </div>
             </PopoverContent>
           </Popover>,
-          <DatasetAnalytics
-            key="dataset-analytics"
-            projectId={projectId}
-            scoreOptions={scoreAnalyticsOptions}
-            selectedMetrics={selectedMetrics}
-            setSelectedMetrics={setSelectedMetrics}
-          />,
+          runIds && runIds.length > 1 ? (
+            <DatasetAnalytics
+              key="dataset-analytics"
+              projectId={projectId}
+              scoreOptions={scoreAnalyticsOptions}
+              selectedMetrics={selectedMetrics}
+              setSelectedMetrics={setSelectedMetrics}
+            />
+          ) : null,
           <MultiSelectKeyValues
             key="select-runs"
             title="Select runs"
