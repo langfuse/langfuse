@@ -356,6 +356,8 @@ const extendedPrismaAdapter: Adapter = {
       delete data["not-before-policy"];
     }
 
+    // Optionally, remove fields returned by the provider that cause issues with the adapter
+    // Configure via AUTH_IGNORE_ACCOUNT_FIELDS
     for (const ignoredField of ignoredAccountFields) {
       if (ignoredField in data) {
         delete data[ignoredField];
