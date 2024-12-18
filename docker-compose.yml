@@ -43,8 +43,10 @@ services:
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
     networks:
       - langfuse_network
+    ports:
+      - "${LANGFUSE_WORKER_PORT:-3030}:3030"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3030/api/health"]
+      test: ["CMD", "curl", "-f", "${NEXTAUTH_URL:-http://localhost:3030}/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -92,7 +94,7 @@ services:
     networks:
       - langfuse_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
+      test: ["CMD", "curl", "-f", "${NEXTAUTH_URL:-http://localhost:3000}/api/public/health"]
       interval: 30s
       timeout: 10s
       retries: 3
