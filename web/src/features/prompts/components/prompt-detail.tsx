@@ -42,8 +42,7 @@ import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/
 import { useState } from "react";
 import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { parseDiff, Diff, Hunk, HunkProps } from "react-diff-view";
-import 'react-diff-view/style/index.css';
+import { parseDiff, Diff, Hunk, type HunkProps } from "react-diff-view";
 import '@/src/styles/diff.css';
 
 export const PromptDetail = () => {
@@ -154,11 +153,12 @@ export const PromptDetail = () => {
     return <div>Loading...</div>;
   }
 
-  const unidiff = require('unidiff');
+  const { createTwoFilesPatch } = require('diff');
   const EMPTY_HUNKS: HunkProps['hunk'][] = [];
-  const newText = prompt.prompt;
-  const oldText = oldPrompt?.prompt || newText;
-  const diffText = unidiff.formatLines(unidiff.diffLines(oldText, newText), {context: 3});
+  const newPromptText = prompt.prompt;
+  const oldPromptText = oldPrompt?.prompt || newPromptText;
+  const patch = createTwoFilesPatch('a', 'b', oldPromptText, newPromptText, '', '', {context: 3});
+  const diffText = patch.split('\n').slice(1).join('\n');
   const [diff] = parseDiff(diffText, {nearbySequences: 'zip'});
 
   return (
@@ -350,10 +350,12 @@ export const PromptDetail = () => {
                   <div className="border-b px-3 py-1 text-xs font-medium">Differences</div>
                   <div className="flex flex-wrap gap-2 p-2">
                     <table className="diff diff-split">
-                      <tr>
-                        <th className="text-xs font-medium">Previous Prompt (Version {oldPrompt?.version || prompt.version})</th>
-                        <th className="text-xs font-medium">Current Prompt (Version {prompt.version})</th>
-                      </tr>
+                      <thead>
+                        <tr>
+                          <th className="text-xs font-medium">Previous Prompt (Version {oldPrompt?.version || prompt.version})</th>
+                          <th className="text-xs font-medium">Current Prompt (Version {prompt.version})</th>
+                        </tr>
+                      </thead>
                     </table>
                     <Diff viewType="split" diffType='modify' hunks={diff.hunks || EMPTY_HUNKS}>
                       {hunks =>
