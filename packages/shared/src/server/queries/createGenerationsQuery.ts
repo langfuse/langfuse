@@ -10,6 +10,8 @@ import { TableFilters } from "./types";
 type AdditionalObservationFields = {
   traceName: string | null;
   traceTags: Array<string>;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
 };
 
 export type FullObservation = AdditionalObservationFields & ObservationView;

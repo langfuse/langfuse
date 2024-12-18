@@ -1,6 +1,5 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError } from "@langfuse/shared";
-import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
+import { BaseError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -9,6 +8,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
+import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -70,8 +70,7 @@ export const evalJobExecutorQueueProcessor = async (
         e.message.includes(
           "Please ensure the mapped data exists and consider extending the job delay.",
         )
-      ) &&
-      !(e instanceof ApiError) // API errors are expected (e.g. wrong API key or rate limit or invalid return data)
+      )
     ) {
       traceException(e);
       logger.error(

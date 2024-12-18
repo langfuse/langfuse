@@ -1,4 +1,3 @@
-import { type ScoreQueryType } from "@/src/features/public-api/server/sores";
 import { filterOperators } from "@langfuse/shared";
 import {
   FilterList,
@@ -20,14 +19,20 @@ export type ApiColumnMapping = {
   clickhousePrefix?: string;
 };
 
+type BaseQueryType = {
+  page: number;
+  limit: number;
+  projectId: string;
+} & Record<string, unknown>;
+
 export function convertApiProvidedFilterToClickhouseFilter(
-  filter: ScoreQueryType,
+  filter: BaseQueryType,
   columnMapping: ApiColumnMapping[],
 ) {
   const filterList = new FilterList();
 
   columnMapping.forEach((columnMapping) => {
-    const value = filter[columnMapping.id as keyof ScoreQueryType];
+    const value = filter[columnMapping.id as keyof BaseQueryType];
 
     if (value) {
       let filterInstance;
@@ -114,6 +119,5 @@ export function convertApiProvidedFilterToClickhouseFilter(
     }
   });
 
-  console.log("filterList", filterList);
   return filterList;
 }

@@ -16,13 +16,10 @@ import { CommandItem } from "@/src/components/ui/command";
 import { ExternalLink, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
@@ -34,8 +31,7 @@ export default function Dataset() {
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
-  const hasEntitlement = useHasOrgEntitlement("model-based-evaluations");
-  const hasExperimentEntitlement = useHasOrgEntitlement("experiments");
+  const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
 
@@ -51,7 +47,7 @@ export default function Dataset() {
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
 
   const evaluators = api.evals.jobConfigsByDatasetId.useQuery(
@@ -109,48 +105,32 @@ export default function Dataset() {
         }
         actionButtons={
           <>
-            {hasExperimentEntitlement && (
-              <Dialog
-                open={isCreateExperimentDialogOpen}
-                onOpenChange={setIsCreateExperimentDialogOpen}
-              >
-                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-                  <Button
-                    variant="secondary"
-                    disabled={!hasExperimentWriteAccess}
-                  >
-                    <FlaskConical className="h-4 w-4" />
-                    <span className="ml-2">New experiment</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Set up experiment</DialogTitle>
-                    <DialogDescription>
-                      Create an experiment to test a prompt version on a
-                      dataset. See{" "}
-                      <Link
-                        href="https://langfuse.com/docs/datasets/prompt-experiments"
-                        target="_blank"
-                        className="underline"
-                      >
-                        documentation
-                      </Link>{" "}
-                      to learn more.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CreateExperimentsForm
-                    key={`create-experiment-form-${datasetId}`}
-                    projectId={projectId as string}
-                    setFormOpen={setIsCreateExperimentDialogOpen}
-                    defaultValues={{
-                      datasetId,
-                    }}
-                    handleExperimentSuccess={handleExperimentSuccess}
-                  />
-                </DialogContent>
-              </Dialog>
-            )}
+            <Dialog
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  variant="secondary"
+                  disabled={!hasExperimentWriteAccess}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2">New experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSuccess={handleExperimentSuccess}
+                  showSDKRunInfoPage
+                />
+              </DialogContent>
+            </Dialog>
 
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
@@ -236,14 +216,6 @@ export default function Dataset() {
           </Tabs>
         }
       />
-
-      <p className="mt-3 text-xs text-muted-foreground">
-        Add new runs via Python or JS/TS SDKs. See{" "}
-        <a href="https://langfuse.com/docs/datasets" className="underline">
-          documentation
-        </a>{" "}
-        for details.
-      </p>
     </FullScreenPage>
   );
 }

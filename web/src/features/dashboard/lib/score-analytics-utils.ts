@@ -111,7 +111,9 @@ function groupCategoricalScoreDataByTimestamp(
       if (row[scoreTimestampAccessor] === null) {
         return acc;
       }
-      const timestamp = new Date(row[scoreTimestampAccessor] ?? new Date());
+      const timestamp = new Date(
+        (row[scoreTimestampAccessor] as string) ?? new Date(),
+      );
       const key = convertDateToStringTimestamp(timestamp);
       if (!acc[key]) {
         acc[key] = [];

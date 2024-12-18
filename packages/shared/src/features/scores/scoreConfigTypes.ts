@@ -6,7 +6,7 @@ import { isPresent } from "../../utils/typeChecks";
 import {
   jsonSchema,
   paginationMetaResponseZod,
-  paginationZod,
+  publicApiPaginationZod,
 } from "../../utils/zod";
 
 /**
@@ -17,7 +17,7 @@ export type ValidatedScoreConfig = z.infer<typeof ValidatedScoreConfigSchema>;
 
 const validateCategories = (
   categories: ConfigCategory[],
-  ctx: z.RefinementCtx
+  ctx: z.RefinementCtx,
 ) => {
   const uniqueNames = new Set<string>();
   const uniqueValues = new Set<number>();
@@ -94,7 +94,7 @@ const BooleanScoreConfig = z.object({
       return categories.every(
         (category, index) =>
           category.label === expectedCategories[index].label &&
-          category.value === expectedCategories[index].value
+          category.value === expectedCategories[index].value,
       );
     }),
 });
@@ -123,7 +123,7 @@ const ValidatedScoreConfigSchema = z
         minValue: z.undefined().nullish(),
         dataType: z.literal("CATEGORICAL"),
         categories: Categories.superRefine(validateCategories),
-      })
+      }),
     ),
     ScoreConfigBase.merge(BooleanScoreConfig),
   ])
@@ -150,7 +150,7 @@ const ValidatedScoreConfigSchema = z
  */
 export const filterAndValidateDbScoreConfigList = (
   scoreConfigs: ScoreConfigDbType[],
-  onParseError?: (error: z.ZodError) => void
+  onParseError?: (error: z.ZodError) => void,
 ): ValidatedScoreConfig[] =>
   scoreConfigs.reduce((acc, ts) => {
     const result = ValidatedScoreConfigSchema.safeParse(ts);
@@ -170,7 +170,7 @@ export const filterAndValidateDbScoreConfigList = (
  * @throws error if score fails validation
  */
 export const validateDbScoreConfig = (
-  scoreConfig: ScoreConfigDbType
+  scoreConfig: ScoreConfigDbType,
 ): ValidatedScoreConfig => ValidatedScoreConfigSchema.parse(scoreConfig);
 
 /**
@@ -205,7 +205,7 @@ export const PostScoreConfigBody = z
       z.object({
         dataType: z.literal("BOOLEAN"),
         categories: z.undefined().nullish(),
-      })
+      }),
     ),
   ])
   .superRefine((data, ctx) => {
@@ -227,7 +227,7 @@ export const PostScoreConfigResponse = ValidatedScoreConfigSchema;
 
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 
 export const GetScoreConfigsResponse = z.object({

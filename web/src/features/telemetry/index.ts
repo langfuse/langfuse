@@ -152,7 +152,11 @@ async function posthogTelemetry({
   try {
     const posthog = new ServerPosthog();
     // Count projects
-    const totalProjects = await prisma.project.count();
+    const totalProjects = await prisma.project.count({
+      where: {
+        deletedAt: null,
+      },
+    });
 
     // Count traces
     const countTraces = await prisma.trace.count({

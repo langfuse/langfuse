@@ -4,10 +4,11 @@
     "model_name": "gpt-4o",
     "match_pattern": "(?i)^(gpt-4o)$",
     "created_at": "2024-05-13T23:15:07.670Z",
-    "updated_at": "2024-05-13T23:15:07.670Z",
+    "updated_at": "2024-12-03T10:12:31.000Z",
     "prices": {
-      "input": 0.000005,
-      "output": 0.000015
+      "input": 2.5e-6,
+      "input_cached_tokens": 1.25e-6,
+      "output": 10e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -836,10 +837,14 @@
     "model_name": "claude-3-sonnet-20240229",
     "match_pattern": "(?i)^(claude-3-sonnet-20240229|anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
     "created_at": "2024-03-07T17:55:38.139Z",
-    "updated_at": "2024-03-07T17:55:38.139Z",
+    "updated_at": "2024-12-03T12:20:04.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -998,10 +1003,14 @@
     "model_name": "claude-3-5-sonnet-20240620",
     "match_pattern": "(?i)^(claude-3-5-sonnet-20240620|anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "created_at": "2024-06-25T11:47:24.475Z",
-    "updated_at": "2024-06-25T11:47:24.475Z",
+    "updated_at": "2024-12-03T12:20:59.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1011,10 +1020,11 @@
     "model_name": "gpt-4o-mini",
     "match_pattern": "(?i)^(gpt-4o-mini)$",
     "created_at": "2024-07-18T17:56:09.591Z",
-    "updated_at": "2024-07-18T17:56:09.591Z",
+    "updated_at": "2024-12-03T10:28:30.000Z",
     "prices": {
-      "input": 1.5e-7,
-      "output": 6e-7
+      "input": 0.15e-6,
+      "output": 0.6e-6,
+      "input_cached_tokens": 0.075e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1028,10 +1038,11 @@
     "model_name": "gpt-4o-mini-2024-07-18",
     "match_pattern": "(?i)^(gpt-4o-mini-2024-07-18)$",
     "created_at": "2024-07-18T17:56:09.591Z",
-    "updated_at": "2024-07-18T17:56:09.591Z",
+    "updated_at": "2024-12-03T10:31:11.000Z",
     "prices": {
-      "input": 1.5e-7,
-      "output": 6e-7
+      "input": 0.15e-6,
+      "input_cached_tokens": 0.075e-6,
+      "output": 0.6e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1045,10 +1056,11 @@
     "model_name": "gpt-4o-2024-08-06",
     "match_pattern": "(?i)^(gpt-4o-2024-08-06)$",
     "created_at": "2024-08-07T11:54:31.298Z",
-    "updated_at": "2024-08-07T11:54:31.298Z",
+    "updated_at": "2024-12-03T10:15:18.000Z",
     "prices": {
-      "input": 0.0000025,
-      "output": 0.00001
+      "input": 2.5e-6,
+      "input_cached_tokens": 1.25e-6,
+      "output": 10e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1062,10 +1074,12 @@
     "model_name": "o1-preview",
     "match_pattern": "(?i)^(o1-preview)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:34:05.000Z",
     "prices": {
-      "input": 0.000015,
-      "output": 0.00006
+      "input": 15e-6,
+      "input_cached_tokens": 7.5e-6,
+      "output": 60e-6,
+      "output_reasoning_tokens": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1075,10 +1089,12 @@
     "model_name": "o1-preview-2024-09-12",
     "match_pattern": "(?i)^(o1-preview-2024-09-12)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:38:51.000Z",
     "prices": {
-      "input": 0.000015,
-      "output": 0.00006
+      "input": 15e-6,
+      "input_cached_tokens": 7.5e-6,
+      "output": 60e-6,
+      "output_reasoning_tokens": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1088,10 +1104,12 @@
     "model_name": "o1-mini",
     "match_pattern": "(?i)^(o1-mini)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:41:55.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000012
+      "input": 3e-6,
+      "input_cached_tokens": 1.5e-6,
+      "output": 12e-6,
+      "output_reasoning_tokens": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1101,10 +1119,12 @@
     "model_name": "o1-mini-2024-09-12",
     "match_pattern": "(?i)^(o1-mini-2024-09-12)$",
     "created_at": "2024-09-13T10:01:35.373Z",
-    "updated_at": "2024-09-13T10:01:35.373Z",
+    "updated_at": "2024-12-03T10:43:16.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000012
+      "input": 3e-6,
+      "input_cached_tokens": 1.5e-6,
+      "output": 12e-6,
+      "output_reasoning_tokens": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1114,10 +1134,14 @@
     "model_name": "claude-3.5-sonnet-20241022",
     "match_pattern": "(?i)^(claude-3-5-sonnet-20241022|anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "created_at": "2024-10-22T18:48:01.676Z",
-    "updated_at": "2024-10-22T18:48:01.676Z",
+    "updated_at": "2024-12-03T12:21:10.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1127,10 +1151,14 @@
     "model_name": "claude-3.5-sonnet-latest",
     "match_pattern": "(?i)^(claude-3-5-sonnet-latest)$",
     "created_at": "2024-10-22T18:48:01.676Z",
-    "updated_at": "2024-10-22T18:48:01.676Z",
+    "updated_at": "2024-12-03T12:22:03.000Z",
     "prices": {
-      "input": 0.000003,
-      "output": 0.000015
+      "input": 3e-6,
+      "input_tokens": 3e-6,
+      "output": 15e-6,
+      "output_tokens": 15e-6,
+      "cache_creation_input_tokens": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1140,10 +1168,14 @@
     "model_name": "claude-3-5-haiku-20241022",
     "match_pattern": "(?i)^(claude-3-5-haiku-20241022|anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
     "created_at": "2024-11-05T10:30:50.566Z",
-    "updated_at": "2024-11-05T10:30:50.566Z",
+    "updated_at": "2024-12-03T12:24:24.000Z",
     "prices": {
-      "input": 0.000001,
-      "output": 0.000005
+      "input": 0.8e-6,
+      "input_tokens": 0.8e-6,
+      "output": 4e-6,
+      "output_tokens": 4e-6,
+      "cache_creation_input_tokens": 1e-6,
+      "cache_read_input_tokens": 0.08e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1153,10 +1185,14 @@
     "model_name": "claude-3.5-haiku-latest",
     "match_pattern": "(?i)^(claude-3-5-haiku-latest)$",
     "created_at": "2024-11-05T10:30:50.566Z",
-    "updated_at": "2024-11-05T10:30:50.566Z",
+    "updated_at": "2024-12-03T12:26:33.000Z",
     "prices": {
-      "input": 0.000001,
-      "output": 0.000005
+      "input": 0.8e-6,
+      "input_tokens": 0.8e-6,
+      "output": 4e-6,
+      "output_tokens": 4e-6,
+      "cache_creation_input_tokens": 1e-6,
+      "cache_read_input_tokens": 0.08e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1177,5 +1213,87 @@
       "tokensPerMessage": 3
     },
     "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm48akqgo000008ldbia24qg0",
+    "model_name": "gpt-4o-2024-11-20",
+    "match_pattern": "(?i)^(gpt-4o-2024-11-20)$",
+    "created_at": "2024-12-03T10:06:12.000Z",
+    "updated_at": "2024-12-03T10:06:12.000Z",
+    "prices": {
+      "input": 2.5e-6,
+      "input_cached_tokens": 1.25e-6,
+      "output": 10e-6
+    },
+    "tokenizer_config": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4o",
+      "tokensPerMessage": 3
+    },
+    "tokenizer_id": "openai"
+  },
+  {
+    "id": "cm48b2ksh000008l0hn3u0hl3",
+    "model_name": "gpt-4o-audio-preview",
+    "match_pattern": "(?i)^(gpt-4o-audio-preview)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "input_text_tokens": 2.5e-6,
+      "output_text_tokens": 10e-6,
+      "input_audio_tokens": 100e-6,
+      "output_audio_tokens": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm48bbm0k000008l69nsdakwf",
+    "model_name": "gpt-4o-audio-preview-2024-10-01",
+    "match_pattern": "(?i)^(gpt-4o-audio-preview-2024-10-01)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "input_text_tokens": 2.5e-6,
+      "output_text_tokens": 10e-6,
+      "input_audio_tokens": 100e-6,
+      "output_audio_tokens": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm48c2qh4000008mhgy4mg2qc",
+    "model_name": "gpt-4o-realtime-preview",
+    "match_pattern": "(?i)^(gpt-4o-realtime-preview)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "input_text_tokens": 5e-6,
+      "input_cached_text_tokens": 2.5e-6,
+      "output_text_tokens": 20e-6,
+      "input_audio_tokens": 100e-6,
+      "input_cached_audio_tokens": 20e-6,
+      "output_audio_tokens": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
+  },
+  {
+    "id": "cm48cjxtc000008jrcsso3avv",
+    "model_name": "gpt-4o-realtime-preview-2024-10-01",
+    "match_pattern": "(?i)^(gpt-4o-realtime-preview-2024-10-01)$",
+    "created_at": "2024-12-03T10:19:56.000Z",
+    "updated_at": "2024-12-03T10:19:56.000Z",
+    "prices": {
+      "input_text_tokens": 5e-6,
+      "input_cached_text_tokens": 2.5e-6,
+      "output_text_tokens": 20e-6,
+      "input_audio_tokens": 100e-6,
+      "input_cached_audio_tokens": 20e-6,
+      "output_audio_tokens": 200e-6
+    },
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]

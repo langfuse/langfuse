@@ -56,6 +56,7 @@ const AnnotateIOView = ({
   const session = useSession();
   const traceId = item.parentTraceId ?? item.objectId;
   const projectId = router.query.projectId as string;
+  const [showSaving, setShowSaving] = useState(false);
   const [showComments, setShowComments] = useSessionStorage(
     `annotationQueueShowComments-${projectId}`,
     false,
@@ -175,6 +176,8 @@ const AnnotateIOView = ({
                 type={item.objectType.toLowerCase() as "trace" | "observation"}
                 isSelectHidden
                 queueId={item.queueId}
+                showSaving={showSaving}
+                setShowSaving={setShowSaving}
                 actionButtons={
                   isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
                     <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">

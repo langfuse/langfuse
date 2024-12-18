@@ -34,18 +34,9 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export const legacyIngestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.LegacyIngestionQueue]>,
 ) => {
-  // throw new Error("Not implemented");
   try {
     let ingestionEvents: IngestionEventType[] = [];
     if (job.data.payload.useS3EventStore) {
-      if (
-        env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED !== "true" ||
-        !env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
-      ) {
-        throw new Error(
-          "S3 event store is not enabled but useS3EventStore is true",
-        );
-      }
       // If we used the S3 store we need to fetch the ingestionEvents from S3
       const s3Client = getS3StorageServiceClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,

@@ -1,15 +1,6 @@
 import { z } from "zod";
 import { eventTypes, ingestionBatchEvent } from ".";
 
-export enum EventName {
-  TraceUpsert = "TraceUpsert",
-  BatchExport = "BatchExport",
-  EvaluationExecution = "EvaluationExecution",
-  LegacyIngestion = "LegacyIngestion",
-  CloudUsageMetering = "CloudUsageMetering",
-  ExperimentCreate = "ExperimentCreate",
-}
-
 export const LegacyIngestionEventFull = z.object({
   useS3EventStore: z.literal(false),
   data: ingestionBatchEvent,
@@ -67,6 +58,14 @@ export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
 });
+export const TracesQueueEventSchema = z.object({
+  projectId: z.string(),
+  traceIds: z.array(z.string()),
+});
+export const ProjectQueueEventSchema = z.object({
+  projectId: z.string(),
+  orgId: z.string(),
+});
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
   datasetItemId: z.string(),
@@ -78,7 +77,9 @@ export const EvalExecutionEvent = z.object({
   jobExecutionId: z.string(),
   delay: z.number().nullish(),
 });
-
+export const PostHogIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
@@ -88,6 +89,8 @@ export const ExperimentCreateEventSchema = z.object({
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
+export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
+export type ProjectQueueEventType = z.infer<typeof ProjectQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
@@ -97,30 +100,14 @@ export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
   typeof ExperimentCreateEventSchema
 >;
-
-export const EventBodySchema = z.union([
-  z.object({
-    name: z.literal(EventName.TraceUpsert),
-    payload: z.array(TraceQueueEventSchema),
-  }),
-  z.object({
-    name: z.literal(EventName.EvaluationExecution),
-    payload: EvalExecutionEvent,
-  }),
-  z.object({
-    name: z.literal(EventName.BatchExport),
-    payload: BatchExportJobSchema,
-  }),
-  z.object({
-    name: z.literal(EventName.ExperimentCreate),
-    payload: ExperimentCreateEventSchema,
-  }),
-]);
-export type EventBodyType = z.infer<typeof EventBodySchema>;
+export type PostHogIntegrationProcessingEventType = z.infer<
+  typeof PostHogIntegrationProcessingEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
+  ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
@@ -128,19 +115,23 @@ export enum QueueName {
   LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
   ExperimentCreate = "experiment-create-queue",
+  PostHogIntegrationQueue = "posthog-integration-queue",
+  PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
 }
 
 export enum QueueJobs {
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
+  ProjectDelete = "project-delete",
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
-  EnqueueBatchExportJobs = "enqueue-batch-export-jobs",
   LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   IngestionJob = "ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
+  PostHogIntegrationJob = "posthog-integration-job",
+  PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
 }
 
 export type TQueueJobTypes = {
@@ -153,8 +144,14 @@ export type TQueueJobTypes = {
   [QueueName.TraceDelete]: {
     timestamp: Date;
     id: string;
-    payload: TraceQueueEventType;
+    payload: TracesQueueEventType | TraceQueueEventType;
     name: QueueJobs.TraceDelete;
+  };
+  [QueueName.ProjectDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: ProjectQueueEventType;
+    name: QueueJobs.ProjectDelete;
   };
   [QueueName.DatasetRunItemUpsert]: {
     timestamp: Date;
@@ -191,5 +188,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: ExperimentCreateEventType;
     name: QueueJobs.ExperimentCreateJob;
+  };
+  [QueueName.PostHogIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: PostHogIntegrationProcessingEventType;
+    name: QueueJobs.PostHogIntegrationProcessingJob;
   };
 };

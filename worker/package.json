@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.0.0-rc.1",
+  "version": "3.2.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -50,6 +50,7 @@
     "kysely": "^0.27.4",
     "lodash": "^4.17.21",
     "pg": "^8.13.0",
+    "posthog-node": "^4.3.1",
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.15",
     "uuid": "^9.0.1",
@@ -78,7 +79,8 @@
     "tsc-watch": "^6.2.0",
     "tsx": "^4.19.1",
     "typescript": "^5.4.5",
-    "vitest": "^2.1.2"
+    "vitest": "^2.1.2",
+    "wait-for-expect": "^3.0.2"
   },
   "pnpm": {
     "overrides": {

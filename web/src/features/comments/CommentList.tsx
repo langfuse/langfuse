@@ -56,7 +56,7 @@ export function CommentList({
       objectId,
       objectType,
     },
-    { enabled: hasReadAccess },
+    { enabled: hasReadAccess && session.status === "authenticated" },
   );
 
   const form = useForm<z.infer<typeof CreateCommentData>>({
@@ -96,7 +96,11 @@ export function CommentList({
     }));
   }, [comments.data]);
 
-  if (!hasReadAccess || (!hasWriteAccess && comments.data?.length === 0))
+  if (
+    !hasReadAccess ||
+    (!hasWriteAccess && comments.data?.length === 0) ||
+    session.status !== "authenticated"
+  )
     return null;
 
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
@@ -192,7 +196,7 @@ export function CommentList({
                       .map((word) => word[0])
                       .slice(0, 2)
                       .concat("")
-                  : comment.authorUserId ?? "U"}
+                  : (comment.authorUserId ?? "U")}
               </AvatarFallback>
             </Avatar>
             <div className="relative rounded-md border">

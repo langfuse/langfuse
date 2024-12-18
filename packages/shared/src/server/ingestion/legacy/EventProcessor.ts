@@ -136,7 +136,7 @@ export class ObservationProcessor implements EventProcessor {
 
     // Token counts
     const [newInputCount, newOutputCount] =
-      "usage" in this.event.body
+      "usage" in this.event.body || "usageDetails" in this.event.body
         ? await this.calculateTokenCounts(
             apiScope.projectId,
             this.event.body,
@@ -147,8 +147,9 @@ export class ObservationProcessor implements EventProcessor {
         : [undefined, undefined];
 
     const newTotalCount =
-      "usage" in this.event.body
+      "usage" in this.event.body || "usageDetails" in this.event.body
         ? (this.event.body.usage?.total ??
+          this.event.body.usageDetails?.total ??
           (newInputCount != null || newOutputCount != null
             ? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined))
@@ -158,15 +159,24 @@ export class ObservationProcessor implements EventProcessor {
       inputCost:
         "usage" in this.event.body && this.event.body.usage?.inputCost != null // inputCost can be explicitly 0. Note only one equal sign to capture null AND undefined
           ? new Decimal(this.event.body.usage?.inputCost)
-          : existingObservation?.inputCost,
+          : "costDetails" in this.event.body &&
+              this.event.body.costDetails?.input != null
+            ? new Decimal(this.event.body.costDetails?.input)
+            : existingObservation?.inputCost,
       outputCost:
         "usage" in this.event.body && this.event.body.usage?.outputCost != null // outputCost can be explicitly 0. Note only one equal sign to capture null AND undefined
           ? new Decimal(this.event.body.usage?.outputCost)
-          : existingObservation?.outputCost,
+          : "costDetails" in this.event.body &&
+              this.event.body.costDetails?.output != null
+            ? new Decimal(this.event.body.costDetails?.output)
+            : existingObservation?.outputCost,
       totalCost:
         "usage" in this.event.body && this.event.body.usage?.totalCost != null // totalCost can be explicitly 0. Note only one equal sign to capture null AND undefined
           ? new Decimal(this.event.body.usage?.totalCost)
-          : existingObservation?.totalCost,
+          : "costDetails" in this.event.body &&
+              this.event.body.costDetails?.total != null
+            ? new Decimal(this.event.body.costDetails?.total)
+            : existingObservation?.totalCost,
     };
 
     const tokenCounts = {
@@ -384,7 +394,7 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Omit<Observation, "input" | "output">,
   ) {
-    let newPromptTokens = body.usage?.input;
+    let newPromptTokens = body.usage?.input || body.usageDetails?.input;
     if (newPromptTokens === undefined && model && model.tokenizerId) {
       if (body.input) {
         newPromptTokens = calculateTokenDelegate({
@@ -409,7 +419,7 @@ export class ObservationProcessor implements EventProcessor {
       }
     }
 
-    let newCompletionTokens = body.usage?.output;
+    let newCompletionTokens = body.usage?.output || body.usageDetails?.output;
 
     if (newCompletionTokens === undefined && model && model.tokenizerId) {
       if (body.output) {

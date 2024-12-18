@@ -8,6 +8,10 @@ on:
       - main
   merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   snyk:
     runs-on: ubuntu-latest
@@ -16,13 +20,13 @@ jobs:
       - name: Build a Docker image
         run: docker compose -f docker-compose.build.yml up -d
 
-      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-server)
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-web)
         continue-on-error: true
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-server
+          image: langfuse-langfuse-web
           args: --file=web/Dockerfile
 
       - name: Upload result to GitHub Code Scanning
@@ -37,7 +41,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-worker
+          image: langfuse-langfuse-worker
           args: --file=worker/Dockerfile
 
       - name: Upload result to GitHub Code Scanning

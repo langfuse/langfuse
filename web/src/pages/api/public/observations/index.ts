@@ -138,33 +138,22 @@ export default withMiddlewares({
           };
         },
         clickhouseExecution: async () => {
+          const filterProps = {
+            projectId: auth.scope.projectId,
+            page: query.page ?? undefined,
+            limit: query.limit ?? undefined,
+            traceId: query.traceId ?? undefined,
+            userId: query.userId ?? undefined,
+            name: query.name ?? undefined,
+            type: query.type ?? undefined,
+            parentObservationId: query.parentObservationId ?? undefined,
+            fromStartTime: query.fromStartTime ?? undefined,
+            toStartTime: query.toStartTime ?? undefined,
+            version: query.version ?? undefined,
+          };
           const [items, count] = await Promise.all([
-            generateObservationsForPublicApi({
-              projectId: auth.scope.projectId,
-              page: query.page ?? undefined,
-              limit: query.limit ?? undefined,
-              traceId: query.traceId ?? undefined,
-              userId: query.userId ?? undefined,
-              name: query.name ?? undefined,
-              type: query.type ?? undefined,
-              parentObservationId: query.parentObservationId ?? undefined,
-              fromStartTime: query.fromStartTime ?? undefined,
-              toStartTime: query.toStartTime ?? undefined,
-              version: query.version ?? undefined,
-            }),
-            getObservationsCountForPublicApi({
-              projectId: auth.scope.projectId,
-              page: query.page ?? undefined,
-              limit: query.limit ?? undefined,
-              traceId: query.traceId ?? undefined,
-              userId: query.userId ?? undefined,
-              name: query.name ?? undefined,
-              type: query.type ?? undefined,
-              parentObservationId: query.parentObservationId ?? undefined,
-              fromStartTime: query.fromStartTime ?? undefined,
-              toStartTime: query.toStartTime ?? undefined,
-              version: query.version ?? undefined,
-            }),
+            generateObservationsForPublicApi(filterProps),
+            getObservationsCountForPublicApi(filterProps),
           ]);
           const uniqueModels: string[] = Array.from(
             new Set(
