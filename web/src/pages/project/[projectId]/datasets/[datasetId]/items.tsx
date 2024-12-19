@@ -11,6 +11,7 @@ import { NewDatasetItemButton } from "@/src/features/datasets/components/NewData
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
+import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -47,6 +48,10 @@ export default function DatasetItems() {
         actionButtons={
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
+            <UploadDatasetCsvButton
+              projectId={projectId}
+              datasetId={datasetId}
+            />
             <DetailPageNav
               currentId={datasetId}
               path={(entry) =>
