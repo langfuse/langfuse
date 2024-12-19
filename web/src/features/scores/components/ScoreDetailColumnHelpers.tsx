@@ -14,8 +14,10 @@ import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prom
 import { type ScoreDataType } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
-import { type TableRowTypesWithIndividualScoreColumns } from "@/src/features/scores/lib/types";
-import { type ScoreData } from "@/src/features/scores/types";
+import {
+  type ScoreData,
+  type TableRowTypesWithIndividualScoreColumns,
+} from "@/src/features/scores/lib/types";
 
 const prefixScoreColKey = (
   key: string,

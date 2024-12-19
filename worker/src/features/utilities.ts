@@ -37,6 +37,7 @@ export async function callStructuredLLM<T extends ZodSchema>(
       traceParams: traceParams
         ? { ...traceParams, tokenCountDelegate: tokenCount }
         : undefined,
+      maxRetries: 1,
     });
 
     if (traceParams) {
@@ -75,6 +76,7 @@ export async function callLLM(
       traceParams: traceParams
         ? { ...traceParams, tokenCountDelegate: tokenCount }
         : undefined,
+      maxRetries: 1,
     });
 
     if (traceParams) {

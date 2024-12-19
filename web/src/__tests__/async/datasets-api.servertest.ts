@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { v4 } from "uuid";
 import {
@@ -22,51 +21,52 @@ import {
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
 import { v4 as uuidv4 } from "uuid";
+import {
+  createObservation,
+  createObservationsCh,
+  createTrace,
+  createTracesCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
 
 describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () => {
   const traceId = v4();
   const observationId = v4();
-  beforeEach(async () => {
-    await pruneDatabase();
+  let auth: string;
+  let projectId: string;
 
-    // create sample trace and observation
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [
-        {
-          id: v4(),
-          type: "trace-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: traceId,
-            name: "trace-name",
-            userId: "user-1",
-            metadata: { key: "value" },
-            release: "1.0.0",
-            version: "2.0.0",
-          },
-        },
-        {
-          id: v4(),
-          type: "observation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: observationId,
-            traceId: traceId,
-            type: "GENERATION",
-            name: "generation-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            modelParameters: { key: "value" },
-            input: { key: "value" },
-            metadata: { key: "value" },
-            version: "2.0.0",
-          },
-        },
-      ],
+  beforeEach(async () => {
+    const { auth: newAuth, projectId: newProjectId } =
+      await createOrgProjectAndApiKey();
+    auth = newAuth;
+    projectId = newProjectId;
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name",
+      user_id: "user-1",
+      project_id: projectId,
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
     });
-    expect(response.status).toBe(207);
+
+    const observation = createObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      type: "GENERATION",
+      name: "generation-name",
+      start_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+      end_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+      model_parameters: JSON.stringify({ key: "value" }),
+      input: JSON.stringify({ key: "value" }),
+      metadata: { key: "value" },
+      version: "2.0.0",
+    });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([observation]);
   });
-  afterEach(async () => await pruneDatabase());
 
   it("should create and get a dataset (v1), include special characters", async () => {
     const createRes = await makeZodVerifiedAPICall(
@@ -78,6 +78,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         description: "dataset-description",
         metadata: { foo: "bar" },
       },
+      auth,
     );
     expect(createRes.status).toBe(200);
     expect(createRes.body).toMatchObject({
@@ -100,6 +101,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetV1Response,
       "GET",
       `/api/public/datasets/${encodeURIComponent("dataset + name")}`,
+      undefined,
+      auth,
     );
     expect(getDatasetV1.status).toBe(200);
     expect(getDatasetV1.body).toMatchObject({
@@ -121,6 +124,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         description: "dataset-description",
         metadata: { foo: "bar" },
       },
+      auth,
     );
     expect(createRes.status).toBe(200);
     expect(createRes.body).toMatchObject({
@@ -141,6 +145,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetV2Response,
       "GET",
       `/api/public/v2/datasets/${encodeURIComponent("dataset + name + v2")}`,
+      undefined,
+      auth,
     );
     expect(getDatasetV2.status).toBe(200);
     expect(getDatasetV2.body).toMatchObject({
@@ -150,6 +156,63 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(getDatasetV2.body).not.toHaveProperty("items");
     expect(getDatasetV2.body).not.toHaveProperty("runs");
+  });
+
+  it("should not return ARCHIVED dataset items when getting a dataset", async () => {
+    // Create dataset
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: "dataset-with-archived",
+        description: "dataset with archived items",
+      },
+      auth,
+    );
+
+    // Create an archived dataset item
+    const archivedItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-with-archived",
+        id: "archived-item-id",
+        input: { key: "value" },
+        status: "ARCHIVED",
+      },
+      auth,
+    );
+    expect(archivedItem.status).toBe(200);
+
+    // Create an active dataset item
+    const activeItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-with-archived",
+        id: "active-item-id",
+        input: { key: "value" },
+        status: "ACTIVE",
+      },
+      auth,
+    );
+    expect(activeItem.status).toBe(200);
+
+    // Get dataset and verify only active item is returned
+    const getDataset = await makeZodVerifiedAPICall(
+      GetDatasetV1Response,
+      "GET",
+      `/api/public/datasets/${encodeURIComponent("dataset-with-archived")}`,
+      undefined,
+      auth,
+    );
+
+    expect(getDataset.status).toBe(200);
+    expect(getDataset.body.items).toHaveLength(1);
+    expect(getDataset.body.items[0].id).toEqual("active-item-id");
   });
 
   it("GET datasets (v1 & v2)", async () => {
@@ -163,6 +226,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         description: "dataset-description-1",
         metadata: { key: "value" },
       },
+      auth,
     );
     // v2 post
     await makeZodVerifiedAPICall(
@@ -172,6 +236,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         name: "dataset-name-2",
       },
+      auth,
     );
 
     const datasetItemId = v4();
@@ -187,6 +252,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         metadata: { key: "value-dataset-item" },
         id: datasetItemId,
       },
+      auth,
     );
 
     expect(createItemRes.status).toBe(200);
@@ -204,12 +270,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         runName: "test-run",
         metadata: { key: "value" },
       },
+      auth,
     );
 
     const getDatasetsV1 = await makeZodVerifiedAPICall(
       GetDatasetsV1Response,
       "GET",
       `/api/public/datasets`,
+      undefined,
+      auth,
     );
 
     expect(getDatasetsV1.status).toBe(200);
@@ -238,6 +307,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetsV2Response,
       "GET",
       `/api/public/v2/datasets`,
+      undefined,
+      auth,
     );
 
     expect(getDatasetsV2.status).toBe(200);
@@ -269,6 +340,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         name: "dataset-name",
       },
+      auth,
     );
     for (let i = 0; i < 5; i++) {
       await makeZodVerifiedAPICall(
@@ -283,10 +355,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           sourceTraceId: i % 2 === 0 ? traceId : undefined,
           sourceObservationId: i % 2 === 0 ? observationId : undefined,
         },
+        auth,
       );
     }
     const dbDatasetItems = await prisma.datasetItem.findMany({
       where: {
+        projectId: projectId,
         dataset: {
           name: "dataset-name",
         },
@@ -314,6 +388,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         name: "dataset-name-other",
       },
+      auth,
     );
     await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
@@ -324,9 +399,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         input: { key: "value" },
         expectedOutput: { key: "value" },
       },
+      auth,
     );
     const dbDatasetItemsOther = await prisma.datasetItem.findMany({
       where: {
+        projectId: projectId,
         dataset: {
           name: "dataset-name-other",
         },
@@ -355,6 +432,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetV1Response,
       "GET",
       `/api/public/datasets/dataset-name`,
+      undefined,
+      auth,
     );
     expect(getDataset.status).toBe(200);
     expect(getDataset.body).toMatchObject({
@@ -367,6 +446,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items`,
+      undefined,
+      auth,
     );
     expect(getDatasetItemsAll.status).toBe(200);
     expect(getDatasetItemsAll.body).toMatchObject({
@@ -381,6 +462,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?page=2&limit=1`,
+      undefined,
+      auth,
     );
     expect(getDatasetItemsAllPage2.status).toBe(200);
     expect(getDatasetItemsAllPage2.body).toMatchObject({
@@ -397,6 +480,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?datasetName=dataset-name`,
+      undefined,
+      auth,
     );
     expect(getDatasetItems.status).toBe(200);
     expect(getDatasetItems.body).toMatchObject({
@@ -411,6 +496,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?sourceTraceId=${traceId}`,
+      undefined,
+      auth,
     );
     expect(getDatasetItemsTrace.status).toBe(200);
     expect(getDatasetItemsTrace.body).toMatchObject({
@@ -427,6 +514,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?sourceObservationId=${observationId}`,
+      undefined,
+      auth,
     );
     expect(getDatasetItemsObservation.status).toBe(200);
     expect(getDatasetItemsObservation.body).toMatchObject({
@@ -445,6 +534,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetItemV1Response,
       "GET",
       `/api/public/dataset-items/${singleItem.id}`,
+      undefined,
+      auth,
     );
     expect(getDatasetItem.status).toBe(200);
     expect(getDatasetItem.body).toMatchObject(singleItem);
@@ -458,6 +549,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         name: "dataset-name",
       },
+      auth,
     );
 
     const item1 = await makeZodVerifiedAPICall(
@@ -470,6 +562,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         input: { key: "value" },
         metadata: { key: "value-dataset-item" },
       },
+      auth,
     );
     expect(item1.status).toBe(200);
     expect(item1.body).toMatchObject({
@@ -487,6 +580,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         metadata: ["hello-world"],
         status: "ARCHIVED",
       },
+      auth,
     );
     expect(item2.status).toBe(200);
     expect(item2.body).toMatchObject({
@@ -513,6 +607,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         name: "dataset name",
       },
+      auth,
     );
     expect(dataset.status).toBe(200);
     expect(dataset.body).toMatchObject({
@@ -528,44 +623,36 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         input: { key: "value" },
         expectedOutput: { key: "value" },
       },
+      auth,
     );
     const traceId = v4();
     const observationId = v4();
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [
-        {
-          id: v4(),
-          type: "trace-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: traceId,
-            name: "trace-name",
-            userId: "user-1",
-            metadata: { key: "value" },
-            release: "1.0.0",
-            version: "2.0.0",
-          },
-        },
-        {
-          id: v4(),
-          type: "observation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: observationId,
-            traceId: traceId,
-            type: "GENERATION",
-            name: "generation-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            modelParameters: { key: "value" },
-            input: { key: "value" },
-            metadata: { key: "value" },
-            version: "2.0.0",
-          },
-        },
-      ],
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name",
+      user_id: "user-1",
+      project_id: projectId,
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
     });
-    expect(response.status).toBe(207);
+
+    const observation = createObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      type: "GENERATION",
+      name: "generation-name",
+      start_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+      end_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+      model_parameters: JSON.stringify({ key: "value" }),
+      input: JSON.stringify({ key: "value" }),
+      metadata: { key: "value" },
+      version: "2.0.0",
+    });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([observation]);
 
     const runItemObservation = await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -578,9 +665,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         runDescription: "run-description",
         metadata: { key: "value" },
       },
+      auth,
     );
     const dbRunObservation = await prisma.datasetRuns.findFirst({
       where: {
+        projectId,
         name: "run + only + observation",
       },
       include: {
@@ -602,6 +691,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetRunV1Response,
       "GET",
       `/api/public/datasets/${encodeURIComponent("dataset name")}/runs/${encodeURIComponent("run + only + observation")}`,
+      undefined,
+      auth,
     );
     expect(getRunAPI.status).toBe(200);
     expect(getRunAPI.body).toMatchObject({
@@ -630,6 +721,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         runName: "run-only-trace",
         metadata: { key: "value" },
       },
+      auth,
     );
 
     expect(runItemTrace.status).toBe(200);
@@ -639,6 +731,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     const dbRunTrace = await prisma.datasetRuns.findFirst({
       where: {
+        projectId,
         name: "run-only-trace",
       },
       include: {
@@ -666,9 +759,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         runName: "run-name-both",
         metadata: { key: "value" },
       },
+      auth,
     );
     const dbRunBoth = await prisma.datasetRuns.findFirst({
       where: {
+        projectId,
         name: "run-name-both",
       },
       include: {
@@ -695,6 +790,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       {
         name: "dataset-name",
       },
+      auth,
     );
     await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
@@ -706,44 +802,36 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         input: { key: "value" },
         expectedOutput: { key: "value" },
       },
+      auth,
     );
     const traceId = v4();
     const observationId = v4();
-    const response = await makeAPICall("POST", "/api/public/ingestion", {
-      batch: [
-        {
-          id: v4(),
-          type: "trace-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: traceId,
-            name: "trace-name",
-            userId: "user-1",
-            metadata: { key: "value" },
-            release: "1.0.0",
-            version: "2.0.0",
-          },
-        },
-        {
-          id: v4(),
-          type: "observation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: observationId,
-            traceId: traceId,
-            type: "GENERATION",
-            name: "generation-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            modelParameters: { key: "value" },
-            input: { key: "value" },
-            metadata: { key: "value" },
-            version: "2.0.0",
-          },
-        },
-      ],
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name",
+      user_id: "user-1",
+      project_id: projectId,
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
     });
-    expect(response.status).toBe(207);
+
+    const observation = createObservation({
+      id: observationId,
+      trace_id: traceId,
+      project_id: projectId,
+      type: "GENERATION",
+      name: "generation-name",
+      start_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+      end_time: new Date("2021-01-01T00:00:00.000Z").getTime(),
+      model_parameters: JSON.stringify({ key: "value" }),
+      input: JSON.stringify({ key: "value" }),
+      metadata: { key: "value" },
+      version: "2.0.0",
+    });
+
+    await createTracesCh([trace]);
+    await createObservationsCh([observation]);
 
     await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -755,6 +843,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         observationId: observationId,
         runName: "run-1",
       },
+      auth,
     );
     await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -766,6 +855,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         observationId: observationId,
         runName: "run-2",
       },
+      auth,
     );
     await makeZodVerifiedAPICall(
       PostDatasetRunItemsV1Response,
@@ -777,11 +867,13 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         observationId: observationId,
         runName: "run-3",
       },
+      auth,
     );
 
     // check runs in db
     const dbRuns = await prisma.datasetRuns.findMany({
       where: {
+        projectId: projectId,
         dataset: { name: "dataset-name" },
       },
       orderBy: {
@@ -804,6 +896,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetRunsV1Response,
       "GET",
       `/api/public/datasets/dataset-name/runs`,
+      undefined,
+      auth,
     );
     expect(getRuns.status).toBe(200);
     expect(getRuns.body).toMatchObject({
@@ -819,6 +913,8 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       GetDatasetRunsV1Response,
       "GET",
       `/api/public/datasets/dataset-name/runs?page=2&limit=1`,
+      undefined,
+      auth,
     );
     expect(getRunsPage2.status).toBe(200);
     expect(getRunsPage2.body).toMatchObject({

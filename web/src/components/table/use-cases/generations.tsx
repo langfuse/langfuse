@@ -41,6 +41,8 @@ import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
 
 export type GenerationsTableRow = {
   id: string;
@@ -69,6 +71,8 @@ export type GenerationsTableRow = {
     completionTokens: number;
     totalTokens: number;
   };
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
@@ -385,7 +389,12 @@ export default function GenerationsTable({
         const value: Decimal | undefined = row.getValue("totalCost");
 
         return value !== undefined ? (
-          <span>{usdFormatter(value.toNumber())}</span>
+          <BreakdownTooltip details={row.original.costDetails} isCost>
+            <div className="flex items-center gap-1">
+              <span>{usdFormatter(value.toNumber())}</span>
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
         ) : undefined;
       },
       enableHiding: true,
@@ -502,12 +511,17 @@ export default function GenerationsTable({
           totalTokens: number;
         } = row.getValue("usage");
         return (
-          <TokenUsageBadge
-            promptTokens={value.promptTokens}
-            completionTokens={value.completionTokens}
-            totalTokens={value.totalTokens}
-            inline
-          />
+          <BreakdownTooltip details={row.original.usageDetails}>
+            <div className="flex items-center gap-1">
+              <TokenUsageBadge
+                promptTokens={value.promptTokens}
+                completionTokens={value.completionTokens}
+                totalTokens={value.totalTokens}
+                inline
+              />
+              <InfoIcon className="h-3 w-3" />
+            </div>
+          </BreakdownTooltip>
         );
       },
       enableHiding: true,
@@ -688,6 +702,8 @@ export default function GenerationsTable({
             promptName: generation.promptName ?? undefined,
             promptVersion: generation.promptVersion?.toString() ?? undefined,
             traceTags: generation.traceTags ?? undefined,
+            usageDetails: generation.usageDetails ?? {},
+            costDetails: generation.costDetails ?? {},
           };
         })
       : [];

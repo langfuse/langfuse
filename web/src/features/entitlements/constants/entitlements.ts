@@ -93,6 +93,7 @@ export const entitlementAccess: Record<
       "model-based-evaluations",
       "playground",
       "prompt-experiments",
+      "integration-posthog",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
@@ -111,6 +112,7 @@ export const entitlementAccess: Record<
       "rbac-project-roles",
       "self-host-allowed-organization-creators",
       "self-host-ui-customization",
+      "integration-posthog",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

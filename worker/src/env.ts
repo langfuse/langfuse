@@ -141,6 +141,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   LANGFUSE_POSTGRES_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

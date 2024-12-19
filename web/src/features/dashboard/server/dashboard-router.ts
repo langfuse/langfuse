@@ -29,6 +29,7 @@ import {
   getNumericScoreHistogram,
   getNumericScoreTimeSeries,
   getCategoricalScoreTimeSeries,
+  getObservationsStatusTimeSeries,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -58,6 +59,7 @@ export const dashboardRouter = createTRPCRouter({
             "model-latencies-over-time",
             "numeric-score-time-series",
             "categorical-score-chart",
+            "observations-status-timeseries",
           ])
           .nullish(),
       }),
@@ -148,8 +150,8 @@ export const dashboardRouter = createTRPCRouter({
 
             return rowsObs.map((row) => ({
               startTime: row.start_time,
-              sumTotalTokens: row.sum_usage_details,
-              sumCalculatedTotalCost: row.sum_cost_details,
+              units: row.units,
+              cost: row.cost,
               model: row.provided_model_name,
             })) as DatabaseRow[];
 
@@ -282,6 +284,14 @@ export const dashboardRouter = createTRPCRouter({
               stringValue: row.score_value || null,
               countStringValue: Number(row.count) || 0,
             })) as DatabaseRow[];
+          case "observations-status-timeseries":
+            const timeSeriesGroupBy = extractTimeSeries(input.groupBy);
+
+            return (await getObservationsStatusTimeSeries(
+              input.projectId,
+              input.filter ?? [],
+              timeSeriesGroupBy,
+            )) as DatabaseRow[];
 
           default:
             throw new TRPCError({
