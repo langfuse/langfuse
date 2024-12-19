@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -13,6 +12,9 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import {
+  DatasetStatus,
+  InternalServerError,
+  LangfuseNotFoundError,
   type PrismaClient,
   type ScoreAggregate,
   type ScoreSimplified,
@@ -28,7 +30,35 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { traceException } from "@langfuse/shared/src/server";
+import {
+  type StorageService,
+  StorageServiceFactory,
+  traceException,
+} from "@langfuse/shared/src/server";
+import { parseColumns, parseCsvServer } from "../lib/csvHelpers";
+import { env } from "@/src/env.mjs";
+
+const ImportCsvMappingSchema = z.object({
+  input: z.array(z.string()),
+  expected: z.array(z.string()),
+  metadata: z.array(z.string()),
+});
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_CSV_IMPORT_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_CSV_IMPORT_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_CSV_IMPORT_ENDPOINT,
+      region: env.LANGFUSE_CSV_IMPORT_REGION,
+      forcePathStyle: env.LANGFUSE_CSV_IMPORT_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -550,6 +580,97 @@ export const datasetRouter = createTRPCRouter({
 
       return { id: newDataset.id };
     }),
+
+  importFromCsv: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        bucketPath: z.string(),
+        mapping: ImportCsvMappingSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const { projectId, datasetId, bucketPath, mapping } = input;
+
+      if (env.LANGFUSE_CSV_IMPORT_ENABLED === "true") {
+        if (!env.LANGFUSE_CSV_IMPORT_BUCKET) {
+          throw new LangfuseNotFoundError(
+            "S3 bucket name is required for csv import.",
+          );
+        }
+
+        const s3Client = getS3StorageServiceClient(
+          env.LANGFUSE_CSV_IMPORT_BUCKET,
+        );
+
+        const file = await s3Client.download(bucketPath);
+        if (!file) throw new InternalServerError("File not found or expired");
+
+        const items: Prisma.DatasetItemCreateManyInput[] = [];
+        let headerMap: Map<string, number>;
+        const fileBuffer = Buffer.from(file);
+
+        await parseCsvServer(fileBuffer, {
+          processor: {
+            onHeader: (headers) => {
+              headerMap = new Map(headers.map((h, i) => [h, i]));
+
+              // Validate columns exist
+              const missingColumns = [
+                ...mapping.input,
+                ...mapping.expected,
+                ...mapping.metadata,
+              ].filter((col) => !headerMap.has(col));
+              if (missingColumns.length > 0) {
+                throw new Error(
+                  `Missing columns: ${missingColumns.join(", ")}`,
+                );
+              }
+            },
+            onRow: (row, _, index) => {
+              try {
+                // Process all column mappings
+                const input =
+                  parseColumns(mapping.input, row, headerMap) ?? undefined;
+                const expectedOutput =
+                  parseColumns(mapping.expected, row, headerMap) ?? undefined;
+                const metadata =
+                  parseColumns(mapping.metadata, row, headerMap) ?? undefined;
+
+                items.push({
+                  projectId: projectId,
+                  datasetId: datasetId,
+                  input,
+                  expectedOutput,
+                  metadata,
+                  status: DatasetStatus.ACTIVE,
+                });
+              } catch (error) {
+                throw new Error(
+                  `Error processing row ${index + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+                );
+              }
+            },
+          },
+        });
+
+        await ctx.prisma.datasetItem.createMany({ data: items });
+
+        return { importedCount: items.length };
+      } else {
+        throw new LangfuseNotFoundError(
+          "CSV import is not enabled. Please configure a S3 bucket for CSV import.",
+        );
+      }
+    }),
+
   createDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -1002,7 +1123,7 @@ async function runsByDatasetIdPg(
       ...run,
       scores: aggregateScores(
         scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
-      ) as ScoreAggregate | undefined
+      ) as ScoreAggregate | undefined,
     })),
   };
 }
