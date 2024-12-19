@@ -82,10 +82,15 @@ export const ingestionQueueProcessorBuilder = (
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
 
-      logger.info("Processing ingestion event", {
-        projectId: job.data.payload.authCheck.scope.projectId,
-        payload: job.data.payload.data,
-      });
+      logger.info(
+        `Processing ingestion event ${
+          enableRedirectToSecondaryQueue === true ? "" : "secondary"
+        }`,
+        {
+          projectId: job.data.payload.authCheck.scope.projectId,
+          payload: job.data.payload.data,
+        },
+      );
 
       // Download all events from folder into a local array
       const eventFiles = await s3Client.listFiles(
