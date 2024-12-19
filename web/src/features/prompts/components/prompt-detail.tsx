@@ -39,8 +39,7 @@ import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/
 import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { parseDiff, Diff, Hunk, type HunkProps } from "react-diff-view";
-import '@/src/styles/diff.css';
+import { PromptDiff } from "@/src/features/prompts/components/prompt-diff";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -150,13 +149,10 @@ export const PromptDetail = () => {
     return <div>Loading...</div>;
   }
 
-  const { createPatch } = require('diff');
-  const EMPTY_HUNKS: HunkProps['hunk'][] = [];
   const newPromptText = String(prompt?.prompt || '');
   const oldPromptText = String(oldPrompt?.prompt || newPromptText);
-  const patch = createPatch('a', oldPromptText, newPromptText, null, null, {context: 3, oneChangePerToken: true});
-  const diffText = patch.split('\n').slice(2).join('\n');
-  const [diff] = parseDiff(diffText);
+  const newPromptVersion = oldPrompt?.version || prompt.version;
+  const oldPromptVersion = prompt.version;
 
   return (
     <ScrollScreenPage>
@@ -331,21 +327,12 @@ export const PromptDetail = () => {
                 <div className="mx-auto mt-5 w-full rounded-lg border text-base">
                   <div className="border-b px-3 py-1 text-xs font-medium">Differences</div>
                   <div className="flex flex-wrap gap-2 p-2">
-                    <table className="diff diff-split">
-                      <thead>
-                        <tr>
-                          <th className="text-xs font-medium">Previous Prompt (Version {oldPrompt?.version || prompt.version})</th>
-                          <th className="text-xs font-medium">Current Prompt (Version {prompt.version})</th>
-                        </tr>
-                      </thead>
-                    </table>
-                    <Diff viewType="split" diffType='modify' hunks={diff.hunks || EMPTY_HUNKS}>
-                      {hunks =>
-                          hunks.map(hunk => (
-                              <Hunk key={hunk.content} hunk={hunk} />
-                          ))
-                      }
-                    </Diff>
+                    <PromptDiff 
+                      oldPromptText={oldPromptText} 
+                      newPromptText={newPromptText} 
+                      oldPromptVersion={oldPromptVersion} 
+                      newPromptVersion={newPromptVersion}
+                    />
                   </div>
                 </div>
               </AccordionContent>
