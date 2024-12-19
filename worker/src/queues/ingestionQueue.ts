@@ -84,7 +84,7 @@ export const ingestionQueueProcessorBuilder = (
 
       logger.info(
         `Processing ingestion event ${
-          enableRedirectToSecondaryQueue === true ? "" : "secondary"
+          enableRedirectToSecondaryQueue ? "" : "secondary"
         }`,
         {
           projectId: job.data.payload.authCheck.scope.projectId,
