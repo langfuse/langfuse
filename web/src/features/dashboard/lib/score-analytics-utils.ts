@@ -1,14 +1,34 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import {
+  type CategoryCounts,
+  type ChartBin,
+  type HistogramBin,
+} from "@/src/features/scores/types";
+import { type RouterOutputs } from "@/src/utils/api";
 
-// types
-type HistogramBin = { binLabel: string; count: number };
-type CategoryCounts = Record<string, number>;
-type ChartBin = { binLabel: string } & CategoryCounts;
+export const RESOURCE_METRICS = [
+  {
+    key: "latency",
+    value: "Latency",
+    objectKey: "avgLatency",
+    label: "Latency (ms)",
+  },
+  {
+    key: "cost",
+    value: "Cost",
+    objectKey: "avgTotalCost",
+    label: "Average Total Cost ($)",
+  },
+];
 
 // numeric score analytics helpers
 function round(value: number, precision = 2) {
   return parseFloat(value.toFixed(precision));
+}
+
+export function uniqueAndSort(labels: string[]): string[] {
+  return Array.from(new Set(labels)).sort();
 }
 
 function computeBinSize(
@@ -125,8 +145,112 @@ function groupCategoricalScoreDataByTimestamp(
   );
 }
 
-function uniqueAndSort(labels: string[]): string[] {
-  return Array.from(new Set(labels)).sort();
+type ChartAccumulator = Map<
+  string,
+  { chartData: ChartBin[]; chartLabels: string[] }
+>;
+
+function initializeOrGetChartData(acc: ChartAccumulator, key: string) {
+  if (!acc.has(key)) {
+    acc.set(key, { chartData: [], chartLabels: [] });
+  }
+  return acc.get(key)!;
+}
+
+function createNumericScoreData(run: string, score: number, scoreName: string) {
+  return {
+    chartLabels: [scoreName],
+    chartBin: {
+      binLabel: run,
+      [scoreName]: score,
+    } as ChartBin,
+  };
+}
+
+function createCategoricalScoreData(
+  run: string,
+  valueCounts: Array<{ value: string; count: number }>,
+  values: string[],
+) {
+  const categoryCounts = valueCounts.reduce(
+    (counts, { value, count }) => ({
+      ...counts,
+      [value]: count,
+    }),
+    {} as CategoryCounts,
+  );
+
+  return {
+    chartLabels: values,
+    chartBin: {
+      binLabel: run,
+      ...categoryCounts,
+    } as ChartBin,
+  };
+}
+
+function addMetricToAccumulator(
+  acc: ChartAccumulator,
+  key: string,
+  chartBin: ChartBin,
+  chartLabels: string[],
+) {
+  const current = initializeOrGetChartData(acc, key);
+  acc.set(key, {
+    chartData: [...current.chartData, chartBin],
+    chartLabels,
+  });
+}
+
+export function transformAggregatedRunMetricsToChartData(
+  runMetrics: RouterOutputs["datasets"]["runsByDatasetIdMetrics"]["runs"],
+  scoreIdToName: Map<string, string>,
+) {
+  const reversedMetrics = runMetrics.slice().reverse();
+
+  return reversedMetrics.reduce((acc, run) => {
+    // Handle scores
+    Object.entries(run.scores ?? {}).forEach(([scoreId, score]) => {
+      const scoreData =
+        score.type === "NUMERIC"
+          ? createNumericScoreData(
+              run.name,
+              score.average,
+              scoreIdToName.get(scoreId) ?? scoreId,
+            )
+          : createCategoricalScoreData(
+              run.name,
+              score.valueCounts,
+              score.values,
+            );
+
+      addMetricToAccumulator(
+        acc,
+        scoreId,
+        scoreData.chartBin,
+        scoreData.chartLabels,
+      );
+    });
+
+    // Handle resource metrics
+    RESOURCE_METRICS.forEach(({ key, objectKey }) => {
+      const resourceValue = run[objectKey as keyof typeof run];
+      const resourceData = createNumericScoreData(
+        run.name,
+        !!resourceValue ? Number(resourceValue) : 0,
+        key,
+      );
+
+      addMetricToAccumulator(
+        acc,
+        key,
+        resourceData.chartBin,
+        resourceData.chartLabels,
+      );
+    });
+
+    return acc;
+  }, new Map());
 }
 
 export function transformCategoricalScoresToChartData(
@@ -155,11 +279,11 @@ export function transformCategoricalScoresToChartData(
       chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
     });
 
-    return { chartData, chartLabels: uniqueAndSort(chartLabels) };
+    return { chartData, chartLabels };
   }
 }
 
-export function isEmptyBarChart({ data }: { data: ChartBin[] }) {
+export function isEmptyChart({ data }: { data: ChartBin[] }) {
   return (
     data.length === 0 || data.every((item) => Object.keys(item).length === 1)
   );

@@ -12,7 +12,6 @@ import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CommandItem } from "@/src/components/ui/command";
 import { ExternalLink, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
@@ -25,6 +24,9 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
+import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 
 export default function Dataset() {
   const router = useRouter();
@@ -34,6 +36,15 @@ export default function Dataset() {
   const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
+    RESOURCE_METRICS.map((metric) => metric.key),
+  );
+  const [scoreOptions, setScoreOptions] = useState<
+    {
+      key: string;
+      value: string;
+    }[]
+  >([]);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -132,6 +143,14 @@ export default function Dataset() {
               </DialogContent>
             </Dialog>
 
+            <DatasetAnalytics
+              key="dataset-analytics"
+              projectId={projectId}
+              scoreOptions={scoreOptions}
+              selectedMetrics={selectedMetrics}
+              setSelectedMetrics={setSelectedMetrics}
+            />
+
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
                 className="max-w-fit"
@@ -148,14 +167,14 @@ export default function Dataset() {
                 values={evaluatorsOptions}
                 options={evaluatorsOptions}
                 controlButtons={
-                  <CommandItem
+                  <DropdownMenuItem
                     onSelect={() => {
                       window.open(`/project/${projectId}/evals`, "_blank");
                     }}
                   >
                     Manage evaluators
                     <ExternalLink className="ml-auto h-4 w-4" />
-                  </CommandItem>
+                  </DropdownMenuItem>
                 }
               />
             )}
@@ -201,6 +220,8 @@ export default function Dataset() {
       <DatasetRunsTable
         projectId={projectId}
         datasetId={datasetId}
+        selectedMetrics={selectedMetrics}
+        setScoreOptions={setScoreOptions}
         menuItems={
           <Tabs value="runs">
             <TabsList>

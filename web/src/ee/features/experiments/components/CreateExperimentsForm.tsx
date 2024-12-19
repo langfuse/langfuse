@@ -77,6 +77,7 @@ import {
 } from "@/src/components/ui/dialog";
 import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 
 const CreateExperimentData = z.object({
   name: z
@@ -790,13 +791,13 @@ export const CreateExperimentsForm = ({
                 }
                 hideClearButton
                 controlButtons={
-                  <CommandItem
+                  <DropdownMenuItem
                     onSelect={() => {
                       window.open(`/project/${projectId}/evals`, "_blank");
                     }}
                   >
                     Manage evaluators
-                  </CommandItem>
+                  </DropdownMenuItem>
                 }
               />
             </FormItem>
