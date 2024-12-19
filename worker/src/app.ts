@@ -128,6 +128,17 @@ if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
   });
 }
 
+if (env.QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.IngestionSecondaryQueue,
+    ingestionQueueProcessor,
+    {
+      concurrency:
+        env.LANGFUSE_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
 if (
   env.QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED === "true" &&
   env.STRIPE_SECRET_KEY
