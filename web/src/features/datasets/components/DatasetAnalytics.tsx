@@ -11,7 +11,7 @@ export function DatasetAnalytics(props: {
     <MultiSelectKeyValues
       className="max-w-fit"
       placeholder="Search..."
-      title="Metrics"
+      title="Analytics Charts"
       hideClearButton
       onValueChange={(values, changedValue, selectedKeys) => {
         if (values.length === 0) props.setSelectedMetrics([]);
