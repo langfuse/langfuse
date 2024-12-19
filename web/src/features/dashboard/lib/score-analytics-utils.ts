@@ -18,7 +18,7 @@ export const RESOURCE_METRICS = [
     key: "cost",
     value: "Cost",
     objectKey: "avgTotalCost",
-    label: "Total Cost ($)",
+    label: "Average Total Cost ($)",
   },
 ];
 

@@ -890,6 +890,7 @@ async function runsByDatasetIdPg(
           runs.dataset_id = ${input.datasetId}
           AND runs.project_id = ${input.projectId}
           AND s.score IS NOT NULL
+          ${input.runIds ? Prisma.sql`AND runs.id IN (${input.runIds.join(",")})` : Prisma.empty}
         GROUP BY
           runs.id
         ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
