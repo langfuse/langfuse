@@ -7,12 +7,7 @@ import { api } from "@/src/utils/api";
 import { FlaskConical, FolderKanban } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
-import {
-  useQueryParams,
-  withDefault,
-  ArrayParam,
-  NumberParam,
-} from "use-query-params";
+import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
 import {
   Popover,
   PopoverTrigger,
