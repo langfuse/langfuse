@@ -1,5 +1,6 @@
 import {
   jsonSchema,
+  publicApiPaginationZod,
   paginationZod,
   paginationMetaResponseZod,
   queryStringZod,
@@ -101,7 +102,7 @@ export const PostDatasetsV2Response = APIDataset.strict();
 
 // GET /v2/datasets
 export const GetDatasetsV2Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetsV2Response = z
   .object({
@@ -119,7 +120,7 @@ export const GetDatasetV2Response = APIDataset.strict();
 // GET /datasets/{name}/runs
 export const GetDatasetRunsV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetRunsV1Response = z
   .object({
@@ -155,7 +156,7 @@ export const GetDatasetItemsV1Query = z.object({
   datasetName: z.string().nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetItemsV1Response = z
   .object({

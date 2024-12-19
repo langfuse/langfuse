@@ -41,6 +41,12 @@ export type Route = {
 
 export const ROUTES: Route[] = [
   {
+    title: "Organizations",
+    pathname: "/",
+    icon: Grid2X2,
+    show: ({ organization }) => organization === undefined,
+  },
+  {
     title: "Projects",
     pathname: "/organization/[organizationId]",
     icon: Grid2X2,

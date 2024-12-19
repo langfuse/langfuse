@@ -28,6 +28,7 @@ import { queueRouter } from "@/src/ee/features/annotation-queues/server/annotati
 import { queueItemRouter } from "@/src/ee/features/annotation-queues/server/annotationQueueItems";
 import { experimentsRouter } from "@/src/ee/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
+import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 
 /**
  * This is the primary router for your server.
@@ -64,6 +65,7 @@ export const appRouter = createTRPCRouter({
   uiCustomization: uiCustomizationRouter,
   comments: commentsRouter,
   media: mediaRouter,
+  backgroundMigrations: backgroundMigrationsRouter,
 });
 
 // export type definition of API

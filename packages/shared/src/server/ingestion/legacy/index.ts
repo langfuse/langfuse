@@ -83,7 +83,7 @@ export const handleBatch = async (
 
 async function retry<T>(request: () => Promise<T>): Promise<T> {
   return await backOff(request, {
-    numOfAttempts: env.LANGFUSE_ASYNC_INGESTION_PROCESSING === "true" ? 5 : 3,
+    numOfAttempts: 5,
     retry: (e: Error, attemptNumber: number) => {
       if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
         logger.info("not retrying auth error");

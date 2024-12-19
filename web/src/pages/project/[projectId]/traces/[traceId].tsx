@@ -3,7 +3,7 @@ import { TracePage } from "@/src/components/trace";
 
 export default function Trace() {
   const router = useRouter();
-  const traceId = decodeURIComponent(router.query.traceId as string);
+  const traceId = router.query.traceId as string;
 
   const timestamp =
     router.query.timestamp && typeof router.query.timestamp === "string"

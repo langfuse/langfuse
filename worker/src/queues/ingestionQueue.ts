@@ -10,6 +10,7 @@ import {
   redis,
   clickhouseClient,
   getClickhouseEntityType,
+  getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -37,12 +38,20 @@ export const ingestionQueueProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.IngestionQueue]>,
 ) => {
   try {
-    if (
-      env.LANGFUSE_S3_EVENT_UPLOAD_ENABLED !== "true" ||
-      !env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET
-    ) {
-      throw new Error(
-        "S3 event store is not enabled but useS3EventStore is true",
+    const span = getCurrentSpan();
+    if (span) {
+      span.setAttribute("messaging.bullmq.job.input.id", job.data.id);
+      span.setAttribute(
+        "messaging.bullmq.job.input.projectId",
+        job.data.payload.authCheck.scope.projectId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.eventBodyId",
+        job.data.payload.data.eventBodyId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.type",
+        job.data.payload.data.type,
       );
     }
 

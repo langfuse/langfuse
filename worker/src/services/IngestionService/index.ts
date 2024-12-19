@@ -32,6 +32,7 @@ import {
   convertDateToClickhouseDateTime,
   TraceUpsertQueue,
   QueueJobs,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -172,6 +173,19 @@ export class IngestionService {
       ),
     ]);
 
+    if (postgresScoreRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "postgres",
+        object: "score",
+      });
+    }
+    if (clickhouseScoreRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "score",
+      });
+    }
+
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
         clickhouseScoreRecord,
@@ -218,6 +232,19 @@ export class IngestionService {
         params: { timestamp },
       },
     });
+
+    if (postgresTraceRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "postgres",
+        object: "trace",
+      });
+    }
+    if (clickhouseTraceRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "trace",
+      });
+    }
 
     const finalTraceRecord = await this.mergeTraceRecords({
       clickhouseTraceRecord,
@@ -310,6 +337,19 @@ export class IngestionService {
       }),
       this.getPrompt(projectId, observationEventList),
     ]);
+
+    if (postgresObservationRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "postgres",
+        object: "observation",
+      });
+    }
+    if (clickhouseObservationRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "observation",
+      });
+    }
 
     const observationRecords = this.mapObservationEventsToRecords({
       observationEventList: timeSortedEvents,
@@ -602,8 +642,16 @@ export class IngestionService {
       return { usage_details, provided_usage_details: providedUsageDetails };
     }
 
+    const usageDetails = { ...providedUsageDetails };
+    if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {
+      usageDetails.total = Object.values(providedUsageDetails).reduce(
+        (acc, value) => acc + value,
+        0,
+      );
+    }
+
     return {
-      usage_details: providedUsageDetails,
+      usage_details: usageDetails,
       provided_usage_details: providedUsageDetails,
     };
   }
@@ -834,21 +882,33 @@ export class IngestionService {
 
       const newTotalCount =
         ("usage" in obs.body ? obs.body.usage?.total : undefined) ||
-        (newInputCount !== undefined &&
-        newOutputCount !== undefined &&
-        newInputCount &&
-        newOutputCount
-          ? newInputCount + newOutputCount
-          : (newInputCount ?? newOutputCount));
+        (Object.keys(
+          "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
+        ).length === 0
+          ? newInputCount && newOutputCount
+            ? newInputCount + newOutputCount
+            : (newInputCount ?? newOutputCount)
+          : undefined);
 
-      const provided_usage_details: Record<string, number> = {};
+      let provided_usage_details: Record<string, number> = {};
 
       if (newInputCount != null) provided_usage_details.input = newInputCount;
       if (newOutputCount != null)
         provided_usage_details.output = newOutputCount;
       if (newTotalCount != null) provided_usage_details.total = newTotalCount;
 
-      const provided_cost_details: Record<string, number> = {};
+      provided_usage_details = {
+        ...provided_usage_details,
+        ...("usageDetails" in obs.body
+          ? (Object.fromEntries(
+              Object.entries(obs.body.usageDetails ?? {}).filter(
+                ([_, val]) => val != null,
+              ),
+            ) as Record<string, number>)
+          : {}),
+      };
+
+      let provided_cost_details: Record<string, number> = {};
 
       if ("usage" in obs.body) {
         const { inputCost, outputCost, totalCost } = obs.body.usage ?? {};
@@ -857,6 +917,17 @@ export class IngestionService {
         if (outputCost != null) provided_cost_details.output = outputCost;
         if (totalCost != null) provided_cost_details.total = totalCost;
       }
+
+      provided_cost_details = {
+        ...provided_cost_details,
+        ...("costDetails" in obs.body
+          ? (Object.fromEntries(
+              Object.entries(obs.body.costDetails ?? {}).filter(
+                ([_, val]) => val != null,
+              ),
+            ) as Record<string, number>)
+          : {}),
+      };
 
       if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
         logger.warn(

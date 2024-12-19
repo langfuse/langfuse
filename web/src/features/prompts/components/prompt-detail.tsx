@@ -33,14 +33,11 @@ import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useState } from "react";
-import { useHasOrgEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export const PromptDetail = () => {
@@ -51,7 +48,7 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
-  const hasEntitlement = useHasOrgEntitlement("experiments");
+  const hasEntitlement = useHasEntitlement("prompt-experiments");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const hasAccess = useHasProjectAccess({
@@ -60,7 +57,7 @@ export const PromptDetail = () => {
   });
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "experiments:CUD",
+    scope: "promptExperiments:CUD",
   });
   const promptHistory = api.prompts.allVersions.useQuery(
     {
@@ -179,21 +176,6 @@ export const PromptDetail = () => {
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Set up experiment</DialogTitle>
-                        <DialogDescription>
-                          Create an experiment to test a prompt version on a
-                          dataset. See{" "}
-                          <Link
-                            href="https://langfuse.com/docs/datasets/prompt-experiments"
-                            target="_blank"
-                            className="underline"
-                          >
-                            documentation
-                          </Link>{" "}
-                          to learn more.
-                        </DialogDescription>
-                      </DialogHeader>
                       <CreateExperimentsForm
                         key={`create-experiment-form-${prompt.id}`}
                         projectId={projectId as string}

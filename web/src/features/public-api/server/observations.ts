@@ -6,7 +6,7 @@ import {
   convertObservationToView,
 } from "@langfuse/shared/src/server";
 
-export type QueryType = {
+type QueryType = {
   page: number;
   limit: number;
   projectId: string;
@@ -21,8 +21,9 @@ export type QueryType = {
 };
 
 export const generateObservationsForPublicApi = async (props: QueryType) => {
-  const filter = generateFilter(props);
-  const appliedFilter = filter.apply();
+  const chFilter = generateFilter(props);
+  const appliedFilter = chFilter.apply();
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
   const query = `
         SELECT
@@ -56,7 +57,9 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         updated_at,
         event_ts
       FROM observations o
-      WHERE project_id = {projectId: String}
+      ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+      WHERE o.project_id = {projectId: String}
+      ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
       AND ${appliedFilter.query}
       ORDER BY start_time desc
       LIMIT 1 by id, project_id
@@ -78,15 +81,18 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
 };
 
 export const getObservationsCountForPublicApi = async (props: QueryType) => {
-  const filter = generateFilter(props).apply();
+  const chFilter = generateFilter(props);
+  const filter = chFilter.apply();
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
   const query = `
-        SELECT
-        count() as count
-      FROM observations o
-      WHERE project_id = {projectId: String}
-      AND ${filter.query}
-      `;
+    SELECT count() as count
+    FROM observations o
+    ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+    WHERE o.project_id = {projectId: String}
+    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+    AND ${filter.query}
+  `;
 
   const records = await queryClickhouse<{ count: string }>({
     query,
@@ -100,8 +106,8 @@ const filterParams = [
     id: "userId",
     clickhouseSelect: "user_id",
     filterType: "StringFilter",
-    clickhouseTable: "observations",
-    clickhousePrefix: "o",
+    clickhouseTable: "traces",
+    clickhousePrefix: "t",
   },
   {
     id: "traceId",

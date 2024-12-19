@@ -14,6 +14,7 @@ export const observationsRouter = createTRPCRouter({
         observationId: z.string(),
         traceId: z.string(), // required for protectedGetTraceProcedure
         projectId: z.string(), // required for protectedGetTraceProcedure
+        startTime: z.date().nullish(),
         queryClickhouse: z.boolean().default(false),
       }),
     )
@@ -36,6 +37,7 @@ export const observationsRouter = createTRPCRouter({
             input.observationId,
             input.projectId,
             true,
+            input.startTime ?? undefined,
           );
           if (!obs) {
             throw new TRPCError({

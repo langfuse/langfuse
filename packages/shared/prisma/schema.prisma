@@ -113,6 +113,7 @@ model Project {
   orgId               String                 @map("org_id")
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+  deletedAt           DateTime?              @map("deleted_at")
   name                String
   projectMembers      ProjectMembership[]
   organization        Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
@@ -468,25 +469,24 @@ enum ObservationLevel {
 }
 
 model Score {
-  id            String         @id @default(cuid())
-  timestamp     DateTime       @default(now())
-  projectId     String         @map("project_id")
-  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  timestamp     DateTime      @default(now())
+  projectId     String        @map("project_id")
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name          String
   value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
   source        ScoreSource
-  authorUserId  String?        @map("author_user_id")
+  authorUserId  String?       @map("author_user_id")
   comment       String?
-  traceId       String         @map("trace_id")
-  observationId String?        @map("observation_id")
-  configId      String?        @map("config_id")
-  stringValue   String?        @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
-  queueId       String?        @map("queue_id")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
-  dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
-  JobExecution  JobExecution[]
-  scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
+  traceId       String        @map("trace_id")
+  observationId String?       @map("observation_id")
+  configId      String?       @map("config_id")
+  stringValue   String?       @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
+  queueId       String?       @map("queue_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at")
+  dataType      ScoreDataType @default(NUMERIC) @map("data_type")
+  scoreConfig   ScoreConfig?  @relation(fields: [configId], references: [id], onDelete: SetNull)
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index(timestamp)
@@ -900,10 +900,9 @@ model JobExecution {
 
   jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
 
-  jobInputDatasetItemId String?      @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
+  jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
   jobOutputScoreId String? @map("job_output_score_id")
-  score            Score?  @relation(fields: [jobOutputScoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
 
   @@index([projectId, status])
   @@index([projectId, id])

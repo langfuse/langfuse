@@ -150,6 +150,14 @@ export const IOPreview: React.FC<{
   const isPrettyViewAvailable =
     inChatMlArray.success || inMarkdown.success || outMarkdown.success;
 
+  // If there are additional input fields beyond the messages, render them
+  const additionalInput =
+    typeof input === "object" && input !== null && !Array.isArray(input)
+      ? Object.fromEntries(
+          Object.entries(input as object).filter(([key]) => key !== "messages"),
+        )
+      : undefined;
+
   // default I/O
   return (
     <>
@@ -190,6 +198,11 @@ export const IOPreview: React.FC<{
                     ]),
               ]}
               shouldRenderMarkdown
+              additionalInput={
+                Object.keys(additionalInput ?? {}).length > 0
+                  ? additionalInput
+                  : undefined
+              }
               media={media ?? []}
             />
           ) : (
@@ -245,7 +258,14 @@ export const OpenAiMessageView: React.FC<{
   title?: string;
   shouldRenderMarkdown?: boolean;
   media?: MediaReturnType[];
-}> = ({ title, messages, shouldRenderMarkdown = false, media }) => {
+  additionalInput?: Record<string, unknown>;
+}> = ({
+  title,
+  messages,
+  shouldRenderMarkdown = false,
+  media,
+  additionalInput,
+}) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     messages.length > COLLAPSE_THRESHOLD ? true : null,
@@ -334,6 +354,11 @@ export const OpenAiMessageView: React.FC<{
             </Fragment>
           ))}
       </div>
+      {additionalInput && (
+        <div className="p-3 pt-1">
+          <JSONView title="Additional Input" json={additionalInput} />
+        </div>
+      )}
       {media && media.length > 0 && (
         <>
           <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
