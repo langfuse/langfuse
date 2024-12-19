@@ -26,7 +26,7 @@ import {
   PostHogIntegrationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
-import { ingestionQueueProcessor } from "./queues/ingestionQueue";
+import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
@@ -123,9 +123,24 @@ if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.IngestionQueue, ingestionQueueProcessor, {
-    concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
-  });
+  WorkerManager.register(
+    QueueName.IngestionQueue,
+    ingestionQueueProcessorBuilder(true), // this might redirect to secondary queue
+    {
+      concurrency: env.LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.IngestionSecondaryQueue,
+    ingestionQueueProcessorBuilder(false),
+    {
+      concurrency:
+        env.LANGFUSE_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+    },
+  );
 }
 
 if (
