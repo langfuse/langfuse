@@ -206,7 +206,9 @@ export function transformAggregatedRunMetricsToChartData(
   runMetrics: RouterOutputs["datasets"]["runsByDatasetIdMetrics"]["runs"],
   scoreIdToName: Map<string, string>,
 ) {
-  return runMetrics.reduce((acc, run) => {
+  const reversedMetrics = runMetrics.slice().reverse();
+
+  return reversedMetrics.reduce((acc, run) => {
     // Handle scores
     Object.entries(run.scores ?? {}).forEach(([scoreId, score]) => {
       const scoreData =

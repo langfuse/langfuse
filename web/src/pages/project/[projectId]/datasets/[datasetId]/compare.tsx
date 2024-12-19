@@ -49,7 +49,9 @@ export default function DatasetCompare() {
   const [localRuns, setLocalRuns] = useState<
     Array<{ key: string; value: string }>
   >([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
+    RESOURCE_METRICS.map((metric) => metric.key),
+  );
   const runIds = runState.runs as undefined | string[];
 
   const hasExperimentWriteAccess = useHasProjectAccess({
@@ -81,7 +83,6 @@ export default function DatasetCompare() {
       datasetId,
       queryClickhouse: useClickhouse(),
       runIds: runIds,
-      isOrderedAsc: true,
     },
     {
       enabled: runIds && runIds.length > 1,

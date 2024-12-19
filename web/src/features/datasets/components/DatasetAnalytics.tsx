@@ -1,5 +1,6 @@
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { ChartColumnBig } from "lucide-react";
 
 export function DatasetAnalytics(props: {
   projectId: string;
@@ -11,7 +12,8 @@ export function DatasetAnalytics(props: {
     <MultiSelectKeyValues
       className="max-w-fit"
       placeholder="Search..."
-      title="Analytics Charts"
+      title="Charts"
+      iconLeft={<ChartColumnBig className="mr-1 h-4 w-4" />}
       hideClearButton
       onValueChange={(values, changedValue, selectedKeys) => {
         if (values.length === 0) props.setSelectedMetrics([]);
@@ -27,7 +29,8 @@ export function DatasetAnalytics(props: {
         }
       }}
       values={props.selectedMetrics}
-      options={[...props.scoreOptions, ...RESOURCE_METRICS]}
+      options={RESOURCE_METRICS}
+      groupedOptions={[{ label: "Scores", options: props.scoreOptions }]}
     />
   );
 }

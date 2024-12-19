@@ -39,6 +39,7 @@ import {
   useEntitlementLimit,
 } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -257,7 +258,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                           };
                         })}
                         controlButtons={
-                          <CommandItem
+                          <DropdownMenuItem
                             onSelect={() => {
                               capture(
                                 "score_configs:manage_configs_item_click",
@@ -269,7 +270,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                             }}
                           >
                             Manage score configs
-                          </CommandItem>
+                          </DropdownMenuItem>
                         }
                       />
                     </FormControl>
