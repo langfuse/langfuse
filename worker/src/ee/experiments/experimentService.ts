@@ -19,6 +19,7 @@ import {
   datasetItemMatchesVariable,
   stringifyValue,
   ExperimentError,
+  ApiError,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -270,7 +271,9 @@ export const createExperimentJob = async ({
     } catch (e) {
       logger.error(e);
       throw new ExperimentError(
-        "Dataset run item failed to call LLM. No valid trace created.",
+        e instanceof ApiError
+          ? e.message
+          : "Dataset run item failed to call LLM. No valid trace created.",
         {
           datasetRunItemId: runItem.id,
         },
