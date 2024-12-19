@@ -985,6 +985,7 @@ async function runsByDatasetIdPg(
         WHERE
           runs.dataset_id = ${input.datasetId}
           AND runs.project_id = ${input.projectId}
+          ${input.runIds ? Prisma.sql`AND runs.id IN (${input.runIds.join(",")})` : Prisma.empty}
         ORDER BY
           runs.created_at DESC
         ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
