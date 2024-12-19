@@ -73,9 +73,9 @@ export const ingestionQueueProcessorBuilder = (
         const secondaryQueue = getQueue(QueueName.IngestionSecondaryQueue);
         if (secondaryQueue) {
           await secondaryQueue.add(QueueName.IngestionSecondaryQueue, job.data);
+          // If we don't redirect, we continue with the ingestion. Otherwise, we finish here.
+          return;
         }
-        return;
-        // If we don't redirect, we continue with the ingestion. Otherwise, we finish here.
       }
 
       const s3Client = getS3StorageServiceClient(
