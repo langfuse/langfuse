@@ -39,6 +39,8 @@ import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/
 import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { parseDiff, Diff, Hunk, type HunkProps } from "react-diff-view";
+import '@/src/styles/diff.css';
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -71,6 +73,17 @@ export const PromptDetail = () => {
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.promptVersions[0];
+
+  let oldPrompt = prompt;
+  const currentPromptVersionNumber = prompt?.version;
+  if (currentPromptVersionNumber != null && currentPromptVersionNumber > 1) {
+    const oldPromptVersionNumber = currentPromptVersionNumber - 1;
+    oldPrompt = oldPromptVersionNumber
+    ? promptHistory.data?.promptVersions.find(
+        (p) => p.version === oldPromptVersionNumber,
+      )
+    : promptHistory.data?.promptVersions[0];
+  }
 
   const extractedVariables = prompt
     ? extractVariables(
@@ -136,6 +149,14 @@ export const PromptDetail = () => {
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
+
+  const { createPatch } = require('diff');
+  const EMPTY_HUNKS: HunkProps['hunk'][] = [];
+  const newPromptText = String(prompt?.prompt || '');
+  const oldPromptText = String(oldPrompt?.prompt || newPromptText);
+  const patch = createPatch('a', oldPromptText, newPromptText, null, null, {context: 3, oneChangePerToken: true});
+  const diffText = patch.split('\n').slice(2).join('\n');
+  const [diff] = parseDiff(diffText);
 
   return (
     <ScrollScreenPage>
@@ -300,6 +321,37 @@ export const PromptDetail = () => {
             </a>{" "}
             for details.
           </p>
+
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Differences between current and previous prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="mx-auto mt-5 w-full rounded-lg border text-base">
+                  <div className="border-b px-3 py-1 text-xs font-medium">Differences</div>
+                  <div className="flex flex-wrap gap-2 p-2">
+                    <table className="diff diff-split">
+                      <thead>
+                        <tr>
+                          <th className="text-xs font-medium">Previous Prompt (Version {oldPrompt?.version || prompt.version})</th>
+                          <th className="text-xs font-medium">Current Prompt (Version {prompt.version})</th>
+                        </tr>
+                      </thead>
+                    </table>
+                    <Diff viewType="split" diffType='modify' hunks={diff.hunks || EMPTY_HUNKS}>
+                      {hunks =>
+                          hunks.map(hunk => (
+                              <Hunk key={hunk.content} hunk={hunk} />
+                          ))
+                      }
+                    </Diff>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
           <Accordion type="single" collapsible className="mt-10">
             <AccordionItem value="item-1">
               <AccordionTrigger>
