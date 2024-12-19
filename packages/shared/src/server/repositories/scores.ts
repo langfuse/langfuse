@@ -213,7 +213,7 @@ export const getScoresGroupedByNameSourceType = async (projectId: string) => {
       from scores s
       WHERE s.project_id = {projectId: String}
       GROUP BY name, source, data_type
-      ORDER BY name ASC, data_type DESC, count() DESC
+      ORDER BY count() desc
       LIMIT 1000;
     `;
 

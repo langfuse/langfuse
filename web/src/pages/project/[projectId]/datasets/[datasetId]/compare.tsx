@@ -51,15 +51,6 @@ export default function DatasetCompare() {
     runs: withDefault(ArrayParam, []),
   });
 
-  // reuse pagination state from runs table, if navigating from other page, must be most recent run ie pageIndex = 0 and pageSize = 50 are sensible defaults
-  const [paginationState] = useQueryParams({
-    pageIndex: NumberParam,
-    pageSize: NumberParam,
-  });
-
-  const pageIndex = paginationState.pageIndex ?? 0;
-  const pageSize = paginationState.pageSize ?? 50;
-
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [localRuns, setLocalRuns] = useState<
@@ -97,8 +88,7 @@ export default function DatasetCompare() {
       projectId,
       datasetId,
       queryClickhouse: useClickhouse(),
-      page: pageIndex,
-      limit: pageSize,
+      runIds: runIds,
     },
     {
       enabled: runIds && runIds.length > 1,

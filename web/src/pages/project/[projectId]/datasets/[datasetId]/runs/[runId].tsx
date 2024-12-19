@@ -54,6 +54,17 @@ export default function Dataset() {
               }
               listKey="datasetRuns"
             />
+            <Link
+              href={{
+                pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
+                query: { runs: [runId] },
+              }}
+            >
+              <Button>
+                <Columns3 className="mr-2 h-4 w-4" />
+                <span>Compare</span>
+              </Button>
+            </Link>
           </>
         }
       />
