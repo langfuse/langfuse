@@ -150,13 +150,13 @@ export const PromptDetail = () => {
     return <div>Loading...</div>;
   }
 
-  const { createTwoFilesPatch } = require('diff');
+  const { createPatch } = require('diff');
   const EMPTY_HUNKS: HunkProps['hunk'][] = [];
-  const newPromptText = prompt.prompt;
-  const oldPromptText = oldPrompt?.prompt || newPromptText;
-  const patch = createTwoFilesPatch('a', 'b', oldPromptText, newPromptText, '', '', {context: 3});
-  const diffText = patch.split('\n').slice(1).join('\n');
-  const [diff] = parseDiff(diffText, {nearbySequences: 'zip'});
+  const newPromptText = String(prompt?.prompt || '');
+  const oldPromptText = String(oldPrompt?.prompt || newPromptText);
+  const patch = createPatch('a', oldPromptText, newPromptText, null, null, {context: 3, oneChangePerToken: true});
+  const diffText = patch.split('\n').slice(2).join('\n');
+  const [diff] = parseDiff(diffText);
 
   return (
     <ScrollScreenPage>
