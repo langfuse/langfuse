@@ -35,9 +35,9 @@ const DatasetAggregateCell = ({
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId: traceId as string, projectId },
     {
-      enabled: observationId === undefined,
+      enabled: observationId === undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -54,10 +54,10 @@ const DatasetAggregateCell = ({
     {
       observationId: observationId as string, // disabled when observationId is undefined
       projectId,
-      traceId,
+      traceId: traceId as string,
     },
     {
-      enabled: observationId !== undefined,
+      enabled: observationId !== undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -72,6 +72,12 @@ const DatasetAggregateCell = ({
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
+
+  if (!traceId) {
+    return (
+      <IOTableCell isLoading={false} data={null} singleLine={singleLine} />
+    );
+  }
 
   return (
     <div
