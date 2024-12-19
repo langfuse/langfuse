@@ -15,6 +15,7 @@ import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
+import { PromptDiff } from "./prompt-diff";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -39,7 +40,6 @@ import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/
 import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { PromptDiff } from "@/src/features/prompts/components/prompt-diff";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
