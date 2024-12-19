@@ -33,6 +33,7 @@ export const datasetRunsTableSchema = z.object({
   datasetId: z.string(),
   queryClickhouse: z.boolean().optional().default(false),
   runIds: z.array(z.string()).optional(),
+  isOrderedAsc: z.boolean().optional().default(false),
   ...optionalPaginationZod,
 });
 
@@ -238,7 +239,7 @@ export const getDatasetRunsFromPostgres = async (
         AND d.project_id = ${input.projectId}
         ${input.runIds?.length ? Prisma.sql`AND runs.id IN (${Prisma.join(input.runIds)})` : Prisma.empty}
       GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
-      ORDER BY runs.created_at DESC
+      ${input.isOrderedAsc ? Prisma.sql`ORDER BY runs.created_at ASC` : Prisma.sql`ORDER BY runs.created_at DESC`}
       ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
       ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
     `,

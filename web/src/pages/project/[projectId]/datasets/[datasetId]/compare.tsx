@@ -26,7 +26,10 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
-import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import {
+  isNumericDataType,
+  toOrderedScoresList,
+} from "@/src/features/scores/lib/helpers";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import {
   RESOURCE_METRICS,
@@ -78,13 +81,14 @@ export default function DatasetCompare() {
       datasetId,
       queryClickhouse: useClickhouse(),
       runIds: runIds,
+      isOrderedAsc: true,
     },
     {
       enabled: runIds && runIds.length > 1,
     },
   );
 
-  // TODO: refactor write new query to pull scores for runs
+  // LFE-3236: refactor to filter query to only include scores for runs in runIds
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {
       projectId: projectId,
@@ -110,11 +114,14 @@ export default function DatasetCompare() {
   }, [runMetrics.data, runIds, scoreIdToName]);
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions =
-      scoreKeysAndProps.data?.map(({ key, name, dataType, source }) => ({
-        key,
-        value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-      })) ?? [];
+    const scoreAnalyticsOptions = scoreKeysAndProps.data
+      ? toOrderedScoresList(scoreKeysAndProps.data).map(
+          ({ key, name, dataType, source }) => ({
+            key,
+            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+          }),
+        )
+      : [];
 
     return {
       scoreAnalyticsOptions,
