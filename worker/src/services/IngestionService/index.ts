@@ -173,12 +173,6 @@ export class IngestionService {
       ),
     ]);
 
-    if (postgresScoreRecord) {
-      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "postgres",
-        object: "score",
-      });
-    }
     if (clickhouseScoreRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
         store: "clickhouse",
@@ -233,12 +227,6 @@ export class IngestionService {
       },
     });
 
-    if (postgresTraceRecord) {
-      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "postgres",
-        object: "trace",
-      });
-    }
     if (clickhouseTraceRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
         store: "clickhouse",
@@ -338,12 +326,6 @@ export class IngestionService {
       this.getPrompt(projectId, observationEventList),
     ]);
 
-    if (postgresObservationRecord) {
-      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "postgres",
-        object: "observation",
-      });
-    }
     if (clickhouseObservationRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
         store: "clickhouse",
