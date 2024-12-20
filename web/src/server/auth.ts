@@ -178,7 +178,17 @@ if (
   env.AUTH_CUSTOM_CLIENT_SECRET &&
   env.AUTH_CUSTOM_ISSUER &&
   env.AUTH_CUSTOM_NAME // name required by front-end, ignored here
-)
+) {
+  let authParameters:{
+    [key: string]: string;
+  } = {};
+  if (env.AUTH_CUSTOM_AUTH_PARAMETERS != undefined)
+    env.AUTH_CUSTOM_AUTH_PARAMETERS.split(";").forEach((element) => {
+      const [key, value] = element.split("=");
+      if (key && value)
+        authParameters[key] = value;
+    });
+
   staticProviders.push(
     CustomSSOProvider({
       clientId: env.AUTH_CUSTOM_CLIENT_ID,
@@ -187,10 +197,14 @@ if (
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
-        params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
+        params: {
+          ...authParameters,
+          scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile",
+        },
       },
     }),
   );
+}
 
 if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
   staticProviders.push(
