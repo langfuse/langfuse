@@ -126,10 +126,11 @@ export const convertObservation = (
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
     timeToFirstToken: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(
+      ? (parseClickhouseUTCDateTimeFormat(
           record.completion_start_time,
         ).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+          parseClickhouseUTCDateTimeFormat(record.start_time).getTime()) /
+        1000
       : null,
   };
 };

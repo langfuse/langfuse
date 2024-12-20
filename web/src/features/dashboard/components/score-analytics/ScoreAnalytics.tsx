@@ -10,6 +10,7 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
+  toOrderedScoresList,
 } from "@/src/features/scores/lib/helpers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
@@ -46,11 +47,14 @@ export function ScoreAnalytics(props: {
   );
 
   const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions =
-      scoreKeysAndProps.data?.map(({ key, name, dataType, source }) => ({
-        key,
-        value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-      })) ?? [];
+    const scoreAnalyticsOptions = scoreKeysAndProps.data
+      ? toOrderedScoresList(scoreKeysAndProps.data).map(
+          ({ key, name, dataType, source }) => ({
+            key,
+            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+          }),
+        )
+      : [];
 
     return {
       scoreAnalyticsOptions,
@@ -123,19 +127,17 @@ export function ScoreAnalytics(props: {
                     {(isCategoricalDataType(dataType) ||
                       isBooleanDataType(dataType)) && (
                       <CategoricalScoreChart
-                        source={source}
-                        name={name}
-                        dataType={dataType}
                         projectId={props.projectId}
+                        scoreData={scoreData}
                         globalFilterState={props.globalFilterState}
                       />
                     )}
                     {isNumericDataType(dataType) && (
                       <NumericScoreHistogram
+                        projectId={props.projectId}
                         source={source}
                         name={name}
                         dataType={dataType}
-                        projectId={props.projectId}
                         globalFilterState={props.globalFilterState}
                       />
                     )}
@@ -150,11 +152,9 @@ export function ScoreAnalytics(props: {
                     {(isCategoricalDataType(dataType) ||
                       isBooleanDataType(dataType)) && (
                       <CategoricalScoreChart
-                        agg={props.agg}
-                        source={source}
-                        name={name}
-                        dataType={dataType}
                         projectId={props.projectId}
+                        agg={props.agg}
+                        scoreData={scoreData}
                         globalFilterState={props.globalFilterState}
                       />
                     )}

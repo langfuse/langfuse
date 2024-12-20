@@ -61,11 +61,11 @@ import { getDefaultScoreData } from "@/src/features/scores/lib/getDefaultScoreDa
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 
 const AnnotationScoreDataSchema = z.object({
   name: z.string(),
@@ -712,7 +712,7 @@ export function AnnotateDrawerContent({
                   key: field.configId as string,
                 }))}
               controlButtons={
-                <CommandItem
+                <DropdownMenuItem
                   onSelect={() => {
                     capture("score_configs:manage_configs_item_click", {
                       type: type,
@@ -722,7 +722,7 @@ export function AnnotateDrawerContent({
                   }}
                 >
                   Manage score configs
-                </CommandItem>
+                </DropdownMenuItem>
               }
             />
           </div>

@@ -6,7 +6,7 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "../../../utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -14,6 +14,7 @@ import { type Prisma } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import {
+  getScoreDataTypeIcon,
   getScoreGroupColumnProps,
   verifyAndPrefixScoreDataAgainstKeys,
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
@@ -36,6 +37,14 @@ import Link from "next/link";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  RESOURCE_METRICS,
+  transformAggregatedRunMetricsToChartData,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
+import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { CompareViewAdapter } from "@/src/features/scores/adapters";
+import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 
 export type DatasetRunRowData = {
   id: string;
@@ -93,6 +102,8 @@ const DatasetRunTableMultiSelectAction = ({
 export function DatasetRunsTable(props: {
   projectId: string;
   datasetId: string;
+  selectedMetrics: string[];
+  setScoreOptions: (options: { key: string; value: string }[]) => void;
   menuItems?: React.ReactNode;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
@@ -105,6 +116,8 @@ export function DatasetRunsTable(props: {
     "datasetRuns",
     "s",
   );
+  const { setScoreOptions } = props;
+
   const runs = api.datasets.runsByDatasetId.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
@@ -148,6 +161,37 @@ export function DatasetRunsTable(props: {
       scoreColumnKey: "scores",
       showAggregateViewOnly: true,
     });
+
+  const scoreIdToName = useMemo(() => {
+    return new Map(scoreKeysAndProps.map((obj) => [obj.key, obj.name]) ?? []);
+  }, [scoreKeysAndProps]);
+
+  const runAggregatedMetrics = useMemo(() => {
+    return transformAggregatedRunMetricsToChartData(
+      runsMetrics.data?.runs ?? [],
+      scoreIdToName,
+    );
+  }, [runsMetrics.data, scoreIdToName]);
+
+  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
+    const scoreAnalyticsOptions = scoreKeysAndProps
+      ? scoreKeysAndProps.map(({ key, name, dataType, source }) => ({
+          key,
+          value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+        }))
+      : [];
+
+    return {
+      scoreAnalyticsOptions,
+      scoreKeyToData: new Map(
+        scoreKeysAndProps.map((obj) => [obj.key, obj]) ?? [],
+      ),
+    };
+  }, [scoreKeysAndProps]);
+
+  useEffect(() => {
+    setScoreOptions(scoreAnalyticsOptions);
+  }, [scoreAnalyticsOptions, setScoreOptions]);
 
   const columns: LangfuseColumnDef<DatasetRunRowData>[] = [
     {
@@ -348,6 +392,51 @@ export function DatasetRunsTable(props: {
 
   return (
     <>
+      {Boolean(props.selectedMetrics.length) &&
+        Boolean(runAggregatedMetrics?.size) && (
+          <Card className="my-4 max-h-[25dvh] md:max-h-[30dvh]">
+            <CardContent className="mt-2 h-full">
+              <div className="flex h-full w-full gap-4 overflow-x-auto">
+                {props.selectedMetrics.map((key) => {
+                  const adapter = new CompareViewAdapter(
+                    runAggregatedMetrics,
+                    key,
+                  );
+                  const { chartData, chartLabels } = adapter.toChartData();
+
+                  const scoreData = scoreKeyToData.get(key);
+                  if (!scoreData)
+                    return (
+                      <TimeseriesChart
+                        key={key}
+                        chartData={chartData}
+                        chartLabels={chartLabels}
+                        title={
+                          RESOURCE_METRICS.find((metric) => metric.key === key)
+                            ?.label ?? key
+                        }
+                        type="numeric"
+                      />
+                    );
+
+                  return (
+                    <TimeseriesChart
+                      key={key}
+                      chartData={chartData}
+                      chartLabels={chartLabels}
+                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                      type={
+                        isNumericDataType(scoreData.dataType)
+                          ? "numeric"
+                          : "categorical"
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
