@@ -40,6 +40,7 @@ export type DatasetRunItemRowData = {
   scores: ScoreAggregate;
   latency?: number;
   totalCost?: string;
+  log?: string | null;
 };
 
 export function DatasetRunItemsTable(
@@ -219,6 +220,20 @@ export function DatasetRunItemsTable(
         ) : null;
       },
     },
+    {
+      accessorKey: "log",
+      header: "Error log",
+      id: "log",
+      size: 200,
+      enableHiding: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const log: DatasetRunItemRowData["log"] = row.getValue("log");
+        return (
+          !!log && <IOTableCell data={log} singleLine={rowHeight === "s"} />
+        );
+      },
+    },
   ];
 
   const [columnVisibility, setColumnVisibility] =
@@ -256,6 +271,7 @@ export function DatasetRunItemsTable(
                 : undefined,
             latency:
               item.observation?.latency ?? item.trace?.duration ?? undefined,
+            log: item.log,
           };
         })
       : [];
@@ -311,7 +327,7 @@ const TraceObservationIOCell = ({
   io,
   singleLine = false,
 }: {
-  traceId: string;
+  traceId?: string;
   projectId: string;
   observationId?: string;
   io: "input" | "output";
@@ -319,9 +335,9 @@ const TraceObservationIOCell = ({
 }) => {
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId },
+    { traceId: traceId as string, projectId },
     {
-      enabled: observationId === undefined,
+      enabled: observationId === undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -335,10 +351,10 @@ const TraceObservationIOCell = ({
     {
       observationId: observationId as string, // disabled when observationId is undefined
       projectId,
-      traceId,
+      traceId: traceId as string,
     },
     {
-      enabled: observationId !== undefined,
+      enabled: observationId !== undefined && !!traceId,
       trpc: {
         context: {
           skipBatch: true,
@@ -350,6 +366,12 @@ const TraceObservationIOCell = ({
   );
 
   const data = observationId === undefined ? trace.data : observation.data;
+
+  if (!traceId) {
+    return (
+      <IOTableCell isLoading={false} data={null} singleLine={singleLine} />
+    );
+  }
 
   return (
     <IOTableCell
