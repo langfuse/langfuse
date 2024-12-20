@@ -41,6 +41,7 @@ export function CategoricalChart(props: {
         yAxisWidth={48}
         barCategoryGap={barCategoryGap(props.chartData.length)}
         stack={props.stack ?? true}
+        showXAxis={props.chartData.length < 3}
       />
     </Card>
   );
@@ -68,6 +69,7 @@ export function NumericChart(props: {
         showAnimation={true}
         onValueChange={() => {}}
         enableLegendSlider={true}
+        showXAxis={false}
       />
     </Card>
   );
