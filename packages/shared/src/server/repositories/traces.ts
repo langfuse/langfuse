@@ -780,7 +780,6 @@ export const getUserMetrics = async (
         stats
 
   `;
-  console.log(query);
 
   const rows = await queryClickhouse<{
     user_id: string;
@@ -808,7 +807,6 @@ export const getUserMetrics = async (
     },
   });
 
-  console.log(rows);
   return rows.map((row) => ({
     userId: row.user_id,
     maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
