@@ -680,10 +680,25 @@ export const getTotalUserCount = async (
   });
 };
 
-export const getUserMetrics = async (projectId: string, userIds: string[]) => {
+export const getUserMetrics = async (
+  projectId: string,
+  userIds: string[],
+  filter: FilterState,
+) => {
   if (userIds.length === 0) {
     return [];
   }
+
+  // filter state contains date range filter for traces so far.
+  const chFilter = new FilterList(
+    createFilterFromFilterState(filter, tracesTableUiColumnDefinitions),
+  );
+  const chFilterRes = chFilter.apply();
+
+  const timestampFilter = chFilter.find(
+    (f) => f.field === "timestamp" && f.operator === ">=",
+  );
+
   // this query uses window functions on observations + traces to always get only the first row and thereby remove deduplicates
   // we filter wherever possible by project id and user id
   const query = `
@@ -713,6 +728,7 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
                     observations o
                 WHERE
                     o.project_id = {projectId: String }
+                    ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
                     AND o.trace_id in (
                         SELECT
                             distinct id
@@ -721,6 +737,7 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
                         where
                             user_id IN ({userIds: Array(String) })
                             AND project_id = {projectId: String }
+                            ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
                     )
                     AND o.type = 'GENERATION'
             ) as o
@@ -740,6 +757,7 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
                 WHERE
                     t.user_id IN ({userIds: Array(String) })
                     AND t.project_id = {projectId: String }
+                    ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
             ) as t on t.id = o.trace_id
             and t.project_id = o.project_id
         WHERE
@@ -778,8 +796,17 @@ export const getUserMetrics = async (projectId: string, userIds: string[]) => {
     params: {
       projectId,
       userIds,
+      ...chFilterRes.params,
+      ...(timestampFilter
+        ? {
+            traceTimestamp: convertDateToClickhouseDateTime(
+              (timestampFilter as DateTimeFilter).value,
+            ),
+          }
+        : {}),
     },
   });
+
   return rows.map((row) => ({
     userId: row.user_id,
     maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
