@@ -9,7 +9,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -52,7 +52,11 @@ export const SessionPage: React.FC<{
     if (session.isSuccess) {
       setDetailPageList(
         "traces",
-        session.data.traces.map((t) => ({ id: t.id })),
+        session.data.traces.map(
+          (t: RouterOutputs["sessions"]["byId"]["traces"][number]) => ({
+            id: t.id,
+          }),
+        ),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
