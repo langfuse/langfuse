@@ -210,7 +210,7 @@ export const UpsertModelFormDrawer = ({
             {props.action === "edit"
               ? props.modelData.modelName
               : props.action === "create"
-                ? "Create a new model configuration"
+                ? "Create a new model configuration to track generation costs."
                 : null}
           </DrawerDescription>
         </DrawerHeader>

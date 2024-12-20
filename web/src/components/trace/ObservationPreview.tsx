@@ -230,15 +230,15 @@ export const ObservationPreview = ({
                         prices:
                           Object.keys(preloadedObservation.usageDetails)
                             .length > 0
-                            ? Object.keys(
-                                preloadedObservation.usageDetails,
-                              ).reduce(
-                                (acc, key) => {
-                                  acc[key] = 0.000001;
-                                  return acc;
-                                },
-                                {} as Record<string, number>,
-                              )
+                            ? Object.keys(preloadedObservation.usageDetails)
+                                .filter((key) => key != "total")
+                                .reduce(
+                                  (acc, key) => {
+                                    acc[key] = 0.000001;
+                                    return acc;
+                                  },
+                                  {} as Record<string, number>,
+                                )
                             : undefined,
                       }}
                       className="cursor-pointer"

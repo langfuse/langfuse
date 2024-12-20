@@ -481,13 +481,15 @@ export default function GenerationsTable({
               modelName: model,
               prices:
                 Object.keys(row.original.usageDetails).length > 0
-                  ? Object.keys(row.original.usageDetails).reduce(
-                      (acc, key) => {
-                        acc[key] = 0.000001;
-                        return acc;
-                      },
-                      {} as Record<string, number>,
-                    )
+                  ? Object.keys(row.original.usageDetails)
+                      .filter((key) => key != "total")
+                      .reduce(
+                        (acc, key) => {
+                          acc[key] = 0.000001;
+                          return acc;
+                        },
+                        {} as Record<string, number>,
+                      )
                   : undefined,
             }}
             className="cursor-pointer"
