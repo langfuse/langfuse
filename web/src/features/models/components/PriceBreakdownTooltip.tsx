@@ -20,7 +20,7 @@ export const PriceBreakdownTooltip = ({
   rowHeight,
 }: {
   modelName: string;
-  prices: Record<string, number>;
+  prices?: Record<string, number>;
   priceUnit: PriceUnit;
   rowHeight: RowHeight;
 }) => {
@@ -30,34 +30,40 @@ export const PriceBreakdownTooltip = ({
   const maxDecimals = useMemo(
     () =>
       Math.max(
-        ...Object.values(prices).map((price) => {
+        ...Object.values(prices ?? {}).map((price) => {
           return getMaxDecimals(price, priceUnitMultiplier);
         }),
       ),
     [prices, priceUnitMultiplier],
   );
 
+  if (!prices) return null;
+
   return (
     <>
       {Object.keys(prices).length === 0 ? (
         <p>No prices</p>
       ) : Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2) ? (
-        <div className="w-full">
+        <div className="grid w-full grid-cols-[2fr,3fr] gap-x-2">
           {Object.entries(prices).map(([type, price]) => (
-            <div key={type} className="flex justify-between">
+            <>
               <span
+                key={`${type}-label`}
                 className="truncate font-mono text-xs font-medium"
                 title={type}
               >
                 {type}
               </span>
-              <span className="ml-4 font-mono text-xs font-medium tabular-nums">
+              <span
+                key={`${type}-price`}
+                className="text-left font-mono text-xs font-medium tabular-nums"
+              >
                 $
                 {new Decimal(price)
                   .mul(priceUnitMultiplier)
                   .toFixed(maxDecimals)}
               </span>
-            </div>
+            </>
           ))}
         </div>
       ) : (
