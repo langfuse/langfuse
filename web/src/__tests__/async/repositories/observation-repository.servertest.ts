@@ -154,8 +154,9 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(firstObservation.promptId).toEqual(observation.prompt_id);
     expect(firstObservation.endTime).toEqual(new Date(observation.end_time));
     expect(firstObservation.timeToFirstToken).toEqual(
-      new Date(observation.completion_start_time).getTime() -
-        new Date(observation.start_time).getTime(),
+      (new Date(observation.completion_start_time).getTime() -
+        new Date(observation.start_time).getTime()) /
+        1000,
     );
     expect(firstObservation.timeToFirstToken).toBeGreaterThan(0);
     expect(firstObservation.calculatedTotalCost).toEqual(

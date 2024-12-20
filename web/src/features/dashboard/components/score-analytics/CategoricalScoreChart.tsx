@@ -1,31 +1,19 @@
 import { api } from "@/src/utils/api";
-
-import {
-  type ScoreSource,
-  type FilterState,
-  type ScoreDataType,
-} from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
-import { BarChart } from "@tremor/react";
-import { Card } from "@/src/components/ui/card";
-import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
-import {
-  isEmptyBarChart,
-  transformCategoricalScoresToChartData,
-} from "@/src/features/dashboard/lib/score-analytics-utils";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters";
+import { type ScoreData } from "@/src/features/scores/types";
+import { CategoricalChart } from "@/src/features/scores/components/ScoreChart";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
-  name: string;
-  source: ScoreSource;
-  dataType: ScoreDataType;
+  scoreData: ScoreData;
   globalFilterState: FilterState;
   agg?: DashboardDateRangeAggregationOption;
 }) {
@@ -45,19 +33,19 @@ export function CategoricalScoreChart(props: {
         {
           type: "string",
           column: "scoreName",
-          value: props.name,
+          value: props.scoreData.name,
           operator: "=",
         },
         {
           type: "string",
           column: "scoreSource",
-          value: props.source,
+          value: props.scoreData.source,
           operator: "=",
         },
         {
           type: "string",
           column: "scoreDataType",
-          value: props.dataType,
+          value: props.scoreData.dataType,
           operator: "=",
         },
       ],
@@ -99,40 +87,23 @@ export function CategoricalScoreChart(props: {
   );
 
   const { chartData, chartLabels } = useMemo(() => {
-    return scores.data
-      ? transformCategoricalScoresToChartData(
-          scores.data,
-          "scoreTimestamp",
-          props.agg,
-        )
-      : { chartData: [], chartLabels: [] };
+    if (!scores.data) return { chartData: [], chartLabels: [] };
+
+    const adapter = new DashboardCategoricalScoreAdapter(
+      scores.data,
+      "scoreTimestamp",
+      props.agg,
+    );
+    return adapter.toChartData();
   }, [scores.data, props.agg]);
 
-  const barCategoryGap = (chartLength: number): string => {
-    if (chartLength > 7) return "10%";
-    if (chartLength > 5) return "20%";
-    if (chartLength > 3) return "30%";
-    else return "40%";
-  };
-  const colors = getColorsForCategories(chartLabels);
-
-  return isEmptyBarChart({ data: chartData }) ? (
-    <NoDataOrLoading isLoading={scores.isLoading} />
-  ) : (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-      <BarChart
-        className="mt-4"
-        data={chartData}
-        index="binLabel"
-        categories={chartLabels}
-        colors={colors}
-        valueFormatter={(number: number) =>
-          Intl.NumberFormat("en-US").format(number).toString()
-        }
-        yAxisWidth={48}
-        barCategoryGap={barCategoryGap(chartData.length)}
-        stack={!!props.agg}
-      />
-    </Card>
+  return (
+    <CategoricalChart
+      chartData={chartData}
+      chartLabels={chartLabels}
+      isLoading={scores.isLoading}
+      className="min-h-[9rem] flex-1"
+      stack={!!props.agg}
+    />
   );
 }
