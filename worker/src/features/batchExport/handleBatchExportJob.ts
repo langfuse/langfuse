@@ -401,6 +401,7 @@ export const getDatabaseReadStream = async ({
                 input: fullTrace?.input,
                 output: fullTrace?.output,
                 metadata: fullTrace?.metadata,
+                latency: metric?.latency,
                 name: t.name ?? "",
                 usage: {
                   promptTokens: metric?.promptTokens,
