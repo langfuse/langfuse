@@ -8,9 +8,17 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
+import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
+import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import { Button } from "@/src/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { FolderKanban } from "lucide-react";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -47,6 +55,34 @@ export default function DatasetItems() {
         actionButtons={
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
+            <UploadDatasetCsvButton
+              projectId={projectId}
+              datasetId={datasetId}
+            />
+            <Popover key="show-dataset-details">
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  Dataset details
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="mb-1 font-medium">Description</h4>
+                    <span className="text-sm text-muted-foreground">
+                      {dataset.data?.description ?? "No description"}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="mb-1 font-medium">Metadata</h4>
+                    <MarkdownOrJsonView
+                      content={dataset.data?.metadata ?? null}
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <DetailPageNav
               currentId={datasetId}
               path={(entry) =>
@@ -80,10 +116,6 @@ export default function DatasetItems() {
           </>
         }
       />
-
-      {!!dataset.data?.metadata && (
-        <JSONView json={dataset?.data.metadata} title="Metadata" />
-      )}
 
       <DatasetItemsTable
         projectId={projectId}
