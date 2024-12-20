@@ -189,6 +189,10 @@ if (
       authorization: {
         params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
       },
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_CUSTOM_CLIENT_AUTH_METHOD ?? "client_secret_basic",
+      },
     }),
   );
 
