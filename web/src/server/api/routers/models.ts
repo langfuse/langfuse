@@ -109,7 +109,7 @@ export const modelRouter = createTRPCRouter({
         >`
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
-          WHERE project_id IS NULL
+          WHERE project_id IS NULL 
           OR project_id = '${input.projectId}';
         `,
       ]);
@@ -204,7 +204,7 @@ export const modelRouter = createTRPCRouter({
             matchPattern,
             tokenizerConfig,
             tokenizerId,
-            startDate: new Date("2024-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
+            startDate: new Date("2010-01-01"), // Set fix start date for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
             unit: ModelUsageUnit.Tokens, // Set fix unit for uniqueness constraint to work. TODO: drop after cleanup of models table in LFE-3229
           },
           update: {
