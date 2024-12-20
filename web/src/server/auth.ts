@@ -191,7 +191,7 @@ if (
       },
       client: {
         token_endpoint_auth_method:
-          (env.AUTH_CUSTOM_CLIENT_AUTH_METHOD as any) ?? "client_secret_basic",
+          env.AUTH_CUSTOM_CLIENT_AUTH_METHOD ?? "client_secret_basic",
       },
     }),
   );
