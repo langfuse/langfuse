@@ -373,21 +373,25 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>Serve prompt as default to SDKs</FormLabel>
-              </div>
-              {currentIsActive ? (
-                <div className="text-xs text-muted-foreground">
-                  This makes the prompt available to the SDKs immediately.
+            <FormItem>
+              <FormLabel>Labels</FormLabel>
+              <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>
+                    Apply the production label to this prompt immediately
+                  </FormLabel>
                 </div>
-              ) : null}
+              </div>
+              <FormDescription>
+                By setting the production label, the prompt will be available to
+                the SDKs immediately. You can update labels later.
+              </FormDescription>
             </FormItem>
           )}
         />
