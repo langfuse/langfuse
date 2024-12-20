@@ -83,6 +83,7 @@ export type GenerationsTableProps = {
   projectId: string;
   promptName?: string;
   promptVersion?: number;
+  modelName?: string;
   omittedFilter?: string[];
 };
 
@@ -90,6 +91,7 @@ export default function GenerationsTable({
   projectId,
   promptName,
   promptVersion,
+  modelName,
   omittedFilter = [],
 }: GenerationsTableProps) {
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -143,6 +145,17 @@ export default function GenerationsTable({
       ]
     : [];
 
+  const modelNameFilter: FilterState = modelName
+    ? [
+        {
+          column: "Model",
+          type: "string",
+          operator: "=",
+          value: modelName,
+        },
+      ]
+    : [];
+
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
@@ -158,6 +171,7 @@ export default function GenerationsTable({
     ...dateRangeFilter,
     ...promptNameFilter,
     ...promptVersionFilter,
+    ...modelNameFilter,
   ]);
 
   const getCountPayload = {
@@ -447,7 +461,29 @@ export default function GenerationsTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const model = row.getValue("model") as string;
+        const modelId = row.getValue("modelId") as string | undefined;
+
+        return modelId ? (
+          <TableLink
+            path={`/project/${projectId}/models/${modelId}`}
+            value={model}
+          />
+        ) : (
+          <span>{model}</span>
+        );
+      },
     },
+    {
+      accessorKey: "modelId",
+      id: "modelId",
+      header: "Model ID",
+      size: 100,
+      enableHiding: true,
+      defaultHidden: true,
+    },
+
     {
       accessorKey: "inputTokens",
       id: "inputTokens",
@@ -691,6 +727,7 @@ export default function GenerationsTable({
             name: generation.name ?? undefined,
             version: generation.version ?? "",
             model: generation.model ?? "",
+            modelId: generation.modelId ?? undefined,
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {

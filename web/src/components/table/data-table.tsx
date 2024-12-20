@@ -56,6 +56,7 @@ interface DataTableProps<TData, TValue> {
   paginationClassName?: string;
   isBorderless?: boolean;
   shouldRenderGroupHeaders?: boolean;
+  onRowClick?: (row: TData) => void;
 }
 
 export interface AsyncTableData<T> {
@@ -108,6 +109,7 @@ export function DataTable<TData extends object, TValue>({
   paginationClassName,
   isBorderless = false,
   shouldRenderGroupHeaders = false,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
@@ -319,6 +321,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
+                onRowClick={onRowClick}
               />
             ) : (
               <TableBodyComponent
@@ -327,6 +330,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
+                onRowClick={onRowClick}
               />
             )}
           </Table>
@@ -368,6 +372,7 @@ interface TableBodyComponentProps<TData> {
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
+  onRowClick?: (row: TData) => void;
 }
 
 function TableBodyComponent<TData>({
@@ -376,6 +381,7 @@ function TableBodyComponent<TData>({
   columns,
   data,
   help,
+  onRowClick,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -390,7 +396,13 @@ function TableBodyComponent<TData>({
         </TableRow>
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id}>
+          <TableRow
+            key={row.id}
+            onClick={() => onRowClick?.(row.original)}
+            className={
+              onRowClick ? "cursor-pointer hover:bg-accent" : undefined
+            }
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell
                 key={cell.id}
