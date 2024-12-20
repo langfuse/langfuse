@@ -63,12 +63,10 @@ const DatasetRunTableMultiSelectAction = ({
   selectedRunIds,
   projectId,
   datasetId,
-  paginationState,
 }: {
   selectedRunIds: string[];
   projectId: string;
   datasetId: string;
-  paginationState: ReturnType<typeof useQueryParams>[0];
 }) => {
   return (
     <>
@@ -86,11 +84,7 @@ const DatasetRunTableMultiSelectAction = ({
                 ? "#"
                 : {
                     pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
-                    query: {
-                      runs: selectedRunIds,
-                      pageIndex: paginationState.pageIndex,
-                      pageSize: paginationState.pageSize,
-                    },
+                    query: { runs: selectedRunIds },
                   }
             }
           >
@@ -463,7 +457,6 @@ export function DatasetRunsTable(props: {
               )}
               projectId={props.projectId}
               datasetId={props.datasetId}
-              paginationState={paginationState}
             />
           ) : null,
         ]}

@@ -61,7 +61,6 @@ import { getDefaultScoreData } from "@/src/features/scores/lib/getDefaultScoreDa
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import Header from "@/src/components/layouts/header";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";

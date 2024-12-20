@@ -12,6 +12,7 @@ export function CategoricalChart(props: {
   chartLabels: string[];
   isLoading?: boolean;
   stack?: boolean;
+  showXAxis?: boolean;
   className?: string;
   chartClass?: string;
 }) {
@@ -41,7 +42,7 @@ export function CategoricalChart(props: {
         yAxisWidth={48}
         barCategoryGap={barCategoryGap(props.chartData.length)}
         stack={props.stack ?? true}
-        showXAxis={props.chartData.length < 3}
+        showXAxis={props.showXAxis ?? true}
       />
     </Card>
   );

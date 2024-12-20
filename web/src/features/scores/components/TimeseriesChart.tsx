@@ -21,6 +21,7 @@ export function TimeseriesChart({
   index,
 }: TimeseriesChartProps) {
   const chartIndex = index ?? "binLabel";
+
   return (
     <ChartWrapper title={title}>
       <div className="mt-2 min-h-0 flex-1">
@@ -30,6 +31,7 @@ export function TimeseriesChart({
             chartData={chartData}
             className="h-full"
             chartClass="h-full mt-0"
+            showXAxis={chartData.length < 3}
           />
         ) : (
           <NumericChart
