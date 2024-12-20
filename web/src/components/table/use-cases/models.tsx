@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -73,6 +75,13 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   const totalCount = models.data?.totalCount ?? null;
   const { priceUnit } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
+
+  // Set row height to medium if small as view is not optimized for small row heights
+  useEffect(() => {
+    if (rowHeight === "s") {
+      setRowHeight("m");
+    }
+  }, [rowHeight]);
 
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
     {
