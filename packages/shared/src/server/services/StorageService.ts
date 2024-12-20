@@ -38,13 +38,12 @@ export interface StorageService {
     asAttachment?: boolean,
   ): Promise<string>;
 
-  // TODO: review params, validate if sha256 hash can be optional
   getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
-    sha256Hash?: string;
+    sha256Hash: string;
     contentType: string;
-    contentLength?: number;
+    contentLength: number;
   }): Promise<string>;
 }
 
@@ -408,9 +407,9 @@ class S3StorageService implements StorageService {
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
-    sha256Hash?: string;
+    sha256Hash: string;
     contentType: string;
-    contentLength?: number;
+    contentLength: number;
   }): Promise<string> {
     const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 
