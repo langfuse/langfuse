@@ -353,16 +353,22 @@ describe("batch export test suite", () => {
         project_id: projectId,
         trace_id: traces[0].id,
         type: "GENERATION",
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
       }),
       createObservation({
         project_id: projectId,
         trace_id: traces[1].id,
         type: "GENERATION",
+        start_time: new Date().getTime() - 2000,
+        end_time: new Date().getTime(),
       }),
       createObservation({
         project_id: projectId,
         trace_id: traces[1].id,
         type: "GENERATION",
+        start_time: new Date().getTime() - 2123,
+        end_time: new Date().getTime(),
       }),
     ];
 
@@ -397,10 +403,12 @@ describe("batch export test suite", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: traces[0].id,
+          latency: 1,
           test: [score.value],
         }),
         expect.objectContaining({
           id: traces[1].id,
+          latency: 2.123,
         }),
       ]),
     );
