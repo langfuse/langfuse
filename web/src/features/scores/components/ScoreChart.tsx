@@ -25,7 +25,10 @@ export function CategoricalChart(props: {
   const colors = getColorsForCategories(props.chartLabels);
 
   return isEmptyChart({ data: props.chartData }) ? (
-    <NoDataOrLoading isLoading={props.isLoading ?? false} />
+    <NoDataOrLoading
+      isLoading={props.isLoading ?? false}
+      className={props.chartClass}
+    />
   ) : (
     <Card
       className={cn("w-full rounded-tremor-default border", props.className)}
