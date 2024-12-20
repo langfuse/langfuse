@@ -7,27 +7,31 @@ import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CommandItem } from "@/src/components/ui/command";
-import { ExternalLink, FlaskConical } from "lucide-react";
+import { ExternalLink, FlaskConical, FolderKanban } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useMemo } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
+import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 
 export default function Dataset() {
   const router = useRouter();
@@ -35,9 +39,17 @@ export default function Dataset() {
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const hasEntitlement = useHasEntitlement("model-based-evaluations");
-  const hasExperimentEntitlement = useHasEntitlement("prompt-experiments");
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
+    RESOURCE_METRICS.map((metric) => metric.key),
+  );
+  const [scoreOptions, setScoreOptions] = useState<
+    {
+      key: string;
+      value: string;
+    }[]
+  >([]);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -109,48 +121,40 @@ export default function Dataset() {
         }
         actionButtons={
           <>
-            {hasExperimentEntitlement && (
-              <Dialog
-                open={isCreateExperimentDialogOpen}
-                onOpenChange={setIsCreateExperimentDialogOpen}
-              >
-                <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-                  <Button
-                    variant="secondary"
-                    disabled={!hasExperimentWriteAccess}
-                  >
-                    <FlaskConical className="h-4 w-4" />
-                    <span className="ml-2">New experiment</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Set up experiment</DialogTitle>
-                    <DialogDescription>
-                      Create an experiment to test a prompt version on a
-                      dataset. See{" "}
-                      <Link
-                        href="https://langfuse.com/docs/datasets/prompt-experiments"
-                        target="_blank"
-                        className="underline"
-                      >
-                        documentation
-                      </Link>{" "}
-                      to learn more.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CreateExperimentsForm
-                    key={`create-experiment-form-${datasetId}`}
-                    projectId={projectId as string}
-                    setFormOpen={setIsCreateExperimentDialogOpen}
-                    defaultValues={{
-                      datasetId,
-                    }}
-                    handleExperimentSuccess={handleExperimentSuccess}
-                  />
-                </DialogContent>
-              </Dialog>
-            )}
+            <Dialog
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  variant="secondary"
+                  disabled={!hasExperimentWriteAccess}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2">New experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSuccess={handleExperimentSuccess}
+                  showSDKRunInfoPage
+                />
+              </DialogContent>
+            </Dialog>
+
+            <DatasetAnalytics
+              key="dataset-analytics"
+              projectId={projectId}
+              scoreOptions={scoreOptions}
+              selectedMetrics={selectedMetrics}
+              setSelectedMetrics={setSelectedMetrics}
+            />
 
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
@@ -168,17 +172,41 @@ export default function Dataset() {
                 values={evaluatorsOptions}
                 options={evaluatorsOptions}
                 controlButtons={
-                  <CommandItem
+                  <DropdownMenuItem
                     onSelect={() => {
                       window.open(`/project/${projectId}/evals`, "_blank");
                     }}
                   >
                     Manage evaluators
                     <ExternalLink className="ml-auto h-4 w-4" />
-                  </CommandItem>
+                  </DropdownMenuItem>
                 }
               />
             )}
+            <Popover key="show-dataset-details">
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  Dataset details
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="mb-1 font-medium">Description</h4>
+                    <span className="text-sm text-muted-foreground">
+                      {dataset.data?.description ?? "No description"}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="mb-1 font-medium">Metadata</h4>
+                    <MarkdownOrJsonView
+                      content={dataset.data?.metadata ?? null}
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <DetailPageNav
               currentId={datasetId}
               path={(entry) => `/project/${projectId}/datasets/${entry.id}`}
@@ -210,17 +238,12 @@ export default function Dataset() {
           </>
         }
       />
-      {!!dataset.data?.metadata && (
-        <JSONView
-          json={dataset?.data.metadata}
-          title="Metadata"
-          className="max-h-[25vh] overflow-y-auto"
-        />
-      )}
 
       <DatasetRunsTable
         projectId={projectId}
         datasetId={datasetId}
+        selectedMetrics={selectedMetrics}
+        setScoreOptions={setScoreOptions}
         menuItems={
           <Tabs value="runs">
             <TabsList>
@@ -236,14 +259,6 @@ export default function Dataset() {
           </Tabs>
         }
       />
-
-      <p className="mt-3 text-xs text-muted-foreground">
-        Add new runs via Python or JS/TS SDKs. See{" "}
-        <a href="https://langfuse.com/docs/datasets" className="underline">
-          documentation
-        </a>{" "}
-        for details.
-      </p>
     </FullScreenPage>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "../repositories/constants";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
+import { reduceUsageOrCostDetails } from "../repositories";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -67,6 +68,8 @@ export type TracesMetricsUiReturnType = {
   calculatedInputCost: Decimal | null;
   calculatedOutputCost: Decimal | null;
   scores: ScoreAggregate;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
 };
 
 export const convertToUiTableRows = (
@@ -90,13 +93,27 @@ export const convertToUiTableRows = (
 export const convertToUITableMetrics = (
   row: TracesTableMetricsClickhouseReturnType,
 ): Omit<TracesMetricsUiReturnType, "scores"> => {
+  const usageDetails = reduceUsageOrCostDetails(row.usage_details);
+
   return {
     id: row.id,
     projectId: row.project_id,
     latency: Number(row.latency),
-    promptTokens: BigInt(row.usage_details?.input ?? 0),
-    completionTokens: BigInt(row.usage_details?.output ?? 0),
-    totalTokens: BigInt(row.usage_details?.total ?? 0),
+    promptTokens: BigInt(usageDetails.input ?? 0),
+    completionTokens: BigInt(usageDetails.output ?? 0),
+    totalTokens: BigInt(usageDetails.total ?? 0),
+    usageDetails: Object.fromEntries(
+      Object.entries(row.usage_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
+    costDetails: Object.fromEntries(
+      Object.entries(row.cost_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)

@@ -5,11 +5,13 @@ import { CloudUsageMeteringQueue } from "./cloudUsageMeteringQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
-import { IngestionQueue } from "./ingestionQueue";
+import { IngestionQueue, SecondaryIngestionQueue } from "./ingestionQueue";
 import { LegacyIngestionQueue } from "./legacyIngestion";
 import { TraceUpsertQueue } from "./traceUpsert";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
+import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
+import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -33,6 +35,12 @@ export function getQueue(queueName: QueueName): Queue | null {
       return IngestionQueue.getInstance();
     case QueueName.ProjectDelete:
       return ProjectDeleteQueue.getInstance();
+    case QueueName.PostHogIntegrationQueue:
+      return PostHogIntegrationQueue.getInstance();
+    case QueueName.PostHogIntegrationProcessingQueue:
+      return PostHogIntegrationProcessingQueue.getInstance();
+    case QueueName.IngestionSecondaryQueue:
+      return SecondaryIngestionQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

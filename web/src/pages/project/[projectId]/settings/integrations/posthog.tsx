@@ -46,7 +46,7 @@ export default function PosthogIntegrationSettings() {
   return (
     <div className="md:container">
       <Header
-        title="PostHog Integration"
+        title="PostHog Integration (Beta)"
         breadcrumb={[
           { name: "Settings", href: `/project/${projectId}/settings` },
         ]}
@@ -102,9 +102,6 @@ export default function PosthogIntegrationSettings() {
             {state.data?.lastSyncAt
               ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
-          </p>
-          <p className="mt-2 text-sm text-primary">
-            While in Beta, the sync is scheduled to run once a day.
           </p>
         </>
       )}

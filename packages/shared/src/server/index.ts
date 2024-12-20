@@ -30,6 +30,8 @@ export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
 export * from "./redis/legacyIngestion";
 export * from "./redis/ingestionQueue";
+export * from "./redis/postHogIntegrationQueue";
+export * from "./redis/postHogIntegrationProcessingQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./auth/types";
 export * from "./ingestion/legacy/index";
@@ -42,3 +44,6 @@ export * from "./logger";
 export * from "./queries";
 export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
+
+// test utils
+export * from "./test-utils";

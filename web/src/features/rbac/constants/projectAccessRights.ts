@@ -3,9 +3,9 @@ import { type Role } from "@langfuse/shared/src/db";
 const projectScopes = [
   "projectMembers:read",
   "projectMembers:CUD",
+
   "apiKeys:read",
-  "apiKeys:create",
-  "apiKeys:delete",
+  "apiKeys:CUD",
 
   "objects:publish",
   "objects:bookmark",
@@ -64,8 +64,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "projectMembers:read",
     "projectMembers:CUD",
     "apiKeys:read",
-    "apiKeys:create",
-    "apiKeys:delete",
+    "apiKeys:CUD",
     "integrations:CRUD",
     "objects:publish",
     "objects:bookmark",
@@ -100,8 +99,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "projectMembers:read",
     "projectMembers:CUD",
     "apiKeys:read",
-    "apiKeys:create",
-    "apiKeys:delete",
+    "apiKeys:CUD",
     "integrations:CRUD",
     "objects:publish",
     "objects:bookmark",

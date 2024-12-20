@@ -7,6 +7,7 @@ import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
 import {
   AIMessage,
+  BaseMessage,
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
@@ -131,14 +132,22 @@ export async function fetchLLMCompletion(
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
-  const finalMessages = messages.map((message) => {
-    if (message.role === ChatMessageRole.User)
-      return new HumanMessage(message.content);
-    if (message.role === ChatMessageRole.System)
-      return new SystemMessage(message.content);
+  let finalMessages: BaseMessage[];
+  // VertexAI requires at least 1 user message
+  if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
+    finalMessages = [new HumanMessage(messages[0].content)];
+  } else {
+    finalMessages = messages.map((message) => {
+      if (message.role === ChatMessageRole.User)
+        return new HumanMessage(message.content);
+      if (message.role === ChatMessageRole.System)
+        return new SystemMessage(message.content);
 
-    return new AIMessage(message.content);
-  });
+      return new AIMessage(message.content);
+    });
+  }
+
+  finalMessages = finalMessages.filter((m) => m.content.length > 0);
 
   let chatModel:
     | ChatOpenAI
@@ -154,7 +163,7 @@ export async function fetchLLMCompletion(
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
-      clientOptions: { maxRetries },
+      clientOptions: { maxRetries, timeout: 1000 * 60 * 2 }, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     chatModel = new ChatOpenAI({
@@ -169,6 +178,7 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL,
       },
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
     chatModel = new ChatOpenAI({
@@ -181,6 +191,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     const { region } = BedrockConfigSchema.parse(config);
@@ -195,10 +206,13 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
     const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
 
+    // Requests time out after 60 seconds for both public and private endpoints by default
+    // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     chatModel = new ChatVertexAI({
       modelName: modelParams.model,
       temperature: modelParams.temperature,
@@ -257,6 +271,7 @@ export async function fetchLLMCompletion(
         configuration: {
           baseURL,
         },
+        timeout: 1000 * 60 * 2, // 2 minutes timeout
       })
         .pipe(new StringOutputParser())
         .invoke(

@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.0.0-rc.3",
+  "version": "3.3.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -81,10 +81,10 @@
       }
     }
   },
+  "packageManager": "pnpm@9.5.0",
   "pnpm": {
     "overrides": {
       "jsonpath-plus": "10.0.7"
     }
-  },
-  "packageManager": "pnpm@9.5.0"
+  }
 }

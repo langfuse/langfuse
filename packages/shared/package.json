@@ -82,7 +82,7 @@
     "langchain": "^0.3.6",
     "langfuse-langchain": "3.30.3",
     "lodash": "^4.17.21",
-    "next-auth": "^4.24.7",
+    "next-auth": "^4.24.11",
     "nodemailer": "^6.9.15",
     "prisma-extension-kysely": "^2.1.0",
     "uuid": "^9.0.1",

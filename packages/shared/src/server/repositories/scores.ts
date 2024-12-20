@@ -6,7 +6,7 @@ import {
   upsertClickhouse,
 } from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
-import { FilterState } from "../../types";
+import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
@@ -25,6 +25,7 @@ import {
 import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
+import { env } from "../../env";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -91,6 +92,32 @@ export const getScoreById = async (
     },
   });
   return rows.map(convertToScore).shift();
+};
+
+export const getScoresByIds = async (
+  projectId: string,
+  scoreId: string[],
+  source?: ScoreSource,
+) => {
+  const query = `
+    SELECT *
+    FROM scores s
+    WHERE s.project_id = {projectId: String}
+    AND s.id IN ({scoreId: Array(String)})
+    ${source ? `AND s.source = {source: String}` : ""}
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
+  `;
+
+  const rows = await queryClickhouse<ScoreRecordReadType>({
+    query,
+    params: {
+      projectId,
+      scoreId,
+      ...(source !== undefined ? { source } : {}),
+    },
+  });
+  return rows.map(convertToScore);
 };
 
 /**
@@ -508,10 +535,14 @@ export const getNumericScoreHistogram = async (
   );
   const chFilterRes = chFilter.apply();
 
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
   const query = `
     select s.value
     from scores s
+    ${traceFilter ? `LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
     WHERE s.project_id = {projectId: String}
+    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     ORDER BY s.event_ts DESC
     LIMIT 1 BY s.id, s.project_id
@@ -597,5 +628,100 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   return rows.map((row) => ({
     projectId: row.project_id,
     count: Number(row.count),
+  }));
+};
+
+export const getDistinctScoreNames = async (
+  projectId: string,
+  cutoffCreatedAt: Date,
+  filter: FilterState,
+  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
+) => {
+  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+
+  const query = `
+    SELECT DISTINCT
+      name
+    FROM scores s 
+    WHERE s.project_id = {projectId: String}
+    AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
+    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
+  `;
+
+  const rows = await queryClickhouse<{ name: string }>({
+    query,
+    params: {
+      projectId,
+      cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
+      ...(scoreTimestampFilter
+        ? {
+            filterTimestamp: convertDateToClickhouseDateTime(
+              scoreTimestampFilter.value,
+            ),
+          }
+        : {}),
+    },
+  });
+
+  return rows.map((row) => row.name);
+};
+
+export const getScoresForPostHog = async (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) => {
+  const query = `
+    SELECT
+      s.id as id,
+      s.timestamp as timestamp,
+      s.name as name,
+      s.value as value,
+      s.comment as comment,
+      t.name as trace_name,
+      t.session_id as trace_session_id,
+      t.user_id as trace_user_id,
+      t.release as trace_release,
+      t.tags as trace_tags,
+      t.metadata['$posthog_session_id'] as posthog_session_id
+    FROM scores s FINAL
+    LEFT JOIN traces t FINAL ON s.trace_id = t.id AND s.project_id = t.project_id
+    WHERE s.project_id = {projectId: String}
+    AND t.project_id = {projectId: String}
+    AND s.timestamp >= {minTimestamp: DateTime64(3)}
+    AND s.timestamp <= {maxTimestamp: DateTime64(3)}
+    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = await queryClickhouse<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+  });
+
+  const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
+  return records.map((record) => ({
+    timestamp: record.timestamp,
+    langfuse_score_name: record.name,
+    langfuse_score_value: record.value,
+    langfuse_score_comment: record.comment,
+    langfuse_trace_name: record.trace_name,
+    langfuse_id: record.id,
+    langfuse_session_id: record.trace_session_id,
+    langfuse_project_id: projectId,
+    langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+    langfuse_release: record.trace_release,
+    langfuse_tags: record.trace_tags,
+    langfuse_event_version: "1.0.0",
+    $session_id: record.posthog_session_id ?? null,
+    $set: {
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+        : null,
+    },
   }));
 };

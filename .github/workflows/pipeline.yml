@@ -112,6 +112,7 @@ jobs:
         run: |
           cp .env.dev.example .env
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
+          echo "LANGFUSE_POSTGRES_INGESTION_ENABLED=true" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -458,9 +459,9 @@ jobs:
             type=ref,event=pr
             type=sha
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-          # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Build and push Docker image (web)
         uses: docker/build-push-action@v4
         with:
@@ -486,9 +487,9 @@ jobs:
             type=ref,event=pr
             type=sha
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-          # type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Build and push Docker image (worker)
         uses: docker/build-push-action@v4
         with:

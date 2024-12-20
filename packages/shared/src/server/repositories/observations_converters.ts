@@ -13,7 +13,10 @@ import { jsonSchema } from "../../utils/zod";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
-): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> => {
+): Omit<ObservationView, "inputPrice" | "outputPrice" | "totalPrice"> & {
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
+} => {
   // these cost are not used from the view. They are in the select statement but not in the
   // Prisma file. We will not clean this up but keep it as it is for now.
   // eslint-disable-next-line no-unused-vars
@@ -39,7 +42,15 @@ export const convertObservation = (
   promptVersion: number | null;
   latency: number | null;
   timeToFirstToken: number | null;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
 } => {
+  const reducedUsageDetails = reduceUsageOrCostDetails(record.usage_details);
+  const reducedCostDetails = reduceUsageOrCostDetails(record.cost_details);
+  const reducedProvidedCostDetails = reduceUsageOrCostDetails(
+    record.provided_cost_details,
+  );
+
   return {
     id: record.id,
     traceId: record.trace_id ?? null,
@@ -70,31 +81,41 @@ export const convertObservation = (
     promptId: record.prompt_id ?? null,
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
-    promptTokens: record.usage_details?.input
-      ? Number(record.usage_details?.input)
-      : 0,
-    completionTokens: record.usage_details?.output
-      ? Number(record.usage_details?.output)
-      : 0,
-    totalTokens: record.usage_details?.total
-      ? Number(record.usage_details?.total)
-      : 0,
-    calculatedInputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details.input)
-      : null,
-    calculatedOutputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details.output)
-      : null,
+    promptTokens: reducedUsageDetails.input ?? 0,
+    completionTokens: reducedUsageDetails.output ?? 0,
+    totalTokens: reducedUsageDetails.total ?? 0,
+    calculatedInputCost:
+      reducedCostDetails.input != null
+        ? new Decimal(reducedCostDetails.input)
+        : null,
+    calculatedOutputCost:
+      reducedCostDetails.output != null
+        ? new Decimal(reducedCostDetails.output)
+        : null,
     calculatedTotalCost: record.cost_details?.total
       ? new Decimal(record.cost_details.total)
       : null,
-    inputCost: record.cost_details?.input
-      ? new Decimal(record.cost_details?.input)
-      : null,
-    outputCost: record.cost_details?.output
-      ? new Decimal(record.cost_details?.output)
-      : null,
+    inputCost:
+      reducedProvidedCostDetails.input != null
+        ? new Decimal(reducedProvidedCostDetails.input)
+        : null,
+    outputCost:
+      reducedProvidedCostDetails.output != null
+        ? new Decimal(reducedProvidedCostDetails.output)
+        : null,
     totalCost: record.total_cost ? new Decimal(record.total_cost) : null,
+    usageDetails: Object.fromEntries(
+      Object.entries(record.usage_details ?? {}).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
+    costDetails: Object.fromEntries(
+      Object.entries(record.cost_details ?? {}).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     model: record.provided_model_name ?? null,
     internalModelId: record.internal_model_id ?? null,
     unit: "TOKENS", // to be removed.
@@ -105,10 +126,35 @@ export const convertObservation = (
         parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
       : null,
     timeToFirstToken: record.completion_start_time
-      ? parseClickhouseUTCDateTimeFormat(
+      ? (parseClickhouseUTCDateTimeFormat(
           record.completion_start_time,
         ).getTime() -
-        parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+          parseClickhouseUTCDateTimeFormat(record.start_time).getTime()) /
+        1000
       : null,
+  };
+};
+
+export const reduceUsageOrCostDetails = (
+  details: Record<string, number> | null | undefined,
+): {
+  input: number | null;
+  output: number | null;
+  total: number | null;
+} => {
+  return {
+    input: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("input"))
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no input usage is found
+      ),
+    output: Object.entries(details ?? {})
+      .filter(([usageType]) => usageType.startsWith("output"))
+      .reduce(
+        (acc, [_, value]) => (acc ?? 0) + Number(value),
+        null as number | null, // default to null if no output usage is found
+      ),
+    total: Number(details?.total ?? 0),
   };
 };

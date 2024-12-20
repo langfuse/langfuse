@@ -24,6 +24,9 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
+  LangfuseNotFoundError,
+  InvalidRequestError,
+  InternalServerError,
 } from "@langfuse/shared";
 import { Prisma, type Score } from "@langfuse/shared/src/db";
 import {
@@ -46,6 +49,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { env } from "@/src/env.mjs";
+import { v4 } from "uuid";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -307,70 +311,40 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const trace = await ctx.prisma.trace.findFirst({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      if (!trace) {
-        throw new Error("No trace with this id in this project.");
-      }
+      const score = {
+        id: v4(),
+        projectId: input.projectId,
+        traceId: input.traceId,
+        observationId: input.observationId ?? null,
+        value: input.value ?? null,
+        stringValue: input.stringValue ?? null,
+        dataType: input.dataType ?? null,
+        configId: input.configId ?? null,
+        name: input.name,
+        comment: input.comment ?? null,
+        authorUserId: ctx.session.user.id,
+        source: ScoreSource.ANNOTATION,
+        queueId: input.queueId ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        timestamp: new Date(),
+      };
 
-      const existingScore = await ctx.prisma.score.findFirst({
-        where: {
-          projectId: input.projectId,
-          traceId: input.traceId,
-          observationId: input.observationId ?? null,
-          source: "ANNOTATION",
-          // configId functions as unique constraint for scores with source ANNOTATION
-          configId: input.configId,
-        },
-      });
+      const hasClickhouseConfigured = env.CLICKHOUSE_URL;
 
-      if (existingScore) {
-        throw new Error(
-          `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
-        );
-      }
-
-      const score = await ctx.prisma.score.create({
-        data: {
-          projectId: input.projectId,
-          traceId: input.traceId,
-          observationId: input.observationId,
-          value: input.value,
-          stringValue: input.stringValue,
-          dataType: input.dataType,
-          configId: input.configId,
-          name: input.name,
-          comment: input.comment,
-          authorUserId: ctx.session.user.id,
-          source: "ANNOTATION",
-          queueId: input.queueId,
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "create",
-        after: score,
-      });
-
-      if (env.CLICKHOUSE_URL) {
+      if (hasClickhouseConfigured) {
         const clickhouseTrace = await getTraceById(
           input.traceId,
           input.projectId,
         );
 
         if (!clickhouseTrace) {
-          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
           );
-          return validateDbScore(score);
+          throw new LangfuseNotFoundError(
+            `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+          );
         }
 
         const clickhouseScore = await searchExistingAnnotationScore(
@@ -382,11 +356,12 @@ export const scoresRouter = createTRPCRouter({
         );
 
         if (clickhouseScore) {
-          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
           );
-          return validateDbScore(score);
+          throw new InvalidRequestError(
+            `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+          );
         }
 
         await upsertScore({
@@ -407,6 +382,76 @@ export const scoresRouter = createTRPCRouter({
         });
       }
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: score.id,
+        action: "create",
+        after: score,
+      });
+
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+        const trace = await ctx.prisma.trace.findFirst({
+          where: {
+            id: input.traceId,
+            projectId: input.projectId,
+          },
+        });
+        // Fail silently while Clickhouse is in lead and return early
+        if (!trace) {
+          if (!hasClickhouseConfigured) {
+            throw new InternalServerError(
+              "No trace with this id in this project.",
+            );
+          } else {
+            logger.error("No trace with this id in this project.");
+            return validateDbScore(score);
+          }
+        }
+
+        const existingScore = await ctx.prisma.score.findFirst({
+          where: {
+            projectId: input.projectId,
+            traceId: input.traceId,
+            observationId: input.observationId ?? null,
+            source: "ANNOTATION",
+            // configId functions as unique constraint for scores with source ANNOTATION
+            configId: input.configId,
+          },
+        });
+
+        // Fail silently while Clickhouse is in lead and return early
+        if (existingScore) {
+          if (!hasClickhouseConfigured) {
+            throw new InternalServerError(
+              `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId} in Postgres`,
+            );
+          } else {
+            logger.error(
+              `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId} in Postgres`,
+            );
+            return validateDbScore(score);
+          }
+        }
+
+        try {
+          await ctx.prisma.score.create({
+            data: score,
+          });
+        } catch (error) {
+          if (!hasClickhouseConfigured) {
+            throw new InternalServerError(
+              `Error creating score for name ${input.name} in Postgres for trace ${input.traceId} in project ${input.projectId}`,
+            );
+          } else {
+            logger.error(
+              `Error creating score for name ${input.name} in Postgres for trace ${input.traceId} in project ${input.projectId}`,
+            );
+            return validateDbScore(score);
+          }
+        }
+      }
+
       return validateDbScore(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
@@ -418,74 +463,132 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      if (env.CLICKHOUSE_URL) {
+      const hasClickhouseConfigured = env.CLICKHOUSE_URL;
+      let updatedScore: Score | null | undefined = null;
+      let updatedScorePostgres: Score | null | undefined = null;
+
+      if (hasClickhouseConfigured) {
         // Fetch the current score from Clickhouse
-        const clickhouseScore = await getScoreById(
+        const score = await getScoreById(
           input.projectId,
           input.id,
           ScoreSource.ANNOTATION,
         );
-        if (!clickhouseScore) {
-          // Continue processing the update in Postgres
+        if (!score) {
           logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+          throw new LangfuseNotFoundError(
             `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
           );
         } else {
           await upsertScore({
             id: input.id,
             project_id: input.projectId,
-            timestamp: convertDateToClickhouseDateTime(
-              clickhouseScore.timestamp,
-            ),
+            timestamp: convertDateToClickhouseDateTime(score.timestamp),
             value: input.value !== null ? input.value : undefined,
             string_value: input.stringValue,
             comment: input.comment,
             author_user_id: ctx.session.user.id,
             queue_id: input.queueId,
             source: ScoreSource.ANNOTATION,
-            name: clickhouseScore.name,
-            data_type: clickhouseScore.dataType,
-            config_id: clickhouseScore.configId,
-            trace_id: clickhouseScore.traceId,
-            observation_id: clickhouseScore.observationId,
+            name: score.name,
+            data_type: score.dataType,
+            config_id: score.configId,
+            trace_id: score.traceId,
+            observation_id: score.observationId,
           });
+
+          updatedScore = {
+            ...score,
+            value: input.value ?? null,
+            stringValue: input.stringValue ?? null,
+            comment: input.comment ?? null,
+            authorUserId: ctx.session.user.id,
+            queueId: input.queueId ?? null,
+          };
+
+          // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
+          if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "false") {
+            await auditLog({
+              session: ctx.session,
+              resourceType: "score",
+              resourceId: input.id,
+              action: "update",
+              before: score,
+              after: updatedScore,
+            });
+          }
         }
       }
 
-      const score = await ctx.prisma.score.findFirst({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-          source: "ANNOTATION",
-        },
-      });
-      if (!score) {
-        throw new Error("No annotation score with this id in this project.");
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+        const scorePostgres = await ctx.prisma.score.findFirst({
+          where: {
+            id: input.id,
+            projectId: input.projectId,
+            source: "ANNOTATION",
+          },
+        });
+        // Fail silently while Clickhouse is in lead and return early
+        if (!scorePostgres) {
+          if (!hasClickhouseConfigured || !updatedScore) {
+            throw new InternalServerError(
+              "No annotation score with this id in this project in Postgres.",
+            );
+          } else {
+            logger.error(
+              "No annotation score with this id in this project in Postgres.",
+            );
+            return validateDbScore(updatedScore);
+          }
+        }
+
+        try {
+          updatedScorePostgres = await ctx.prisma.score.update({
+            where: {
+              id: scorePostgres.id,
+              projectId: input.projectId,
+            },
+            data: {
+              value: input.value,
+              stringValue: input.stringValue,
+              comment: input.comment,
+              authorUserId: ctx.session.user.id,
+              queueId: input.queueId,
+            },
+          });
+        } catch (error) {
+          if (!hasClickhouseConfigured || !updatedScore) {
+            throw new InternalServerError(
+              `Error updating score for name ${input.name} in Postgres for trace ${input.traceId} in project ${input.projectId}`,
+            );
+          } else {
+            logger.error(
+              `Error updating score for name ${input.name} in Postgres for trace ${input.traceId} in project ${input.projectId}`,
+            );
+            return validateDbScore(updatedScore);
+          }
+        }
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: scorePostgres.id,
+          action: "update",
+          before: scorePostgres,
+          after: updatedScorePostgres,
+        });
       }
-      const updatedScore = await ctx.prisma.score.update({
-        where: {
-          id: score.id,
-          projectId: input.projectId,
-        },
-        data: {
-          value: input.value,
-          stringValue: input.stringValue,
-          comment: input.comment,
-          authorUserId: ctx.session.user.id,
-          queueId: input.queueId,
-        },
-      });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "update",
-        before: score,
-        after: updatedScore,
-      });
+      const finalUpdatedScore = updatedScore ?? updatedScorePostgres;
+      if (!finalUpdatedScore) {
+        throw new InternalServerError(
+          `Annotation score could not be updated in project ${input.projectId}`,
+        );
+      }
 
-      return validateDbScore(updatedScore);
+      return validateDbScore(finalUpdatedScore);
     }),
   deleteAnnotationScore: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), id: z.string() }))
@@ -496,37 +599,100 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const score = await ctx.prisma.score.findFirst({
-        where: {
-          id: input.id,
-          source: "ANNOTATION",
-          projectId: input.projectId,
-        },
-      });
+      const hasClickhouseConfigured = env.CLICKHOUSE_URL;
+      let score: Score | null | undefined = null;
+
+      if (hasClickhouseConfigured) {
+        // Fetch the current score from Clickhouse
+        const clickhouseScore = await getScoreById(
+          input.projectId,
+          input.id,
+          ScoreSource.ANNOTATION,
+        );
+        if (!clickhouseScore) {
+          logger.warn(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+          throw new LangfuseNotFoundError(
+            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+          );
+        } else {
+          // Audit log only if Postgres is not enabled, as we still run PG and CH ingestion in parallel on cloud
+          if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "false") {
+            await auditLog({
+              session: ctx.session,
+              resourceType: "score",
+              resourceId: input.id,
+              action: "delete",
+              before: clickhouseScore,
+            });
+          }
+
+          // Delete the score from Clickhouse
+          await deleteScore(input.projectId, clickhouseScore.id);
+          score = clickhouseScore;
+        }
+      }
+
+      if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
+        const scorePostgres = await ctx.prisma.score.findFirst({
+          where: {
+            id: input.id,
+            source: "ANNOTATION",
+            projectId: input.projectId,
+          },
+        });
+        // Fail silently while Clickhouse is in lead and return early
+        if (!scorePostgres) {
+          if (!hasClickhouseConfigured) {
+            throw new InternalServerError(
+              "No annotation score with this id in this project in Postgres.",
+            );
+          } else {
+            logger.error(
+              "No annotation score with this id in this project in Postgres.",
+            );
+            return;
+          }
+        }
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: scorePostgres.id,
+          action: "delete",
+          before: scorePostgres,
+        });
+
+        // Fail silently while Clickhouse is in lead and return early
+        try {
+          // Delete the score from Postgres
+          await ctx.prisma.score.delete({
+            where: {
+              id: scorePostgres.id,
+              projectId: input.projectId,
+            },
+          });
+          score = hasClickhouseConfigured ? score : scorePostgres;
+        } catch (error) {
+          if (!hasClickhouseConfigured) {
+            throw new InternalServerError(
+              "Error deleting annotation score in Postgres.",
+            );
+          } else {
+            logger.error("Error deleting annotation score in Postgres.");
+            return;
+          }
+        }
+      }
+
       if (!score) {
-        throw new Error("No annotation score with this id in this project.");
+        throw new InternalServerError(
+          `Annotation score could not be deleted in project ${input.projectId}`,
+        );
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "delete",
-        before: score,
-      });
-
-      if (env.CLICKHOUSE_URL) {
-        // Delete the score from Clickhouse
-        await deleteScore(input.projectId, score.id);
-      }
-
-      // Delete the score from Postgres
-      return await ctx.prisma.score.delete({
-        where: {
-          id: score.id,
-          projectId: input.projectId,
-        },
-      });
+      return validateDbScore(score);
     }),
   getScoreKeysAndProps: protectedProjectProcedure
     .input(

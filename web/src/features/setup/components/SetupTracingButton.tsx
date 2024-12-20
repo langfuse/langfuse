@@ -6,7 +6,7 @@ import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { LockIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const SetupTracingButton = () => {
@@ -27,16 +27,19 @@ const SetupTracingButton = () => {
     },
   );
 
+  // dedupe result via useRef, otherwise we'll capture the event multiple times on session refresh
+  const capturedEventAlready = useRef<boolean | undefined>(undefined);
   const capture = usePostHogClientCapture();
   useEffect(() => {
-    if (hasAnyTrace !== undefined) {
+    if (hasAnyTrace !== undefined && !capturedEventAlready.current) {
       capture("onboarding:tracing_check_active", { active: hasAnyTrace });
+      capturedEventAlready.current = true;
     }
   }, [hasAnyTrace, capture]);
 
   const hasAccess = useHasProjectAccess({
     projectId: project?.id,
-    scope: "apiKeys:create",
+    scope: "apiKeys:CUD",
   });
 
   if (isLoading || hasAnyTrace || !project) {

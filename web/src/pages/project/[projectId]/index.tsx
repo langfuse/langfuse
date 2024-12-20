@@ -6,7 +6,7 @@ import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBa
 import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
+import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { api } from "@/src/utils/api";
@@ -213,7 +213,7 @@ export default function Dashboard() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <TracesTimeSeriesChart
+        <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}

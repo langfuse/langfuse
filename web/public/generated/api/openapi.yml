@@ -2627,7 +2627,9 @@ components:
         usage:
           $ref: '#/components/schemas/Usage'
           nullable: true
-          description: The usage data of the observation
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The usage
+            data of the observation
         level:
           $ref: '#/components/schemas/ObservationLevel'
           description: The level of the observation
@@ -2643,6 +2645,25 @@ components:
           type: string
           nullable: true
           description: The prompt ID associated with the observation
+        usageDetails:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+          description: >-
+            The usage details of the observation. Key is the name of the usage
+            metric, value is the number of units consumed. The total key is the
+            sum of all (non-total) usage metrics or the total value ingested.
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
+          description: >-
+            The cost details of the observation. Key is the name of the cost
+            metric, value is the cost in USD. The total key is the sum of all
+            (non-total) cost metrics or the total value ingested.
       required:
         - id
         - type
@@ -2683,17 +2704,23 @@ components:
           type: number
           format: double
           nullable: true
-          description: The calculated cost of the input in USD
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The
+            calculated cost of the input in USD
         calculatedOutputCost:
           type: number
           format: double
           nullable: true
-          description: The calculated cost of the output in USD
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The
+            calculated cost of the output in USD
         calculatedTotalCost:
           type: number
           format: double
           nullable: true
-          description: The calculated total cost in USD
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The
+            calculated total cost in USD
         latency:
           type: number
           format: double
@@ -2709,7 +2736,9 @@ components:
     Usage:
       title: Usage
       type: object
-      description: Standard interface for usage and cost
+      description: >-
+        (Deprecated. Use usageDetails and costDetails instead.) Standard
+        interface for usage and cost
       properties:
         input:
           type: integer
@@ -3608,6 +3637,15 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
+        usageDetails:
+          $ref: '#/components/schemas/UsageDetails'
+          nullable: true
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
         promptName:
           type: string
           nullable: true
@@ -3637,6 +3675,15 @@ components:
           nullable: true
         promptName:
           type: string
+          nullable: true
+        usageDetails:
+          $ref: '#/components/schemas/UsageDetails'
+          nullable: true
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
           nullable: true
         promptVersion:
           type: integer
@@ -3955,6 +4002,37 @@ components:
       required:
         - successes
         - errors
+    OpenAIUsageSchema:
+      title: OpenAIUsageSchema
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        prompt_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+        completion_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+      required:
+        - prompt_tokens
+        - completion_tokens
+        - total_tokens
+    UsageDetails:
+      title: UsageDetails
+      oneOf:
+        - type: object
+          additionalProperties:
+            type: integer
+        - $ref: '#/components/schemas/OpenAIUsageSchema'
     GetMediaResponse:
       title: GetMediaResponse
       type: object
@@ -4058,8 +4136,35 @@ components:
       title: MediaContentType
       type: string
       enum:
-        - >-
-          image/png","image/jpeg","image/jpg","image/webp","image/gif","image/svg+xml","image/tiff","image/bmp","audio/mpeg","audio/mp3","audio/wav","audio/ogg","audio/oga","audio/aac","audio/mp4","audio/flac","video/mp4","video/webm","text/plain","text/html","text/css","text/csv","application/pdf","application/msword","application/vnd.ms-excel","application/zip","application/json","application/xml","application/octet-stream
+        - image/png
+        - image/jpeg
+        - image/jpg
+        - image/webp
+        - image/gif
+        - image/svg+xml
+        - image/tiff
+        - image/bmp
+        - audio/mpeg
+        - audio/mp3
+        - audio/wav
+        - audio/ogg
+        - audio/oga
+        - audio/aac
+        - audio/mp4
+        - audio/flac
+        - video/mp4
+        - video/webm
+        - text/plain
+        - text/html
+        - text/css
+        - text/csv
+        - application/pdf
+        - application/msword
+        - application/vnd.ms-excel
+        - application/zip
+        - application/json
+        - application/xml
+        - application/octet-stream
       description: The MIME type of the media record
     DailyMetrics:
       title: DailyMetrics

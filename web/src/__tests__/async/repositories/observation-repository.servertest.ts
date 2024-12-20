@@ -1,4 +1,4 @@
-import { createObservationsCh } from "@/src/__tests__/async/repositories/clickhouse-helpers";
+import { createObservationsCh } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import {
   getObservationById,
@@ -154,8 +154,9 @@ describe("Clickhouse Observations Repository Test", () => {
     expect(firstObservation.promptId).toEqual(observation.prompt_id);
     expect(firstObservation.endTime).toEqual(new Date(observation.end_time));
     expect(firstObservation.timeToFirstToken).toEqual(
-      new Date(observation.completion_start_time).getTime() -
-        new Date(observation.start_time).getTime(),
+      (new Date(observation.completion_start_time).getTime() -
+        new Date(observation.start_time).getTime()) /
+        1000,
     );
     expect(firstObservation.timeToFirstToken).toBeGreaterThan(0);
     expect(firstObservation.calculatedTotalCost).toEqual(

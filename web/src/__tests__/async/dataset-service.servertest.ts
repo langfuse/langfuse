@@ -2,14 +2,14 @@ import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+} from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createObservation,
   createScore,
   createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+} from "@langfuse/shared/src/server";
 import {
   createDatasetRunsTable,
   fetchDatasetItems,
@@ -244,7 +244,7 @@ describe("Fetch datasets for UI presentation", () => {
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));
   });
 
-  it.only("should test that dataset runs can link to the same traces", async () => {
+  it("should test that dataset runs can link to the same traces", async () => {
     const datasetId = v4();
 
     await prisma.dataset.create({

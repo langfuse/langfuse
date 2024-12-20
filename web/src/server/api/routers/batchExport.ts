@@ -7,8 +7,6 @@ import {
 import { BatchExportStatus, CreateBatchExportSchema } from "@langfuse/shared";
 import {
   BatchExportQueue,
-  type EventBodyType,
-  EventName,
   logger,
   QueueJobs,
 } from "@langfuse/shared/src/server";
@@ -56,19 +54,14 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         // Notify worker
-        const event: EventBodyType = {
-          name: EventName.BatchExport,
+        await BatchExportQueue.getInstance()?.add(QueueJobs.BatchExportJob, {
+          id: exportJob.id, // Use the batchExportId to deduplicate when the same job is sent multiple times
+          name: QueueJobs.BatchExportJob,
+          timestamp: new Date(),
           payload: {
             batchExportId: exportJob.id,
             projectId,
           },
-        };
-
-        await BatchExportQueue.getInstance()?.add(event.name, {
-          id: event.payload.batchExportId, // Use the batchExportId to deduplicate when the same job is sent multiple times
-          name: QueueJobs.BatchExportJob,
-          timestamp: new Date(),
-          payload: event.payload,
         });
       } catch (e) {
         logger.error(e);

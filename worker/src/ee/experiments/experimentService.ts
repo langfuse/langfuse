@@ -12,11 +12,12 @@ import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
   ForbiddenError,
-  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   Prisma,
   extractVariables,
+  datasetItemMatchesVariable,
+  stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -65,11 +66,29 @@ const validateDatasetItem = (
   if (!isValidPrismaJsonObject(itemInput)) {
     return false;
   }
-  return variables.some(
-    (variable) =>
-      Object.keys(itemInput).includes(variable) &&
-      typeof itemInput[variable] === "string",
+  return variables.some((variable) =>
+    datasetItemMatchesVariable(itemInput, variable),
   );
+};
+
+const parseDatasetItemInput = (
+  itemInput: Prisma.JsonObject,
+  variables: string[],
+): Prisma.JsonObject => {
+  try {
+    const filteredInput = Object.fromEntries(
+      Object.entries(itemInput)
+        .filter(([key]) => variables.includes(key))
+        .map(([key, value]) => [
+          key,
+          value === null ? null : stringifyValue(value),
+        ]),
+    );
+    return filteredInput;
+  } catch (error) {
+    logger.info("Error parsing dataset item input:", error);
+    return itemInput;
+  }
 };
 
 export const createExperimentJob = async ({
@@ -128,7 +147,7 @@ export const createExperimentJob = async ({
     logger.error(
       `Prompt content not in expected format ${prompt_id} not found for project ${projectId}`,
     );
-    throw new InternalServerError(
+    throw new InvalidRequestError(
       `Prompt ${prompt_id} not found in expected format for project ${projectId}`,
     );
   }
@@ -150,9 +169,15 @@ export const createExperimentJob = async ({
     },
   });
 
-  const validatedDatasetItems = datasetItems.filter(({ input }) =>
-    validateDatasetItem(input, extractedVariables),
-  );
+  const validatedDatasetItems = datasetItems
+    .filter(({ input }) => validateDatasetItem(input, extractedVariables))
+    .map((datasetItem) => ({
+      ...datasetItem,
+      input: parseDatasetItemInput(
+        datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
+        extractedVariables,
+      ),
+    }));
 
   if (!validatedDatasetItems.length) {
     logger.error(
@@ -188,7 +213,7 @@ export const createExperimentJob = async ({
 
     const messages = replaceVariablesInPrompt(
       validatePromptContent.data,
-      datasetItem.input as Prisma.JsonObject, // validated format
+      datasetItem.input, // validated format
       extractedVariables,
     );
 
@@ -237,7 +262,7 @@ export const createExperimentJob = async ({
           traceParams,
         ),
       {
-        numOfAttempts: 5, // turn off retries as Langchain is doing that for us already.
+        numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
       },
     );
 
