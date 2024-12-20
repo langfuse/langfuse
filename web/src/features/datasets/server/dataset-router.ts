@@ -858,8 +858,9 @@ async function runsByDatasetIdPg(
     projectId: string;
     datasetId: string;
     queryClickhouse: boolean;
-    page: number;
-    limit: number;
+    page?: number;
+    limit?: number;
+    runIds?: string[];
   },
 ) {
   const scoresByRunId = await prisma.$queryRaw<
@@ -889,10 +890,11 @@ async function runsByDatasetIdPg(
           runs.dataset_id = ${input.datasetId}
           AND runs.project_id = ${input.projectId}
           AND s.score IS NOT NULL
+          ${input.runIds ? Prisma.sql`AND runs.id IN (${Prisma.join(input.runIds)})` : Prisma.empty}  
         GROUP BY
           runs.id
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
+        ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
+        ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
       `);
 
   const runs = await prisma.$queryRaw<
@@ -983,10 +985,11 @@ async function runsByDatasetIdPg(
         WHERE
           runs.dataset_id = ${input.datasetId}
           AND runs.project_id = ${input.projectId}
+          ${input.runIds ? Prisma.sql`AND runs.id IN (${Prisma.join(input.runIds)})` : Prisma.empty}
         ORDER BY
           runs.created_at DESC
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
+        ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
+        ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
       `);
 
   const totalRuns = await prisma.datasetRuns.count({
@@ -1002,7 +1005,7 @@ async function runsByDatasetIdPg(
       ...run,
       scores: aggregateScores(
         scoresByRunId.flatMap((s) => (s.runId === run.id ? s.scores : [])),
-      ) as ScoreAggregate | undefined
+      ) as ScoreAggregate | undefined,
     })),
   };
 }
