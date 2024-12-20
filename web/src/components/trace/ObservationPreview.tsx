@@ -39,7 +39,8 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "./BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, PlusCircle } from "lucide-react";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 
 export const ObservationPreview = ({
   observations,
@@ -210,7 +211,47 @@ export const ObservationPreview = ({
                   </Badge>
                 ) : undefined}
                 {preloadedObservation.model ? (
-                  <Badge variant="outline">{preloadedObservation.model}</Badge>
+                  preloadedObservation.modelId ? (
+                    <Badge>
+                      <Link
+                        href={`/project/${preloadedObservation.projectId}/models/${preloadedObservation.modelId}`}
+                        className="flex items-center"
+                        title="View model details"
+                      >
+                        {preloadedObservation.model}
+                      </Link>
+                    </Badge>
+                  ) : (
+                    <UpsertModelFormDrawer
+                      action="create"
+                      projectId={preloadedObservation.projectId}
+                      prefilledModelData={{
+                        modelName: preloadedObservation.model,
+                        prices:
+                          Object.keys(preloadedObservation.usageDetails)
+                            .length > 0
+                            ? Object.keys(preloadedObservation.usageDetails)
+                                .filter((key) => key != "total")
+                                .reduce(
+                                  (acc, key) => {
+                                    acc[key] = 0.000001;
+                                    return acc;
+                                  },
+                                  {} as Record<string, number>,
+                                )
+                            : undefined,
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1"
+                      >
+                        <span>{preloadedObservation.model}</span>
+                        <PlusCircle className="h-3 w-3" />
+                      </Badge>
+                    </UpsertModelFormDrawer>
+                  )
                 ) : null}
                 {thisCost ? (
                   <BreakdownTooltip

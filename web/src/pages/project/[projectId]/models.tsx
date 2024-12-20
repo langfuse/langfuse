@@ -1,13 +1,12 @@
-import Header from "@/src/components/layouts/header";
-
 import { useRouter } from "next/router";
+
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import Header from "@/src/components/layouts/header";
 import ModelTable from "@/src/components/table/use-cases/models";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Lock } from "lucide-react";
-import Link from "next/link";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export default function ModelsPage() {
   const router = useRouter();
@@ -27,19 +26,15 @@ export default function ModelsPage() {
           href: "https://langfuse.com/docs/model-usage-and-cost",
         }}
         actionButtons={
-          <Button
-            variant="secondary"
-            disabled={!hasWriteAccess}
-            onClick={() => capture("models:new_form_open")}
-            asChild
-          >
-            <Link
-              href={hasWriteAccess ? `/project/${projectId}/models/new` : "#"}
+          <UpsertModelFormDrawer {...{ projectId, action: "create" }}>
+            <Button
+              variant="secondary"
+              disabled={!hasWriteAccess}
+              onClick={() => capture("models:new_form_open")}
             >
-              {!hasWriteAccess && <Lock size={16} className="mr-2" />}
               Add model definition
-            </Link>
-          </Button>
+            </Button>
+          </UpsertModelFormDrawer>
         }
       />
       <ModelTable projectId={projectId} />
