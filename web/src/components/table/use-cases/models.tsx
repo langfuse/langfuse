@@ -81,7 +81,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     if (rowHeight === "s") {
       setRowHeight("m");
     }
-  }, [rowHeight]);
+  }, [rowHeight, setRowHeight]);
 
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
     {
