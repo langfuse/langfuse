@@ -107,7 +107,7 @@ export default function ModelDetailPage() {
       <div className="grid grid-cols-2 gap-6 p-2">
         <Card>
           <CardHeader>
-            <CardTitle>Model Configuration</CardTitle>
+            <CardTitle>Model configuration</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div>
@@ -197,7 +197,7 @@ export default function ModelDetailPage() {
               <Generations
                 projectId={projectId}
                 omittedFilter={["Model"]}
-                modelName={model.modelName}
+                modelId={model.id}
               />
             </div>
           </CardContent>

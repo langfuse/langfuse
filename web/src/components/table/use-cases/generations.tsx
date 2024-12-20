@@ -83,7 +83,7 @@ export type GenerationsTableProps = {
   projectId: string;
   promptName?: string;
   promptVersion?: number;
-  modelName?: string;
+  modelId?: string;
   omittedFilter?: string[];
 };
 
@@ -91,7 +91,7 @@ export default function GenerationsTable({
   projectId,
   promptName,
   promptVersion,
-  modelName,
+  modelId,
   omittedFilter = [],
 }: GenerationsTableProps) {
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -145,13 +145,13 @@ export default function GenerationsTable({
       ]
     : [];
 
-  const modelNameFilter: FilterState = modelName
+  const modelIdFilter: FilterState = modelId
     ? [
         {
-          column: "Model",
+          column: "Model ID",
           type: "string",
           operator: "=",
-          value: modelName,
+          value: modelId,
         },
       ]
     : [];
@@ -171,7 +171,7 @@ export default function GenerationsTable({
     ...dateRangeFilter,
     ...promptNameFilter,
     ...promptVersionFilter,
-    ...modelNameFilter,
+    ...modelIdFilter,
   ]);
 
   const getCountPayload = {
