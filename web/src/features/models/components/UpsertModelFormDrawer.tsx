@@ -52,7 +52,6 @@ type UpsertModelDrawerProps =
       projectId: string;
       prefilledModelData?: {
         modelName?: string;
-        matchPattern?: string;
         prices?: Record<string, number>;
       };
       className?: string;
@@ -87,7 +86,9 @@ export const UpsertModelFormDrawer = ({
   } else {
     defaultValues = {
       modelName: props.prefilledModelData?.modelName ?? "",
-      matchPattern: props.prefilledModelData?.matchPattern ?? "",
+      matchPattern: props.prefilledModelData?.modelName
+        ? `(?i)^(${props.prefilledModelData?.modelName})$`
+        : "",
       tokenizerId: null,
       tokenizerConfig: null,
       prices: props.prefilledModelData?.prices ?? {

@@ -227,7 +227,6 @@ export const ObservationPreview = ({
                       projectId={preloadedObservation.projectId}
                       prefilledModelData={{
                         modelName: preloadedObservation.model,
-                        matchPattern: `(?i)^(${preloadedObservation.model})$`,
                         prices:
                           Object.keys(preloadedObservation.usageDetails)
                             .length > 0

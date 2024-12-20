@@ -42,7 +42,8 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, PlusCircle } from "lucide-react";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 
 export type GenerationsTableRow = {
   id: string;
@@ -465,16 +466,41 @@ export default function GenerationsTable({
         const model = row.getValue("model") as string;
         const modelId = row.getValue("modelId") as string | undefined;
 
+        if (!model) return null;
+
         return modelId ? (
           <TableLink
             path={`/project/${projectId}/models/${modelId}`}
             value={model}
           />
         ) : (
-          <span>{model}</span>
+          <UpsertModelFormDrawer
+            action="create"
+            projectId={projectId}
+            prefilledModelData={{
+              modelName: model,
+              prices:
+                Object.keys(row.original.usageDetails).length > 0
+                  ? Object.keys(row.original.usageDetails).reduce(
+                      (acc, key) => {
+                        acc[key] = 0.000001;
+                        return acc;
+                      },
+                      {} as Record<string, number>,
+                    )
+                  : undefined,
+            }}
+            className="cursor-pointer"
+          >
+            <span className="flex items-center gap-1">
+              <span>{model}</span>
+              <PlusCircle className="h-3 w-3" />
+            </span>
+          </UpsertModelFormDrawer>
         );
       },
     },
+
     {
       accessorKey: "modelId",
       id: "modelId",
