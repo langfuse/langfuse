@@ -15,6 +15,7 @@ import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
+import { PromptDiff } from "./prompt-diff";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -71,6 +72,17 @@ export const PromptDetail = () => {
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.promptVersions[0];
+
+  let oldPrompt = prompt;
+  const currentPromptVersionNumber = prompt?.version;
+  if (currentPromptVersionNumber != null && currentPromptVersionNumber > 1) {
+    const oldPromptVersionNumber = currentPromptVersionNumber - 1;
+    oldPrompt = oldPromptVersionNumber
+    ? promptHistory.data?.promptVersions.find(
+        (p) => p.version === oldPromptVersionNumber,
+      )
+    : promptHistory.data?.promptVersions[0];
+  }
 
   const extractedVariables = prompt
     ? extractVariables(
@@ -136,6 +148,11 @@ export const PromptDetail = () => {
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
+
+  const newPromptText = String(prompt?.prompt || '');
+  const oldPromptText = String(oldPrompt?.prompt || newPromptText);
+  const newPromptVersion = oldPrompt?.version || prompt.version;
+  const oldPromptVersion = prompt.version;
 
   return (
     <ScrollScreenPage>
@@ -300,6 +317,28 @@ export const PromptDetail = () => {
             </a>{" "}
             for details.
           </p>
+
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Differences between current and previous prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="mx-auto mt-5 w-full rounded-lg border text-base">
+                  <div className="border-b px-3 py-1 text-xs font-medium">Differences</div>
+                  <div className="flex flex-wrap gap-2 p-2">
+                    <PromptDiff 
+                      oldPromptText={oldPromptText} 
+                      newPromptText={newPromptText} 
+                      oldPromptVersion={oldPromptVersion} 
+                      newPromptVersion={newPromptVersion}
+                    />
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
           <Accordion type="single" collapsible className="mt-10">
             <AccordionItem value="item-1">
               <AccordionTrigger>
