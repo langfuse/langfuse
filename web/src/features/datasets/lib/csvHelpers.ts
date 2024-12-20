@@ -149,20 +149,6 @@ export async function parseCsvClient(
   });
 }
 
-// Node implementation
-export async function parseCsvServer(
-  buffer: Buffer,
-  options: Omit<ParseOptions, "previewRows">,
-): Promise<CsvPreviewResult> {
-  return new Promise(async (resolve, reject) => {
-    const parser = await createParser(options, resolve, reject);
-
-    // Full processing mode: process entire buffer
-    parser.write(buffer);
-    parser.end();
-  });
-}
-
 function inferColumnType(samples: string[]): ColumnType {
   if (samples.length === 0) return "unknown";
 

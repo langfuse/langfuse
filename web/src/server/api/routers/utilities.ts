@@ -2,11 +2,7 @@ import { createTRPCRouter, protectedProcedure } from "@/src/server/api/trpc";
 import { z } from "zod";
 import { promises as dns } from "dns";
 import { Address4, Address6 } from "ip-address";
-import {
-  logger,
-  type StorageService,
-  StorageServiceFactory,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
@@ -18,22 +14,6 @@ const IP_4_LINK_LOCAL_SUBNET = "169.254.0.0/16";
 const IP_4_PRIVATE_A_SUBNET = "10.0.0.0/8";
 const IP_4_PRIVATE_B_SUBNET = "172.16.0.0/12";
 const IP_4_PRIVATE_C_SUBNET = "192.168.0.0/16";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_CSV_IMPORT_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_CSV_IMPORT_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_CSV_IMPORT_ENDPOINT,
-      region: env.LANGFUSE_CSV_IMPORT_REGION,
-      forcePathStyle: env.LANGFUSE_CSV_IMPORT_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
 
 /**
  * Check if the ipAddress is a private IP address
@@ -231,41 +211,5 @@ export const utilsRouter = createTRPCRouter({
 
       const isValidImg = await isValidImageUrl(url);
       return { isValid: isValidImg };
-    }),
-
-  generatePresignedUrl: protectedProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        contentType: z.nativeEnum(MediaContentType),
-      }),
-    )
-    .mutation(async ({ input: { projectId, contentType } }) => {
-      if (env.LANGFUSE_CSV_IMPORT_ENABLED === "true") {
-        if (!env.LANGFUSE_CSV_IMPORT_BUCKET) {
-          throw new LangfuseNotFoundError(
-            "S3 bucket name is required for csv import.",
-          );
-        }
-        const s3Client = getS3StorageServiceClient(
-          env.LANGFUSE_CSV_IMPORT_BUCKET,
-        );
-
-        const fileId = randomUUID();
-        const fileExtension = getFileExtensionFromContentType(contentType);
-        const bucketPath = `${projectId}/${fileId}.${fileExtension}`;
-
-        const uploadUrl = await s3Client.getSignedUploadUrl({
-          path: bucketPath,
-          ttlSeconds: 60 * 15, // 15 minutes
-          contentType,
-        });
-
-        return { uploadUrl, bucketPath };
-      }
-
-      throw new LangfuseNotFoundError(
-        "CSV import is not enabled. Please configure a S3 bucket for CSV import.",
-      );
     }),
 });

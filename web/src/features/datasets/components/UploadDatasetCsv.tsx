@@ -15,7 +15,7 @@ import {
   parseCsvClient,
 } from "@/src/features/datasets/lib/csvHelpers";
 
-export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 100; // 100MB
+export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
 
 const FileSchema = z.object({
@@ -46,8 +46,8 @@ export const UploadDatasetCsv = ({
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 100MB"); // extract to const
-      event.target.value = ""; // Reset input
+      showErrorToast("File too large", "Maximum file size is 10MB");
+      event.target.value = "";
       return;
     }
 
