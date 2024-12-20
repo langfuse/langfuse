@@ -39,8 +39,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "./BreakdownToolTip";
-import { InfoIcon, PlusCircle, PlusIcon } from "lucide-react";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 
 export const ObservationPreview = ({

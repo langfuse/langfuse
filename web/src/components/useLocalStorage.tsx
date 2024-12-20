@@ -77,6 +77,7 @@ function useLocalStorage<T>(
   // This ensures localStorage always has the latest value
   useEffect(() => {
     safeLocalStorage.set(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStorageKey, value]);
 
   // Handle cross-tab synchronization

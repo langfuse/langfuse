@@ -1,6 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useState } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { type Prisma } from "@langfuse/shared/src/db";
@@ -14,7 +13,6 @@ import { DeleteModelButton } from "@/src/features/models/components/DeleteModelB
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
-import { PriceUnit } from "@/src/features/models/validation";
 import { UserCircle2Icon } from "lucide-react";
 import {
   Tooltip,
