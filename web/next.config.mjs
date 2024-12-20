@@ -48,7 +48,7 @@ const reportToHeader = {
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   transpilePackages: ["@langfuse/shared"],
-  reactStrictMode: true,
+  reactStrictMode: false,
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: [
