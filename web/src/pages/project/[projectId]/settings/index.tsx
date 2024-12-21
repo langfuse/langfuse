@@ -20,6 +20,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
+import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -108,6 +109,11 @@ export default function SettingsPage() {
             title: "Integrations",
             slug: "integrations",
             content: <Integrations projectId={project.id} />,
+          },
+          {
+            title: "Exports",
+            slug: "exports",
+            content: <BatchExportsSettingsPage projectId={project.id} />,
           },
           {
             title: "Billing",
