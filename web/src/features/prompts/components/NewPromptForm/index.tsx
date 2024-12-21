@@ -89,7 +89,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         : "",
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
-    isActive: false,
+    isActive: !Boolean(initialPrompt),
   };
 
   const form = useForm<NewPromptFormSchemaType>({
@@ -99,7 +99,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const currentName = form.watch("name");
   const currentType = form.watch("type");
-  const currentIsActive = form.watch("isActive");
   const currentExtractedVariables = extractVariables(
     currentType === PromptType.Text
       ? form.watch("textPrompt")
@@ -373,21 +372,23 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>Serve prompt as default to SDKs</FormLabel>
-              </div>
-              {currentIsActive ? (
-                <div className="text-xs text-muted-foreground">
-                  This makes the prompt available to the SDKs immediately.
+            <FormItem>
+              <FormLabel>Labels</FormLabel>
+              <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Set the &quot;production&quot; label</FormLabel>
                 </div>
-              ) : null}
+              </div>
+              <FormDescription>
+                This version will be labeled as the version to be used in
+                production for this prompt. Can be updated later.
+              </FormDescription>
             </FormItem>
           )}
         />
