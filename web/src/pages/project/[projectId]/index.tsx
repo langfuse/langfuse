@@ -176,7 +176,6 @@ export default function Dashboard() {
           <FeedbackButtonWrapper
             title="Request Chart"
             description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
-            type="dashboard"
             className="hidden lg:flex"
           >
             <Button
