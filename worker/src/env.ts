@@ -152,6 +152,20 @@ const EnvSchema = z.object({
   LANGFUSE_POSTGRES_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+
+  // Core data S3 upload - only used internally
+  LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
