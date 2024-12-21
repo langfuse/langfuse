@@ -41,6 +41,10 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      DOCKER_BUILD: 0
+      NEXT_MANUAL_SIG_HANDLE: "true"
     networks:
       - langfuse_network
     ports:
@@ -91,6 +95,10 @@ services:
       LANGFUSE_READ_FROM_POSTGRES_ONLY: ${LANGFUSE_READ_FROM_POSTGRES_ONLY:-false}
       LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: ${LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:-true}
       LANGFUSE_RETURN_FROM_CLICKHOUSE: ${LANGFUSE_RETURN_FROM_CLICKHOUSE:-true}
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      DOCKER_BUILD: 0
+      NEXT_MANUAL_SIG_HANDLE: "true"
     networks:
       - langfuse_network
     healthcheck:
@@ -175,6 +183,11 @@ networks:
   langfuse_network:
     driver: bridge
     internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
 
 volumes:
   langfuse_postgres_data:
