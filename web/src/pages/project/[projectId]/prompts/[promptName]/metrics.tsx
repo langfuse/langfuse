@@ -16,8 +16,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { type ScoreAggregate, type FilterState } from "@langfuse/shared";
-import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
@@ -92,19 +91,7 @@ export default function PromptVersionTable() {
     "promptVersion",
     "s",
   );
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useTableDateRange(projectId);
 
-  const dateRangeFilter: FilterState | null = dateRange?.from
-    ? [
-        {
-          column: "Start Time",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-      ]
-    : null;
   const promptVersions = api.prompts.allVersions.useQuery(
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
@@ -123,7 +110,6 @@ export default function PromptVersionTable() {
     {
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
       promptIds,
-      filter: dateRangeFilter,
       queryClickhouse: useClickhouse(),
     },
     {
@@ -145,7 +131,6 @@ export default function PromptVersionTable() {
     scoreColumnPrefix: "Trace",
     scoreColumnKey: "traceScores",
     showAggregateViewOnly: true,
-    selectedFilterOption: selectedOption,
   });
 
   const {
@@ -156,7 +141,6 @@ export default function PromptVersionTable() {
     scoreColumnPrefix: "Generation",
     scoreColumnKey: "generationScores",
     showAggregateViewOnly: true,
-    selectedFilterOption: selectedOption,
   });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
@@ -435,8 +419,6 @@ export default function PromptVersionTable() {
           setRowHeight={setRowHeight}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibilityState}
-          selectedOption={selectedOption}
-          setDateRangeAndOption={setDateRangeAndOption}
           columnOrder={columnOrder}
           setColumnOrder={setColumnOrder}
         />
