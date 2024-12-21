@@ -37,12 +37,17 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
       showSuccessToast({
         title: "Export queued",
         description: "You will receive an email when the export is ready.",
+        duration: 10000,
+        link: {
+          href: `/project/${props.projectId}/settings/exports`,
+          text: "View exports",
+        },
       });
     },
   });
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "batchExport:create",
+    scope: "batchExports:create",
   });
 
   const handleExport = async (format: BatchExportFileFormat) => {
