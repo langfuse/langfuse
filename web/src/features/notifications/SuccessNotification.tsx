@@ -1,6 +1,5 @@
 import { ActionButton } from "@/src/components/ActionButton";
 import { BadgeCheck, X } from "lucide-react";
-import Link from "next/link";
 
 export type SuccessNotificationProps = {
   title: string;
