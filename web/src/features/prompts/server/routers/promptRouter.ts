@@ -12,7 +12,7 @@ import {
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt } from "../actions/createPrompt";
-import { observationsTableCols, type ScoreSimplified } from "@langfuse/shared";
+import { type ScoreSimplified } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
