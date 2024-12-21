@@ -89,7 +89,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         : "",
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
-    isActive: false,
+    isActive: !Boolean(initialPrompt),
   };
 
   const form = useForm<NewPromptFormSchemaType>({
@@ -99,7 +99,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const currentName = form.watch("name");
   const currentType = form.watch("type");
-  const currentIsActive = form.watch("isActive");
   const currentExtractedVariables = extractVariables(
     currentType === PromptType.Text
       ? form.watch("textPrompt")
@@ -383,14 +382,12 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
-                  <FormLabel>
-                    Apply the production label to this prompt immediately
-                  </FormLabel>
+                  <FormLabel>Set the &quot;production&quot; label</FormLabel>
                 </div>
               </div>
               <FormDescription>
-                By setting the production label, the prompt will be available to
-                the SDKs immediately. You can update labels later.
+                This version will be labeled as the version to be used in
+                production for this prompt. Can be updated later.
               </FormDescription>
             </FormItem>
           )}
