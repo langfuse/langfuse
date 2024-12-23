@@ -2,7 +2,12 @@ import { VERSION } from "@/src/constants";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  getObservationCountsByProjectInCreationInterval,
+  getScoreCountsByProjectInCreationInterval,
+  getTraceCountsByProjectInCreationInterval,
+  logger,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
 // Interval between jobs in milliseconds
@@ -159,34 +164,37 @@ async function posthogTelemetry({
     });
 
     // Count traces
-    const countTraces = await prisma.trace.count({
-      where: {
-        timestamp: {
-          gte: startTimeframe?.toISOString(),
-          lt: endTimeframe.toISOString(),
-        },
-      },
-    });
+    const countTracesClickhouse =
+      await getTraceCountsByProjectInCreationInterval({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
+    const countTraces = countTracesClickhouse.reduce(
+      (acc, curr) => acc + curr.count,
+      0,
+    );
 
     // Count scores
-    const countScores = await prisma.score.count({
-      where: {
-        timestamp: {
-          gte: startTimeframe?.toISOString(),
-          lt: endTimeframe.toISOString(),
-        },
-      },
-    });
+    const countScoresClickhouse =
+      await getScoreCountsByProjectInCreationInterval({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
+    const countScores = countScoresClickhouse.reduce(
+      (acc, curr) => acc + curr.count,
+      0,
+    );
 
     // Count observations
-    const countObservations = await prisma.observation.count({
-      where: {
-        startTime: {
-          gte: startTimeframe?.toISOString(),
-          lt: endTimeframe.toISOString(),
-        },
-      },
-    });
+    const countObservationsClickhouse =
+      await getObservationCountsByProjectInCreationInterval({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
+    const countObservations = countObservationsClickhouse.reduce(
+      (acc, curr) => acc + curr.count,
+      0,
+    );
 
     // Count datasets
     const countDatasets = await prisma.dataset.count({
