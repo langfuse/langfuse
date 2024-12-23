@@ -165,7 +165,7 @@ export default async function handler(
     // return not implemented error
     res.status(404).json({ error: "Action does not exist" });
   } catch (e) {
-    logger.error("failed to remove API keys", e);
+    logger.error("failed to manage bullmq jobs", e);
     res.status(500).json({ error: e });
   }
 }
