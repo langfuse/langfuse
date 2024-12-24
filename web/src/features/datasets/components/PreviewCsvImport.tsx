@@ -17,7 +17,7 @@ import {
   type CsvPreviewResult,
 } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
-import { api } from "@/src/utils/api";
+import { api, RouterInputs } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { Progress } from "@/src/components/ui/progress";
@@ -194,7 +194,8 @@ export function PreviewCsvImport({
     let processedCount = 0;
     let headerMap: Map<string, number>;
 
-    const items: any[] = [];
+    const items: RouterInputs["datasets"]["createManyDatasetItems"]["items"] =
+      [];
     const input = Array.from(selectedInputColumn);
     const expected = Array.from(selectedExpectedColumn);
     const metadata = Array.from(selectedMetadataColumn);
@@ -224,12 +225,9 @@ export function PreviewCsvImport({
                 parseColumns(metadata, row, headerMap) ?? undefined;
 
               items.push({
-                projectId: projectId,
-                datasetId: datasetId,
                 input: JSON.stringify(itemInput),
                 expectedOutput: JSON.stringify(itemExpected),
                 metadata: JSON.stringify(itemMetadata),
-                status: "ACTIVE",
               });
             } catch (error) {
               throw new Error(

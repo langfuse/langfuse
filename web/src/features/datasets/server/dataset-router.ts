@@ -12,6 +12,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import {
+  DatasetStatus,
   type PrismaClient,
   type ScoreAggregate,
   type ScoreSimplified,
@@ -671,6 +672,7 @@ export const datasetRouter = createTRPCRouter({
               : undefined,
         datasetId: input.datasetId,
         projectId: input.projectId,
+        status: DatasetStatus.ACTIVE,
       }));
 
       return await ctx.prisma.datasetItem.createMany({
