@@ -17,7 +17,7 @@ import {
   type CsvPreviewResult,
 } from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
-import { api, RouterInputs } from "@/src/utils/api";
+import { api, type RouterInputs } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { Progress } from "@/src/components/ui/progress";
@@ -267,10 +267,14 @@ export function PreviewCsvImport({
         processedItems: 0,
         status: "not-started",
       });
-      showErrorToast(
-        "Failed to import all dataset items",
-        `Please try again starting from row ${processedCount + 1}.`,
-      );
+      if (error instanceof Error && processedCount === 0) {
+        showErrorToast("Failed to import all dataset items", error.message);
+      } else {
+        showErrorToast(
+          "Failed to import all dataset items",
+          `Please try again starting from row ${processedCount + 1}.`,
+        );
+      }
       return;
     }
 
