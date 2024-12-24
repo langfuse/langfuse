@@ -615,6 +615,69 @@ export const datasetRouter = createTRPCRouter({
       });
       return datasetItem;
     }),
+
+  createManyDatasetItems: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        items: z.array(
+          z.object({
+            input: z.string().nullish(),
+            expectedOutput: z.string().nullish(),
+            metadata: z.string().nullish(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new Error("Dataset not found");
+      }
+
+      const datasetItems = input.items.map((item) => ({
+        input:
+          item.input === ""
+            ? Prisma.DbNull
+            : !!item.input
+              ? (JSON.parse(item.input) as Prisma.InputJsonObject)
+              : undefined,
+        expectedOutput:
+          item.expectedOutput === ""
+            ? Prisma.DbNull
+            : !!item.expectedOutput
+              ? (JSON.parse(item.expectedOutput) as Prisma.InputJsonObject)
+              : undefined,
+        metadata:
+          item.metadata === ""
+            ? Prisma.DbNull
+            : !!item.metadata
+              ? (JSON.parse(item.metadata) as Prisma.InputJsonObject)
+              : undefined,
+        datasetId: input.datasetId,
+        projectId: input.projectId,
+      }));
+
+      return await ctx.prisma.datasetItem.createMany({
+        data: datasetItems,
+      });
+    }),
+
   runitemsByRunIdOrItemId: protectedProjectProcedure
     .input(
       z

@@ -13,6 +13,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
+import { api } from "@/src/utils/api";
 
 export const UploadDatasetCsvButton = (props: {
   projectId: string;
@@ -28,9 +29,20 @@ export const UploadDatasetCsvButton = (props: {
   });
   const capture = usePostHogClientCapture();
 
+  const items = api.datasets.itemsByDatasetId.useQuery({
+    projectId: props.projectId,
+    datasetId: props.datasetId,
+    page: 0,
+    limit: 50,
+  });
+
+  if (items.data?.totalDatasetItems === 0) {
+    return null;
+  }
+
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger asChild className="hidden md:flex">
         <ActionButton
           variant="outline"
           className={props.className}
@@ -42,7 +54,7 @@ export const UploadDatasetCsvButton = (props: {
           Upload CSV
         </ActionButton>
       </DialogTrigger>
-      <DialogContent className="max-h-[80dvh] max-w-[80dvw]">
+      <DialogContent className="flex h-[80dvh] max-w-[80dvw] flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Upload CSV</DialogTitle>
         </DialogHeader>

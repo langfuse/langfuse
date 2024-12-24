@@ -11,33 +11,37 @@ import { findDefaultColumn } from "../lib/findDefaultColumn";
 import { type DragEndEvent } from "@dnd-kit/core";
 import { z } from "zod";
 import { useEffect, useState } from "react";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
+import {
+  parseCsvClient,
+  parseColumns,
+  type CsvPreviewResult,
+} from "@/src/features/datasets/lib/csvHelpers";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { MediaContentType } from "@/src/features/media/validation";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
+import { Progress } from "@/src/components/ui/progress";
+
+const CHUNK_SIZE = 200;
+const DELAY_BETWEEN_CHUNKS = 100; // milliseconds
 
 const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
 type CardId = z.infer<typeof CardIdSchema>;
 
-// TODO: review if this is the correct way to upload the file
-async function uploadToS3({
-  uploadUrl,
-  file,
-  contentType,
-}: {
-  uploadUrl: string;
-  file: File;
-  contentType: MediaContentType;
-}) {
-  return fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": contentType,
-    },
-    body: file,
-  });
+type ImportProgress = {
+  totalItems: number;
+  processedItems: number;
+  status: "not-started" | "processing" | "complete";
+};
+
+function chunkArray<T>(array: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(array.length / size) }, (_, i) =>
+    array.slice(i * size, i * size + size),
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function moveColumn(
@@ -93,7 +97,15 @@ export function PreviewCsvImport({
   const [excludedColumns, setExcludedColumns] = useState<Set<string>>(
     new Set(),
   );
+  const [progress, setProgress] = useState<ImportProgress>({
+    totalItems: 0,
+    processedItems: 0,
+    status: "not-started",
+  });
+
   const utils = api.useUtils();
+  const mutCreateManyDatasetItems =
+    api.datasets.createManyDatasetItems.useMutation({});
 
   useEffect(() => {
     if (preview) {
@@ -172,26 +184,120 @@ export function PreviewCsvImport({
     );
   };
 
-  const generatePresignedUrl = api.utilities.generatePresignedUrl.useMutation();
-  const mutImport = api.datasets.importFromCsv.useMutation({
-    onSuccess: () => {
+  const handleImport = async () => {
+    if (!csvFile) return;
+    if (csvFile.size > MAX_FILE_SIZE_BYTES) {
+      showErrorToast("File too large", "Maximum file size is 1MB");
+      return;
+    }
+
+    let processedCount = 0;
+    let headerMap: Map<string, number>;
+
+    const items: any[] = [];
+    const input = Array.from(selectedInputColumn);
+    const expected = Array.from(selectedExpectedColumn);
+    const metadata = Array.from(selectedMetadataColumn);
+
+    try {
+      await parseCsvClient(csvFile, {
+        processor: {
+          onHeader: (headers) => {
+            headerMap = new Map(headers.map((h, i) => [h, i]));
+
+            // Validate columns exist
+            const missingColumns = [...input, ...expected, ...metadata].filter(
+              (col) => !headerMap.has(col),
+            );
+            if (missingColumns.length > 0) {
+              throw new Error(`Missing columns: ${missingColumns.join(", ")}`);
+            }
+          },
+          onRow: (row, _, index) => {
+            try {
+              // Process all column mappings
+              const itemInput =
+                parseColumns(input, row, headerMap) ?? undefined;
+              const itemExpected =
+                parseColumns(expected, row, headerMap) ?? undefined;
+              const itemMetadata =
+                parseColumns(metadata, row, headerMap) ?? undefined;
+
+              items.push({
+                projectId: projectId,
+                datasetId: datasetId,
+                input: JSON.stringify(itemInput),
+                expectedOutput: JSON.stringify(itemExpected),
+                metadata: JSON.stringify(itemMetadata),
+                status: "ACTIVE",
+              });
+            } catch (error) {
+              throw new Error(
+                `Error processing row ${index + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
+              );
+            }
+          },
+        },
+      });
+
+      const chunks = chunkArray(items, CHUNK_SIZE);
+
+      for (const [index, chunk] of chunks.entries()) {
+        await mutCreateManyDatasetItems.mutateAsync({
+          projectId,
+          datasetId,
+          items: chunk,
+        });
+
+        processedCount += chunk.length;
+        setProgress?.({
+          totalItems: items.length,
+          processedItems: processedCount,
+          status: "processing",
+        });
+
+        // Add delay between chunks
+        if (index < chunks.length - 1) {
+          // Skip delay after last chunk
+          await sleep(DELAY_BETWEEN_CHUNKS);
+        }
+      }
+    } catch (error) {
       utils.datasets.invalidate();
-      setOpen?.(false);
-      setPreview(null);
-    },
-  });
+      setProgress?.({
+        totalItems: 0,
+        processedItems: 0,
+        status: "not-started",
+      });
+      showErrorToast(
+        "Failed to import all dataset items",
+        `Please try again starting from row ${processedCount + 1}.`,
+      );
+      return;
+    }
+
+    utils.datasets.invalidate();
+    setOpen?.(false);
+    setPreview(null);
+
+    setProgress?.({
+      totalItems: items.length,
+      processedItems: items.length,
+      status: "complete",
+    });
+  };
 
   return (
-    <Card className="h-full items-center justify-center overflow-hidden p-2">
-      <CardHeader className="text-center">
+    <Card className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden p-2">
+      <CardHeader className="shrink-0 text-center">
         <CardTitle className="text-lg">Import {preview.fileName}</CardTitle>
         <CardDescription>
           Map your CSV columns to dataset fields. The CSV file must have column
           headers in the first row.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex max-h-full min-h-0 flex-col gap-4">
-        <div className="h-3/5 overflow-hidden">
+      <CardContent className="flex min-h-0 w-full flex-1 flex-col p-2">
+        <div className="min-h-0 flex-1">
           <DndContext
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
@@ -280,7 +386,7 @@ export function PreviewCsvImport({
             </div>
           </DndContext>
         </div>
-        <div className="flex justify-end space-x-2">
+        <div className="mt-3 flex justify-end space-x-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -296,48 +402,19 @@ export function PreviewCsvImport({
           </Button>
           <Button
             disabled={selectedInputColumn.size === 0}
-            onClick={async () => {
-              if (!csvFile) return;
-
-              const { uploadUrl, bucketPath } =
-                await generatePresignedUrl.mutateAsync({
-                  projectId,
-                  contentType: MediaContentType.CSV,
-                });
-
-              if (csvFile.size > MAX_FILE_SIZE_BYTES) {
-                showErrorToast("File too large", "Maximum file size is 100MB");
-                return;
-              }
-
-              try {
-                const uploadResponse = await uploadToS3({
-                  uploadUrl,
-                  file: csvFile,
-                  contentType: MediaContentType.CSV,
-                });
-
-                if (!uploadResponse.ok) return;
-              } catch (error) {
-                showErrorToast("Failed to upload file", "Please try again");
-                return;
-              }
-
-              await mutImport.mutateAsync({
-                projectId,
-                datasetId,
-                bucketPath,
-                mapping: {
-                  input: Array.from(selectedInputColumn),
-                  expected: Array.from(selectedExpectedColumn),
-                  metadata: Array.from(selectedMetadataColumn),
-                },
-              });
-            }}
+            onClick={handleImport}
           >
             Import
           </Button>
         </div>
+        {progress.status === "processing" && (
+          <div className="mt-2">
+            <Progress
+              value={(progress.processedItems / progress.totalItems) * 100}
+              className="w-full"
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

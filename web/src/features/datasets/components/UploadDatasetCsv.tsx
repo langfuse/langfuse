@@ -15,7 +15,7 @@ import {
   parseCsvClient,
 } from "@/src/features/datasets/lib/csvHelpers";
 
-export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 10; // 10MB
+export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1; // 1MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
 
 const FileSchema = z.object({
@@ -46,14 +46,17 @@ export const UploadDatasetCsv = ({
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 10MB");
+      showErrorToast("File too large", "Maximum file size is 1MB");
       event.target.value = "";
       return;
     }
 
     try {
       setCsvFile(file);
-      const preview = await parseCsvClient(file);
+      const preview = await parseCsvClient(file, {
+        isPreview: true,
+        collectSamples: true,
+      });
       setPreview(preview);
     } catch (error) {
       showErrorToast(
@@ -68,7 +71,7 @@ export const UploadDatasetCsv = ({
   return (
     <Card className="h-full items-center justify-center p-2">
       <CardHeader className="text-center">
-        <CardTitle className="text-lg">Your dataset has no items</CardTitle>
+        <CardTitle className="text-lg">Add items to dataset</CardTitle>
         <CardDescription>
           Add items to dataset by uploading a file, add items manually or via
           our SDKs/API

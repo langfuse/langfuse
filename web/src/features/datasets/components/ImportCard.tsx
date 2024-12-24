@@ -70,7 +70,7 @@ export function ImportCard({ title, columns, id, className }: ImportCardProps) {
       <CardHeader className="shrink-0 p-4 pb-2">
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 space-y-2 overflow-y-auto p-4 pt-2">
+      <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4 pt-2">
         {columns.map((column) => (
           <DraggableColumn key={column.name} column={column} parentId={id} />
         ))}

@@ -38,7 +38,7 @@ type RowProcessor = {
 };
 
 type ParseOptions = {
-  previewRows?: number;
+  isPreview?: boolean;
   collectSamples?: boolean;
   processor?: RowProcessor;
 };
@@ -48,7 +48,7 @@ const getParserConfig = (options: ParseOptions) => ({
   skip_empty_lines: true,
   trim: true,
   bom: true,
-  ...(options.previewRows ? { to: options.previewRows + 1 } : {}),
+  ...(options.isPreview ? { to: MAX_PREVIEW_ROWS + 1 } : {}),
   quote: '"',
   escape: '"',
 });
@@ -78,7 +78,10 @@ const createParser = async (
       if (options.processor?.onHeader) {
         await options.processor.onHeader(headerRow);
       }
-    } else if (!options.previewRows || currentRowIndex <= options.previewRows) {
+    } else if (
+      !options.isPreview ||
+      (options.isPreview && currentRowIndex <= MAX_PREVIEW_ROWS)
+    ) {
       // Data rows
       const sanitizedRow = row.map((value) => value.trim());
       previewRows.push(sanitizedRow);
@@ -129,13 +132,13 @@ const createParser = async (
 // Browser implementation
 export async function parseCsvClient(
   file: File,
-  options: Omit<ParseOptions, "processor"> = {
-    previewRows: MAX_PREVIEW_ROWS,
-    collectSamples: true,
-  },
+  options: ParseOptions,
 ): Promise<CsvPreviewResult> {
   return new Promise((resolve, reject) => {
-    const chunk = file.slice(0, PREVIEW_FILE_SIZE_BYTES);
+    const fileToRead = options.isPreview
+      ? file.slice(0, PREVIEW_FILE_SIZE_BYTES)
+      : file;
+
     const reader = new FileReader();
 
     reader.onload = async () => {
@@ -145,7 +148,7 @@ export async function parseCsvClient(
     };
 
     reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsText(chunk);
+    reader.readAsText(fileToRead);
   });
 }
 
