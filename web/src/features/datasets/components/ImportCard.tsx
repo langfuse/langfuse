@@ -1,3 +1,4 @@
+import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   Card,
   CardContent,
@@ -16,6 +17,7 @@ type ImportCardProps = {
   onColumnRemove: (columnName: string) => void;
   id: UniqueIdentifier;
   className?: string;
+  info?: string;
 };
 
 function DraggableColumn({
@@ -43,7 +45,7 @@ function DraggableColumn({
         isDragging && "opacity-50",
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between space-x-1">
         <span className="text-sm">{column.name}</span>
         <span className="text-xs text-muted-foreground">
           {column.inferredType}
@@ -53,7 +55,13 @@ function DraggableColumn({
   );
 }
 
-export function ImportCard({ title, columns, id, className }: ImportCardProps) {
+export function ImportCard({
+  title,
+  columns,
+  id,
+  className,
+  info,
+}: ImportCardProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -68,7 +76,10 @@ export function ImportCard({ title, columns, id, className }: ImportCardProps) {
       )}
     >
       <CardHeader className="shrink-0 p-4 pb-2">
-        <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+        <CardTitle className="text-lg font-semibold">
+          {title}
+          {info && <DocPopup description={info} />}
+        </CardTitle>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4 pt-2">
         {columns.map((column) => (

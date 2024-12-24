@@ -186,9 +186,11 @@ function inferTypeFromValue(value: string): ColumnType {
     if (Array.isArray(parsed)) return "array";
     if (typeof parsed === "object") return "json";
     return typeof parsed as ColumnType;
-  } catch {
-    // If JSON parsing fails, return unknown
-    return "unknown";
+  } catch (error) {
+    if (value.toLowerCase() === "true") return "boolean";
+    if (value.toLowerCase() === "false") return "boolean";
+    if (!isNaN(Number(value))) return "number";
+    return "string";
   }
 }
 

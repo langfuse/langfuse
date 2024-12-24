@@ -304,7 +304,7 @@ export function PreviewCsvImport({
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <div className="grid h-full grid-cols-4 gap-4">
+            <div className="grid h-full grid-cols-2 gap-4 lg:grid-cols-4">
               <ImportCard
                 id="input"
                 title="Input"
@@ -328,7 +328,7 @@ export function PreviewCsvImport({
               />
               <ImportCard
                 id="expected"
-                title="Expected"
+                title="Expected Output"
                 columns={preview.columns.filter((col) =>
                   selectedExpectedColumn.has(col.name),
                 )}
@@ -371,6 +371,7 @@ export function PreviewCsvImport({
               <ImportCard
                 id="unmapped"
                 title="Not mapped"
+                info="These columns from your CSV will not be imported. Drag them to a field to include them."
                 columns={preview.columns.filter((col) =>
                   excludedColumns.has(col.name),
                 )}
@@ -384,6 +385,7 @@ export function PreviewCsvImport({
                     ),
                   );
                 }}
+                className="bg-secondary/50"
               />
             </div>
           </DndContext>
