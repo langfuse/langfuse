@@ -46,6 +46,18 @@ export const projectDeleteProcessor: Processor = async (
   // Finally, delete the project itself which should delete all related
   // resources due to the referential actions defined via Prisma
   try {
+    const existingProject = await prisma.project.findUnique({
+      where: {
+        id: projectId,
+        orgId,
+      },
+    });
+    if (!existingProject) {
+      logger.info(
+        `Tried to delete project ${projectId} from PG, but it does not exist anymore.`,
+      );
+      return;
+    }
     await prisma.project.delete({
       where: {
         id: projectId,
