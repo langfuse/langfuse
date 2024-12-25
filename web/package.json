@@ -89,7 +89,7 @@
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",
     "@tanstack/react-table": "^8.20.5",
-    "@tremor/react": "3.16.2",
+    "@tremor/react": "3.18.6",
     "@trpc/client": "^10.45.0",
     "@trpc/next": "^10.45.0",
     "@trpc/react-query": "^10.45.0",
