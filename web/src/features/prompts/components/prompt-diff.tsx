@@ -1,44 +1,90 @@
-import { parseDiff, Diff, Hunk, type HunkProps } from "react-diff-view";
+import { useState } from "react";
+import { Button } from "@/src/components/ui/button";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+
+type Change = {
+  value: string;
+  added: boolean;
+  removed: boolean;
+  count: number;
+};
+
+const generateHtmlFromChanges = (changes: Change[]) => {
+  return changes.map((change, index) => {
+    if (change.added) {
+      // Added content (green background)
+      return (
+        <span key={index} style={{ backgroundColor: '#d4edda', color: 'green' }}>
+          {change.value}
+        </span>
+      );
+    } else if (change.removed) {
+      // Removed content (red background)
+      return (
+        <span key={index} style={{ backgroundColor: '#f8d7da', color: 'red' }}>
+          {change.value}
+        </span>
+      );
+    } else {
+      // Unchanged content (normal)
+      return <span key={index}>{change.value}</span>;
+    }
+  });
+};
 
 export const PromptDiff = ({
   oldPromptText,
-  newPromptText,
-  oldPromptVersion,
-  newPromptVersion,
-  context = 3,
-  oneChangePerToken = true
+  newPromptText
 }: {
   oldPromptText: string;
   newPromptText: string;
-  oldPromptVersion: number;
-  newPromptVersion: number;
-  context?: number;
-  oneChangePerToken?: boolean;
 }) => {
-
-  const { createPatch } = require('diff');
-  const EMPTY_HUNKS: HunkProps['hunk'][] = [];
-  const options = {context: context, oneChangePerToken: oneChangePerToken};
-  const patch = createPatch('prompt', oldPromptText, newPromptText, null, null, options);
-  const diffText = patch.split('\n').slice(2).join('\n');
-  const [diff] = parseDiff(diffText) || [];
-  
+  const { diffLines } = require('diff');
+  const changes = diffLines(oldPromptText, newPromptText);
   return (
-    <div>
-      <table className="diff diff-split">
-        <thead>
-          <tr>
-            <th className="text-xs font-medium">Previous Prompt (Version {oldPromptVersion})</th>
-            <th className="text-xs font-medium">Current Prompt (Version {newPromptVersion})</th>
-          </tr>
-        </thead>
-      </table>
-      <Diff viewType="split" diffType="modify" hunks={diff.hunks || EMPTY_HUNKS}>
-        {hunks => hunks.map(hunk => (
-          <Hunk key={hunk.content} hunk={hunk} />
-        ))}
-      </Diff>
+    <DiffsView changes={changes} title="Diffs prompt" />
+  )
+};
+
+export function DiffsView(props: {
+  changes: Change[];
+  className?: string;
+  defaultCollapsed?: boolean;
+  scrollable?: boolean;
+  title?: string;
+}) {
+  const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
+  const handleShowAll = () => setCollapsed(!isCollapsed);
+  return (
+    <div className={cn("max-w-full rounded-md border", props.className)}>
+      {props.title ? (
+        <div className="border-b px-3 py-1 text-xs font-medium">
+          {props.title}
+        </div>
+      ) : undefined}
+      <div className="flex gap-2">
+        <code
+          className={cn(
+            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
+            isCollapsed ? `line-clamp-6` : "block",
+            props.scrollable ? "max-h-60 overflow-y-scroll" : undefined,
+          )}
+        >
+         <code>{generateHtmlFromChanges(props.changes)}</code>
+        </code>
+        <div className="flex gap-2 py-2 pr-2">
+          {props.defaultCollapsed ? (
+            <Button variant="secondary" size="xs" onClick={handleShowAll}>
+              {isCollapsed ? (
+                <ChevronsUpDown className="h-3 w-3" />
+              ) : (
+                <ChevronsDownUp className="h-3 w-3" />
+              )}
+            </Button>
+          ) : undefined}
+        </div>
+      </div>
     </div>
   );
-
-};
+}

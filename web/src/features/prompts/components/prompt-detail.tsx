@@ -329,9 +329,7 @@ export const PromptDetail = () => {
                   <div className="flex flex-wrap gap-2 p-2">
                     <PromptDiff 
                       oldPromptText={oldPromptText} 
-                      newPromptText={newPromptText} 
-                      oldPromptVersion={oldPromptVersion} 
-                      newPromptVersion={newPromptVersion}
+                      newPromptText={newPromptText}
                     />
                   </div>
                 </div>
