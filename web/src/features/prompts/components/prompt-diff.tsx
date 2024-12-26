@@ -1,5 +1,4 @@
 import { parseDiff, Diff, Hunk, type HunkProps } from "react-diff-view";
-import '@/src/styles/diff.css';
 
 export const PromptDiff = ({
   oldPromptText,
