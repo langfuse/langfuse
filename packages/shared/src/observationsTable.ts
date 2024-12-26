@@ -113,6 +113,14 @@ export const observationsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Model ID",
+    id: "modelId",
+    type: "stringOptions",
+    internal: 'o."internal_model_id"',
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
@@ -186,6 +194,7 @@ export const observationsTableCols: ColumnDefinition[] = [
 // allows for undefined options, to offer filters while options are still loading
 export type ObservationOptions = {
   model: Array<OptionsDefinition>;
+  modelId: Array<OptionsDefinition>;
   name: Array<OptionsDefinition>;
   traceName: Array<OptionsDefinition>;
   scores_avg: Array<string>;
@@ -194,11 +203,14 @@ export type ObservationOptions = {
 };
 
 export function observationsTableColsWithOptions(
-  options?: ObservationOptions
+  options?: ObservationOptions,
 ): ColumnDefinition[] {
   return observationsTableCols.map((col) => {
     if (col.id === "model") {
       return { ...col, options: options?.model ?? [] };
+    }
+    if (col.id === "modelId") {
+      return { ...col, options: options?.modelId ?? [] };
     }
     if (col.id === "name") {
       return { ...col, options: options?.name ?? [] };

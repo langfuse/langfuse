@@ -112,11 +112,13 @@ export enum QueueName {
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
+  IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  CoreDataS3ExportQueue = "core-data-s3-export-queue",
 }
 
 export enum QueueJobs {
@@ -129,9 +131,11 @@ export enum QueueJobs {
   LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   IngestionJob = "ingestion-job",
+  IngestionSecondaryJob = "secondary-ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  CoreDataS3ExportJob = "core-data-s3-export-job",
 }
 
 export type TQueueJobTypes = {
@@ -178,6 +182,12 @@ export type TQueueJobTypes = {
     name: QueueJobs.LegacyIngestionJob;
   };
   [QueueName.IngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: IngestionEventQueueType;
+    name: QueueJobs.IngestionJob;
+  };
+  [QueueName.IngestionSecondaryQueue]: {
     timestamp: Date;
     id: string;
     payload: IngestionEventQueueType;

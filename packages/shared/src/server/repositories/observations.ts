@@ -536,6 +536,9 @@ const getObservationsTableInternal = async <T>(
         o.updated_at as "updated_at",
         o.provided_model_name as "provided_model_name",
         o.total_cost as "total_cost",
+        o.prompt_id as "prompt_id",
+        o.prompt_name as "prompt_name",
+        o.prompt_version as "prompt_version",
         internal_model_id as "internal_model_id",
         if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`;
@@ -745,6 +748,50 @@ export const getObservationsGroupedByModel = async (
     },
   });
   return res.map((r) => ({ model: r.name }));
+};
+
+export const getObservationsGroupedByModelId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const query = `
+    SELECT o.internal_model_id as modelId
+    FROM observations o
+    WHERE ${appliedObservationsFilter.query}
+    AND o.type = 'GENERATION'
+    GROUP BY o.internal_model_id
+    ORDER BY count() DESC
+    LIMIT 1000;
+  `;
+
+  const res = await queryClickhouse<{ modelId: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+  });
+  return res.map((r) => ({ modelId: r.modelId }));
 };
 
 export const getObservationsGroupedByName = async (

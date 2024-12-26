@@ -48,6 +48,7 @@ import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
+import { Switch } from "@/src/components/ui/switch";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -61,6 +62,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const [formError, setFormError] = useState<string | null>(null);
   const { playgroundCache } = usePlaygroundCache();
   const [initialMessages, setInitialMessages] = useState<unknown>([]);
+  const [showJsonEditor, setShowJsonEditor] = useState(false);
 
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -87,7 +89,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         : "",
     name: initialPrompt?.name ?? "",
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
-    isActive: false,
+    isActive: !Boolean(initialPrompt),
   };
 
   const form = useForm<NewPromptFormSchemaType>({
@@ -97,7 +99,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const currentName = form.watch("name");
   const currentType = form.watch("type");
-  const currentIsActive = form.watch("isActive");
   const currentExtractedVariables = extractVariables(
     currentType === PromptType.Text
       ? form.watch("textPrompt")
@@ -250,7 +251,24 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         {/* Prompt content field - text vs. chat */}
         <>
           <FormItem>
-            <FormLabel>Prompt</FormLabel>
+            <FormLabel className="flex flex-row items-center justify-between">
+              <div>Prompt</div>
+              {form.watch("type") === PromptType.Text ? (
+                <div className="flex flex-row items-center">
+                  <p className="mr-1 text-xs text-muted-foreground">
+                    JSON editor
+                  </p>
+
+                  <Switch
+                    checked={showJsonEditor}
+                    className={
+                      showJsonEditor ? "data-[state=checked]:bg-dark-green" : ""
+                    }
+                    onCheckedChange={setShowJsonEditor}
+                  />
+                </div>
+              ) : null}
+            </FormLabel>
             <Tabs
               value={form.watch("type")}
               onValueChange={(e) => {
@@ -288,10 +306,18 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   render={({ field }) => (
                     <>
                       <FormControl>
-                        <Textarea
-                          {...field}
-                          className="min-h-[200px] flex-1 font-mono text-xs"
-                        />
+                        {showJsonEditor ? (
+                          <JsonEditor
+                            defaultValue={field.value}
+                            onChange={field.onChange}
+                            editable
+                          />
+                        ) : (
+                          <Textarea
+                            {...field}
+                            className="min-h-[200px] flex-1 font-mono text-xs"
+                          />
+                        )}
                       </FormControl>
                       <FormMessage />
                     </>
@@ -346,21 +372,23 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           control={form.control}
           name="isActive"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel>Serve prompt as default to SDKs</FormLabel>
-              </div>
-              {currentIsActive ? (
-                <div className="text-xs text-muted-foreground">
-                  This makes the prompt available to the SDKs immediately.
+            <FormItem>
+              <FormLabel>Labels</FormLabel>
+              <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel>Set the &quot;production&quot; label</FormLabel>
                 </div>
-              ) : null}
+              </div>
+              <FormDescription>
+                This version will be labeled as the version to be used in
+                production for this prompt. Can be updated later.
+              </FormDescription>
             </FormItem>
           )}
         />

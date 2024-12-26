@@ -21,6 +21,20 @@ import {
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
+import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
+import {
+  isNumericDataType,
+  toOrderedScoresList,
+} from "@/src/features/scores/lib/helpers";
+import { CompareViewAdapter } from "@/src/features/scores/adapters";
+import {
+  RESOURCE_METRICS,
+  transformAggregatedRunMetricsToChartData,
+} from "@/src/features/dashboard/lib/score-analytics-utils";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -29,11 +43,15 @@ export default function DatasetCompare() {
   const [runState, setRunState] = useQueryParams({
     runs: withDefault(ArrayParam, []),
   });
+
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [localRuns, setLocalRuns] = useState<
     Array<{ key: string; value: string }>
   >([]);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
+    RESOURCE_METRICS.map((metric) => metric.key),
+  );
   const runIds = runState.runs as undefined | string[];
 
   const hasExperimentWriteAccess = useHasProjectAccess({
@@ -58,6 +76,61 @@ export default function DatasetCompare() {
     },
   );
   const utils = api.useUtils();
+
+  const runMetrics = api.datasets.runsByDatasetIdMetrics.useQuery(
+    {
+      projectId,
+      datasetId,
+      queryClickhouse: useClickhouse(),
+      runIds: runIds,
+    },
+    {
+      enabled: runIds && runIds.length > 1,
+    },
+  );
+
+  // LFE-3236: refactor to filter query to only include scores for runs in runIds
+  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+    {
+      projectId: projectId,
+      selectedTimeOption: { option: "All time", filterSource: "TABLE" },
+      queryClickhouse: useClickhouse(),
+    },
+    {
+      enabled: runIds && runIds.length > 1,
+    },
+  );
+
+  const scoreIdToName = useMemo(() => {
+    return new Map(
+      scoreKeysAndProps.data?.map((obj) => [obj.key, obj.name]) ?? [],
+    );
+  }, [scoreKeysAndProps.data]);
+
+  const runAggregatedMetrics = useMemo(() => {
+    return transformAggregatedRunMetricsToChartData(
+      runMetrics.data?.runs.filter((run) => runIds?.includes(run.id)) ?? [],
+      scoreIdToName,
+    );
+  }, [runMetrics.data, runIds, scoreIdToName]);
+
+  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
+    const scoreAnalyticsOptions = scoreKeysAndProps.data
+      ? toOrderedScoresList(scoreKeysAndProps.data).map(
+          ({ key, name, dataType, source }) => ({
+            key,
+            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
+          }),
+        )
+      : [];
+
+    return {
+      scoreAnalyticsOptions,
+      scoreKeyToData: new Map(
+        scoreKeysAndProps.data?.map((obj) => [obj.key, obj]) ?? [],
+      ),
+    };
+  }, [scoreKeysAndProps.data]);
 
   const handleExperimentSettled = async (data?: {
     success: boolean;
@@ -89,7 +162,7 @@ export default function DatasetCompare() {
   }
 
   return (
-    <FullScreenPage key={runIds?.join(",") ?? "empty"}>
+    <FullScreenPage>
       <Header
         title={`Compare runs: ${dataset.data?.name ?? datasetId}`}
         breadcrumb={[
@@ -154,6 +227,15 @@ export default function DatasetCompare() {
               </div>
             </PopoverContent>
           </Popover>,
+          runIds && runIds.length > 1 ? (
+            <DatasetAnalytics
+              key="dataset-analytics"
+              projectId={projectId}
+              scoreOptions={scoreAnalyticsOptions}
+              selectedMetrics={selectedMetrics}
+              setSelectedMetrics={setSelectedMetrics}
+            />
+          ) : null,
           <MultiSelectKeyValues
             key="select-runs"
             title="Select runs"
@@ -185,6 +267,52 @@ export default function DatasetCompare() {
           />,
         ]}
       />
+      {Boolean(selectedMetrics.length) &&
+        Boolean(runAggregatedMetrics?.size) && (
+          <Card className="my-4 max-h-[25dvh] md:max-h-[30dvh]">
+            <CardContent className="mt-2 h-full">
+              <div className="flex h-full w-full gap-4 overflow-x-auto">
+                {selectedMetrics.map((key) => {
+                  const adapter = new CompareViewAdapter(
+                    runAggregatedMetrics,
+                    key,
+                  );
+                  const { chartData, chartLabels } = adapter.toChartData();
+
+                  const scoreData = scoreKeyToData.get(key);
+                  if (!scoreData)
+                    return (
+                      <TimeseriesChart
+                        key={key}
+                        chartData={chartData}
+                        chartLabels={chartLabels}
+                        title={
+                          RESOURCE_METRICS.find((metric) => metric.key === key)
+                            ?.label ?? key
+                        }
+                        type="numeric"
+                      />
+                    );
+
+                  return (
+                    <TimeseriesChart
+                      key={key}
+                      chartData={chartData}
+                      chartLabels={chartLabels}
+                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                      type={
+                        isNumericDataType(scoreData.dataType)
+                          ? "numeric"
+                          : "categorical"
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       <DatasetCompareRunsTable
         key={runIds?.join(",") ?? "empty"}
         projectId={projectId}
