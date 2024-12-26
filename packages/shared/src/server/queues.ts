@@ -118,6 +118,7 @@ export enum QueueName {
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  CoreDataS3ExportQueue = "core-data-s3-export-queue",
 }
 
 export enum QueueJobs {
@@ -134,6 +135,7 @@ export enum QueueJobs {
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  CoreDataS3ExportJob = "core-data-s3-export-job",
 }
 
 export type TQueueJobTypes = {

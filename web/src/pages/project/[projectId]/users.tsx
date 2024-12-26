@@ -89,6 +89,7 @@ export default function UsersPage() {
       projectId,
       userIds: users.data?.users.map((u) => u.userId) ?? [],
       queryClickhouse: useClickhouse(),
+      filter: filterState,
     },
     {
       enabled: users.isSuccess,

@@ -6,6 +6,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { useState } from "react";
 import Decimal from "decimal.js";
+import { getMaxDecimals } from "@/src/features/models/utils";
 
 interface Details {
   [key: string]: number | undefined;
@@ -35,15 +36,6 @@ export const BreakdownTooltip = ({
         return acc;
       }, {})
     : details;
-
-  // For costs, calculate the maximum number of decimal places needed
-  const getMaxDecimals = (value: number | undefined): number => {
-    if (!value) return 0;
-    const parts = value.toString().split(".");
-
-    // If no decimal point, return 0, else return length of decimal part
-    return parts.length === 1 ? 0 : parts[1].length;
-  };
 
   const formatValueWithPadding = (value: number, maxDecimals: number) => {
     return !value
