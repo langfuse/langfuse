@@ -15,7 +15,7 @@ import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
-import { PromptDiff } from "./prompt-diff";
+import { PromptDiffsViewer } from "./prompt-diff";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -324,15 +324,10 @@ export const PromptDetail = () => {
                 Differences between current and previous prompt version
               </AccordionTrigger>
               <AccordionContent>
-                <div className="mx-auto mt-5 w-full rounded-lg border text-base">
-                  <div className="border-b px-3 py-1 text-xs font-medium">Differences</div>
-                  <div className="flex flex-wrap gap-2 p-2">
-                    <PromptDiff 
-                      oldPromptText={oldPromptText} 
-                      newPromptText={newPromptText}
-                    />
-                  </div>
-                </div>
+                <PromptDiffsViewer 
+                  oldPromptText={oldPromptText} 
+                  newPromptText={newPromptText}
+                />
               </AccordionContent>
             </AccordionItem>
           </Accordion>

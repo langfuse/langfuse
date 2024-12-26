@@ -33,7 +33,7 @@ const generateHtmlFromChanges = (changes: Change[]) => {
   });
 };
 
-export const PromptDiff = ({
+export const PromptDiffsViewer = ({
   oldPromptText,
   newPromptText
 }: {
@@ -43,11 +43,11 @@ export const PromptDiff = ({
   const { diffLines } = require('diff');
   const changes = diffLines(oldPromptText, newPromptText);
   return (
-    <DiffsView changes={changes} title="Diffs prompt" />
+    <DiffsViewer changes={changes} title="Prompt Differences" />
   )
 };
 
-export function DiffsView(props: {
+export function DiffsViewer(props: {
   changes: Change[];
   className?: string;
   defaultCollapsed?: boolean;
