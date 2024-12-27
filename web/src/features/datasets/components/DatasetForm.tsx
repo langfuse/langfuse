@@ -113,10 +113,14 @@ export const DatasetForm = (props: DatasetFormProps) => {
           ...trimmedValues,
           projectId: props.projectId,
         })
-        .then(() => {
+        .then((dataset) => {
           void utils.datasets.invalidate();
           props.onFormSuccess?.();
           form.reset();
+          window.open(
+            `/project/${props.projectId}/datasets/${dataset.id}/items`,
+            "_blank",
+          );
         })
         .catch((error: Error) => {
           setFormError(error.message);
