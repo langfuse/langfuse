@@ -394,7 +394,7 @@ export class ObservationProcessor implements EventProcessor {
     model?: Model,
     existingObservation?: Omit<Observation, "input" | "output">,
   ) {
-    let newPromptTokens = body.usage?.input || body.usageDetails?.input;
+    let newPromptTokens = body.usage?.input ?? body.usageDetails?.input;
     if (newPromptTokens === undefined && model && model.tokenizerId) {
       if (body.input) {
         newPromptTokens = calculateTokenDelegate({
@@ -419,7 +419,7 @@ export class ObservationProcessor implements EventProcessor {
       }
     }
 
-    let newCompletionTokens = body.usage?.output || body.usageDetails?.output;
+    let newCompletionTokens = body.usage?.output ?? body.usageDetails?.output;
 
     if (newCompletionTokens === undefined && model && model.tokenizerId) {
       if (body.output) {
