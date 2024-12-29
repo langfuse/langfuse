@@ -12,28 +12,23 @@ type Change = {
 
 const generateHtmlFromChanges = (changes: Change[]) => {
   return changes.map((change, index) => {
-    if (change.added) {
-      // Added content (green background)
-      return (
-        <span key={index} style={{ backgroundColor: '#d4edda', color: 'green' }}>
-          {change.value}
-        </span>
-      );
-    } else if (change.removed) {
-      // Removed content (red background)
-      return (
-        <span key={index} style={{ backgroundColor: '#f8d7da', color: 'red' }}>
-          {change.value}
-        </span>
-      );
-    } else {
-      // Unchanged content (normal)
-      return <span key={index}>{change.value}</span>;
-    }
+    const endsWithNewline = change.value.endsWith('\n');
+    const value = `${change.value}${endsWithNewline ? '' : '\n'}`;
+    const className = change.added
+      ? 'bg-light-green'
+      : change.removed
+      ? 'bg-light-red'
+      : '';
+    
+    return (
+      <span key={index} className={className}>
+        {value}
+      </span>
+    );
   });
 };
 
-export const PromptDiffsViewer = ({
+export const PromptCodeDiffsViewer = ({
   oldPromptText,
   newPromptText
 }: {
@@ -41,9 +36,25 @@ export const PromptDiffsViewer = ({
   newPromptText: string;
 }) => {
   const { diffLines } = require('diff');
-  const changes = diffLines(oldPromptText, newPromptText);
+  const changes = diffLines(oldPromptText, newPromptText, {newlineIsToken: true});
   return (
-    <DiffsViewer changes={changes} title="Prompt Differences" />
+    <DiffsViewer changes={changes} title="Text Prompt Differences" />
+  )
+};
+
+export const PromptJsonDiffsViewer = ({
+  oldPromptText,
+  newPromptText
+}: {
+  oldPromptText: string;
+  newPromptText: string;
+}) => {
+  const oldPromptJson = JSON.parse(oldPromptText);
+  const newPromptJson = JSON.parse(newPromptText);
+  const { diffJson } = require('diff');
+  const changes = diffJson(oldPromptJson, newPromptJson);
+  return (
+    <DiffsViewer changes={changes} title="Chat Prompt Differences" />
   )
 };
 

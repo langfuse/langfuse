@@ -15,7 +15,7 @@ import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
-import { PromptDiffsViewer } from "./prompt-diff";
+import { PromptCodeDiffsViewer, PromptJsonDiffsViewer } from "./prompt-diff";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -83,6 +83,12 @@ export const PromptDetail = () => {
       )
     : promptHistory.data?.promptVersions[0];
   }
+  const newPromptText = prompt?.type === PromptType.Text
+  ? (prompt?.prompt?.toString() ?? "")
+  : JSON.stringify(prompt?.prompt ?? "");
+  const oldPromptText = oldPrompt?.type === PromptType.Text
+  ? (oldPrompt?.prompt?.toString() ?? newPromptText)
+  : JSON.stringify(oldPrompt?.prompt ?? newPromptText);
 
   const extractedVariables = prompt
     ? extractVariables(
@@ -148,11 +154,6 @@ export const PromptDetail = () => {
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
-
-  const newPromptText = String(prompt?.prompt || '');
-  const oldPromptText = String(oldPrompt?.prompt || newPromptText);
-  const newPromptVersion = oldPrompt?.version || prompt.version;
-  const oldPromptVersion = prompt.version;
 
   return (
     <ScrollScreenPage>
@@ -324,10 +325,17 @@ export const PromptDetail = () => {
                 Differences between current and previous prompt version
               </AccordionTrigger>
               <AccordionContent>
-                <PromptDiffsViewer 
-                  oldPromptText={oldPromptText} 
-                  newPromptText={newPromptText}
-                />
+                {typeof prompt.prompt === "string" ? (
+                  <PromptCodeDiffsViewer 
+                    oldPromptText={oldPromptText} 
+                    newPromptText={newPromptText}
+                  />
+                ) : (
+                  <PromptJsonDiffsViewer 
+                    oldPromptText={oldPromptText} 
+                    newPromptText={newPromptText}
+                  />
+                )}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
