@@ -15,6 +15,7 @@ import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
+import { PromptCodeDiffsViewer, PromptJsonDiffsViewer } from "./prompt-diff";
 import Generations from "@/src/components/table/use-cases/generations";
 import {
   Accordion,
@@ -71,6 +72,23 @@ export const PromptDetail = () => {
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.promptVersions[0];
+
+  let oldPrompt = prompt;
+  const currentPromptVersionNumber = prompt?.version;
+  if (currentPromptVersionNumber != null && currentPromptVersionNumber > 1) {
+    const oldPromptVersionNumber = currentPromptVersionNumber - 1;
+    oldPrompt = oldPromptVersionNumber
+    ? promptHistory.data?.promptVersions.find(
+        (p) => p.version === oldPromptVersionNumber,
+      )
+    : promptHistory.data?.promptVersions[0];
+  }
+  const newPromptText = prompt?.type === PromptType.Text
+  ? (prompt?.prompt?.toString() ?? "")
+  : JSON.stringify(prompt?.prompt ?? "");
+  const oldPromptText = oldPrompt?.type === PromptType.Text
+  ? (oldPrompt?.prompt?.toString() ?? newPromptText)
+  : JSON.stringify(oldPrompt?.prompt ?? newPromptText);
 
   const extractedVariables = prompt
     ? extractVariables(
@@ -300,6 +318,28 @@ export const PromptDetail = () => {
             </a>{" "}
             for details.
           </p>
+
+          <Accordion type="single" collapsible className="mt-10">
+            <AccordionItem value="item-1">
+              <AccordionTrigger>
+                Differences between current and previous prompt version
+              </AccordionTrigger>
+              <AccordionContent>
+                {typeof prompt.prompt === "string" ? (
+                  <PromptCodeDiffsViewer 
+                    oldPromptText={oldPromptText} 
+                    newPromptText={newPromptText}
+                  />
+                ) : (
+                  <PromptJsonDiffsViewer 
+                    oldPromptText={oldPromptText} 
+                    newPromptText={newPromptText}
+                  />
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
           <Accordion type="single" collapsible className="mt-10">
             <AccordionItem value="item-1">
               <AccordionTrigger>
