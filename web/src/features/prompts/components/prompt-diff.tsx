@@ -2,13 +2,7 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-
-type Change = {
-  value: string;
-  added: boolean;
-  removed: boolean;
-  count: number;
-};
+import { diffLines, diffJson, Change } from "diff";
 
 const generateHtmlFromChanges = (changes: Change[]) => {
   return changes.map((change, index) => {
@@ -35,7 +29,6 @@ export const PromptCodeDiffsViewer = ({
   oldPromptText: string;
   newPromptText: string;
 }) => {
-  const { diffLines } = require('diff');
   const changes = diffLines(oldPromptText, newPromptText, {newlineIsToken: true});
   return (
     <DiffsViewer changes={changes} title="Text Prompt Differences" />
@@ -51,7 +44,6 @@ export const PromptJsonDiffsViewer = ({
 }) => {
   const oldPromptJson = JSON.parse(oldPromptText);
   const newPromptJson = JSON.parse(newPromptText);
-  const { diffJson } = require('diff');
   const changes = diffJson(oldPromptJson, newPromptJson);
   return (
     <DiffsViewer changes={changes} title="Chat Prompt Differences" />
