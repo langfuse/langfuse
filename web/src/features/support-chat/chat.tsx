@@ -11,6 +11,14 @@ const CrispChat = () => {
   useEffect(() => {
     if (env.NEXT_PUBLIC_CRISP_WEBSITE_ID) {
       Crisp.configure(env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
+
+      // Check session storage for chat visibility
+      // Expires at end of session
+      const shouldShowChat =
+        sessionStorage.getItem("supportChatVisible") === "true";
+      if (!shouldShowChat) {
+        Crisp.chat.hide();
+      }
       Crisp.chat.onChatInitiated(() => {
         capture("support_chat:initiated");
       });
@@ -20,13 +28,24 @@ const CrispChat = () => {
       Crisp.message.onMessageSent(() => {
         capture("support_chat:message_sent");
       });
+      Crisp.message.onMessageReceived(() => {
+        showChat();
+      });
+      try {
+        if (Crisp.chat.unreadCount() > 0) {
+          showChat();
+        }
+      } catch (e) {
+        // do nothing, this throws unnecessary errors that cannot be fixed
+      }
       return () => {
         Crisp.chat.offChatInitiated();
         Crisp.chat.offChatOpened();
         Crisp.message.offMessageSent();
       };
     }
-  }, [capture]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return null;
 };
@@ -78,7 +97,22 @@ export const showAgentChatMessage = (message: string) => {
 };
 
 export const openChat = () => {
+  showChat();
   if (chatAvailable) Crisp.chat.open();
+};
+
+export const hideChat = () => {
+  if (chatAvailable) {
+    sessionStorage.setItem("supportChatVisible", "false");
+    Crisp.chat.hide();
+  }
+};
+
+export const showChat = () => {
+  if (chatAvailable) {
+    sessionStorage.setItem("supportChatVisible", "true");
+    Crisp.chat.show();
+  }
 };
 
 export const chatAvailable = !!process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;

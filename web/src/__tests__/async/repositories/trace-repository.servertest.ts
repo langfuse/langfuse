@@ -35,6 +35,14 @@ describe("Clickhouse Traces Repository Test", () => {
       release: null,
       version: null,
       user_id: null,
+      input: JSON.stringify({
+        this: {
+          is: {
+            a: ["complex", "object"],
+          },
+        },
+      }),
+      output: "regular string",
       created_at: Date.now(),
       updated_at: Date.now(),
       event_ts: Date.now(),
@@ -63,8 +71,8 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(result.userId).toEqual(trace.user_id);
     expect(result.sessionId).toEqual(trace.session_id);
     expect(result.public).toEqual(trace.public);
-    expect(result.input).toEqual(null);
-    expect(result.output).toEqual(null);
+    expect(result.input).toEqual(JSON.parse(trace.input));
+    expect(result.output).toEqual("regular string");
     expect(result.metadata).toEqual(trace.metadata);
     expect(result.createdAt).toEqual(new Date(trace.created_at));
     expect(result.updatedAt).toEqual(new Date(trace.updated_at));

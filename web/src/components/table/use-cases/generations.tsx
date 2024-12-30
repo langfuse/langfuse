@@ -42,7 +42,8 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, PlusCircle } from "lucide-react";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 
 export type GenerationsTableRow = {
   id: string;
@@ -83,6 +84,7 @@ export type GenerationsTableProps = {
   projectId: string;
   promptName?: string;
   promptVersion?: number;
+  modelId?: string;
   omittedFilter?: string[];
 };
 
@@ -90,6 +92,7 @@ export default function GenerationsTable({
   projectId,
   promptName,
   promptVersion,
+  modelId,
   omittedFilter = [],
 }: GenerationsTableProps) {
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -143,6 +146,17 @@ export default function GenerationsTable({
       ]
     : [];
 
+  const modelIdFilter: FilterState = modelId
+    ? [
+        {
+          column: "Model ID",
+          type: "string",
+          operator: "=",
+          value: modelId,
+        },
+      ]
+    : [];
+
   const dateRangeFilter: FilterState = dateRange
     ? [
         {
@@ -158,6 +172,7 @@ export default function GenerationsTable({
     ...dateRangeFilter,
     ...promptNameFilter,
     ...promptVersionFilter,
+    ...modelIdFilter,
   ]);
 
   const getCountPayload = {
@@ -447,7 +462,56 @@ export default function GenerationsTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const model = row.getValue("model") as string;
+        const modelId = row.getValue("modelId") as string | undefined;
+
+        if (!model) return null;
+
+        return modelId ? (
+          <TableLink
+            path={`/project/${projectId}/models/${modelId}`}
+            value={model}
+          />
+        ) : (
+          <UpsertModelFormDrawer
+            action="create"
+            projectId={projectId}
+            prefilledModelData={{
+              modelName: model,
+              prices:
+                Object.keys(row.original.usageDetails).length > 0
+                  ? Object.keys(row.original.usageDetails)
+                      .filter((key) => key != "total")
+                      .reduce(
+                        (acc, key) => {
+                          acc[key] = 0.000001;
+                          return acc;
+                        },
+                        {} as Record<string, number>,
+                      )
+                  : undefined,
+            }}
+            className="cursor-pointer"
+          >
+            <span className="flex items-center gap-1">
+              <span>{model}</span>
+              <PlusCircle className="h-3 w-3" />
+            </span>
+          </UpsertModelFormDrawer>
+        );
+      },
     },
+
+    {
+      accessorKey: "modelId",
+      id: "modelId",
+      header: "Model ID",
+      size: 100,
+      enableHiding: true,
+      defaultHidden: true,
+    },
+
     {
       accessorKey: "inputTokens",
       id: "inputTokens",
@@ -691,6 +755,7 @@ export default function GenerationsTable({
             name: generation.name ?? undefined,
             version: generation.version ?? "",
             model: generation.model ?? "",
+            modelId: generation.modelId ?? undefined,
             level: generation.level,
             statusMessage: generation.statusMessage ?? undefined,
             usage: {
