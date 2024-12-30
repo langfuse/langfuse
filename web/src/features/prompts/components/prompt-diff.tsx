@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { diffLines, diffJson, Change } from "diff";
+import { diffLines, diffJson } from "diff";
+import type { Change } from "diff";
 
 const generateHtmlFromChanges = (changes: Change[]) => {
   return changes.map((change, index) => {

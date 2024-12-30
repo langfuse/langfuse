@@ -78,17 +78,19 @@ export const PromptDetail = () => {
   if (currentPromptVersionNumber != null && currentPromptVersionNumber > 1) {
     const oldPromptVersionNumber = currentPromptVersionNumber - 1;
     oldPrompt = oldPromptVersionNumber
-    ? promptHistory.data?.promptVersions.find(
-        (p) => p.version === oldPromptVersionNumber,
-      )
-    : promptHistory.data?.promptVersions[0];
+      ? promptHistory.data?.promptVersions.find(
+          (p) => p.version === oldPromptVersionNumber,
+        )
+      : promptHistory.data?.promptVersions[0];
   }
-  const newPromptText = prompt?.type === PromptType.Text
-  ? (prompt?.prompt?.toString() ?? "")
-  : JSON.stringify(prompt?.prompt ?? "");
-  const oldPromptText = oldPrompt?.type === PromptType.Text
-  ? (oldPrompt?.prompt?.toString() ?? newPromptText)
-  : JSON.stringify(oldPrompt?.prompt ?? newPromptText);
+  const newPromptText =
+    prompt?.type === PromptType.Text
+      ? (prompt?.prompt?.toString() ?? "")
+      : JSON.stringify(prompt?.prompt ?? "");
+  const oldPromptText =
+    oldPrompt?.type === PromptType.Text
+      ? (oldPrompt?.prompt?.toString() ?? newPromptText)
+      : JSON.stringify(oldPrompt?.prompt ?? newPromptText);
 
   const extractedVariables = prompt
     ? extractVariables(
@@ -326,13 +328,13 @@ export const PromptDetail = () => {
               </AccordionTrigger>
               <AccordionContent>
                 {typeof prompt.prompt === "string" ? (
-                  <PromptCodeDiffsViewer 
-                    oldPromptText={oldPromptText} 
+                  <PromptCodeDiffsViewer
+                    oldPromptText={oldPromptText}
                     newPromptText={newPromptText}
                   />
                 ) : (
-                  <PromptJsonDiffsViewer 
-                    oldPromptText={oldPromptText} 
+                  <PromptJsonDiffsViewer
+                    oldPromptText={oldPromptText}
                     newPromptText={newPromptText}
                   />
                 )}
