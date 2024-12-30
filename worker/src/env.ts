@@ -49,6 +49,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(20),
+  LANGFUSE_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
     .positive()
@@ -145,6 +150,20 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
+  // Core data S3 upload - only used internally
+  LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
 });

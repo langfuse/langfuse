@@ -5,84 +5,26 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/src/components/ui/dialog";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/src/components/ui/form";
 import { useState } from "react";
-import { useSession } from "next-auth/react";
-import { Textarea } from "@/src/components/ui/textarea";
+import Link from "next/link";
+import { Bug, LifeBuoy, Sparkles } from "lucide-react";
 
 interface FeedbackDialogProps {
   className?: string;
   children: React.ReactNode;
-  title: string;
-  description: string;
-  type: "feedback" | "dashboard";
+  title?: string;
+  description?: string;
 }
-const formSchema = z.object({
-  feedback: z.string().min(3, "Must have at least 3 characters"),
-});
 
 export function FeedbackButtonWrapper({
   className,
   children,
-  title,
-  description,
-  type,
+  description = "What do you think about Langfuse? What can be improved? Please share it with the community on GitHub to shape the future of Langfuse.",
+  title = "Provide Feedback",
 }: FeedbackDialogProps) {
   const [open, setOpen] = useState(false);
-  const session = useSession();
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      feedback: "",
-    },
-  });
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    try {
-      const res = await fetch("https://cloud.langfuse.com/api/feedback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          type,
-          ...values,
-          url: window.location.href,
-          user: session.data?.user,
-        }),
-      });
-      if (res.ok) {
-        form.reset();
-        setOpen(false);
-      } else {
-        const data = res.json();
-        console.error(data);
-        form.setError("feedback", {
-          type: "manual",
-          message: JSON.stringify(data),
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      form.setError("feedback", {
-        type: "manual",
-        message:
-          "Failed to submit feedback, please email us: founders@langfuse.com",
-      });
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -92,35 +34,25 @@ export function FeedbackButtonWrapper({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-4"
-          >
-            <FormField
-              control={form.control}
-              name="feedback"
-              render={({ field }) => (
-                <FormItem>
-                  <FormDescription>{description}</FormDescription>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type="submit"
-              loading={form.formState.isSubmitting}
-              className="w-full"
-            >
-              {form.formState.isSubmitting ? "Loading ..." : "Submit"}
+        <div className="flex flex-row flex-wrap items-center justify-center gap-3 sm:justify-start">
+          <Link href="https://langfuse.com/ideas" target="_blank">
+            <Button variant="secondary">
+              <Sparkles className="mr-2 h-4 w-4" /> Submit Feature Request
             </Button>
-          </form>
-        </Form>
+          </Link>
+          <Link href="https://langfuse.com/issues" target="_blank">
+            <Button variant="secondary">
+              <Bug className="mr-2 h-4 w-4" /> Report a Bug
+            </Button>
+          </Link>
+          <Link href="/support" target="_blank">
+            <Button variant="outline">
+              <LifeBuoy className="mr-2 h-4 w-4" /> Support
+            </Button>
+          </Link>
+        </div>
       </DialogContent>
     </Dialog>
   );

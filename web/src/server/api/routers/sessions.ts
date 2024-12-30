@@ -503,16 +503,28 @@ export const sessionRouter = createTRPCRouter({
               input.sessionId,
             );
 
-            const [scores, costData] = await Promise.all([
-              getScoresForTraces(
-                input.projectId,
-                clickhouseTraces.map((t) => t.id),
-              ),
-              getCostForTraces(
-                input.projectId,
-                clickhouseTraces.map((t) => t.id),
+            const traceIds = clickhouseTraces.map((t) => t.id);
+            const chunkSize = 500;
+            const chunks = [];
+
+            for (let i = 0; i < traceIds.length; i += chunkSize) {
+              chunks.push(traceIds.slice(i, i + chunkSize));
+            }
+
+            const [scores, costs] = await Promise.all([
+              Promise.all(
+                chunks.map((chunk) =>
+                  getScoresForTraces(input.projectId, chunk),
+                ),
+              ).then((results) => results.flat()),
+              Promise.all(
+                chunks.map((chunk) => getCostForTraces(input.projectId, chunk)),
+              ).then((results) =>
+                results.reduce((sum, cost) => (sum ?? 0) + (cost ?? 0), 0),
               ),
             ]);
+
+            const costData = costs;
 
             const validatedScores = filterAndValidateDbScoreList(
               scores,

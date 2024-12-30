@@ -128,6 +128,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseSelect: 'o."provided_model_name"',
   },
   {
+    uiTableName: "Model ID",
+    uiTableId: "modelId",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."internal_model_id"',
+  },
+  {
     uiTableName: "Input Tokens",
     uiTableId: "inputTokens",
     clickhouseTableName: "observations",

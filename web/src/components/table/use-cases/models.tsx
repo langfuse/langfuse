@@ -1,39 +1,40 @@
+import { useEffect } from "react";
+
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { useState } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { usdFormatter } from "@/src/utils/numbers";
-import { type Prisma, type Model } from "@langfuse/shared/src/db";
-import Decimal from "decimal.js";
-import { Trash } from "lucide-react";
+import { type Prisma } from "@langfuse/shared/src/db";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { cn } from "@/src/utils/tailwind";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { type GetModelResult } from "@/src/features/models/validation";
+import { DeleteModelButton } from "@/src/features/models/components/DeleteModelButton";
+import { EditModelButton } from "@/src/features/models/components/EditModelButton";
+import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
+import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
+import { UserCircle2Icon } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { useRouter } from "next/router";
+import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
+import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 
 export type ModelTableRow = {
   modelId: string;
   maintainer: string;
   modelName: string;
   matchPattern: string;
-  startDate?: Date;
-  inputPrice?: Decimal;
-  outputPrice?: Decimal;
-  totalPrice?: Decimal;
-  unit: string;
+  prices?: Record<string, number>;
   tokenizerId?: string;
   config?: Prisma.JsonValue;
+  serverResponse: GetModelResult;
 };
 
 const modelConfigDescriptions = {
@@ -43,39 +44,46 @@ const modelConfigDescriptions = {
     "Regex pattern to match `model` parameter of generations to model pricing",
   startDate:
     "Date to start pricing model. If not set, model is active unless a more recent version exists.",
-  inputPrice: "Price per 1000 units of input",
-  outputPrice: "Price per 1000 units of output",
-  totalPrice:
-    "Price per 1000 units, for models that don't have input/output specific prices",
-  unit: "Unit of measurement for generative model, can be TOKENS, CHARACTERS, SECONDS, MILLISECONDS, REQUESTS or IMAGES.",
+  prices: "Prices per usage type",
   tokenizerId:
     "Tokenizer used for this model to calculate token counts if none are ingested. Pick from list of supported tokenizers.",
   config:
     "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
+  maintainer:
+    "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
 } as const;
 
 export default function ModelTable({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
-  const models = api.models.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    projectId,
-  });
+  const models = api.models.getAll.useQuery(
+    {
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      projectId,
+    },
+    {
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: false,
+      staleTime: 1000 * 60 * 10,
+    },
+  );
   const totalCount = models.data?.totalCount ?? null;
+  const { priceUnit } = usePriceUnitMultiplier();
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "s");
+  // Set row height to medium if small as view is not optimized for small row heights
+  useEffect(() => {
+    if (rowHeight === "s") {
+      setRowHeight("m");
+    }
+  }, [rowHeight, setRowHeight]);
 
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
-    {
-      accessorKey: "maintainer",
-      id: "maintainer",
-      enableColumnFilter: true,
-      header: "Maintainer",
-      size: 100,
-    },
     {
       accessorKey: "modelName",
       id: "modelName",
@@ -83,23 +91,40 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       headerTooltip: {
         description: modelConfigDescriptions.modelName,
       },
-      size: 150,
+      cell: ({ row }) => {
+        return (
+          <span className="font-mono text-xs font-semibold">
+            {row.original.modelName}
+          </span>
+        );
+      },
+      size: 120,
     },
     {
-      accessorKey: "startDate",
-      id: "startDate",
-      header: "Start Date",
+      accessorKey: "maintainer",
+      id: "maintainer",
+      header: "Maintainer",
       headerTooltip: {
-        description: modelConfigDescriptions.startDate,
+        description: modelConfigDescriptions.maintainer,
       },
-      size: 100,
+      size: 60,
       cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("startDate");
-
-        return value ? (
-          <span className="text-xs">{value.toISOString().slice(0, 10)} </span>
-        ) : (
-          <span className="text-xs">-</span>
+        const isLangfuse = row.original.maintainer === "Langfuse";
+        return (
+          <div className="flex justify-center">
+            <Tooltip>
+              <TooltipTrigger>
+                {isLangfuse ? (
+                  <LangfuseIcon size={16} />
+                ) : (
+                  <UserCircle2Icon className="h-4 w-4" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>
+                {isLangfuse ? "Langfuse maintained" : "User maintained"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
         );
       },
     },
@@ -115,103 +140,36 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: string = row.getValue("matchPattern");
 
         return value ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          <span className="font-mono text-xs">{value}</span>
         ) : null;
       },
     },
     {
-      accessorKey: "inputPrice",
-      id: "inputPrice",
+      accessorKey: "prices",
+      id: "prices",
       header: () => {
         return (
-          <>
-            Input Price{" "}
-            <span className="text-xs text-muted-foreground">/ 1k units</span>
-          </>
+          <div className="flex items-center gap-2">
+            <span>Prices {priceUnit}</span>
+            <PriceUnitSelector />
+          </div>
         );
       },
-      headerTooltip: {
-        description: modelConfigDescriptions.inputPrice,
-      },
-      size: 170,
+      size: 120,
       cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("inputPrice");
+        const prices: Record<string, number> | undefined =
+          row.getValue("prices");
 
-        return value ? (
-          <span className="text-xs">
-            {usdFormatter(value.toNumber() * 1000, 2, 8)}
-          </span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
-      },
-      enableHiding: true,
-    },
-    {
-      accessorKey: "outputPrice",
-      id: "outputPrice",
-      headerTooltip: {
-        description: modelConfigDescriptions.outputPrice,
-      },
-      header: () => {
         return (
-          <>
-            Output Price{" "}
-            <span className="text-xs text-muted-foreground">/ 1k units</span>
-          </>
-        );
-      },
-      size: 170,
-      cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("outputPrice");
-
-        return value ? (
-          <span className="text-xs">
-            {usdFormatter(value.toNumber() * 1000, 2, 8)}
-          </span>
-        ) : (
-          <span className="text-xs">-</span>
+          <PriceBreakdownTooltip
+            modelName={row.original.modelName}
+            prices={prices}
+            priceUnit={priceUnit}
+            rowHeight={rowHeight}
+          />
         );
       },
       enableHiding: true,
-    },
-    {
-      accessorKey: "totalPrice",
-      id: "totalPrice",
-      header: () => {
-        return (
-          <>
-            Total Price{" "}
-            <span className="text-xs text-muted-foreground">/ 1k units</span>
-          </>
-        );
-      },
-      headerTooltip: {
-        description: modelConfigDescriptions.totalPrice,
-      },
-      size: 170,
-      cell: ({ row }) => {
-        const value: Decimal | undefined = row.getValue("totalPrice");
-
-        return value ? (
-          <span className="text-xs">
-            {usdFormatter(value.toNumber() * 1000, 2, 8)}
-          </span>
-        ) : (
-          <span className="text-xs">-</span>
-        );
-      },
-      enableHiding: true,
-    },
-    {
-      accessorKey: "unit",
-      id: "unit",
-      header: "Unit",
-      headerTooltip: {
-        description: modelConfigDescriptions.unit,
-      },
-      enableHiding: true,
-      size: 110,
     },
     {
       accessorKey: "tokenizerId",
@@ -221,7 +179,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.tokenizerId,
       },
       enableHiding: true,
-      size: 110,
+      size: 120,
     },
     {
       accessorKey: "config",
@@ -231,7 +189,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         description: modelConfigDescriptions.config,
       },
       enableHiding: true,
-      size: 200,
+      size: 120,
       cell: ({ row }) => {
         const value: Prisma.JsonValue | undefined = row.getValue("config");
 
@@ -243,14 +201,29 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "actions",
       header: "Actions",
-      size: 70,
+      size: 120,
       cell: ({ row }) => {
-        return (
-          <DeleteModelButton
-            projectId={projectId}
-            modelId={row.original.modelId}
-            isBuiltIn={row.original.maintainer === "Langfuse"}
-          />
+        return row.original.maintainer !== "Langfuse" ? (
+          <div
+            className="flex items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <EditModelButton
+              projectId={projectId}
+              modelData={row.original.serverResponse}
+            />
+            <DeleteModelButton
+              projectId={projectId}
+              modelData={row.original.serverResponse}
+            />
+          </div>
+        ) : (
+          <div onClick={(e) => e.stopPropagation()}>
+            <CloneModelButton
+              projectId={projectId}
+              modelData={row.original.serverResponse}
+            />
+          </div>
         );
       },
     },
@@ -264,21 +237,16 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     columns,
   );
 
-  const convertToTableRow = (model: Model): ModelTableRow => {
+  const convertToTableRow = (model: GetModelResult): ModelTableRow => {
     return {
       modelId: model.id,
       maintainer: model.projectId ? "User" : "Langfuse",
       modelName: model.modelName,
       matchPattern: model.matchPattern,
-      startDate: model.startDate ? new Date(model.startDate) : undefined,
-      inputPrice: model.inputPrice ? new Decimal(model.inputPrice) : undefined,
-      outputPrice: model.outputPrice
-        ? new Decimal(model.outputPrice)
-        : undefined,
-      totalPrice: model.totalPrice ? new Decimal(model.totalPrice) : undefined,
-      unit: model.unit ?? "",
+      prices: model.prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
+      serverResponse: model,
     };
   };
 
@@ -320,76 +288,10 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        onRowClick={(row) => {
+          router.push(`/project/${projectId}/models/${row.modelId}`);
+        }}
       />
     </>
   );
 }
-
-const DeleteModelButton = ({
-  modelId,
-  projectId,
-  isBuiltIn,
-}: {
-  modelId: string;
-  projectId: string;
-  isBuiltIn?: boolean;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const utils = api.useUtils();
-  const capture = usePostHogClientCapture();
-  const mut = api.models.delete.useMutation({
-    onSuccess: () => {
-      void utils.models.invalidate();
-    },
-  });
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "models:CUD",
-  });
-
-  return (
-    <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
-          disabled={!hasAccess || isBuiltIn}
-          title={
-            isBuiltIn ? "Built-in models cannot be deleted" : "Delete model"
-          }
-          className={cn(
-            isBuiltIn &&
-              "disabled:pointer-events-auto disabled:cursor-not-allowed",
-          )}
-        >
-          <Trash className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 text-sm">
-          This action permanently deletes this model definition.
-        </p>
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant="destructive"
-            loading={mut.isLoading}
-            onClick={() => {
-              capture("models:delete_button_click");
-              mut.mutateAsync({
-                projectId,
-                modelId,
-              });
-
-              setIsOpen(false);
-            }}
-          >
-            Delete Model
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-};

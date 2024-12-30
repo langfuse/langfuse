@@ -12,7 +12,7 @@ import {
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt } from "../actions/createPrompt";
-import { observationsTableCols, type ScoreSimplified } from "@langfuse/shared";
+import { type ScoreSimplified } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
@@ -698,7 +698,6 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         promptIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullish(),
         queryClickhouse: z.boolean().default(false),
       }),
     )
@@ -715,11 +714,6 @@ export const promptRouter = createTRPCRouter({
         user: ctx.session.user,
         pgExecution: async () => {
           if (input.promptIds.length === 0) return [];
-          const filterCondition = tableColumnsToSqlFilterAndPrefix(
-            input.filter ?? [],
-            observationsTableCols,
-            "prompts",
-          );
           const [metrics, generationScores, traceScores] = await Promise.all([
             // metrics
             ctx.prisma.$queryRaw<
@@ -751,7 +745,6 @@ export const promptRouter = createTRPCRouter({
                 o.prompt_id = p.id
                 AND "type" = 'GENERATION'
                 AND "project_id" = ${input.projectId}
-                ${filterCondition}
             ) AS observation_metrics ON true
             WHERE "project_id" = ${input.projectId}
             AND p.id in (${Prisma.join(input.promptIds)})
@@ -785,7 +778,6 @@ export const promptRouter = createTRPCRouter({
                 AND o.project_id = ${input.projectId}
                 AND s.name IS NOT NULL
                 AND p.id IN (${Prisma.join(input.promptIds)})
-                ${filterCondition}
               ) s ON TRUE
           WHERE
             p.project_id = ${input.projectId}
@@ -820,7 +812,6 @@ export const promptRouter = createTRPCRouter({
                     AND o.type = 'GENERATION'
                     AND o.project_id = ${input.projectId}
                     AND o.prompt_id IN (${Prisma.join(input.promptIds)})
-                    ${filterCondition}
                 )
                 AND s.observation_id IS NULL
                 AND s.project_id = ${input.projectId}

@@ -121,6 +121,7 @@ export const userRouter = createTRPCRouter({
         projectId: z.string(),
         userIds: z.array(z.string().min(1)),
         queryClickhouse: z.boolean().default(false),
+        filter: z.array(singleFilter).nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -182,7 +183,11 @@ export const userRouter = createTRPCRouter({
           if (input.userIds.length === 0) {
             return [];
           }
-          const metrics = await getUserMetrics(input.projectId, input.userIds);
+          const metrics = await getUserMetrics(
+            input.projectId,
+            input.userIds,
+            input.filter ?? [],
+          );
 
           return metrics.map((metric) => ({
             userId: metric.userId,
@@ -262,7 +267,7 @@ export const userRouter = createTRPCRouter({
         },
         clickhouseExecution: async () => {
           const result = (
-            await getUserMetrics(input.projectId, [input.userId])
+            await getUserMetrics(input.projectId, [input.userId], [])
           ).shift();
 
           return {

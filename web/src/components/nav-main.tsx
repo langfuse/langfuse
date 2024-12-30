@@ -69,11 +69,7 @@ export function NavMain({
     <SidebarGroup>
       <SidebarMenu>
         {showFeedbackButton && (
-          <FeedbackButtonWrapper
-            title="Provide feedback"
-            description="What do you think about this project? What can be improved?"
-            type="feedback"
-          >
+          <FeedbackButtonWrapper>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Feedback">
                 <MessageSquarePlus className="h-5 w-5" aria-hidden="true" />

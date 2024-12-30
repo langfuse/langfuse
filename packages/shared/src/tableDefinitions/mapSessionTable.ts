@@ -1,7 +1,7 @@
 import { UiColumnMapping } from ".";
 
 export const sessionCols: UiColumnMapping[] = [
-  // we do not access the traces scores in clichouse. We default back to the trace timestamps.
+  // we do not access the traces scores in ClickHouse. We default back to the trace timestamps.
 
   {
     uiTableName: "⭐️",
@@ -26,6 +26,8 @@ export const sessionCols: UiColumnMapping[] = [
     uiTableId: "sessionDuration",
     clickhouseTableName: "traces",
     clickhouseSelect: "duration",
+    // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Count Traces",
@@ -86,6 +88,8 @@ export const sessionCols: UiColumnMapping[] = [
     uiTableId: "sessionDuration",
     clickhouseTableName: "traces",
     clickhouseSelect: "duration",
+    // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Traces Count",

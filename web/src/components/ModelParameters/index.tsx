@@ -3,6 +3,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -69,6 +70,7 @@ export const ModelParameters: React.FC<
             value={modelParams.provider.value}
             options={availableProviders}
             updateModelParam={updateModelParamValue}
+            evalModelsOnly={evalModelsOnly}
           />
           <ModelParamsSelect
             title="Model name"
@@ -147,6 +149,7 @@ type ModelParamsSelectProps = {
   updateModelParam: ModelParamsContext["updateModelParamValue"];
   disabled?: boolean;
   modelParamsDescription?: string;
+  evalModelsOnly?: boolean;
 };
 const ModelParamsSelect = ({
   title,
@@ -156,6 +159,7 @@ const ModelParamsSelect = ({
   updateModelParam,
   disabled,
   modelParamsDescription,
+  evalModelsOnly,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
@@ -186,6 +190,8 @@ const ModelParamsSelect = ({
               {option}
             </SelectItem>
           ))}
+          <SelectSeparator />
+          <CreateLLMApiKeyDialog evalModelsOnly={evalModelsOnly} />
         </SelectContent>
       </Select>
       {modelParamsDescription ? (

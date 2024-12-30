@@ -1,9 +1,9 @@
 import {
   filterAndValidateDbScoreList,
-  paginationZod,
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
+  optionalPaginationZod,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -32,7 +32,8 @@ export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
   queryClickhouse: z.boolean().optional().default(false),
-  ...paginationZod,
+  runIds: z.array(z.string()).optional(),
+  ...optionalPaginationZod,
 });
 
 type PostgresRunItem = {
@@ -235,10 +236,11 @@ export const getDatasetRunsFromPostgres = async (
       WHERE
         d.id = ${input.datasetId}
         AND d.project_id = ${input.projectId}
+        ${input.runIds?.length ? Prisma.sql`AND runs.id IN (${Prisma.join(input.runIds)})` : Prisma.empty}
       GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
       ORDER BY runs.created_at DESC
-      LIMIT ${input.limit}
-      OFFSET ${input.page * input.limit}
+      ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
+      ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
     `,
   );
 };
