@@ -723,6 +723,9 @@ paths:
         Notes:
 
 
+        - Introduction to data model:
+        https://langfuse.com/docs/tracing-data-model
+
         - Batch sizes are limited to 3.5 MB in total. You need to adjust the
         number of events per batch accordingly.
 
