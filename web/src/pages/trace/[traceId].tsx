@@ -16,10 +16,18 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const traces = await getTracesByIdsForAnyProject([traceId]);
 
-  if (!traces || traces.length === 0 || traces.length > 1) {
+  if (!traces || traces.length === 0) {
     return {
       props: {
         notFound: true,
+      },
+    };
+  }
+
+  if (traces.length > 1) {
+    return {
+      props: {
+        duplicatesFound: true,
       },
     };
   }
@@ -32,7 +40,13 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   };
 };
 
-const TraceRedirectPage = ({ notFound }: { notFound?: boolean }) => {
+const TraceRedirectPage = ({
+  notFound,
+  duplicatesFound,
+}: {
+  notFound?: boolean;
+  duplicatesFound?: boolean;
+}) => {
   const router = useRouter();
   if (router.isFallback) {
     return <div>Loading...</div>;
@@ -40,7 +54,23 @@ const TraceRedirectPage = ({ notFound }: { notFound?: boolean }) => {
 
   if (notFound) {
     return (
-      <ErrorPage message="Trace not found. Please upgrade the SDK as we changed the URL schema." />
+      <ErrorPage
+        title="Trace not found"
+        message="The trace is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+  }
+
+  if (duplicatesFound) {
+    return (
+      <ErrorPage
+        title="Trace not found"
+        message="Please upgrade the SDK as the URL schema has changed."
+      />
     );
   }
 
