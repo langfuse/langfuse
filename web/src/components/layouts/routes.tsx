@@ -87,7 +87,6 @@ export const ROUTES: Route[] = [
     title: "Evaluation",
     icon: Lightbulb,
     pathname: `/project/[projectId]/annotation-queues`,
-    label: "Beta",
     entitlements: ["annotation-queues", "model-based-evaluations"],
     projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
     items: [
