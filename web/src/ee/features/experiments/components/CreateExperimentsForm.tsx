@@ -683,10 +683,8 @@ export const CreateExperimentsForm = ({
                       availableProviders,
                       updateModelParamValue: updateModelParamValue,
                       setModelParamEnabled,
-                      modelParamsDescription:
-                        "Select a model which supports function calling.",
                     }}
-                    evalModelsOnly
+                    evalModelsOnly={false}
                   />
                 </Card>
                 {form.formState.errors.modelConfig && (
