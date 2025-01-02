@@ -52,6 +52,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -240,6 +241,8 @@ export default function TracesTable({
       selectedFilterOption: selectedOption,
       cellsLoading: !traceMetrics.data,
     });
+
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     {
@@ -708,7 +711,9 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return traceId && typeof traceId === "string" ? (
+        return traceId &&
+          typeof traceId === "string" &&
+          hasTraceDeletionEntitlement ? (
           <DeleteButton
             itemId={traceId}
             projectId={projectId}
