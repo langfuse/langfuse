@@ -87,7 +87,9 @@ export default withMiddlewares({
           logger.warn(
             `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
           );
-          throw new LangfuseNotFoundError("Dataset item not found");
+          throw new LangfuseNotFoundError(
+            `The dataset item with id ${itemId} was not found in the dataset ${dataset.name}`,
+          );
         }
         throw e;
       }
