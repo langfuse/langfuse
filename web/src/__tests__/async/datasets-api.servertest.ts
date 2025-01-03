@@ -263,6 +263,46 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
+  it("should return 404 when trying to update dataset item that exists in different dataset of the same project", async () => {
+    const datasetItemId = v4();
+
+    const dataset = await prisma.dataset.create({
+      data: {
+        name: "dataset-name-1",
+        projectId: projectId,
+      },
+    });
+
+    await prisma.dataset.create({
+      data: {
+        name: "dataset-name-2",
+        projectId: projectId,
+      },
+    });
+
+    await prisma.datasetItem.create({
+      data: {
+        id: datasetItemId,
+        datasetId: dataset.id,
+        projectId: projectId,
+      },
+    });
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-name-2",
+        id: datasetItemId,
+        input: { key: "new-value" },
+        expectedOutput: { key: "new-value" },
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("GET datasets (v1 & v2)", async () => {
     // v1 post
     await makeZodVerifiedAPICall(
