@@ -81,7 +81,7 @@ export default withMiddlewares({
           e.code === "P2025"
         ) {
           // this case happens when a dataset item was created for a different dataset.
-          // In the databse, the uniqueness constraint is on (id, projectId) only.
+          // In the database, the uniqueness constraint is on (id, projectId) only.
           // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
           // If this record does not exist, the database will throw an error.
           logger.warn(
