@@ -9,7 +9,7 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { type DatasetItem, LangfuseNotFoundError } from "@langfuse/shared";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -40,37 +40,54 @@ export default withMiddlewares({
 
       const itemId = id ?? uuidv4();
 
-      const item = await prisma.datasetItem.upsert({
-        where: {
-          datasetId: dataset.id,
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: itemId,
-          },
-        },
-        create: {
-          id: itemId,
-          input: input ?? undefined,
-          expectedOutput: expectedOutput ?? undefined,
-          datasetId: dataset.id,
-          metadata: metadata ?? undefined,
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-          status: status ?? undefined,
-          projectId: auth.scope.projectId,
-        },
-        update: {
-          input: input ?? undefined,
-          expectedOutput: expectedOutput ?? undefined,
-          metadata: metadata ?? undefined,
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-          status: status ?? undefined,
-        },
-      });
+      // SQL injection is handled by Prisma's $queryRaw tagged template literal
+      // Values are automatically escaped and parameterized by Prisma
+      // The template literal syntax ${value} safely interpolates values
+      const items = await prisma.$queryRaw<Array<DatasetItem>>`
+        INSERT INTO "public"."dataset_items" (
+          "id",
+          "project_id", 
+          "status",
+          "input",
+          "expected_output",
+          "dataset_id",
+          "created_at",
+          "updated_at",
+          "metadata",
+          "source_trace_id",
+          "source_observation_id"
+        )
+        VALUES (
+          ${itemId},
+          ${auth.scope.projectId},
+          ${status ?? null}::public."DatasetStatus",
+          ${input ?? null},
+          ${expectedOutput ?? null}, 
+          ${dataset.id},
+          NOW(),
+          NOW(),
+          ${metadata ?? null},
+          ${sourceTraceId ?? null},
+          ${sourceObservationId ?? null}
+        )
+        ON CONFLICT ("id", "project_id", "dataset_id")
+        DO UPDATE SET
+          "input" = ${input ?? null},
+          "expected_output" = ${expectedOutput ?? null},
+          "metadata" = ${metadata ?? null},
+          "source_trace_id" = ${sourceTraceId ?? null},
+          "source_observation_id" = ${sourceObservationId ?? null},
+          "status" = ${status ?? null}::public."DatasetStatus",
+          "updated_at" = NOW()
+        RETURNING *;
+      `;
+
+      if (items.length === 0) {
+        throw new LangfuseNotFoundError("Dataset item not found");
+      }
 
       return transformDbDatasetItemToAPIDatasetItem({
-        ...item,
+        ...items[0],
         datasetName: dataset.name,
       });
     },

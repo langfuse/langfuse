@@ -215,6 +215,54 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDataset.body.items[0].id).toEqual("active-item-id");
   });
 
+  it("should correctly update dataset items", async () => {
+    const datasetItemId = v4();
+
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-name-1",
+        id: datasetItemId,
+        input: { key: "value" },
+        expectedOutput: { key: "value" },
+        metadata: null,
+        sourceTraceId: null,
+        sourceObservationId: null,
+        status: null,
+      },
+      auth,
+    );
+
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-name-1",
+        id: datasetItemId,
+        input: { john: "doe" },
+        expectedOutput: { john: "doe" },
+        metadata: null,
+        sourceTraceId: null,
+        sourceObservationId: null,
+        status: null,
+      },
+      auth,
+    );
+
+    const databaseDatasetItem = await prisma.datasetItem.findFirst({
+      where: {
+        id: datasetItemId,
+      },
+    });
+    expect(databaseDatasetItem).toMatchObject({
+      input: { john: "doe" },
+      expectedOutput: { john: "doe" },
+    });
+  });
+
   it("GET datasets (v1 & v2)", async () => {
     // v1 post
     await makeZodVerifiedAPICall(
