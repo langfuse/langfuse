@@ -217,13 +217,21 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
   it("should correctly update dataset items", async () => {
     const datasetItemId = v4();
+    const datasetName = v4();
+
+    await prisma.dataset.create({
+      data: {
+        name: datasetName,
+        projectId: projectId,
+      },
+    });
 
     await makeZodVerifiedAPICall(
       PostDatasetItemsV1Response,
       "POST",
       "/api/public/dataset-items",
       {
-        datasetName: "dataset-name-1",
+        datasetName: datasetName,
         id: datasetItemId,
         input: { key: "value" },
         expectedOutput: { key: "value" },
@@ -240,7 +248,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       "POST",
       "/api/public/dataset-items",
       {
-        datasetName: "dataset-name-1",
+        datasetName: datasetName,
         id: datasetItemId,
         input: { john: "doe" },
         expectedOutput: { john: "doe" },
