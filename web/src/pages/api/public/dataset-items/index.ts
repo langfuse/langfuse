@@ -9,7 +9,12 @@ import {
   PostDatasetItemsV1Response,
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import { type DatasetItem, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  type DatasetItem,
+  LangfuseNotFoundError,
+  Prisma,
+} from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -40,34 +45,52 @@ export default withMiddlewares({
 
       const itemId = id ?? uuidv4();
 
-      const item = await prisma.datasetItem.upsert({
-        where: {
-          datasetId: dataset.id,
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: itemId,
+      let item: DatasetItem;
+      try {
+        item = await prisma.datasetItem.upsert({
+          where: {
+            datasetId: dataset.id,
+            id_projectId: {
+              projectId: auth.scope.projectId,
+              id: itemId,
+            },
           },
-        },
-        create: {
-          id: itemId,
-          input: input ?? undefined,
-          expectedOutput: expectedOutput ?? undefined,
-          datasetId: dataset.id,
-          metadata: metadata ?? undefined,
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-          status: status ?? undefined,
-          projectId: auth.scope.projectId,
-        },
-        update: {
-          input: input ?? undefined,
-          expectedOutput: expectedOutput ?? undefined,
-          metadata: metadata ?? undefined,
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-          status: status ?? undefined,
-        },
-      });
+          create: {
+            id: itemId,
+            input: input ?? undefined,
+            expectedOutput: expectedOutput ?? undefined,
+            datasetId: dataset.id,
+            metadata: metadata ?? undefined,
+            sourceTraceId: sourceTraceId ?? undefined,
+            sourceObservationId: sourceObservationId ?? undefined,
+            status: status ?? undefined,
+            projectId: auth.scope.projectId,
+          },
+          update: {
+            input: input ?? undefined,
+            expectedOutput: expectedOutput ?? undefined,
+            metadata: metadata ?? undefined,
+            sourceTraceId: sourceTraceId ?? undefined,
+            sourceObservationId: sourceObservationId ?? undefined,
+            status: status ?? undefined,
+          },
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2025"
+        ) {
+          // this case happens when a dataset item was created for a different dataset.
+          // In the databse, the uniqueness constraint is on (id, projectId) only.
+          // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
+          // If this record does not exist, the database will throw an error.
+          logger.warn(
+            `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
+          );
+          throw new LangfuseNotFoundError("Dataset item not found");
+        }
+        throw e;
+      }
 
       return transformDbDatasetItemToAPIDatasetItem({
         ...item,
