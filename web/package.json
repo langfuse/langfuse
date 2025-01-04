@@ -117,7 +117,7 @@
     "langchain": "^0.3.6",
     "lodash": "^4.17.21",
     "lucide-react": "^0.462.0",
-    "next": "^14.2.15",
+    "next": "^14.2.21",
     "next-auth": "^4.24.11",
     "next-query-params": "^5.0.1",
     "next-themes": "^0.3.0",
