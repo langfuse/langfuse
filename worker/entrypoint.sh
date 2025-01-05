@@ -14,5 +14,15 @@ if [ -z "$DATABASE_URL" ]; then
     fi
 fi
 
+# Ensure CLICKHOUSE_CLUSTER_NAME is set
+if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
+    export CLICKHOUSE_CLUSTER_NAME="default"
+fi
+
+# Ensure CLICKHOUSE_DB is set
+if [ -z "${CLICKHOUSE_DB}" ]; then
+    export CLICKHOUSE_DB="default"
+fi
+
 # Run the command passed to the docker image on start
 exec "$@"

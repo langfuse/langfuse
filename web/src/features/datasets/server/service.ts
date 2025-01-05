@@ -176,7 +176,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
           project_id String,    
           run_id String,  
