@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
