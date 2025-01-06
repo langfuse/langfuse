@@ -351,7 +351,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         COUNT(*) AS observation_count,
           sumMap(usage_details) as usage_details,
           SUM(total_cost) AS total_cost,
-          date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+          date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
           multiIf(
             arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
             arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',

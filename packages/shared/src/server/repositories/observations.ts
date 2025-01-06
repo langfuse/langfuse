@@ -540,8 +540,8 @@ const getObservationsTableInternal = async <T>(
         o.prompt_name as "prompt_name",
         o.prompt_version as "prompt_version",
         internal_model_id as "internal_model_id",
-        if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time)) as latency,
-        if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time)) as "time_to_first_token"`;
+        if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
+        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
 
   const { projectId, filter, selectIOAndMetadata, limit, offset, orderBy } =
     opts;
@@ -1010,7 +1010,7 @@ export const getObservationMetricsForPrompts = async (
                   end_time,
                   usage_details,
                   cost_details,
-                  dateDiff('milliseconds', start_time, end_time) AS latency_ms
+                  dateDiff('millisecond', start_time, end_time) AS latency_ms
               FROM observations
               FINAL
               WHERE (type = 'GENERATION') 
@@ -1073,7 +1073,7 @@ export const getLatencyAndTotalCostForObservations = async (
     SELECT
         id,
         cost_details['total'] AS total_cost,
-        dateDiff('milliseconds', start_time, end_time) AS latency_ms
+        dateDiff('millisecond', start_time, end_time) AS latency_ms
     FROM observations FINAL 
     WHERE project_id = {projectId: String} 
     AND id IN ({observationIds: Array(String)})
@@ -1105,7 +1105,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     SELECT
         trace_id,
         sumMap(cost_details)['total'] AS total_cost,
-        dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms
+        dateDiff('millisecond', min(start_time), max(end_time)) AS latency_ms
     FROM observations FINAL
     WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
@@ -1225,12 +1225,12 @@ export const getGenerationsForPostHog = async (
       o.start_time as start_time,
       o.id as id,
       o.total_cost as total_cost,
-      if(isNull(completion_start_time), NULL, date_diff('milliseconds', start_time, completion_start_time)) as time_to_first_token,
+      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as time_to_first_token,
       o.usage_details['total'] as input_tokens,
       o.usage_details['output'] as output_tokens,
       o.cost_details['total'] as total_tokens,
       o.project_id as project_id,
-      if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time) / 1000) as latency,
+      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency,
       o.provided_model_name as model,
       o.level as level,
       o.version as version,

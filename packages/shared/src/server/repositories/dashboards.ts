@@ -418,7 +418,7 @@ export const getObservationLatencies = async (
   // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
     SELECT
-      quantiles(0.5, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles,
+      quantiles(0.5, 0.9, 0.95, 0.99)(date_diff('millisecond', o.start_time, o.end_time)) as quantiles,
       name
     FROM observations o
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -465,7 +465,7 @@ export const getTracesLatencies = async (
       select o.trace_id,
              t.name,
              o.project_id,
-             date_diff('milliseconds', min(o.start_time), coalesce(max(o.end_time), max(o.start_time))) as duration
+             date_diff('millisecond', min(o.start_time), coalesce(max(o.end_time), max(o.start_time))) as duration
       FROM traces t 
       JOIN observations o
       ON o.trace_id = t.id AND o.project_id = t.project_id
@@ -521,7 +521,7 @@ export const getModelLatenciesOverTime = async (
   SELECT 
     ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
     provided_model_name,
-    quantiles(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('milliseconds', o.start_time, o.end_time)) as quantiles
+    quantiles(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('millisecond', o.start_time, o.end_time)) as quantiles
   FROM observations o
   ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
