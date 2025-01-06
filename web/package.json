@@ -124,7 +124,7 @@
     "posthog-js": "^1.176.0",
     "posthog-node": "^4.3.1",
     "prexit": "^2.2.0",
-    "prisma": "^5.22.0",
+    "prisma": "^6.1.0",
     "rate-limiter-flexible": "^5.0.3",
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",
