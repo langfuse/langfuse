@@ -66,12 +66,10 @@ const formSchema = z
 
 export function CreateLLMApiKeyForm({
   projectId,
-  evalModelsOnly,
   onSuccess,
   customization,
 }: {
   projectId?: string;
-  evalModelsOnly?: boolean;
   onSuccess: () => void;
   customization: ReturnType<typeof useUiCustomization>;
 }) {
@@ -248,18 +246,11 @@ export function CreateLLMApiKeyForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {Object.values(LLMAdapter)
-                    .filter(
-                      (provider) =>
-                        !evalModelsOnly ||
-                        provider === LLMAdapter.OpenAI ||
-                        provider === LLMAdapter.Azure,
-                    )
-                    .map((provider) => (
-                      <SelectItem value={provider} key={provider}>
-                        {provider}
-                      </SelectItem>
-                    ))}
+                  {Object.values(LLMAdapter).map((provider) => (
+                    <SelectItem value={provider} key={provider}>
+                      {provider}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />
