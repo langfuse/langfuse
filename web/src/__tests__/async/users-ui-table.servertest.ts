@@ -52,7 +52,7 @@ describe("getUserMetrics function", () => {
 
     await createObservationsInClickhouse([observation1, observation2]);
 
-    const userMetrics = await getUserMetrics(projectId, [userId]);
+    const userMetrics = await getUserMetrics(projectId, [userId], []);
 
     expect(userMetrics.length).toBe(1);
     expect(userMetrics[0]).toMatchObject({

@@ -11,6 +11,7 @@ import {
   datetimeFilterToPrisma,
   datetimeFilterToPrismaSql,
   getObservationsGroupedByModel,
+  getObservationsGroupedByModelId,
   getObservationsGroupedByName,
   getObservationsGroupedByPromptName,
   getScoresGroupedByName,
@@ -87,7 +88,7 @@ export const filterOptionsQuery = protectedProjectProcedure
     };
 
     // Score names
-    const [scores, model, name, promptNames, traceNames, tags] =
+    const [scores, model, name, promptNames, traceNames, tags, modelId] =
       await measureAndReturnApi({
         input,
         operation: "traces.all",
@@ -175,6 +176,8 @@ export const filterOptionsQuery = protectedProjectProcedure
             ${rawStartTimeFilter}
           LIMIT 1000;
       `),
+            // modelId
+            [] as any[],
           ]);
         },
         clickhouseExecution: async () => {
@@ -212,6 +215,11 @@ export const filterOptionsQuery = protectedProjectProcedure
             getClickhouseTraceName(),
             // trace tags
             getClickhouseTraceTags(),
+            // modelId
+            getObservationsGroupedByModelId(
+              input.projectId,
+              startTimeFilter ? [startTimeFilter] : [],
+            ),
           ]);
         },
       });
@@ -221,6 +229,11 @@ export const filterOptionsQuery = protectedProjectProcedure
       model: model
         .filter((i) => i.model !== null)
         .map((i) => ({ value: i.model as string })),
+      modelId: modelId
+        .filter((i) => i.modelId !== null)
+        .map((i) => ({
+          value: i.modelId as string,
+        })),
       name: name
         .filter((i) => i.name !== null)
         .map((i) => ({ value: i.name as string })),

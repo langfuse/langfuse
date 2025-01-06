@@ -750,6 +750,50 @@ export const getObservationsGroupedByModel = async (
   return res.map((r) => ({ model: r.name }));
 };
 
+export const getObservationsGroupedByModelId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  // We mainly use queries like this to retrieve filter options.
+  // Therefore, we can skip final as some inaccuracy in count is acceptable.
+  const query = `
+    SELECT o.internal_model_id as modelId
+    FROM observations o
+    WHERE ${appliedObservationsFilter.query}
+    AND o.type = 'GENERATION'
+    GROUP BY o.internal_model_id
+    ORDER BY count() DESC
+    LIMIT 1000;
+  `;
+
+  const res = await queryClickhouse<{ modelId: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+  });
+  return res.map((r) => ({ modelId: r.modelId }));
+};
+
 export const getObservationsGroupedByName = async (
   projectId: string,
   filter: FilterState,

@@ -32,6 +32,7 @@ export * from "./redis/legacyIngestion";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
+export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./auth/types";
 export * from "./ingestion/legacy/index";
