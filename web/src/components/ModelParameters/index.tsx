@@ -34,15 +34,12 @@ export type ModelParamsContext = {
   modelParamsDescription?: string;
 };
 
-export const ModelParameters: React.FC<
-  ModelParamsContext & { evalModelsOnly: boolean }
-> = ({
+export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableProviders,
   availableModels,
   updateModelParamValue,
   setModelParamEnabled,
-  evalModelsOnly,
   formDisabled = false,
   modelParamsDescription,
 }) => {
@@ -55,11 +52,8 @@ export const ModelParameters: React.FC<
       <p className="font-semibold">Model</p>
       {availableProviders.length === 0 ? (
         <>
-          <p className="text-xs">
-            No LLM API key set in project.{" "}
-            {evalModelsOnly && "For evals, only OpenAI models are supported."}
-          </p>
-          <CreateLLMApiKeyDialog evalModelsOnly={evalModelsOnly} />
+          <p className="text-xs">No LLM API key set in project. </p>
+          <CreateLLMApiKeyDialog />
         </>
       ) : (
         <div className="space-y-4">
@@ -70,7 +64,6 @@ export const ModelParameters: React.FC<
             value={modelParams.provider.value}
             options={availableProviders}
             updateModelParam={updateModelParamValue}
-            evalModelsOnly={evalModelsOnly}
           />
           <ModelParamsSelect
             title="Model name"
@@ -149,7 +142,6 @@ type ModelParamsSelectProps = {
   updateModelParam: ModelParamsContext["updateModelParamValue"];
   disabled?: boolean;
   modelParamsDescription?: string;
-  evalModelsOnly?: boolean;
 };
 const ModelParamsSelect = ({
   title,
@@ -159,7 +151,6 @@ const ModelParamsSelect = ({
   updateModelParam,
   disabled,
   modelParamsDescription,
-  evalModelsOnly,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
@@ -191,7 +182,7 @@ const ModelParamsSelect = ({
             </SelectItem>
           ))}
           <SelectSeparator />
-          <CreateLLMApiKeyDialog evalModelsOnly={evalModelsOnly} />
+          <CreateLLMApiKeyDialog />
         </SelectContent>
       </Select>
       {modelParamsDescription ? (

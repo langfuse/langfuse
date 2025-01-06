@@ -684,7 +684,6 @@ export const CreateExperimentsForm = ({
                       updateModelParamValue: updateModelParamValue,
                       setModelParamEnabled,
                     }}
-                    evalModelsOnly={false}
                   />
                 </Card>
                 {form.formState.errors.modelConfig && (
