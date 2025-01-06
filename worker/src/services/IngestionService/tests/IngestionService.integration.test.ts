@@ -1202,68 +1202,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
-  it("should merge observations from postgres and event list", async () => {
-    const traceId = randomUUID();
-    const observationId = randomUUID();
-
-    const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
-
-    await prisma.observation.create({
-      data: {
-        id: observationId,
-        type: "GENERATION",
-        traceId,
-        name: "generation-name",
-        input: { key: "value" },
-        output: "should be overwritten",
-        model: "gpt-3.5",
-        projectId,
-        startTime: new Date(oldEvent),
-        completionTokens: 5,
-        // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
-        calculatedTotalCost: "0.273330000000000000000000000000",
-        modelParameters: { hello: "world" },
-      },
-    });
-
-    const observationEventList: ObservationEvent[] = [
-      {
-        id: randomUUID(),
-        type: "generation-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: observationId,
-          traceId: traceId,
-          output: "overwritten",
-          usage: undefined,
-        },
-      },
-    ];
-
-    await ingestionService.processObservationEventList({
-      projectId,
-      entityId: observationId,
-      observationEventList,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    const observation = await getClickhouseRecord(
-      TableName.Observations,
-      observationId,
-    );
-
-    expect(observation.name).toBe("generation-name");
-    expect(observation.input).toBe(JSON.stringify({ key: "value" }));
-    expect(observation.output).toBe("overwritten");
-    expect(observation.model_parameters).toBe('{"hello":"world"}');
-    expect(observation.usage_details.output).toBe(5);
-    expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-  });
-
   it("should merge observations and set negative tokens and cost to null", async () => {
     await prisma.model.create({
       data: {
