@@ -17,9 +17,10 @@ export const GetModelResultSchema = z.object({
   projectId: z.string().nullable(),
   modelName: z.string(),
   matchPattern: z.string(),
-  tokenizerConfig: z
-    .record(z.union([z.string(), z.coerce.number()]))
-    .nullable(),
+  tokenizerConfig: z.union([
+    z.record(z.union([z.string(), z.coerce.number()])).nullable(),
+    z.string(),
+  ]),
   tokenizerId: TokenizerSchema,
   prices: PriceMapSchema,
 });
