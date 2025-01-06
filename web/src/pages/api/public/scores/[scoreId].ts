@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
@@ -65,32 +64,15 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
 
-      const score = await prisma.score.findUnique({
-        select: {
-          id: true,
-        },
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      if (!score) {
-        throw new LangfuseNotFoundError(
-          "Score not found within authorized project",
-        );
-      }
-
-      if (env.CLICKHOUSE_URL) {
-        await deleteScore(auth.scope.projectId, scoreId);
-      }
-
-      await prisma.score.delete({
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
+      await Promise.all([
+        prisma.score.deleteMany({
+          where: {
+            id: scoreId,
+            projectId: auth.scope.projectId,
+          },
+        }),
+        deleteScore(auth.scope.projectId, scoreId),
+      ]);
 
       return { message: "Score deleted successfully" };
     },
