@@ -58,7 +58,7 @@ export const generateTracesForPublicApi = async (
         trace_id,
         project_id,
         sum(total_cost) as total_cost,
-        date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
         groupArray(id) as observation_ids
       FROM observations FINAL
       WHERE project_id = {projectId: String}
