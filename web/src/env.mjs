@@ -150,8 +150,8 @@ export const env = createEnv({
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
-    CLICKHOUSE_CLUSTER_NAME: z.string(),
-    CLICKHOUSE_DB: z.string(),
+    CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+    CLICKHOUSE_DB: z.string().default("default"),
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -380,12 +380,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
     AUTH_CUSTOM_NAME: process.env.AUTH_CUSTOM_NAME,
     AUTH_CUSTOM_SCOPE: process.env.AUTH_CUSTOM_SCOPE,
-    AUTH_CUSTOM_CLIENT_AUTH_METHOD:
-      process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+    AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
-    AUTH_IGNORE_ACCOUNT_FIELDS:
-      process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
+    AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,

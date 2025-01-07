@@ -41,16 +41,6 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
-# Ensure CLICKHOUSE_CLUSTER_NAME is set
-if [ -z "${CLICKHOUSE_CLUSTER_NAME}" ]; then
-    export CLICKHOUSE_CLUSTER_NAME="default"
-fi
-
-# Ensure CLICKHOUSE_DB is set
-if [ -z "${CLICKHOUSE_DB}" ]; then
-    export CLICKHOUSE_DB="default"
-fi
-
 # Execute the Clickhouse migration, except when disabled.
 if [ "$LANGFUSE_AUTO_CLICKHOUSE_MIGRATION_DISABLED" != "true" ]; then
     # Apply Clickhouse migrations

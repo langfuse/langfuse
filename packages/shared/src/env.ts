@@ -29,8 +29,8 @@ const EnvSchema = z.object({
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
   CLICKHOUSE_URL: z.string().url(),
-  CLICKHOUSE_CLUSTER_NAME: z.string(),
-  CLICKHOUSE_DB: z.string(),
+  CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+  CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
   LANGFUSE_SDK_CI_SYNC_PROCESSING_ENABLED: z
