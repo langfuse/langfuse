@@ -32,6 +32,7 @@ import {
   getCostForTraces,
   getTracesGroupedByUsers,
   getPublicSessionsFilter,
+  logger,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -129,7 +130,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to call sessions.all", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get sessions",
@@ -196,7 +197,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Error in sessions.countAll", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session count",
@@ -277,7 +278,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Error in sessions.metrics", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session metrics",
@@ -391,7 +392,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to get sessions.filterOptions", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session filter options",
@@ -549,7 +550,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to get sessions.byId", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session",
@@ -593,7 +594,7 @@ export const sessionRouter = createTRPCRouter({
         });
         return session;
       } catch (error) {
-        console.error(error);
+        logger.error("Unable to call sessions.bookmark", error);
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2025" // Record to update not found
@@ -643,7 +644,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to call sessions.publish", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to publish session",
