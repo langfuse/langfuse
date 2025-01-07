@@ -26,6 +26,7 @@ export default withMiddlewares({
     bodySchema: GetMediaUploadUrlQuerySchema,
     responseSchema: GetMediaUploadUrlResponseSchema,
     successStatusCode: 201,
+    rateLimitResource: "ingestion",
     fn: async ({ body, auth }) => {
       if (auth.scope.accessLevel !== "all") throw new ForbiddenError();
 
