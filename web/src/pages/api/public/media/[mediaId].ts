@@ -73,6 +73,7 @@ export default withMiddlewares({
     }),
     bodySchema: PatchMediaBodySchema,
     responseSchema: z.void(),
+    rateLimitResource: "ingestion",
     fn: async ({ query, body, auth }) => {
       if (auth.scope.accessLevel !== "all") throw new ForbiddenError();
 
