@@ -26,7 +26,7 @@ import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/Da
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
-
+import _ from "lodash";
 export type RunMetrics = {
   id: string;
   scores: ScoreAggregate;
@@ -182,7 +182,7 @@ export function DatasetCompareRunsTable(props: {
           ({ datasetItemId, trace, observation, scores }) => {
             if (!itemsAcc[datasetItemId]) itemsAcc[datasetItemId] = {};
 
-            itemsAcc[datasetItemId][runId] = {
+            _.set(itemsAcc[datasetItemId], runId, {
               id: runId,
               traceId: trace?.id ?? "",
               observationId: observation?.id ?? undefined,
@@ -196,7 +196,7 @@ export function DatasetCompareRunsTable(props: {
                     : usdFormatter(trace?.totalCost)) ?? undefined,
               },
               scores,
-            };
+            });
           },
         );
 
