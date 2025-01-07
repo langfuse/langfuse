@@ -82,6 +82,8 @@ const EnvSchema = z.object({
 
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_CLUSTER_NAME: z.string(),
+  CLICKHOUSE_DB: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
 
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce

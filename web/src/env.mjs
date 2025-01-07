@@ -150,6 +150,8 @@ export const env = createEnv({
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
+    CLICKHOUSE_CLUSTER_NAME: z.string(),
+    CLICKHOUSE_DB: z.string(),
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -445,6 +447,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
+    CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
+    CLICKHOUSE_DB: process.env.CLICKHOUSE_DB,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
