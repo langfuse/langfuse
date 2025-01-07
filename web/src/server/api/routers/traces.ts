@@ -769,7 +769,7 @@ export const traceRouter = createTRPCRouter({
 
         return trace;
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call traces.bookmark", error);
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2025" // Record to update not found
@@ -839,7 +839,7 @@ export const traceRouter = createTRPCRouter({
           return clickhouseTrace;
         }
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call traces.publish", error);
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2025" // Record to update not found
@@ -907,7 +907,7 @@ export const traceRouter = createTRPCRouter({
           await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call traces.updateTags", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
         });
