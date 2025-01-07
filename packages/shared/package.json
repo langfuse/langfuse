@@ -121,7 +121,8 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.7"
+      "jsonpath-plus": "10.0.7",
+      "nanoid": "^3.3.8"
     }
   }
 }
