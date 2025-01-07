@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { BaseError } from "@langfuse/shared";
+import { ApiError, BaseError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -64,22 +64,21 @@ export const evalJobExecutorQueueProcessor = async (
 
     // do not log expected errors (api failures + missing api keys not provided by the user)
     if (
-      !(e instanceof BaseError && e.message.includes("API key for provider")) &&
-      !(
-        e instanceof BaseError &&
+      (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
+      (e instanceof ApiError && e.httpCode === 403) || // user has no access to the requested model
+      (e instanceof BaseError &&
         e.message.includes(
           "Please ensure the mapped data exists and consider extending the job delay.",
-        )
-      )
+        )) // Trace not found.
     ) {
-      traceException(e);
-      logger.error(
-        `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
-        e,
-      );
-      throw e;
+      return;
     }
 
-    return;
+    traceException(e);
+    logger.error(
+      `Failed Evaluation_Execution job for id ${job.data.payload.jobExecutionId}`,
+      e,
+    );
+    throw e;
   }
 };
