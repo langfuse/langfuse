@@ -65,7 +65,7 @@ export const evalJobExecutorQueueProcessor = async (
     // do not log expected errors (api failures + missing api keys not provided by the user)
     if (
       (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
-      (e instanceof ApiError && e.httpCode === 403) || // user has no access to the requested model
+      (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
       (e instanceof BaseError &&
         e.message.includes(
           "Please ensure the mapped data exists and consider extending the job delay.",
