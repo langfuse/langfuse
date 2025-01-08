@@ -191,7 +191,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;
 
-  // we use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
+  // We use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
     WITH deduplicated_traces AS (
       SELECT * EXCEPT input, output, metadata
