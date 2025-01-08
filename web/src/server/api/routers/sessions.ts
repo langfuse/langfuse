@@ -557,7 +557,10 @@ export const sessionRouter = createTRPCRouter({
             const [scores, costs] = await Promise.all([
               Promise.all(
                 chunks.map((chunk) =>
-                  getScoresForTraces(input.projectId, chunk),
+                  getScoresForTraces({
+                    projectId: input.projectId,
+                    traceIds: chunk,
+                  }),
                 ),
               ).then((results) => results.flat()),
               Promise.all(

@@ -176,7 +176,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
           project_id String,    
           run_id String,  
@@ -531,10 +531,10 @@ export const getRunItemsByRunIdOrItemId = async (
 ) => {
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
-      getScoresForTraces(
+      getScoresForTraces({
         projectId,
-        runItems.map((ri) => ri.traceId),
-      ),
+        traceIds: runItems.map((ri) => ri.traceId),
+      }),
       getLatencyAndTotalCostForObservations(
         projectId,
         runItems

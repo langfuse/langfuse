@@ -8,6 +8,7 @@
     "prices": {
       "input": 2.5e-6,
       "input_cached_tokens": 1.25e-6,
+      "input_cache_read": 1.25e-6,
       "output": 10e-6
     },
     "tokenizer_config": {
@@ -844,7 +845,9 @@
       "output": 15e-6,
       "output_tokens": 15e-6,
       "cache_creation_input_tokens": 3.75e-6,
-      "cache_read_input_tokens": 0.3e-6
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1010,7 +1013,9 @@
       "output": 15e-6,
       "output_tokens": 15e-6,
       "cache_creation_input_tokens": 3.75e-6,
-      "cache_read_input_tokens": 0.3e-6
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1024,7 +1029,8 @@
     "prices": {
       "input": 0.15e-6,
       "output": 0.6e-6,
-      "input_cached_tokens": 0.075e-6
+      "input_cached_tokens": 0.075e-6,
+      "input_cache_read": 0.075e-6
     },
     "tokenizer_config": {
       "tokensPerName": 1,
@@ -1042,6 +1048,7 @@
     "prices": {
       "input": 0.15e-6,
       "input_cached_tokens": 0.075e-6,
+      "input_cache_read": 0.075e-6,
       "output": 0.6e-6
     },
     "tokenizer_config": {
@@ -1060,6 +1067,7 @@
     "prices": {
       "input": 2.5e-6,
       "input_cached_tokens": 1.25e-6,
+      "input_cache_read": 1.25e-6,
       "output": 10e-6
     },
     "tokenizer_config": {
@@ -1078,8 +1086,10 @@
     "prices": {
       "input": 15e-6,
       "input_cached_tokens": 7.5e-6,
+      "input_cache_read": 7.5e-6,
       "output": 60e-6,
-      "output_reasoning_tokens": 60e-6
+      "output_reasoning_tokens": 60e-6,
+      "output_reasoning": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1093,8 +1103,10 @@
     "prices": {
       "input": 15e-6,
       "input_cached_tokens": 7.5e-6,
+      "input_cache_read": 7.5e-6,
       "output": 60e-6,
-      "output_reasoning_tokens": 60e-6
+      "output_reasoning_tokens": 60e-6,
+      "output_reasoning": 60e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1108,8 +1120,10 @@
     "prices": {
       "input": 3e-6,
       "input_cached_tokens": 1.5e-6,
+      "input_cache_read": 1.5e-6,
       "output": 12e-6,
-      "output_reasoning_tokens": 12e-6
+      "output_reasoning_tokens": 12e-6,
+      "output_reasoning": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1123,8 +1137,10 @@
     "prices": {
       "input": 3e-6,
       "input_cached_tokens": 1.5e-6,
+      "input_cache_read": 1.5e-6,
       "output": 12e-6,
-      "output_reasoning_tokens": 12e-6
+      "output_reasoning_tokens": 12e-6,
+      "output_reasoning": 12e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1141,7 +1157,9 @@
       "output": 15e-6,
       "output_tokens": 15e-6,
       "cache_creation_input_tokens": 3.75e-6,
-      "cache_read_input_tokens": 0.3e-6
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1158,7 +1176,9 @@
       "output": 15e-6,
       "output_tokens": 15e-6,
       "cache_creation_input_tokens": 3.75e-6,
-      "cache_read_input_tokens": 0.3e-6
+      "input_cache_creation": 3.75e-6,
+      "cache_read_input_tokens": 0.3e-6,
+      "input_cache_read": 0.3e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1175,7 +1195,9 @@
       "output": 4e-6,
       "output_tokens": 4e-6,
       "cache_creation_input_tokens": 1e-6,
-      "cache_read_input_tokens": 0.08e-6
+      "input_cache_creation": 1e-6,
+      "cache_read_input_tokens": 0.08e-6,
+      "input_cache_read": 0.08e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1192,7 +1214,9 @@
       "output": 4e-6,
       "output_tokens": 4e-6,
       "cache_creation_input_tokens": 1e-6,
-      "cache_read_input_tokens": 0.08e-6
+      "input_cache_creation": 1e-6,
+      "cache_read_input_tokens": 0.08e-6,
+      "input_cache_read": 0.08e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
@@ -1223,6 +1247,7 @@
     "prices": {
       "input": 2.5e-6,
       "input_cached_tokens": 1.25e-6,
+      "input_cache_read": 1.25e-6,
       "output": 10e-6
     },
     "tokenizer_config": {
@@ -1242,7 +1267,9 @@
       "input_text_tokens": 2.5e-6,
       "output_text_tokens": 10e-6,
       "input_audio_tokens": 100e-6,
-      "output_audio_tokens": 200e-6
+      "input_audio": 100e-6,
+      "output_audio_tokens": 200e-6,
+      "output_audio": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1257,7 +1284,9 @@
       "input_text_tokens": 2.5e-6,
       "output_text_tokens": 10e-6,
       "input_audio_tokens": 100e-6,
-      "output_audio_tokens": 200e-6
+      "input_audio": 100e-6,
+      "output_audio_tokens": 200e-6,
+      "output_audio": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1273,8 +1302,10 @@
       "input_cached_text_tokens": 2.5e-6,
       "output_text_tokens": 20e-6,
       "input_audio_tokens": 100e-6,
+      "input_audio": 100e-6,
       "input_cached_audio_tokens": 20e-6,
-      "output_audio_tokens": 200e-6
+      "output_audio_tokens": 200e-6,
+      "output_audio": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
@@ -1290,8 +1321,10 @@
       "input_cached_text_tokens": 2.5e-6,
       "output_text_tokens": 20e-6,
       "input_audio_tokens": 100e-6,
+      "input_audio": 100e-6,
       "input_cached_audio_tokens": 20e-6,
-      "output_audio_tokens": 200e-6
+      "output_audio_tokens": 200e-6,
+      "output_audio": 200e-6
     },
     "tokenizer_config": null,
     "tokenizer_id": null
