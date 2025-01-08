@@ -47,7 +47,6 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
           return req.host === "127.0.0.1";
         },
         requestHook: (span, req: any) => {
-          // TODO: Ignore health checks
           const url = "path" in req ? req?.path : req?.url;
           let path = new URL(url, `http://${req?.host ?? "localhost"}`)
             .pathname;
