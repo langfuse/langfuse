@@ -7,8 +7,11 @@ import {
   TQueueJobTypes,
   logger,
   traceException,
+  EvalExecutionQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../ee/evaluation/evalService";
+import { randomUUID } from "crypto";
 
 export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
@@ -50,6 +53,51 @@ export const evalJobExecutorQueueProcessor = async (
     await evaluate({ event: job.data.payload });
     return true;
   } catch (e) {
+    // If the job fails with a 429, we want to retry it unless it's older than 24h.
+    if (e instanceof ApiError && e.httpCode === 429) {
+      try {
+        // Check if the job execution is older than 24h
+        const jobExecution = await kyselyPrisma.$kysely
+          .selectFrom("job_executions")
+          .select("created_at")
+          .where("id", "=", job.data.payload.jobExecutionId)
+          .where("project_id", "=", job.data.payload.projectId)
+          .executeTakeFirstOrThrow();
+        if (
+          // Do nothing if job execution is older than 24h
+          jobExecution.created_at < new Date(Date.now() - 24 * 60 * 60 * 1000)
+        ) {
+          logger.info(
+            `Job ${job.data.payload.jobExecutionId} is rate limited for more than 24h. Stop retrying.`,
+          );
+        } else {
+          // Add the job into the queue with a random delay between 1 and 10min and return
+          const delay = Math.floor(Math.random() * 9 + 1) * 60 * 1000;
+          logger.info(
+            `Job ${job.data.payload.jobExecutionId} is rate limited. Retrying in ${delay}ms.`,
+          );
+          await EvalExecutionQueue.getInstance()?.add(
+            QueueName.EvaluationExecution,
+            {
+              name: QueueJobs.EvaluationExecution,
+              id: randomUUID(),
+              timestamp: new Date(),
+              payload: job.data.payload,
+            },
+            {
+              delay,
+            },
+          );
+          return;
+        }
+      } catch (innerErr) {
+        logger.error(
+          `Failed to handle 429 retry for ${job.data.payload.jobExecutionId}. Continuing regular processing.`,
+          innerErr,
+        );
+      }
+    }
+
     const displayError =
       e instanceof BaseError ? e.message : "An internal error occurred";
 
