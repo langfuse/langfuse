@@ -1017,3 +1017,14 @@ model ObservationMedia {
   @@index([projectId, observationId])
   @@map("observation_media")
 }
+
+model QueueBackUp {
+  id        String  @id @default(cuid())
+  projectId String? @map("project_id")
+  queueName String  @map("queue_name")
+  content   Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("queue_backups")
+}

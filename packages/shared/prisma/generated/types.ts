@@ -479,6 +479,13 @@ export type Prompt = {
     tags: Generated<string[]>;
     labels: Generated<string[]>;
 };
+export type QueueBackUp = {
+    id: string;
+    project_id: string | null;
+    queue_name: string;
+    content: unknown;
+    created_at: Generated<Timestamp>;
+};
 export type Score = {
     id: string;
     timestamp: Generated<Timestamp>;
@@ -628,6 +635,7 @@ export type DB = {
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
+    queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
     scores: Score;
     Session: Session;
