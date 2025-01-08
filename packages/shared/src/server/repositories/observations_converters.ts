@@ -9,7 +9,6 @@ import Decimal from "decimal.js";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { ObservationRecordReadType } from "./definitions";
 import { parseJsonPrioritised } from "../../utils/json";
-import { jsonSchema, jsonSchemaNullable } from "../../utils/zod";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
