@@ -387,7 +387,6 @@ export const getDatabaseReadStream = async ({
               traceIds: traces.map((t) => t.id),
             });
 
-            console.log(scores);
             chunk = traces.map((t) => {
               const metric = metrics.find((m) => m.id === t.id);
               const filteredScores = scores.filter((s) => s.traceId === t.id);
