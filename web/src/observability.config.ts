@@ -26,6 +26,7 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
   const sdk = new NodeSDK({
     resource: new Resource({
       "service.name": env.OTEL_SERVICE_NAME,
+      "service.version": env.BUILD_ID,
     }),
     traceExporter: new OTLPTraceExporter({
       url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`,
@@ -34,10 +35,19 @@ if (!process.env.VERCEL && process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       new IORedisInstrumentation(),
       new HttpInstrumentation({
         requireParentforOutgoingSpans: true,
+        ignoreIncomingRequestHook: (req) => {
+          // Ignore health checks
+          return [
+            "/api/public/health",
+            "/api/public/ready",
+            "/api/health",
+          ].some((path) => req.url?.includes(path));
+        },
         ignoreOutgoingRequestHook: (req) => {
           return req.host === "127.0.0.1";
         },
         requestHook: (span, req: any) => {
+          // TODO: Ignore health checks
           const url = "path" in req ? req?.path : req?.url;
           let path = new URL(url, `http://${req?.host ?? "localhost"}`)
             .pathname;
