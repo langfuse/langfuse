@@ -52,8 +52,7 @@ const modelConfigDescriptions = {
     "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
   maintainer:
     "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
-  lastUsed:
-    "Start time of the latest generation using this model within last 30 days",
+  lastUsed: "Start time of the latest generation using this model",
 } as const;
 
 export default function ModelTable({ projectId }: { projectId: string }) {
@@ -204,7 +203,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "lastUsed",
       id: "lastUsed",
-      header: "Last used (30d)",
+      header: "Last used",
       headerTooltip: {
         description: modelConfigDescriptions.lastUsed,
       },
