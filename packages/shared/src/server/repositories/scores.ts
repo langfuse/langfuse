@@ -135,13 +135,16 @@ export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   });
 };
 
-export const getScoresForTraces = async (
-  projectId: string,
-  traceIds: string[],
-  timestamp?: Date,
-  limit?: number,
-  offset?: number,
-) => {
+export type GetScoresForTracesProps = {
+  projectId: string;
+  traceIds: string[];
+  timestamp?: Date;
+  limit?: number;
+  offset?: number;
+};
+
+export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
+  const { projectId, traceIds, timestamp, limit, offset } = props;
   const query = `
       select 
         *
