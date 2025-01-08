@@ -188,18 +188,17 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   // we use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
     WITH deduplicated_traces AS (
-      SELECT *
+      SELECT * EXCEPT input, output, metadata
       FROM traces t
       WHERE t.session_id IS NOT NULL 
         AND t.project_id = {projectId: String}
         AND t.session_id IN (
           -- this query might return multiple rows for the same session_id which is not bad given we only use this to reuduce 
-          SELECT session_id
+          SELECT DISTINCT session_id
           FROM traces
            WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
-          GROUP BY session_id
         )
         ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
@@ -208,6 +207,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         SELECT * 
         FROM observations o
         WHERE o.project_id = {projectId: String}
+        ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
         ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
     ),
