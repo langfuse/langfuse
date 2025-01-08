@@ -79,11 +79,17 @@ export const getSessionsTable = async (props: {
 export const getSessionsWithMetrics = async (props: {
   projectId: string;
   filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
 }) => {
   const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
     select: "metrics",
     projectId: props.projectId,
     filter: props.filter,
+    orderBy: props.orderBy,
+    limit: props.limit,
+    page: props.page,
   });
 
   return rows.map((row) => ({

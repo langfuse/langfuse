@@ -24,7 +24,6 @@ import {
   parseTraceAllFilters,
   FullObservationsWithScores,
   getPublicSessionsFilter,
-  getSessionsTable,
   getScoresForObservations,
   getObservationsTableWithModelData,
   getDistinctScoreNames,
@@ -33,6 +32,7 @@ import {
   getScoresForTraces,
   logger,
   getTracesByIds,
+  getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
@@ -182,7 +182,7 @@ export const getDatabaseReadStream = async ({
               projectId,
               finalFilter ?? [],
             );
-            const sessions = await getSessionsTable({
+            const sessions = await getSessionsWithMetrics({
               projectId: projectId,
               filter: sessionsFilter,
               orderBy: orderBy,
