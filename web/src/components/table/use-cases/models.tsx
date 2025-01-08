@@ -34,6 +34,7 @@ export type ModelTableRow = {
   prices?: Record<string, number>;
   tokenizerId?: string;
   config?: Prisma.JsonValue;
+  lastUsed?: Date | null;
   serverResponse: GetModelResult;
 };
 
