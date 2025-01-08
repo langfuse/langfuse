@@ -2,6 +2,7 @@ import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
+  BUILD_ID: z.string().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

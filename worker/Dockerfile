@@ -54,6 +54,9 @@ RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
+ARG NEXT_PUBLIC_BUILD_ID
+ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
 
