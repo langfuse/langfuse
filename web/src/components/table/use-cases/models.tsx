@@ -51,6 +51,8 @@ const modelConfigDescriptions = {
     "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
   maintainer:
     "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
+  lastUsed:
+    "Start time of the latest generation using this model within last 30 days",
 } as const;
 
 export default function ModelTable({ projectId }: { projectId: string }) {
@@ -199,6 +201,20 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
     },
     {
+      accessorKey: "lastUsed",
+      id: "lastUsed",
+      header: "Last used (30d)",
+      headerTooltip: {
+        description: modelConfigDescriptions.lastUsed,
+      },
+      enableHiding: true,
+      size: 120,
+      cell: ({ row }) => {
+        const value: Date | null | undefined = row.getValue("lastUsed");
+        return value?.toLocaleString() ?? "";
+      },
+    },
+    {
       accessorKey: "actions",
       header: "Actions",
       size: 120,
@@ -246,6 +262,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       prices: model.prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
+      lastUsed: model.lastUsed,
       serverResponse: model,
     };
   };

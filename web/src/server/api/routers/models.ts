@@ -5,6 +5,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,
+  ModelLastUsedQueryResult,
   UpsertModelSchema,
 } from "@/src/features/models/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -13,6 +14,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
+import { queryClickhouse } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
@@ -118,6 +120,54 @@ export const modelRouter = createTRPCRouter({
         .array(GetModelResultSchema)
         .parse(allModelsQueryResult);
       const totalCount = z.coerce.number().parse(totalCountQuery[0].count);
+
+      // Check whether model was used in last month
+      const lastUsedQuery = `
+            SELECT 
+                internal_model_id as modelId,
+                MAX(start_time) as lastUsed
+            FROM 
+                observations
+            WHERE
+                project_id = {projectId: String}
+                AND start_time > now() - INTERVAL 30 DAY
+                AND internal_model_id IS NOT NULL
+            GROUP BY
+                internal_model_id
+      `;
+
+      const lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
+        await queryClickhouse({
+          query: lastUsedQuery,
+          params: { projectId: input.projectId },
+        }),
+      );
+
+      if (lastUsedQueryResult.success) {
+        const lastUsedMap = new Map(
+          lastUsedQueryResult.data.map((res) => [res.modelId, res.lastUsed]),
+        );
+
+        return {
+          models: allModels
+            .map((m) => ({ ...m, lastUsed: lastUsedMap.get(m.id) }))
+            .sort((a, b) => {
+              const lastUsedA = lastUsedMap.get(a.id);
+              const lastUsedB = lastUsedMap.get(b.id);
+
+              if (lastUsedA && lastUsedB) {
+                return lastUsedB.getTime() - lastUsedA.getTime();
+              } else if (lastUsedA) {
+                return -1;
+              } else if (lastUsedB) {
+                return 1;
+              }
+
+              return 0;
+            }),
+          totalCount,
+        };
+      }
 
       return {
         models: allModels,
