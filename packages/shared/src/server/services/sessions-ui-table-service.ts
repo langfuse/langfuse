@@ -202,8 +202,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           -- this query might return multiple rows for the same session_id which is not bad given we only use this to reuduce 
           SELECT DISTINCT session_id
           FROM traces
-           WHERE t.session_id IS NOT NULL
-            AND t.project_id = {projectId: String}
+           WHERE session_id IS NOT NULL
+            AND project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
         )
         ORDER BY event_ts DESC
