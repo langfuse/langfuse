@@ -291,13 +291,12 @@ export const traceRouter = createTRPCRouter({
             ],
           });
 
-          const scores = await getScoresForTraces(
-            ctx.session.projectId,
-            res.map((r) => r.id),
-            undefined,
-            1000,
-            0,
-          );
+          const scores = await getScoresForTraces({
+            projectId: ctx.session.projectId,
+            traceIds: res.map((r) => r.id),
+            limit: 1000,
+            offset: 0,
+          });
 
           const validatedScores = filterAndValidateDbScoreList(
             scores,
@@ -576,13 +575,11 @@ export const traceRouter = createTRPCRouter({
               input.projectId,
               input.timestamp ?? undefined,
             ),
-            getScoresForTraces(
-              input.projectId,
-              [input.traceId],
-              input.timestamp ?? undefined,
-              undefined,
-              undefined,
-            ),
+            getScoresForTraces({
+              projectId: input.projectId,
+              traceIds: [input.traceId],
+              timestamp: input.timestamp ?? undefined,
+            }),
           ]);
 
           if (!trace) {

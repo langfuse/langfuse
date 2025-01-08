@@ -531,10 +531,10 @@ export const getRunItemsByRunIdOrItemId = async (
 ) => {
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
-      getScoresForTraces(
+      getScoresForTraces({
         projectId,
-        runItems.map((ri) => ri.traceId),
-      ),
+        traceIds: runItems.map((ri) => ri.traceId),
+      }),
       getLatencyAndTotalCostForObservations(
         projectId,
         runItems

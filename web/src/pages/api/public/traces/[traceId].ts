@@ -91,11 +91,11 @@ export default withMiddlewares({
               trace?.timestamp,
               true,
             ),
-            getScoresForTraces(
-              auth.scope.projectId,
-              [traceId],
-              trace?.timestamp,
-            ),
+            getScoresForTraces({
+              projectId: auth.scope.projectId,
+              traceIds: [traceId],
+              timestamp: trace?.timestamp,
+            }),
           ]);
 
           const uniqueModels: string[] = Array.from(
