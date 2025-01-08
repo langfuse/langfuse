@@ -130,7 +130,6 @@ export const modelRouter = createTRPCRouter({
                 observations
             WHERE
                 project_id = {projectId: String}
-                AND start_time > now() - INTERVAL 30 DAY
                 AND internal_model_id IS NOT NULL
             GROUP BY
                 internal_model_id
