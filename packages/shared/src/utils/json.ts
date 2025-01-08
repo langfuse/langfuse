@@ -55,25 +55,9 @@ export const parseJsonPrioritised = (
 ): z.infer<typeof jsonSchema> | string | undefined => {
   try {
     const parsedJson = JSON.parse(json);
-
-    if (Object.keys(parsedJson).length === 0) {
-      return parsedJson;
-    }
-
-    const parsedArray = z.array(jsonSchemaNullable).safeParse(parsedJson);
-    if (parsedArray.success) {
-      return parsedArray.data;
-    }
-
-    const parsedObject = z.record(jsonSchemaNullable).safeParse(parsedJson);
-    if (parsedObject.success) {
-      return parsedObject.data;
-    }
-
     return jsonSchema.parse(parsedJson);
   } catch (error) {
     const parsed = jsonSchema.safeParse(json);
-
     return parsed.success ? parsed.data : json;
   }
 };

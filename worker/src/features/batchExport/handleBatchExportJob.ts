@@ -382,10 +382,11 @@ export const getDatabaseReadStream = async ({
               ),
             ]);
 
-            const scores = await getScoresForTraces(
+            const scores = await getScoresForTraces({
               projectId,
-              traces.map((t) => t.id),
-            );
+              traceIds: traces.map((t) => t.id),
+            });
+
             chunk = traces.map((t) => {
               const metric = metrics.find((m) => m.id === t.id);
               const filteredScores = scores.filter((s) => s.traceId === t.id);
@@ -604,7 +605,8 @@ function prepareScoresForOutput(
     (acc, score) => {
       // If this score name already exists in acc, use its existing type
       const existingValues = acc[score.name];
-      const newValue = score.value ?? score.stringValue;
+      const newValue =
+        score.dataType === "NUMERIC" ? score.value : score.stringValue;
       if (!newValue) return acc;
 
       if (!existingValues) {

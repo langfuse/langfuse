@@ -9,6 +9,7 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
+    BUILD_ID: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -150,6 +151,8 @@ export const env = createEnv({
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
+    CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+    CLICKHOUSE_DB: z.string().default("default"),
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
@@ -301,6 +304,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
+    BUILD_ID: process.env.BUILD_ID,
     NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
@@ -378,12 +382,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
     AUTH_CUSTOM_NAME: process.env.AUTH_CUSTOM_NAME,
     AUTH_CUSTOM_SCOPE: process.env.AUTH_CUSTOM_SCOPE,
-    AUTH_CUSTOM_CLIENT_AUTH_METHOD:
-      process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+    AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
-    AUTH_IGNORE_ACCOUNT_FIELDS:
-      process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
+    AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -445,6 +447,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
+    CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
+    CLICKHOUSE_DB: process.env.CLICKHOUSE_DB,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,

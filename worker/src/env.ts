@@ -2,6 +2,7 @@ import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
+  BUILD_ID: z.string().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -82,6 +83,8 @@ const EnvSchema = z.object({
 
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+  CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
 
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
