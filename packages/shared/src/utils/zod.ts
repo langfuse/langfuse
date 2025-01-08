@@ -23,18 +23,18 @@ type Json = Root | { [key: string]: JsonNested } | JsonNested[];
 // Here, you define the schema recursively
 export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
   z.union([
-    nestedLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
+    nestedLiteralSchema,
   ]),
 );
 
 // Root schema that does not allow nulls at the root level
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
-    rootLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
+    rootLiteralSchema,
   ]),
 );
 
