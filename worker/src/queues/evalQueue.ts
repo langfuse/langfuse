@@ -114,6 +114,7 @@ export const evalJobExecutorQueueProcessor = async (
     if (
       (e instanceof BaseError && e.message.includes("API key for provider")) || // api key not provided
       (e instanceof ApiError && e.httpCode >= 400 && e.httpCode < 500) || // do not error and retry on 4xx errors. They are visible to the user in the UI but do not alert us.
+      (e instanceof ApiError && e.message.includes("TypeError")) || // Zod parsing the response failed. User should update prompt to consistently return expected output structure.
       (e instanceof BaseError &&
         e.message.includes(
           "Please ensure the mapped data exists and consider extending the job delay.",
