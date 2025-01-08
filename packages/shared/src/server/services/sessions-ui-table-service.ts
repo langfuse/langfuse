@@ -20,6 +20,9 @@ export type SessionDataReturnType = {
   user_ids: string[];
   trace_count: number;
   trace_tags: string[];
+};
+
+export type SessionWithMetricsReturnType = SessionDataReturnType & {
   total_observations: number;
   duration: number;
   session_usage_details: Record<string, number>;
@@ -70,12 +73,28 @@ export const getSessionsTable = async (props: {
   return rows.map((row) => ({
     ...row,
     trace_count: Number(row.trace_count),
+  }));
+};
+
+export const getSessionsWithMetrics = async (props: {
+  projectId: string;
+  filter: FilterState;
+}) => {
+  const rows = await getSessionsTableGeneric<SessionWithMetricsReturnType>({
+    select: "metrics",
+    projectId: props.projectId,
+    filter: props.filter,
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
     total_observations: Number(row.total_observations),
   }));
 };
 
 export type FetchSessionsTableProps = {
-  select: "count" | "rows";
+  select: "count" | "rows" | "metrics";
   projectId: string;
   filter: FilterState;
   searchQuery?: string;
@@ -101,6 +120,26 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           user_ids, 
           trace_count, 
           trace_tags`;
+      break;
+    case "metrics":
+      sqlSelect = `
+        session_id, 
+        max_timestamp, 
+        min_timestamp, 
+        trace_ids, 
+        user_ids, 
+        trace_count, 
+        trace_tags,
+        total_observations,
+        duration,
+        session_usage_details,
+        session_cost_details,
+        session_input_cost,
+        session_output_cost,
+        session_total_cost,
+        session_input_usage,
+        session_output_usage,
+        session_total_usage`;
       break;
     default:
       const exhaustiveCheckDefault: never = select;
@@ -132,6 +171,20 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       ]).apply()
     : undefined;
 
+  const hasMetricsFilter = tracesFilter.find((f) =>
+    [
+      "session_total_cost",
+      "session_input_cost",
+      "session_output_cost",
+      "duration",
+      "session_total_usage",
+      "session_output_usage",
+      "session_input_usage",
+    ].includes(f.field),
+  );
+
+  const selectMetrics = select === "metrics" || hasMetricsFilter;
+
   // we use deduplicated traces and observations CTEs instead of final to be able to use Skip indices in Clickhouse.
   const query = `
     WITH deduplicated_traces AS (
@@ -139,12 +192,14 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       FROM traces t
       WHERE t.session_id IS NOT NULL 
         AND t.project_id = {projectId: String}
+        ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
     ),
     deduplicated_observations AS (
         SELECT * 
         FROM observations o
         WHERE o.project_id = {projectId: String}
+        ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
     ),
     observations_agg AS (
@@ -169,8 +224,12 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             groupArray(t.id) AS trace_ids,
             groupUniqArray(t.user_id) AS user_ids,
             count(*) as trace_count,
-            groupUniqArrayArray(t.tags) as trace_tags,
+            groupUniqArrayArray(t.tags) as trace_tags
             -- Aggregate observations data at session level
+            ${
+              selectMetrics
+                ? `
+            ,
             sum(o.obs_count) as total_observations,
             date_diff('millisecond', min(min_start_time), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
@@ -180,10 +239,16 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             sumMap(o.sum_cost_details)['total'] as session_total_cost,          
             arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_usage_details)))) as session_input_usage,
             arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(o.sum_usage_details)))) as session_output_usage,
-            sumMap(o.sum_usage_details)['total'] as session_total_usage
+            sumMap(o.sum_usage_details)['total'] as session_total_usage`
+                : ""
+            }
         FROM deduplicated_traces t
-        LEFT JOIN observations_agg o
-        ON t.id = o.trace_id AND t.project_id = o.project_id
+        ${
+          selectMetrics
+            ? `LEFT JOIN observations_agg o
+        ON t.id = o.trace_id AND t.project_id = o.project_id`
+            : ""
+        }
         WHERE t.session_id IS NOT NULL
             AND t.project_id = {projectId: String}
             ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
@@ -195,8 +260,6 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
     ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     `;
-
-  console.log(query);
 
   const obsStartTimeValue = traceTimestampFilter
     ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
