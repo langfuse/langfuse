@@ -33,6 +33,7 @@ import {
   getTracesGroupedByUsers,
   getPublicSessionsFilter,
   logger,
+  getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -109,14 +110,7 @@ export const sessionRouter = createTRPCRouter({
               sessions: sessions.map((s) => ({
                 id: s.session_id,
                 userIds: s.user_ids,
-                countTraces: s.trace_ids.length,
-                sessionDuration: Number(s.duration) / 1000,
-                inputCost: new Decimal(s.session_input_cost),
-                outputCost: new Decimal(s.session_output_cost),
-                totalCost: new Decimal(s.session_total_cost),
-                promptTokens: Number(s.session_input_usage),
-                completionTokens: Number(s.session_output_usage),
-                totalTokens: Number(s.session_total_usage),
+                countTraces: s.trace_count,
                 traceTags: s.trace_tags,
                 createdAt: new Date(s.min_timestamp),
                 bookmarked:
@@ -274,7 +268,55 @@ export const sessionRouter = createTRPCRouter({
             }));
           },
           clickhouseExecution: async () => {
-            return []; // initial endpoint returns all data from CH.
+            const finalFilter = await getPublicSessionsFilter(input.projectId, [
+              {
+                column: "id",
+                type: "stringOptions",
+                operator: "any of",
+                value: input.sessionIds,
+              },
+            ]);
+            const sessions = await getSessionsWithMetrics({
+              projectId: input.projectId,
+              filter: finalFilter,
+            });
+
+            const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
+              where: {
+                id: {
+                  in: sessions.map((s) => s.session_id),
+                },
+                projectId: input.projectId,
+              },
+              select: {
+                id: true,
+                bookmarked: true,
+                public: true,
+              },
+            });
+
+            return sessions.map((s) => ({
+              id: s.session_id,
+              userIds: s.user_ids,
+              countTraces: s.trace_count,
+              traceTags: s.trace_tags,
+              createdAt: new Date(s.min_timestamp),
+              bookmarked:
+                prismaSessionInfo.find((p) => p.id === s.session_id)
+                  ?.bookmarked ?? false,
+              public:
+                prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
+                false,
+              trace_count: Number(s.trace_count),
+              total_observations: Number(s.total_observations),
+              sessionDuration: Number(s.duration) / 1000,
+              inputCost: new Decimal(s.session_input_cost),
+              outputCost: new Decimal(s.session_output_cost),
+              totalCost: new Decimal(s.session_total_cost),
+              promptTokens: Number(s.session_input_usage),
+              completionTokens: Number(s.session_output_usage),
+              totalTokens: Number(s.session_total_usage),
+            }));
           },
         });
       } catch (e) {
