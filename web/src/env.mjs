@@ -155,7 +155,7 @@ export const env = createEnv({
     CLICKHOUSE_DB: z.string().default("default"),
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
-    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
