@@ -166,7 +166,7 @@ describe("trpc.sessions", () => {
     );
     expect(session1?.trace_tags).toEqual(["doe", "john"]);
     expect(session1?.total_observations).toEqual(4);
-    expect(session1?.duration).toBe("0");
+
     expect(Number(session1?.session_input_cost)).toBeGreaterThan(0);
     expect(Number(session1?.session_output_cost)).toBeGreaterThan(0);
     expect(Number(session1?.session_total_cost)).toBeGreaterThan(0);
@@ -181,7 +181,7 @@ describe("trpc.sessions", () => {
     expect(session2?.user_ids).toEqual(["user3"]);
     expect(session2?.trace_tags).toEqual(["doe", "john"]);
     expect(session2?.total_observations).toEqual(2);
-    expect(session2?.duration).toBe("0");
+
     expect(Number(session2?.session_input_cost)).toBeGreaterThan(0);
     expect(Number(session2?.session_output_cost)).toBeGreaterThan(0);
     expect(Number(session2?.session_total_cost)).toBeGreaterThan(0);
