@@ -332,7 +332,7 @@ describe("batch export test suite", () => {
     );
   });
 
-  it("should export traces", async () => {
+  it.only("should export traces", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traces = [

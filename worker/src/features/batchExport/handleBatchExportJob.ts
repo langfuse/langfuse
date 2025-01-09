@@ -409,6 +409,11 @@ export const getDatabaseReadStream = async ({
                   completionTokens: metric?.completionTokens,
                   totalTokens: metric?.totalTokens,
                 },
+                inputCost: metric?.calculatedInputCost,
+                outputCost: metric?.calculatedOutputCost,
+                totalCost: metric?.calculatedTotalCost,
+                level: metric?.level,
+                observationCount: Number(metric?.observationCount),
                 scores: outputScores,
               };
             });
