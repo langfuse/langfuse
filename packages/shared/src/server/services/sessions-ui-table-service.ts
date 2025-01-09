@@ -166,16 +166,28 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  const singleTraceFilter = traceTimestampFilter
-    ? new FilterList([
-        new DateTimeFilter({
-          clickhouseTable: "traces",
-          field: "timestamp",
-          operator: traceTimestampFilter.operator,
-          value: traceTimestampFilter.value,
-        }),
-      ]).apply()
-    : undefined;
+  const filters = [];
+  if (traceTimestampFilter) {
+    filters.push(
+      new DateTimeFilter({
+        clickhouseTable: "traces",
+        field: "timestamp",
+        operator: traceTimestampFilter.operator,
+        value: traceTimestampFilter.value,
+      }),
+    );
+  }
+
+  const additionalSingleTraceFilter = tracesFilter.find(
+    (f) => f.field === "bookmarked" || f.field === "session_id",
+  );
+
+  if (additionalSingleTraceFilter) {
+    filters.push(additionalSingleTraceFilter);
+  }
+
+  const singleTraceFilter =
+    filters.length > 0 ? new FilterList(filters).apply() : undefined;
 
   const hasMetricsFilter = tracesFilter.find((f) =>
     [
