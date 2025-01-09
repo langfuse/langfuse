@@ -210,14 +210,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       FROM traces t
       WHERE t.session_id IS NOT NULL 
         AND t.project_id = {projectId: String}
-        AND t.session_id IN (
-          -- this query might return multiple rows for the same session_id which is not bad given we only use this to reuduce 
-          SELECT DISTINCT session_id
-          FROM traces
-           WHERE session_id IS NOT NULL
-            AND project_id = {projectId: String}
-            ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
-        )
+        ${singleTraceFilter?.query ? ` AND ${singleTraceFilter.query}` : ""}
         ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
     ),
@@ -226,6 +219,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         FROM observations o
         WHERE o.project_id = {projectId: String}
         ${traceTimestampFilter ? `AND o.start_time >= {observationsStartTime: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+        AND o.trace_id IN (
+          SELECT id
+          FROM deduplicated_traces
+        )
         ORDER BY event_ts DESC
         LIMIT 1 BY id, project_id
     ),
