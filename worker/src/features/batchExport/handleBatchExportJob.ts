@@ -415,6 +415,9 @@ export const getDatabaseReadStream = async ({
                 level: metric?.level,
                 observationCount: Number(metric?.observationCount),
                 scores: outputScores,
+                inputTokens: metric?.promptTokens,
+                outputTokens: metric?.completionTokens,
+                totalTokens: metric?.totalTokens,
               };
             });
           } else {
