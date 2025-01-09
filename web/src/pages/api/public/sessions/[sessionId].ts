@@ -22,28 +22,9 @@ export default withMiddlewares({
         operation: "scores.countAll",
         user: null,
         pgExecution: async () => {
-          const session = await prisma.traceSession.findUnique({
-            where: {
-              id_projectId: {
-                id: sessionId,
-                projectId: auth.scope.projectId,
-              },
-            },
-            select: {
-              id: true,
-              createdAt: true,
-              projectId: true,
-              traces: true,
-            },
-          });
-
-          if (!session) {
-            throw new LangfuseNotFoundError(
-              "Session not found within authorized project",
-            );
-          }
-
-          return session;
+          throw new LangfuseNotFoundError(
+            "Session not found within authorized project",
+          );
         },
         clickhouseExecution: async () => {
           const session = await prisma.traceSession.findUnique({
