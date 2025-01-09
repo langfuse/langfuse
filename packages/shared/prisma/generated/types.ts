@@ -548,6 +548,8 @@ export type Trace = {
     session_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    traceSessionId: string | null;
+    traceSessionProjectId: string | null;
 };
 export type TraceMedia = {
     id: string;

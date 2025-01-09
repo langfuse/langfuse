@@ -284,25 +284,27 @@ model TraceSession {
 // Update TraceView below when making changes to this model!
 
 model Trace {
-  id         String        @id @default(cuid())
-  externalId String?       @map("external_id")
-  timestamp  DateTime      @default(now())
-  name       String?
-  userId     String?       @map("user_id")
-  metadata   Json?
-  release    String?
-  version    String?
-  projectId  String        @map("project_id")
-  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  public     Boolean       @default(false)
-  bookmarked Boolean       @default(false)
-  tags       String[]      @default([])
-  input      Json?
-  output     Json?
-  sessionId  String?       @map("session_id")
-  session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
+  id                    String        @id @default(cuid())
+  externalId            String?       @map("external_id")
+  timestamp             DateTime      @default(now())
+  name                  String?
+  userId                String?       @map("user_id")
+  metadata              Json?
+  release               String?
+  version               String?
+  projectId             String        @map("project_id")
+  project               Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  public                Boolean       @default(false)
+  bookmarked            Boolean       @default(false)
+  tags                  String[]      @default([])
+  input                 Json?
+  output                Json?
+  sessionId             String?       @map("session_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at")
+  TraceSession          TraceSession? @relation(fields: [traceSessionId, traceSessionProjectId], references: [id, projectId])
+  traceSessionId        String?
+  traceSessionProjectId String?
 
   @@index([projectId, timestamp])
   @@index([sessionId])
