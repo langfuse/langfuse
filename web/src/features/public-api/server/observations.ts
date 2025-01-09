@@ -56,12 +56,12 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         created_at,
         updated_at,
         event_ts
-      FROM observations o FINAL
+      FROM observations o
       ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
       WHERE o.project_id = {projectId: String}
       ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
       AND ${appliedFilter.query}
-      ORDER BY start_time desc
+      ORDER BY event_ts desc
       LIMIT 1 by id, project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
@@ -87,7 +87,7 @@ export const getObservationsCountForPublicApi = async (props: QueryType) => {
 
   const query = `
     SELECT count() as count
-    FROM observations o FINAL
+    FROM observations o
     ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
     WHERE o.project_id = {projectId: String}
     ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
