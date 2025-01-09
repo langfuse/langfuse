@@ -221,7 +221,7 @@ export const getTraceById = async (
 ) => {
   const query = `
     SELECT * 
-    FROM traces
+    FROM traces FINAL
     WHERE id = {traceId: String} 
     AND project_id = {projectId: String}
     ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""} 
