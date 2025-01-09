@@ -84,6 +84,7 @@ export class IngestionService {
     eventType: IngestionEntityTypes,
     projectId: string,
     eventBodyId: string,
+    createdAtTimestamp: Date,
     events: IngestionEventType[],
   ): Promise<void> {
     logger.debug(
@@ -95,18 +96,21 @@ export class IngestionService {
         return await this.processTraceEventList({
           projectId,
           entityId: eventBodyId,
+          createdAtTimestamp,
           traceEventList: events as TraceEventType[],
         });
       case "observation":
         return await this.processObservationEventList({
           projectId,
           entityId: eventBodyId,
+          createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
         });
       case "score": {
         return await this.processScoreEventList({
           projectId,
           entityId: eventBodyId,
+          createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
         });
       }
@@ -116,9 +120,10 @@ export class IngestionService {
   private async processScoreEventList(params: {
     projectId: string;
     entityId: string;
+    createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
   }) {
-    const { projectId, entityId, scoreEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -186,6 +191,8 @@ export class IngestionService {
         clickhouseScoreRecord,
         scoreRecords,
       });
+    finalScoreRecord.created_at =
+      clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
   }
@@ -193,9 +200,10 @@ export class IngestionService {
   private async processTraceEventList(params: {
     projectId: string;
     entityId: string;
+    createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
   }) {
-    const { projectId, entityId, traceEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, traceEventList } = params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -239,6 +247,8 @@ export class IngestionService {
       clickhouseTraceRecord,
       traceRecords,
     });
+    finalTraceRecord.created_at =
+      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
@@ -292,9 +302,11 @@ export class IngestionService {
   private async processObservationEventList(params: {
     projectId: string;
     entityId: string;
+    createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
   }) {
-    const { projectId, entityId, observationEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, observationEventList } =
+      params;
     if (observationEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -346,6 +358,8 @@ export class IngestionService {
       observationRecords,
       clickhouseObservationRecord,
     });
+    finalObservationRecord.created_at =
+      clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
