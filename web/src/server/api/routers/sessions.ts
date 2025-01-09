@@ -456,58 +456,10 @@ export const sessionRouter = createTRPCRouter({
           operation: "sessions.byId",
           user: ctx.session.user ?? undefined,
           pgExecution: async () => {
-            const session = null;
-
-            if (!session) {
-              throw new TRPCError({
-                code: "NOT_FOUND",
-                message: "Session not found in project",
-              });
-            }
-
-            const totalCostQuery = Prisma.sql`
-              SELECT
-                SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
-              FROM observations_view o
-              JOIN traces t ON t.id = o.trace_id
-              WHERE
-                t."session_id" = ${input.sessionId}
-                AND t."project_id" = ${input.projectId}
-            `;
-
-            const [scores, costData] = await Promise.all([
-              ctx.prisma.score.findMany({
-                where: {
-                  traceId: {
-                    in: session.traces.map((t) => t.id),
-                  },
-                  projectId: input.projectId,
-                },
-              }),
-              // costData
-              ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
-                totalCostQuery,
-              ),
-            ]);
-
-            const validatedScores = filterAndValidateDbScoreList(
-              scores,
-              traceException,
-            );
-
-            return {
-              ...session,
-              traces: session.traces.map((t) => ({
-                ...t,
-                scores: validatedScores.filter((s) => s.traceId === t.id),
-              })),
-              totalCost: costData[0].totalCost ?? 0,
-              users: [
-                ...new Set(
-                  session.traces.map((t) => t.userId).filter((t) => t !== null),
-                ),
-              ],
-            };
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Session not found in project",
+            });
           },
           clickhouseExecution: async () => {
             const postgresSession = await ctx.prisma.traceSession.findFirst({
