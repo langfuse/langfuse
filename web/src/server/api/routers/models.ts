@@ -22,6 +22,18 @@ const ModelAllOptions = z.object({
   ...paginationZod,
 });
 
+const paginateArray = <T>(params: {
+  limit: number;
+  page: number;
+  data: Array<T>;
+}): Array<T> => {
+  const { data, limit, page } = params;
+  const startIndex = limit * page;
+  const endIndex = startIndex + limit;
+
+  return data.slice(startIndex, endIndex);
+};
+
 export const modelRouter = createTRPCRouter({
   getById: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), modelId: z.string() }))
@@ -70,6 +82,8 @@ export const modelRouter = createTRPCRouter({
   getAll: protectedProjectProcedure
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
+      const { projectId, page, limit } = input;
+
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
         ctx.prisma.$queryRaw`
@@ -95,12 +109,11 @@ export const modelRouter = createTRPCRouter({
             models m
           WHERE
             project_id IS NULL
-            OR project_id = ${input.projectId}
+            OR project_id = ${projectId}
           ORDER BY
             project_id,
             model_name,
             m.created_at DESC NULLS LAST 
-          LIMIT ${input.limit} OFFSET ${input.page * input.limit};
           `,
 
         // Total count
@@ -112,7 +125,7 @@ export const modelRouter = createTRPCRouter({
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
           WHERE project_id IS NULL 
-          OR project_id = '${input.projectId}';
+          OR project_id = ${projectId};
         `,
       ]);
 
@@ -138,7 +151,7 @@ export const modelRouter = createTRPCRouter({
       const lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
         await queryClickhouse({
           query: lastUsedQuery,
-          params: { projectId: input.projectId },
+          params: { projectId },
         }),
       );
 
@@ -147,29 +160,31 @@ export const modelRouter = createTRPCRouter({
           lastUsedQueryResult.data.map((res) => [res.modelId, res.lastUsed]),
         );
 
+        const sortedModels = allModels
+          .map((m) => ({ ...m, lastUsed: lastUsedMap.get(m.id) }))
+          .sort((a, b) => {
+            const lastUsedA = lastUsedMap.get(a.id);
+            const lastUsedB = lastUsedMap.get(b.id);
+
+            if (lastUsedA && lastUsedB) {
+              return lastUsedB.getTime() - lastUsedA.getTime();
+            } else if (lastUsedA) {
+              return -1;
+            } else if (lastUsedB) {
+              return 1;
+            }
+
+            return 0;
+          });
+
         return {
-          models: allModels
-            .map((m) => ({ ...m, lastUsed: lastUsedMap.get(m.id) }))
-            .sort((a, b) => {
-              const lastUsedA = lastUsedMap.get(a.id);
-              const lastUsedB = lastUsedMap.get(b.id);
-
-              if (lastUsedA && lastUsedB) {
-                return lastUsedB.getTime() - lastUsedA.getTime();
-              } else if (lastUsedA) {
-                return -1;
-              } else if (lastUsedB) {
-                return 1;
-              }
-
-              return 0;
-            }),
+          models: paginateArray({ data: sortedModels, page, limit }),
           totalCount,
         };
       }
 
       return {
-        models: allModels,
+        models: paginateArray({ data: allModels, page, limit }),
         totalCount,
       };
     }),
