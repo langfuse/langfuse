@@ -61,7 +61,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
       WHERE o.project_id = {projectId: String}
       ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
       AND ${appliedFilter.query}
-      ORDER BY start_time desc
+      ORDER BY event_ts desc
       LIMIT 1 by id, project_id
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;

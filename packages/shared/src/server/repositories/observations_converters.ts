@@ -61,7 +61,14 @@ export const convertObservation = (
       ? parseClickhouseUTCDateTimeFormat(record.end_time)
       : null,
     name: record.name ?? null,
-    metadata: record.metadata,
+    metadata:
+      record.metadata &&
+      Object.fromEntries(
+        Object.entries(record.metadata ?? {}).map(([key, val]) => [
+          key,
+          val && parseJsonPrioritised(val),
+        ]),
+      ),
     level: record.level as ObservationLevel,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,

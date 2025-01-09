@@ -50,7 +50,14 @@ export const convertClickhouseToDomain = (
     output: (record.output
       ? parseJsonPrioritised(record.output)
       : null) as Prisma.JsonValue | null,
-    metadata: record.metadata,
+    metadata:
+      record.metadata &&
+      Object.fromEntries(
+        Object.entries(record.metadata ?? {}).map(([key, val]) => [
+          key,
+          val && parseJsonPrioritised(val),
+        ]),
+      ),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
     externalId: null,
