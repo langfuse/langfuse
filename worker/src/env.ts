@@ -110,6 +110,11 @@ const EnvSchema = z.object({
   // TODO: Remove for go-live
   LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
 
+  // Skip the read from ClickHouse within the Ingestion pipeline for the given
+  // project ids. Applicable for projects that were created after the S3 write
+  // was activated and which don't rely on historic updates.
+  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS: z.string().default(""),
+
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
   OTEL_SERVICE_NAME: z.string().default("worker"),
