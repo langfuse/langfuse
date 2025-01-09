@@ -39,6 +39,7 @@ import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
 import { randomUUID } from "crypto";
+import { env } from "../../env";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -742,6 +743,15 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }) {
+    if (
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS.split(
+        ",",
+      ).includes(params.projectId)
+    ) {
+      return null;
+    }
+
     const recordParser = {
       traces: traceRecordReadSchema,
       scores: scoreRecordReadSchema,
