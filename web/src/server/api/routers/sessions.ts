@@ -456,25 +456,8 @@ export const sessionRouter = createTRPCRouter({
           operation: "sessions.byId",
           user: ctx.session.user ?? undefined,
           pgExecution: async () => {
-            const session = await ctx.prisma.traceSession.findFirst({
-              where: {
-                id: input.sessionId,
-                projectId: input.projectId,
-              },
-              include: {
-                traces: {
-                  orderBy: {
-                    timestamp: "asc",
-                  },
-                  select: {
-                    id: true,
-                    userId: true,
-                    name: true,
-                    timestamp: true,
-                  },
-                },
-              },
-            });
+            const session = null;
+
             if (!session) {
               throw new TRPCError({
                 code: "NOT_FOUND",
