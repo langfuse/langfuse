@@ -2,6 +2,7 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
 import { ObservationLevel } from "@prisma/client";
@@ -1214,11 +1215,11 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
-export const getGenerationsForPostHog = async (
+export const getGenerationsForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-) => {
+) {
   const query = `
     SELECT
       o.name as name,
@@ -1252,7 +1253,7 @@ export const getGenerationsForPostHog = async (
     AND o.type = 'GENERATION'
   `;
 
-  const records = await queryClickhouse<Record<string, unknown>>({
+  const records = queryClickhouseStream<Record<string, unknown>>({
     query,
     params: {
       projectId,
@@ -1262,32 +1263,34 @@ export const getGenerationsForPostHog = async (
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
-  return records.map((record) => ({
-    timestamp: record.start_time,
-    langfuse_generation_name: record.name,
-    langfuse_trace_name: record.trace_name,
-    langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
-    langfuse_id: record.id,
-    langfuse_cost_usd: record.total_cost,
-    langfuse_input_units: record.input_tokens,
-    langfuse_output_units: record.output_tokens,
-    langfuse_total_units: record.total_tokens,
-    langfuse_session_id: record.trace_session_id,
-    langfuse_project_id: projectId,
-    langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
-    langfuse_latency: record.latency,
-    langfuse_time_to_first_token: record.time_to_first_token,
-    langfuse_release: record.trace_release,
-    langfuse_version: record.version,
-    langfuse_model: record.model,
-    langfuse_level: record.level,
-    langfuse_tags: record.trace_tags,
-    langfuse_event_version: "1.0.0",
-    $session_id: record.posthog_session_id ?? null,
-    $set: {
-      langfuse_user_url: record.user_id
-        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-        : null,
-    },
-  }));
+  for await (const record of records) {
+    yield {
+      timestamp: record.start_time,
+      langfuse_generation_name: record.name,
+      langfuse_trace_name: record.trace_name,
+      langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
+      langfuse_id: record.id,
+      langfuse_cost_usd: record.total_cost,
+      langfuse_input_units: record.input_tokens,
+      langfuse_output_units: record.output_tokens,
+      langfuse_total_units: record.total_tokens,
+      langfuse_session_id: record.trace_session_id,
+      langfuse_project_id: projectId,
+      langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+      langfuse_latency: record.latency,
+      langfuse_time_to_first_token: record.time_to_first_token,
+      langfuse_release: record.trace_release,
+      langfuse_version: record.version,
+      langfuse_model: record.model,
+      langfuse_level: record.level,
+      langfuse_tags: record.trace_tags,
+      langfuse_event_version: "1.0.0",
+      $session_id: record.posthog_session_id ?? null,
+      $set: {
+        langfuse_user_url: record.user_id
+          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+          : null,
+      },
+    };
+  }
 };

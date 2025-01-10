@@ -4,7 +4,7 @@ import {
   convertDateToClickhouseDateTime,
 } from "../clickhouse/client";
 import { logger } from "../logger";
-import { instrumentAsync } from "../instrumentation";
+import { getTracer, instrumentAsync } from "../instrumentation";
 import {
   StorageService,
   StorageServiceFactory,
@@ -99,6 +99,54 @@ export async function upsertClickhouse<
       }
     }
   });
+}
+
+export async function* queryClickhouseStream<T>(opts: {
+  query: string;
+  params?: Record<string, unknown> | undefined;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+}): AsyncGenerator<T> {
+  const tracer = getTracer("clickhouse-query-stream");
+  const span = tracer.startSpan("clickhouse-query-stream");
+
+  // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
+  span.setAttribute("ch.query.text", opts.query);
+
+  const res = await clickhouseClient(opts.clickhouseConfigs).query({
+    query: opts.query,
+    format: "JSONEachRow",
+    query_params: opts.params,
+  });
+  // same logic as for prisma. we want to see queries in development
+  if (env.NODE_ENV === "development") {
+    logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
+  }
+
+  span.setAttribute("ch.queryId", res.query_id);
+
+  // add summary headers to the span. Helps to tune performance
+  const summaryHeader = res.response_headers["x-clickhouse-summary"];
+  if (summaryHeader) {
+    try {
+      const summary = Array.isArray(summaryHeader)
+        ? JSON.parse(summaryHeader[0])
+        : JSON.parse(summaryHeader);
+      for (const key in summary) {
+        span.setAttribute(`ch.${key}`, summary[key]);
+      }
+    } catch (error) {
+      logger.debug(
+        `Failed to parse clickhouse summary header ${summaryHeader}`,
+        error,
+      );
+    }
+  }
+
+  for await (const rows of res.stream<T>()) {
+    for (const row of rows) {
+      yield row.json();
+    }
+  }
 }
 
 export async function queryClickhouse<T>(opts: {
