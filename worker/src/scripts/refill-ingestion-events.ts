@@ -1,7 +1,7 @@
 // This script can be used to manually refill ingestion events.
 // Execute with caution in production.
 
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { parse } from "csv-parse/sync";
 import {
   QueueJobs,
@@ -19,6 +19,7 @@ const main = async () => {
 
   type CsvType = {
     keys: String;
+    processed?: string;
   };
 
   const records: CsvType[] = parse(fileContent, {
@@ -26,16 +27,30 @@ const main = async () => {
     skip_empty_lines: true,
   });
 
-  console.log(JSON.stringify(records));
+  // Store records in JSON file for backup
+  const jsonContent = JSON.stringify(records, null, 2);
+  writeFileSync("./../events.json", jsonContent);
+  logger.info("Stored records backup in events.json");
+
+  // Read from backup JSON file
+  const backupContent = readFileSync("./../events.json", "utf-8");
+  const jsonRecords = JSON.parse(backupContent) as CsvType[];
+
+  // Filter out already processed records
+  const unprocessedRecords = jsonRecords.filter(
+    (record) => record.processed !== "true",
+  );
+
+  console.log(`Found ${unprocessedRecords.length} unprocessed records`);
 
   // Create queue connection
   const ingestionQueue = IngestionQueue.getInstance();
 
   // Process each record
-  const BATCH_SIZE = 100; // Process 100 events at a time
+  const BATCH_SIZE = 50; // Process 100 events at a time
 
-  for (let i = 0; i < records.length; i += BATCH_SIZE) {
-    const batch = records.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < unprocessedRecords.length; i += BATCH_SIZE) {
+    const batch = unprocessedRecords.slice(i, i + BATCH_SIZE);
     const events = batch.map((record) => {
       const [projectId, type, eventBodyId, eventIdWithExt] =
         record.keys.split("/");
@@ -44,7 +59,6 @@ const main = async () => {
       const eventType = (type +
         "-create") as (typeof eventTypes)[keyof typeof eventTypes];
 
-      console.log(eventType);
       return {
         name: QueueJobs.IngestionJob as const,
         data: {
@@ -71,8 +85,20 @@ const main = async () => {
     // Add batch to queue
     await ingestionQueue?.addBulk(events);
 
+    // Mark records as processed
+    // batch.forEach((record, index) => {
+    //   const recordIndex = records.findIndex((r) => r.keys === record.keys);
+    //   if (recordIndex !== -1) {
+    //     records[recordIndex].processed = "true";
+    //   }
+    // });
+
     logger.info(`Processed batch of ${events.length} events`);
   }
+
+  // Write updated records back to JSON
+  // const jsonString = JSON.stringify(records, null, 2);
+  // writeFileSync("./../events.json", jsonString);
 
   logger.info("Done processing events");
 };
