@@ -2,6 +2,7 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
 import {
@@ -627,11 +628,11 @@ export const getUserMetrics = async (
   }));
 };
 
-export const getTracesForPostHog = async (
+export const getTracesForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-) => {
+) {
   const query = `
     WITH observations_agg AS (
       SELECT o.project_id,
@@ -665,7 +666,7 @@ export const getTracesForPostHog = async (
     AND t.timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
-  const records = await queryClickhouse<Record<string, unknown>>({
+  const records = queryClickhouseStream<Record<string, unknown>>({
     query,
     params: {
       projectId,
@@ -675,28 +676,30 @@ export const getTracesForPostHog = async (
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
-  return records.map((record) => ({
-    timestamp: record.timestamp,
-    langfuse_id: record.id,
-    langfuse_trace_name: record.name,
-    langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.id as string)}`,
-    langfuse_cost_usd: record.total_cost,
-    langfuse_count_observations: record.observation_count,
-    langfuse_session_id: record.session_id,
-    langfuse_project_id: projectId,
-    langfuse_user_id: record.user_id || "langfuse_unknown_user",
-    langfuse_latency: record.latency,
-    langfuse_release: record.release,
-    langfuse_version: record.version,
-    langfuse_tags: record.tags,
-    langfuse_event_version: "1.0.0",
-    $session_id: record.posthog_session_id ?? null,
-    $set: {
-      langfuse_user_url: record.user_id
-        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-        : null,
-    },
-  }));
+  for await (const record of records) {
+    yield {
+      timestamp: record.timestamp,
+      langfuse_id: record.id,
+      langfuse_trace_name: record.name,
+      langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.id as string)}`,
+      langfuse_cost_usd: record.total_cost,
+      langfuse_count_observations: record.observation_count,
+      langfuse_session_id: record.session_id,
+      langfuse_project_id: projectId,
+      langfuse_user_id: record.user_id || "langfuse_unknown_user",
+      langfuse_latency: record.latency,
+      langfuse_release: record.release,
+      langfuse_version: record.version,
+      langfuse_tags: record.tags,
+      langfuse_event_version: "1.0.0",
+      $session_id: record.posthog_session_id ?? null,
+      $set: {
+        langfuse_user_url: record.user_id
+          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+          : null,
+      },
+    };
+  }
 };
 
 export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {

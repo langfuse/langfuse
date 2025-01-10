@@ -3,6 +3,7 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
 import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
@@ -669,11 +670,11 @@ export const getDistinctScoreNames = async (
   return rows.map((row) => row.name);
 };
 
-export const getScoresForPostHog = async (
+export const getScoresForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-) => {
+) {
   const query = `
     SELECT
       s.id as id,
@@ -697,7 +698,7 @@ export const getScoresForPostHog = async (
     AND t.timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
-  const records = await queryClickhouse<Record<string, unknown>>({
+  const records = queryClickhouseStream<Record<string, unknown>>({
     query,
     params: {
       projectId,
@@ -707,24 +708,26 @@ export const getScoresForPostHog = async (
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
-  return records.map((record) => ({
-    timestamp: record.timestamp,
-    langfuse_score_name: record.name,
-    langfuse_score_value: record.value,
-    langfuse_score_comment: record.comment,
-    langfuse_trace_name: record.trace_name,
-    langfuse_id: record.id,
-    langfuse_session_id: record.trace_session_id,
-    langfuse_project_id: projectId,
-    langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
-    langfuse_release: record.trace_release,
-    langfuse_tags: record.trace_tags,
-    langfuse_event_version: "1.0.0",
-    $session_id: record.posthog_session_id ?? null,
-    $set: {
-      langfuse_user_url: record.user_id
-        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
-        : null,
-    },
-  }));
+  for await (const record of records) {
+    yield {
+      timestamp: record.timestamp,
+      langfuse_score_name: record.name,
+      langfuse_score_value: record.value,
+      langfuse_score_comment: record.comment,
+      langfuse_trace_name: record.trace_name,
+      langfuse_id: record.id,
+      langfuse_session_id: record.trace_session_id,
+      langfuse_project_id: projectId,
+      langfuse_user_id: record.trace_user_id || "langfuse_unknown_user",
+      langfuse_release: record.trace_release,
+      langfuse_tags: record.trace_tags,
+      langfuse_event_version: "1.0.0",
+      $session_id: record.posthog_session_id ?? null,
+      $set: {
+        langfuse_user_url: record.user_id
+          ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+          : null,
+      },
+    };
+  }
 };
