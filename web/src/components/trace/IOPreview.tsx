@@ -257,6 +257,7 @@ export const OpenAiMessageView: React.FC<{
   messages: z.infer<typeof ChatMlArraySchema>;
   title?: string;
   shouldRenderMarkdown?: boolean;
+  collapseLongHistory?: boolean;
   media?: MediaReturnType[];
   additionalInput?: Record<string, unknown>;
 }> = ({
@@ -264,11 +265,12 @@ export const OpenAiMessageView: React.FC<{
   messages,
   shouldRenderMarkdown = false,
   media,
+  collapseLongHistory = true,
   additionalInput,
 }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
-    messages.length > COLLAPSE_THRESHOLD ? true : null,
+    collapseLongHistory && messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
 
   return (

@@ -262,7 +262,11 @@ export const PromptDetail = () => {
         </div>
         <div className="col-span-2 md:h-full">
           {prompt.type === PromptType.Chat && chatMessages ? (
-            <OpenAiMessageView title="Chat prompt" messages={chatMessages} />
+            <OpenAiMessageView
+              title="Chat prompt"
+              messages={chatMessages}
+              collapseLongHistory={false}
+            />
           ) : typeof prompt.prompt === "string" ? (
             <CodeView content={prompt.prompt} title="Text prompt" />
           ) : (
