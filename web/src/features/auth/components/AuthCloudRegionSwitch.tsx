@@ -59,8 +59,8 @@ export function CloudRegionSwitch({
   );
 
   return (
-    <div>
-      <div className="mb-6 flex w-full flex-col gap-2">
+    <div className="-mb-10 mt-8 rounded-lg bg-card px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+      <div className="flex w-full flex-col gap-2">
         <div>
           <span className="text-sm font-medium leading-none">
             Data Region
@@ -126,8 +126,12 @@ const DataRegionInfo = () => (
       <div className="flex flex-col gap-2">
         <p>Langfuse Cloud is available in two data regions:</p>
         <ul className="list-disc pl-5">
-          <li>US: Northern California (AWS us-west-1) & Virginia (AWS us-east-1)</li>
-          <li>EU: Germany/Frankfurt (AWS eu-central-1) & Ireland (AWS eu-west-1)</li>
+          <li>
+            US: Northern California (AWS us-west-1) & Virginia (AWS us-east-1)
+          </li>
+          <li>
+            EU: Germany/Frankfurt (AWS eu-central-1) & Ireland (AWS eu-west-1)
+          </li>
         </ul>
         <p>
           Regions are strictly separated, and no data is shared across regions.
