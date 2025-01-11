@@ -115,7 +115,7 @@ export function NavMain({
                         >
                           <Link
                             href={subItem.url}
-                            target={subItem.newTab ? "blank" : undefined}
+                            target={subItem.newTab ? "_blank" : undefined}
                           >
                             <span>{subItem.title}</span>
                           </Link>
