@@ -28,10 +28,12 @@ export type NavMainItem = {
   icon?: LucideIcon;
   isActive?: boolean;
   label?: string | ReactNode;
+  newTab?: boolean;
   items?: {
     title: string;
     url: string;
     isActive?: boolean;
+    newTab?: boolean;
   }[];
 };
 
@@ -111,7 +113,10 @@ export function NavMain({
                           asChild
                           isActive={subItem.isActive}
                         >
-                          <Link href={subItem.url}>
+                          <Link
+                            href={subItem.url}
+                            target={subItem.newTab ? "blank" : undefined}
+                          >
                             <span>{subItem.title}</span>
                           </Link>
                         </SidebarMenuSubButton>
@@ -128,7 +133,10 @@ export function NavMain({
                 tooltip={item.title}
                 isActive={item.isActive}
               >
-                <Link href={item.url}>
+                <Link
+                  href={item.url}
+                  target={item.newTab ? "blank" : undefined}
+                >
                   <NavItemContent item={item} />
                 </Link>
               </SidebarMenuButton>
