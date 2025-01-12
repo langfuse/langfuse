@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, MessageSquarePlus, type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 
 import {
   Collapsible,
@@ -20,10 +20,10 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 
 export type NavMainItem = {
   title: string;
+  menuNode?: ReactNode;
   url: string;
   icon?: LucideIcon;
   isActive?: boolean;
@@ -59,27 +59,11 @@ function NavItemContent({ item }: { item: NavMainItem }) {
   );
 }
 
-export function NavMain({
-  items,
-  showFeedbackButton,
-}: {
-  items: NavMainItem[];
-  showFeedbackButton?: boolean;
-}) {
+export function NavMain({ items }: { items: NavMainItem[] }) {
   const { open, setOpen } = useSidebar();
   return (
     <SidebarGroup>
       <SidebarMenu>
-        {showFeedbackButton && (
-          <FeedbackButtonWrapper>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Feedback">
-                <MessageSquarePlus className="h-5 w-5" aria-hidden="true" />
-                Feedback
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </FeedbackButtonWrapper>
-        )}
         {items.map((item) =>
           item.items && item.items.length > 0 ? (
             <Collapsible
@@ -133,12 +117,14 @@ export function NavMain({
                 tooltip={item.title}
                 isActive={item.isActive}
               >
-                <Link
-                  href={item.url}
-                  target={item.newTab ? "blank" : undefined}
-                >
-                  <NavItemContent item={item} />
-                </Link>
+                {item.menuNode ?? (
+                  <Link
+                    href={item.url}
+                    target={item.newTab ? "blank" : undefined}
+                  >
+                    <NavItemContent item={item} />
+                  </Link>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           ),

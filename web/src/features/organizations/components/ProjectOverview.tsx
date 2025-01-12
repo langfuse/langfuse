@@ -1,4 +1,10 @@
-import { LifeBuoy, LockIcon, Settings, Users } from "lucide-react";
+import {
+  BookOpen,
+  LockIcon,
+  MessageSquareText,
+  Settings,
+  Users,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -257,9 +263,15 @@ const Onboarding = () => {
           </Button>
         )}
         <Button variant="secondary" asChild>
-          <Link href="/support">
-            <LifeBuoy className="mr-2 h-4 w-4" aria-hidden="true" />
-            Support
+          <Link href="https://langfuse.com/docs" target="_blank">
+            <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+            Docs
+          </Link>
+        </Button>
+        <Button variant="secondary" asChild>
+          <Link href="https://langfuse.com/docs/ask-ai" target="_blank">
+            <MessageSquareText className="mr-2 h-4 w-4" aria-hidden="true" />
+            Ask AI
           </Link>
         </Button>
       </CardFooter>
