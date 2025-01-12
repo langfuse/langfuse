@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { NavMain, type NavMainItem } from "@/src/components/nav-main";
-import { NavUser, type UserNavigationProps } from "@/src/components/nav-user";
+import { NavMain, type NavMainItem } from "@/src/components/nav/nav-main";
+import {
+  NavUser,
+  type UserNavigationProps,
+} from "@/src/components/nav/nav-user";
 import {
   Sidebar,
   SidebarContent,
@@ -15,7 +18,7 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
-import { SidebarNotifications } from "@/src/components/sidebar-notifications";
+import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 
 type AppSidebarProps = {
@@ -45,7 +48,7 @@ export function AppSidebar({
           <UsageTracker />
           <SidebarNotifications />
         </div>
-        <NavMain items={secondaryNavItems} showFeedbackButton />
+        <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser {...userNavProps} />
