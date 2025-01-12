@@ -24,42 +24,6 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
-    id: "lw2-5",
-    title: "Launch Week 2 – Day 5",
-    description: "Introducing Prompt Experiments to test prompts on datasets",
-    link: "https://langfuse.com/changelog/2024-11-22-prompt-experimentation",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-4",
-    title: "Launch Week 2 – Day 4",
-    description: "All new docs for datasets, experiments, and evaluations",
-    link: "https://langfuse.com/changelog/2024-11-21-all-new-datasets-and-evals-documentation",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-3",
-    title: "Launch Week 2 – Day 3",
-    description:
-      "Full multi-modal support including images, audio, and attachments",
-    link: "https://langfuse.com/changelog/2024-11-20-full-multi-modal-images-audio-attachments",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-2",
-    title: "Launch Week 2 – Day 2",
-    description: "LLM-as-a-Judge Evaluators for Dataset Experiments",
-    link: "https://langfuse.com/changelog/2024-11-19-llm-as-a-judge-for-datasets",
-    linkTitle: "Changelog",
-  },
-  {
-    id: "lw2-1",
-    title: "Launch Week 2 – Day 1",
-    description: "New side-by-side comparison view for dataset experiment runs",
-    link: "https://langfuse.com/changelog/2024-11-18-dataset-runs-comparison-view",
-    linkTitle: "Changelog",
-  },
-  {
     id: "github-star",
     title: "Star Langfuse",
     description:
