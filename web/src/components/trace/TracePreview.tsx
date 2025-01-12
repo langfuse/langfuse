@@ -169,42 +169,45 @@ export const TracePreview = ({
               </div>
             )}
           </div>
-          {viewType === "detailed" && (
-            <div className="flex flex-wrap gap-2">
-              <CommentDrawerButton
-                projectId={trace.projectId}
-                objectId={trace.id}
-                objectType="TRACE"
-                count={commentCounts?.get(trace.id)}
-              />
-              <div className="flex items-start">
-                <AnnotateDrawer
-                  key={"annotation-drawer" + trace.id}
+
+          <div className="flex flex-wrap gap-2">
+            {viewType === "detailed" && (
+              <>
+                <CommentDrawerButton
                   projectId={trace.projectId}
-                  traceId={trace.id}
-                  scores={scores}
-                  emptySelectedConfigIds={emptySelectedConfigIds}
-                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  hasGroupedButton={hasEntitlement}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={commentCounts?.get(trace.id)}
                 />
-                {hasEntitlement && (
-                  <CreateNewAnnotationQueueItem
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + trace.id}
                     projectId={trace.projectId}
-                    objectId={trace.id}
-                    objectType={AnnotationQueueObjectType.TRACE}
+                    traceId={trace.id}
+                    scores={scores}
+                    emptySelectedConfigIds={emptySelectedConfigIds}
+                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                    hasGroupedButton={hasEntitlement}
                   />
-                )}
-              </div>
-              <NewDatasetItemFromTrace
-                traceId={trace.id}
-                projectId={trace.projectId}
-                input={trace.input}
-                output={trace.output}
-                metadata={trace.metadata}
-                key={trace.id}
-              />
-            </div>
-          )}
+                  {hasEntitlement && (
+                    <CreateNewAnnotationQueueItem
+                      projectId={trace.projectId}
+                      objectId={trace.id}
+                      objectType={AnnotationQueueObjectType.TRACE}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+            <NewDatasetItemFromTrace
+              traceId={trace.id}
+              projectId={trace.projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
+            />
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {selectedTab === "preview" && (
