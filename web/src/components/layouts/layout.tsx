@@ -15,7 +15,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/app-sidebar";
+import { AppSidebar } from "@/src/components/nav/app-sidebar";
 
 const signOutUser = async () => {
   localStorage.clear();

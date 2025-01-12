@@ -8,7 +8,6 @@ import {
   type LucideIcon,
   Settings,
   UsersIcon,
-  LibraryBig,
   TerminalIcon,
   Lightbulb,
   Grid2X2,
@@ -20,9 +19,11 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown";
 
 export type Route = {
   title: string;
+  menuNode?: ReactNode;
   featureFlag?: Flag;
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
@@ -157,18 +158,10 @@ export const ROUTES: Route[] = [
     bottom: true,
   },
   {
-    title: "Docs",
-    pathname: "https://langfuse.com/docs",
-    icon: LibraryBig,
-    bottom: true,
-    newTab: true,
-    customizableHref: "documentationHref",
-  },
-  {
     title: "Support",
-    pathname: "/support",
     icon: LifeBuoy,
     bottom: true,
-    customizableHref: "supportHref",
+    pathname: "", // Empty pathname since this is a dropdown
+    menuNode: <SupportMenuDropdown />,
   },
 ];
