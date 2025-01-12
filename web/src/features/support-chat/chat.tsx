@@ -114,6 +114,7 @@ export const showChat = () => {
     Crisp.chat.show();
   }
 };
+
 export const chatIsVisible = () => {
   if (!chatAvailable) return false;
   return sessionStorage.getItem("supportChatVisible") === "true";
