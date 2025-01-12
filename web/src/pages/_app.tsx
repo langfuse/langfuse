@@ -109,10 +109,10 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     <Component {...pageProps} />
                     <UserTracking />
                   </Layout>
+                  <BetterStackUptimeStatusMessage />
                 </ThemeProvider>
               </MarkdownContextProvider>
               <CrispWidget />
-              <BetterStackUptimeStatusMessage />
             </DetailPageListsProvider>
           </SessionProvider>
         </PostHogProvider>
