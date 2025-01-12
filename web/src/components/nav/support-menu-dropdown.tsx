@@ -51,6 +51,7 @@ export function SupportMenuDropdown() {
     },
   ];
 
+  const chatVisible = chatIsVisible();
   if (uiCustomization?.supportHref) {
     supportMenuItems.push({
       title: "Support",
@@ -58,7 +59,6 @@ export function SupportMenuDropdown() {
       icon: LifeBuoy,
     });
   } else {
-    const chatVisible = chatIsVisible();
     if (chatAvailable) {
       supportMenuItems.push({
         title: "Chat",
