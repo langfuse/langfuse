@@ -109,6 +109,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     <Component {...pageProps} />
                     <UserTracking />
                   </Layout>
+                  <BetterStackUptimeStatusMessage />
                 </ThemeProvider>
               </MarkdownContextProvider>
               <CrispWidget />
@@ -247,4 +248,16 @@ if (
     console.log("Signal: ", signal);
     return await shutdown(signal);
   });
+}
+
+function BetterStackUptimeStatusMessage() {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+  return (
+    <script
+      src="https://uptime.betterstack.com/widgets/announcement.js"
+      data-id="189328"
+      async={true}
+      type="text/javascript"
+    ></script>
+  );
 }
