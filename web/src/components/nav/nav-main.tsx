@@ -112,20 +112,20 @@ export function NavMain({ items }: { items: NavMainItem[] }) {
             </Collapsible>
           ) : (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                asChild
-                tooltip={item.title}
-                isActive={item.isActive}
-              >
-                {item.menuNode ?? (
+              {item.menuNode || (
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={item.isActive}
+                >
                   <Link
                     href={item.url}
                     target={item.newTab ? "blank" : undefined}
                   >
                     <NavItemContent item={item} />
                   </Link>
-                )}
-              </SidebarMenuButton>
+                </SidebarMenuButton>
+              )}
             </SidebarMenuItem>
           ),
         )}
