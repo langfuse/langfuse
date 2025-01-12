@@ -62,16 +62,15 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   return (
     <Button
       variant={props.variant ?? "secondary"}
-      size={props.source === "prompt" ? "icon" : "default"}
       title="Test in LLM playground"
       onClick={handleClick}
       asChild
     >
       <Link href={`/project/${projectId}/playground`}>
         <Terminal className="h-4 w-4" />
-        {props.source === "generation" && (
-          <span className="ml-2">Test in playground</span>
-        )}
+        <span className="ml-2">
+          {props.source === "generation" ? "Test in playground" : "Playground"}
+        </span>
       </Link>
     </Button>
   );

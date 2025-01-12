@@ -159,6 +159,12 @@ export const PromptDetail = () => {
         ]}
         actionButtons={
           <>
+            <JumpToPlaygroundButton
+              source="prompt"
+              prompt={prompt}
+              analyticsEventName="prompt_detail:test_in_playground_button_click"
+              variant="outline"
+            />
             {hasAccess ? (
               <>
                 {hasEntitlement && (
@@ -168,11 +174,11 @@ export const PromptDetail = () => {
                   >
                     <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                       <Button
-                        variant="secondary"
+                        variant="outline"
                         disabled={!hasExperimentWriteAccess}
                       >
                         <FlaskConical className="h-4 w-4" />
-                        <span className="ml-2">New experiment</span>
+                        <span className="ml-2">Experiment</span>
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -194,7 +200,7 @@ export const PromptDetail = () => {
                 )}
 
                 <Button
-                  variant="secondary"
+                  variant="default"
                   onClick={() => {
                     capture("prompts:update_form_open");
                   }}
@@ -217,12 +223,6 @@ export const PromptDetail = () => {
                 </div>
               </Button>
             )}
-            <JumpToPlaygroundButton
-              source="prompt"
-              prompt={prompt}
-              analyticsEventName="prompt_detail:test_in_playground_button_click"
-              variant="outline"
-            />
             <DetailPageNav
               key="nav"
               currentId={promptName}
