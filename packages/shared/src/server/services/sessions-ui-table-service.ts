@@ -189,17 +189,28 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const singleTraceFilter =
     filters.length > 0 ? new FilterList(filters).apply() : undefined;
 
-  const hasMetricsFilter = tracesFilter.find((f) =>
-    [
-      "session_total_cost",
-      "session_input_cost",
-      "session_output_cost",
-      "duration",
-      "session_total_usage",
-      "session_output_usage",
-      "session_input_usage",
-    ].includes(f.field),
-  );
+  const hasMetricsFilter =
+    tracesFilter.find((f) =>
+      [
+        "session_total_cost",
+        "session_input_cost",
+        "session_output_cost",
+        "duration",
+        "session_total_usage",
+        "session_output_usage",
+        "session_input_usage",
+      ].includes(f.field),
+    ) ||
+    (orderBy &&
+      [
+        "totalCost",
+        "inputCost",
+        "outputCost",
+        "duration",
+        "totalUsage",
+        "outputUsage",
+        "inputUsage",
+      ].includes(orderBy?.column));
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;
 

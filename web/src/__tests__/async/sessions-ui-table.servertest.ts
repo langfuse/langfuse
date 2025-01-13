@@ -92,6 +92,77 @@ describe("trpc.sessions", () => {
     expect(uiSessions[0].user_ids).toEqual(["user1"]);
   });
 
+  it("should GET sessions ordered by total cost", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const sessionId1 = v4();
+    const sessionId2 = v4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        {
+          id: sessionId1,
+          projectId: projectId,
+        },
+        {
+          id: sessionId2,
+          projectId: projectId,
+        },
+      ],
+    });
+
+    const traces = [
+      createTrace({
+        session_id: sessionId1,
+        project_id: projectId,
+      }),
+      createTrace({
+        session_id: sessionId2,
+        project_id: projectId,
+      }),
+    ];
+
+    const observations = [
+      createObservation({
+        trace_id: traces[0].id,
+        project_id: projectId,
+        cost_details: {
+          input: 0.1,
+          output: 0.2,
+          total: 0.3,
+        },
+        total_cost: 0.3,
+      }),
+      createObservation({
+        trace_id: traces[1].id,
+        project_id: projectId,
+        cost_details: {
+          input: 0.3,
+          output: 0.4,
+          total: 0.7,
+        },
+        total_cost: 0.7,
+      }),
+    ];
+
+    await createTracesCh(traces);
+    await createObservationsCh(observations);
+
+    const uiSessions = await getSessionsTable({
+      projectId: projectId,
+      filter: [],
+      orderBy: {
+        column: "totalCost",
+        order: "DESC" as const,
+      },
+      limit: 10000,
+      page: 0,
+    });
+
+    expect(uiSessions.length).toBe(2);
+    expect(uiSessions[0].session_id).toBe(sessionId2);
+    expect(uiSessions[1].session_id).toBe(sessionId1);
+  });
+
   it("should GET metrics for a list of sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const sessionId1 = v4();
