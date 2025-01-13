@@ -202,7 +202,7 @@ export const deleteTempTableInClickhouse = async (
   sessionId: string,
 ) => {
   const query = `
-      DROP TABLE IF EXISTS ${tableName}
+      DROP TABLE IF EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
   `;
   await commandClickhouse({
     query,
