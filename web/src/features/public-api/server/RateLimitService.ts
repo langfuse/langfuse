@@ -100,9 +100,9 @@ export class RateLimitService {
           isFirstInDuration: err.isFirstInDuration,
         };
       } else {
-        // Some other error occurred, rethrow it
+        // Some other error occurred, return undefined to fail open
         logger.error("Internal Rate limit error", err);
-        throw err;
+        return undefined;
       }
     }
 
