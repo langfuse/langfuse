@@ -3186,7 +3186,7 @@ components:
             to exact match, use `(?i)^modelname$`
         startDate:
           type: string
-          format: date
+          format: date-time
           nullable: true
           description: Apply only to generations which are newer than this ISO date.
         unit:
@@ -4279,6 +4279,7 @@ components:
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
+          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -4311,7 +4312,6 @@ components:
       required:
         - modelName
         - matchPattern
-        - unit
     Observations:
       title: Observations
       type: object
