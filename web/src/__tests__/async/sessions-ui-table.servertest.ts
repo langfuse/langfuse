@@ -92,7 +92,7 @@ describe("trpc.sessions", () => {
     expect(uiSessions[0].user_ids).toEqual(["user1"]);
   });
 
-  it.only("should GET sessions ordered by total cost", async () => {
+  it("should GET sessions ordered by total cost", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const sessionId1 = v4();
     const sessionId2 = v4();
@@ -161,8 +161,6 @@ describe("trpc.sessions", () => {
     expect(uiSessions.length).toBe(2);
     expect(uiSessions[0].session_id).toBe(sessionId2);
     expect(uiSessions[1].session_id).toBe(sessionId1);
-    expect(uiSessions[0].session_id).toBe(sessionId2); // session with higher cost
-    expect(uiSessions[1].session_id).toBe(sessionId1); // session with lower cost
   });
 
   it("should GET metrics for a list of sessions", async () => {
