@@ -191,19 +191,18 @@ describe("trpc.sessions", () => {
         project_id: projectId,
       }),
     ];
-
     const observations = [
       createObservation({
         trace_id: traces[0].id,
         project_id: projectId,
         start_time: new Date("2024-01-01T00:00:00Z").getTime(),
-        end_time: new Date("2024-01-01T00:00:01Z").getTime(),
+        end_time: new Date("2024-01-01T00:00:10Z").getTime(), // 10 second duration
       }),
       createObservation({
         trace_id: traces[1].id,
         project_id: projectId,
         start_time: new Date("2024-01-01T00:00:00Z").getTime(),
-        end_time: new Date("2024-01-01T00:00:01Z").getTime(),
+        end_time: new Date("2024-01-01T00:00:20Z").getTime(), // 20 second duration
       }),
     ];
 
