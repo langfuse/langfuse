@@ -206,7 +206,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         "totalCost",
         "inputCost",
         "outputCost",
-        "duration",
+        "sessionDuration",
         "totalUsage",
         "outputUsage",
         "inputUsage",
