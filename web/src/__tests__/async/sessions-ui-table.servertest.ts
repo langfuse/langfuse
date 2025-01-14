@@ -214,7 +214,7 @@ describe("trpc.sessions", () => {
       projectId: projectId,
       filter: [],
       orderBy: {
-        column: "duration",
+        column: "sessionDuration",
         order: "DESC" as const,
       },
       limit: 10000,
