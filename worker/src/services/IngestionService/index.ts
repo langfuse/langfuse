@@ -360,6 +360,7 @@ export class IngestionService {
     });
     finalObservationRecord.created_at =
       clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
+    finalObservationRecord.level = finalObservationRecord.level ?? "DEFAULT";
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -976,7 +977,7 @@ export class IngestionService {
         provided_cost_details,
         usage_details: provided_usage_details,
         cost_details: provided_cost_details,
-        level: obs.body.level ?? "DEFAULT",
+        level: obs.body.level,
         status_message: obs.body.statusMessage ?? undefined,
         parent_observation_id: obs.body.parentObservationId ?? undefined,
         version: obs.body.version ?? undefined,
