@@ -381,7 +381,7 @@ types:
         type: optional<datetime>
       unit:
         docs: Unit used by this model.
-        type: ModelUsageUnit
+        type: optional<ModelUsageUnit>
       inputPrice:
         docs: Price (USD) per input unit
         type: optional<double>
