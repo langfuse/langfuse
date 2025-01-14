@@ -28,6 +28,7 @@ export function ScoreAnalytics(props: {
   globalFilterState: FilterState;
   projectId: string;
 }) {
+  // Possibly stale score selections persist in localStorage but are filtered during render
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
     useLocalStorage<string[]>(
       `selectedDashboardScoreKeys-${props.projectId}`,
