@@ -960,16 +960,16 @@ describe("eval service tests", () => {
 
       const traceId = randomUUID();
 
-      await kyselyPrisma.$kysely
-        .insertInto("traces")
-        .values({
-          id: traceId,
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          user_id: "a",
-          input: { input: "This is a great prompt" },
-          output: { output: "This is a great response" },
-        })
-        .execute();
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
 
       const templateId = randomUUID();
       await kyselyPrisma.$kysely
@@ -1026,6 +1026,19 @@ describe("eval service tests", () => {
         })
         .execute();
 
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
       const payload = {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         jobExecutionId: jobExecutionId,
@@ -1033,7 +1046,12 @@ describe("eval service tests", () => {
       };
 
       await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new ApiError("Not authorized", 401),
+        new ApiError(
+          "Failed to call LLM: Error: 401 status code (no body)\n" +
+            "\n" +
+            "Troubleshooting URL: https://js.langchain.com/docs/troubleshooting/errors/MODEL_AUTHENTICATION/\n",
+          401,
+        ),
       );
 
       const jobs = await kyselyPrisma.$kysely
