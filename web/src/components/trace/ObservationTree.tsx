@@ -51,7 +51,7 @@ export const ObservationTree = ({
   className?: string;
   showExpandControls?: boolean;
   minLevel?: ObservationLevel;
-  setMinLevel: React.Dispatch<React.SetStateAction<ObservationLevel>>;
+  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevel>>;
 }) => {
   const { nestedObservations, hiddenObservationsCount } = useMemo(
     () => nestObservations(props.observations, props.minLevel),
@@ -105,7 +105,7 @@ export const ObservationTree = ({
             </p>
             <p
               className="cursor-pointer underline"
-              onClick={() => props.setMinLevel(ObservationLevel.DEBUG)}
+              onClick={() => props.setMinLevel?.(ObservationLevel.DEBUG)}
             >
               Show all
             </p>
