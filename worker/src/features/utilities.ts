@@ -49,7 +49,7 @@ export async function callStructuredLLM<T extends ZodSchema>(
     logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, e);
     throw new ApiError(
       `Failed to call LLM: ${e}`,
-      (e as any)?.response?.status,
+      (e as any)?.response?.status ?? (e as any)?.status,
     );
   }
 }
@@ -91,7 +91,7 @@ export async function callLLM(
     logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, e);
     throw new ApiError(
       `Failed to call LLM: ${e}`,
-      (e as any)?.response?.status,
+      (e as any)?.response?.status ?? (e as any)?.status,
     );
   }
 }
