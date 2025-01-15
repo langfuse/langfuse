@@ -258,7 +258,9 @@ export function Trace(props: {
                   Min. Level
                 </SelectLabel>
                 {Object.values(ObservationLevel).map((level) => (
-                  <SelectItem value={level}>{level}</SelectItem>
+                  <SelectItem value={level} key={level}>
+                    {level}
+                  </SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>

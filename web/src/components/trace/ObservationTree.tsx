@@ -4,7 +4,7 @@ import {
   type APIScore,
   type Trace,
   type $Enums,
-  ObservationLevel,
+  type ObservationLevel,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo } from "react";
