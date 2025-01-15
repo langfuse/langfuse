@@ -1,10 +1,8 @@
 import { z } from "zod";
-import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { executeQuery } from "@/src/server/api/services/queryBuilder";
 import {
   filterInterface,
   type groupByInterface,
@@ -33,7 +31,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure

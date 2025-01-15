@@ -83,8 +83,6 @@ import {
   getTraceById,
   logger,
 } from "@langfuse/shared/src/server";
-import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
 

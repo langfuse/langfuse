@@ -9,7 +9,6 @@ import {
 import { LangfuseNotFoundError, InvalidRequestError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/ee/features/evals/server/addDatasetRunItemsToEvalQueue";
 import { getObservationById } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
