@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.3.0",
+  "version": "3.8.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -14,7 +14,8 @@
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
@@ -36,8 +37,9 @@
     "@opentelemetry/sdk-node": "^0.53.0",
     "@prisma/instrumentation": "^5.22.0",
     "backoff": "^2.5.0",
-    "bullmq": "^5.12.10",
+    "bullmq": "^5.34.10",
     "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
     "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",

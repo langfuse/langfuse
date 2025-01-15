@@ -46,7 +46,7 @@ export default function PosthogIntegrationSettings() {
   return (
     <div className="md:container">
       <Header
-        title="PostHog Integration (Beta)"
+        title="PostHog Integration"
         breadcrumb={[
           { name: "Settings", href: `/project/${projectId}/settings` },
         ]}
@@ -71,9 +71,10 @@ export default function PosthogIntegrationSettings() {
           PostHog
         </Link>{" "}
         (OSS product analytics) to make Langfuse events/metrics available in
-        your Posthog Dashboards. While in Beta, this integration syncs metrics
-        on a daily schedule to PostHog. When first activated, it will sync all
-        historical data from the beginning of your project.
+        your PostHog dashboards. Upon activation, all historical data from your
+        project will be synced. After the initial sync, new data is
+        automatically synced every hour to keep your PostHog dashboards up to
+        date.
       </p>
       {!hasAccess && (
         <p className="text-sm">

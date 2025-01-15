@@ -435,17 +435,10 @@ export default function SignIn({
           </h2>
         </div>
 
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
-          <div className="-mb-10 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
-            If you are experiencing issues signing in, please force refresh this
-            page (CMD + SHIFT + R) or clear your browser cache. We have made a
-            fix that is currently rolling out to all users.
-          </div>
-        )}
+        <CloudRegionSwitch />
 
         <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
-            <CloudRegionSwitch />
             {authProviders.credentials ? (
               <Form {...credentialsForm}>
                 <form

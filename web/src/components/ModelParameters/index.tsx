@@ -3,6 +3,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -33,15 +34,12 @@ export type ModelParamsContext = {
   modelParamsDescription?: string;
 };
 
-export const ModelParameters: React.FC<
-  ModelParamsContext & { evalModelsOnly: boolean }
-> = ({
+export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
   availableProviders,
   availableModels,
   updateModelParamValue,
   setModelParamEnabled,
-  evalModelsOnly,
   formDisabled = false,
   modelParamsDescription,
 }) => {
@@ -54,11 +52,8 @@ export const ModelParameters: React.FC<
       <p className="font-semibold">Model</p>
       {availableProviders.length === 0 ? (
         <>
-          <p className="text-xs">
-            No LLM API key set in project.{" "}
-            {evalModelsOnly && "For evals, only OpenAI models are supported."}
-          </p>
-          <CreateLLMApiKeyDialog evalModelsOnly={evalModelsOnly} />
+          <p className="text-xs">No LLM API key set in project. </p>
+          <CreateLLMApiKeyDialog />
         </>
       ) : (
         <div className="space-y-4">
@@ -186,6 +181,8 @@ const ModelParamsSelect = ({
               {option}
             </SelectItem>
           ))}
+          <SelectSeparator />
+          <CreateLLMApiKeyDialog />
         </SelectContent>
       </Select>
       {modelParamsDescription ? (

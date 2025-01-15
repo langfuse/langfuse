@@ -32,6 +32,8 @@ import {
   getCostForTraces,
   getTracesGroupedByUsers,
   getPublicSessionsFilter,
+  logger,
+  getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
 
 const SessionFilterOptions = z.object({
@@ -108,14 +110,7 @@ export const sessionRouter = createTRPCRouter({
               sessions: sessions.map((s) => ({
                 id: s.session_id,
                 userIds: s.user_ids,
-                countTraces: s.trace_ids.length,
-                sessionDuration: Number(s.duration) / 1000,
-                inputCost: new Decimal(s.session_input_cost),
-                outputCost: new Decimal(s.session_output_cost),
-                totalCost: new Decimal(s.session_total_cost),
-                promptTokens: Number(s.session_input_usage),
-                completionTokens: Number(s.session_output_usage),
-                totalTokens: Number(s.session_total_usage),
+                countTraces: s.trace_count,
                 traceTags: s.trace_tags,
                 createdAt: new Date(s.min_timestamp),
                 bookmarked:
@@ -129,7 +124,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to call sessions.all", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get sessions",
@@ -196,7 +191,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Error in sessions.countAll", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session count",
@@ -273,11 +268,59 @@ export const sessionRouter = createTRPCRouter({
             }));
           },
           clickhouseExecution: async () => {
-            return []; // initial endpoint returns all data from CH.
+            const finalFilter = await getPublicSessionsFilter(input.projectId, [
+              {
+                column: "id",
+                type: "stringOptions",
+                operator: "any of",
+                value: input.sessionIds,
+              },
+            ]);
+            const sessions = await getSessionsWithMetrics({
+              projectId: input.projectId,
+              filter: finalFilter,
+            });
+
+            const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
+              where: {
+                id: {
+                  in: sessions.map((s) => s.session_id),
+                },
+                projectId: input.projectId,
+              },
+              select: {
+                id: true,
+                bookmarked: true,
+                public: true,
+              },
+            });
+
+            return sessions.map((s) => ({
+              id: s.session_id,
+              userIds: s.user_ids,
+              countTraces: s.trace_count,
+              traceTags: s.trace_tags,
+              createdAt: new Date(s.min_timestamp),
+              bookmarked:
+                prismaSessionInfo.find((p) => p.id === s.session_id)
+                  ?.bookmarked ?? false,
+              public:
+                prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
+                false,
+              trace_count: Number(s.trace_count),
+              total_observations: Number(s.total_observations),
+              sessionDuration: Number(s.duration) / 1000,
+              inputCost: new Decimal(s.session_input_cost),
+              outputCost: new Decimal(s.session_output_cost),
+              totalCost: new Decimal(s.session_total_cost),
+              promptTokens: Number(s.session_input_usage),
+              completionTokens: Number(s.session_output_usage),
+              totalTokens: Number(s.session_total_usage),
+            }));
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Error in sessions.metrics", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session metrics",
@@ -391,7 +434,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to get sessions.filterOptions", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session filter options",
@@ -413,75 +456,10 @@ export const sessionRouter = createTRPCRouter({
           operation: "sessions.byId",
           user: ctx.session.user ?? undefined,
           pgExecution: async () => {
-            const session = await ctx.prisma.traceSession.findFirst({
-              where: {
-                id: input.sessionId,
-                projectId: input.projectId,
-              },
-              include: {
-                traces: {
-                  orderBy: {
-                    timestamp: "asc",
-                  },
-                  select: {
-                    id: true,
-                    userId: true,
-                    name: true,
-                    timestamp: true,
-                  },
-                },
-              },
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "Session not found in project",
             });
-            if (!session) {
-              throw new TRPCError({
-                code: "NOT_FOUND",
-                message: "Session not found in project",
-              });
-            }
-
-            const totalCostQuery = Prisma.sql`
-              SELECT
-                SUM(COALESCE(o."calculated_total_cost", 0)) AS "totalCost"
-              FROM observations_view o
-              JOIN traces t ON t.id = o.trace_id
-              WHERE
-                t."session_id" = ${input.sessionId}
-                AND t."project_id" = ${input.projectId}
-            `;
-
-            const [scores, costData] = await Promise.all([
-              ctx.prisma.score.findMany({
-                where: {
-                  traceId: {
-                    in: session.traces.map((t) => t.id),
-                  },
-                  projectId: input.projectId,
-                },
-              }),
-              // costData
-              ctx.prisma.$queryRaw<Array<{ totalCost: number }>>(
-                totalCostQuery,
-              ),
-            ]);
-
-            const validatedScores = filterAndValidateDbScoreList(
-              scores,
-              traceException,
-            );
-
-            return {
-              ...session,
-              traces: session.traces.map((t) => ({
-                ...t,
-                scores: validatedScores.filter((s) => s.traceId === t.id),
-              })),
-              totalCost: costData[0].totalCost ?? 0,
-              users: [
-                ...new Set(
-                  session.traces.map((t) => t.userId).filter((t) => t !== null),
-                ),
-              ],
-            };
           },
           clickhouseExecution: async () => {
             const postgresSession = await ctx.prisma.traceSession.findFirst({
@@ -503,16 +481,31 @@ export const sessionRouter = createTRPCRouter({
               input.sessionId,
             );
 
-            const [scores, costData] = await Promise.all([
-              getScoresForTraces(
-                input.projectId,
-                clickhouseTraces.map((t) => t.id),
-              ),
-              getCostForTraces(
-                input.projectId,
-                clickhouseTraces.map((t) => t.id),
+            const traceIds = clickhouseTraces.map((t) => t.id);
+            const chunkSize = 500;
+            const chunks = [];
+
+            for (let i = 0; i < traceIds.length; i += chunkSize) {
+              chunks.push(traceIds.slice(i, i + chunkSize));
+            }
+
+            const [scores, costs] = await Promise.all([
+              Promise.all(
+                chunks.map((chunk) =>
+                  getScoresForTraces({
+                    projectId: input.projectId,
+                    traceIds: chunk,
+                  }),
+                ),
+              ).then((results) => results.flat()),
+              Promise.all(
+                chunks.map((chunk) => getCostForTraces(input.projectId, chunk)),
+              ).then((results) =>
+                results.reduce((sum, cost) => (sum ?? 0) + (cost ?? 0), 0),
               ),
             ]);
+
+            const costData = costs;
 
             const validatedScores = filterAndValidateDbScoreList(
               scores,
@@ -537,7 +530,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to get sessions.byId", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to get session",
@@ -581,7 +574,7 @@ export const sessionRouter = createTRPCRouter({
         });
         return session;
       } catch (error) {
-        console.error(error);
+        logger.error("Unable to call sessions.bookmark", error);
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2025" // Record to update not found
@@ -631,7 +624,7 @@ export const sessionRouter = createTRPCRouter({
           },
         });
       } catch (e) {
-        console.error(e);
+        logger.error("Unable to call sessions.publish", e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "unable to publish session",

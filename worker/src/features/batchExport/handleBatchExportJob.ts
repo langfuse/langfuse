@@ -24,7 +24,6 @@ import {
   parseTraceAllFilters,
   FullObservationsWithScores,
   getPublicSessionsFilter,
-  getSessionsTable,
   getScoresForObservations,
   getObservationsTableWithModelData,
   getDistinctScoreNames,
@@ -33,6 +32,7 @@ import {
   getScoresForTraces,
   logger,
   getTracesByIds,
+  getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
@@ -182,7 +182,7 @@ export const getDatabaseReadStream = async ({
               projectId,
               finalFilter ?? [],
             );
-            const sessions = await getSessionsTable({
+            const sessions = await getSessionsWithMetrics({
               projectId: projectId,
               filter: sessionsFilter,
               orderBy: orderBy,
@@ -382,10 +382,11 @@ export const getDatabaseReadStream = async ({
               ),
             ]);
 
-            const scores = await getScoresForTraces(
+            const scores = await getScoresForTraces({
               projectId,
-              traces.map((t) => t.id),
-            );
+              traceIds: traces.map((t) => t.id),
+            });
+
             chunk = traces.map((t) => {
               const metric = metrics.find((m) => m.id === t.id);
               const filteredScores = scores.filter((s) => s.traceId === t.id);
@@ -408,7 +409,15 @@ export const getDatabaseReadStream = async ({
                   completionTokens: metric?.completionTokens,
                   totalTokens: metric?.totalTokens,
                 },
+                inputCost: metric?.calculatedInputCost,
+                outputCost: metric?.calculatedOutputCost,
+                totalCost: metric?.calculatedTotalCost,
+                level: metric?.level,
+                observationCount: Number(metric?.observationCount),
                 scores: outputScores,
+                inputTokens: metric?.promptTokens,
+                outputTokens: metric?.completionTokens,
+                totalTokens: metric?.totalTokens,
               };
             });
           } else {
@@ -604,7 +613,8 @@ function prepareScoresForOutput(
     (acc, score) => {
       // If this score name already exists in acc, use its existing type
       const existingValues = acc[score.name];
-      const newValue = score.value ?? score.stringValue;
+      const newValue =
+        score.dataType === "NUMERIC" ? score.value : score.stringValue;
       if (!newValue) return acc;
 
       if (!existingValues) {

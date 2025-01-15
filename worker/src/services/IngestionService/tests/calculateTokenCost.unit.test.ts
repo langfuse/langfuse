@@ -427,6 +427,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -507,6 +508,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -585,6 +587,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -665,6 +668,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -748,6 +752,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -837,6 +842,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -921,6 +927,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -1002,6 +1009,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -1088,6 +1096,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();
@@ -1159,6 +1168,7 @@ describe("Token Cost Calculation", () => {
     await (mockIngestionService as any).processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: events,
     });
     expect(mockAddToClickhouseWriter).toHaveBeenCalled();

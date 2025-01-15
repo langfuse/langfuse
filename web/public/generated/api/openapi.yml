@@ -723,6 +723,9 @@ paths:
         Notes:
 
 
+        - Introduction to data model:
+        https://langfuse.com/docs/tracing-data-model
+
         - Batch sizes are limited to 3.5 MB in total. You need to adjust the
         number of events per batch accordingly.
 
@@ -3183,11 +3186,12 @@ components:
             to exact match, use `(?i)^modelname$`
         startDate:
           type: string
-          format: date
+          format: date-time
           nullable: true
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
+          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -3223,7 +3227,6 @@ components:
         - id
         - modelName
         - matchPattern
-        - unit
         - isLangfuseManaged
     ModelUsageUnit:
       title: ModelUsageUnit
@@ -4276,6 +4279,7 @@ components:
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
+          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -4308,7 +4312,6 @@ components:
       required:
         - modelName
         - matchPattern
-        - unit
     Observations:
       title: Observations
       type: object

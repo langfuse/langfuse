@@ -4,7 +4,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Separator } from "@/src/components/ui/separator";
 import {
   isBooleanDataType,
@@ -20,6 +20,7 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Flex, Text } from "@tremor/react";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -27,9 +28,12 @@ export function ScoreAnalytics(props: {
   globalFilterState: FilterState;
   projectId: string;
 }) {
-  const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] = useState<
-    string[]
-  >([]);
+  // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
+  const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
+    useLocalStorage<string[]>(
+      `selectedDashboardScoreKeys-${props.projectId}`,
+      [],
+    );
 
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {

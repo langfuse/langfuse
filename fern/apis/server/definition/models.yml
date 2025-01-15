@@ -58,7 +58,7 @@ types:
         type: optional<datetime>
       unit:
         docs: Unit used by this model.
-        type: commons.ModelUsageUnit
+        type: optional<commons.ModelUsageUnit>
       inputPrice:
         docs: Price (USD) per input unit
         type: optional<double>

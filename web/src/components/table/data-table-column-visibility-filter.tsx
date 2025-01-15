@@ -160,8 +160,12 @@ function ColumnVisibilityDropdownItem<TData, TValue>({
 
 function GroupVisibilityDropdownHeader<TData, TValue>({
   column,
+  groupTotalCount,
+  groupVisibleCount,
 }: {
   column: LangfuseColumnDef<TData, TValue>;
+  groupTotalCount: number;
+  groupVisibleCount: number;
 }) {
   const { attributes, isDragging, listeners, setNodeRef, transform } =
     useSortable({
@@ -188,6 +192,9 @@ function GroupVisibilityDropdownHeader<TData, TValue>({
           {column.header && typeof column.header === "string"
             ? column.header
             : column.accessorKey}
+        </span>
+        <span className="ml-1.5 text-xs text-muted-foreground">
+          ({groupVisibleCount}/{groupTotalCount})
         </span>
       </div>
       <div className="flex items-center">
@@ -352,7 +359,11 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                   return (
                     <DropdownMenuSub key={index}>
                       {isColumnOrderingEnabled ? (
-                        <GroupVisibilityDropdownHeader column={column} />
+                        <GroupVisibilityDropdownHeader
+                          column={column}
+                          groupTotalCount={groupTotalCount}
+                          groupVisibleCount={groupVisibleCount}
+                        />
                       ) : (
                         <DropdownMenuSubTrigger hasCustomIcon>
                           <Component className="mr-2 h-4 w-4 opacity-50" />

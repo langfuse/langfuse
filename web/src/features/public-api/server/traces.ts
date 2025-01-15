@@ -6,6 +6,7 @@ import {
   orderByToClickhouseSql,
   type DateTimeFilter,
   parseClickhouseUTCDateTimeFormat,
+  queryClickhouseStream,
 } from "@langfuse/shared/src/server";
 import {
   convertRecordToJsonSchema,
@@ -58,7 +59,7 @@ export const generateTracesForPublicApi = async (
         trace_id,
         project_id,
         sum(total_cost) as total_cost,
-        date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
         groupArray(id) as observation_ids
       FROM observations FINAL
       WHERE project_id = {projectId: String}
@@ -108,7 +109,7 @@ export const generateTracesForPublicApi = async (
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  const result = await queryClickhouse<
+  const asyncGenerator = queryClickhouseStream<
     Trace & {
       observations: string[];
       scores: string[];
@@ -132,6 +133,19 @@ export const generateTracesForPublicApi = async (
         : {}),
     },
   });
+
+  const result: Array<
+    Trace & {
+      observations: string[];
+      scores: string[];
+      totalCost: number;
+      latency: number;
+      htmlPath: string;
+    }
+  > = [];
+  for await (const row of asyncGenerator) {
+    result.push(row);
+  }
 
   return result.map((trace) => ({
     ...trace,

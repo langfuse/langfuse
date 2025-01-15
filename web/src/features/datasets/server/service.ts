@@ -176,7 +176,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
           project_id String,    
           run_id String,  
@@ -202,7 +202,7 @@ export const deleteTempTableInClickhouse = async (
   sessionId: string,
 ) => {
   const query = `
-      DROP TABLE IF EXISTS ${tableName}
+      DROP TABLE IF EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
   `;
   await commandClickhouse({
     query,
@@ -289,7 +289,7 @@ const getObservationLatencyAndCostForDataset = async (
   const query = `
     WITH agg AS (
       SELECT
-          dateDiff('milliseconds', start_time, end_time) AS latency_ms,
+          dateDiff('millisecond', start_time, end_time) AS latency_ms,
           total_cost AS cost,
           run_id
       FROM observations AS o
@@ -342,7 +342,7 @@ const getTraceLatencyAndCostForDataset = async (
       SELECT
         o.trace_id,
         run_id,
-        dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms,
+        dateDiff('millisecond', min(start_time), max(end_time)) AS latency_ms,
         sum(total_cost) AS cost
       FROM observations o JOIN ${tableName} tmp
         ON tmp.project_id = o.project_id 
@@ -531,10 +531,10 @@ export const getRunItemsByRunIdOrItemId = async (
 ) => {
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
-      getScoresForTraces(
+      getScoresForTraces({
         projectId,
-        runItems.map((ri) => ri.traceId),
-      ),
+        traceIds: runItems.map((ri) => ri.traceId),
+      }),
       getLatencyAndTotalCostForObservations(
         projectId,
         runItems

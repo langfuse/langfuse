@@ -71,7 +71,8 @@ export function TraceTableMultiSelectAction({
     },
   });
 
-  const hasEntitlement = useHasEntitlement("annotation-queues");
+  const hasAnnotationEntitlement = useHasEntitlement("annotation-queues");
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
   const hasAddToQueueAccess = useHasProjectAccess({
     projectId,
     scope: "annotationQueues:CUD",
@@ -97,7 +98,7 @@ export function TraceTableMultiSelectAction({
     {
       projectId,
     },
-    { enabled: session.status === "authenticated" && hasEntitlement },
+    { enabled: session.status === "authenticated" && hasAnnotationEntitlement },
   );
 
   return (
@@ -110,20 +111,22 @@ export function TraceTableMultiSelectAction({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem
-            disabled={!hasDeleteAccess}
-            onClick={() => {
-              capture("trace:delete_form_open", {
-                count: selectedTraceIds.length,
-                source: "table-multi-select",
-              });
-              setDeleteDialogOpen(true);
-            }}
-          >
-            <Trash className="mr-2 h-4 w-4" />
-            <span>Delete</span>
-          </DropdownMenuItem>
-          {hasEntitlement && (
+          {hasTraceDeletionEntitlement && (
+            <DropdownMenuItem
+              disabled={!hasDeleteAccess}
+              onClick={() => {
+                capture("trace:delete_form_open", {
+                  count: selectedTraceIds.length,
+                  source: "table-multi-select",
+                });
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          )}
+          {hasAnnotationEntitlement && (
             <DropdownMenuItem
               disabled={!hasAddToQueueAccess}
               onClick={() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, MessageSquarePlus, type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 
 import {
   Collapsible,
@@ -20,18 +20,20 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { FeedbackButtonWrapper } from "@/src/features/feedback/component/FeedbackButton";
 
 export type NavMainItem = {
   title: string;
+  menuNode?: ReactNode;
   url: string;
   icon?: LucideIcon;
   isActive?: boolean;
   label?: string | ReactNode;
+  newTab?: boolean;
   items?: {
     title: string;
     url: string;
     isActive?: boolean;
+    newTab?: boolean;
   }[];
 };
 
@@ -57,31 +59,11 @@ function NavItemContent({ item }: { item: NavMainItem }) {
   );
 }
 
-export function NavMain({
-  items,
-  showFeedbackButton,
-}: {
-  items: NavMainItem[];
-  showFeedbackButton?: boolean;
-}) {
+export function NavMain({ items }: { items: NavMainItem[] }) {
   const { open, setOpen } = useSidebar();
   return (
     <SidebarGroup>
       <SidebarMenu>
-        {showFeedbackButton && (
-          <FeedbackButtonWrapper
-            title="Provide feedback"
-            description="What do you think about this project? What can be improved?"
-            type="feedback"
-          >
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Feedback">
-                <MessageSquarePlus className="h-5 w-5" aria-hidden="true" />
-                Feedback
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </FeedbackButtonWrapper>
-        )}
         {items.map((item) =>
           item.items && item.items.length > 0 ? (
             <Collapsible
@@ -115,7 +97,10 @@ export function NavMain({
                           asChild
                           isActive={subItem.isActive}
                         >
-                          <Link href={subItem.url}>
+                          <Link
+                            href={subItem.url}
+                            target={subItem.newTab ? "_blank" : undefined}
+                          >
                             <span>{subItem.title}</span>
                           </Link>
                         </SidebarMenuSubButton>
@@ -127,15 +112,20 @@ export function NavMain({
             </Collapsible>
           ) : (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                asChild
-                tooltip={item.title}
-                isActive={item.isActive}
-              >
-                <Link href={item.url}>
-                  <NavItemContent item={item} />
-                </Link>
-              </SidebarMenuButton>
+              {item.menuNode || (
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={item.isActive}
+                >
+                  <Link
+                    href={item.url}
+                    target={item.newTab ? "blank" : undefined}
+                  >
+                    <NavItemContent item={item} />
+                  </Link>
+                </SidebarMenuButton>
+              )}
             </SidebarMenuItem>
           ),
         )}

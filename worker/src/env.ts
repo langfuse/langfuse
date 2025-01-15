@@ -2,6 +2,7 @@ import { removeEmptyEnvVariables } from "@langfuse/shared";
 import { z } from "zod";
 
 const EnvSchema = z.object({
+  BUILD_ID: z.string().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -82,6 +83,8 @@ const EnvSchema = z.object({
 
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_USER: z.string(),
+  CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+  CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
 
   LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
@@ -106,6 +109,11 @@ const EnvSchema = z.object({
 
   // TODO: Remove for go-live
   LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
+
+  // Skip the read from ClickHouse within the Ingestion pipeline for the given
+  // project ids. Applicable for projects that were created after the S3 write
+  // was activated and which don't rely on historic updates.
+  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS: z.string().default(""),
 
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),
@@ -150,6 +158,20 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   LANGFUSE_POSTGRES_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+
+  // Core data S3 upload - only used internally
+  LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
 });

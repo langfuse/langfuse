@@ -97,10 +97,15 @@ export const ingestionQueueProcessorBuilder = (
         `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/`,
       );
 
+      const firstS3WriteTime =
+        eventFiles
+          .map((fileRef) => fileRef.createdAt)
+          .sort()
+          .shift() ?? new Date();
       const events: IngestionEventType[] = (
         await Promise.all(
-          eventFiles.map(async (key) => {
-            const file = await s3Client.download(key);
+          eventFiles.map(async (fileRef) => {
+            const file = await s3Client.download(fileRef.file);
             const parsedFile = JSON.parse(file);
             return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
           }),
@@ -126,6 +131,7 @@ export const ingestionQueueProcessorBuilder = (
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,
         job.data.payload.data.eventBodyId,
+        firstS3WriteTime,
         events,
       );
     } catch (e) {

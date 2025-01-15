@@ -64,13 +64,7 @@ type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
 
 export type ObservationReturnType = Omit<
   ObservationView,
-  | "input"
-  | "output"
-  | "modelId"
-  | "inputPrice"
-  | "outputPrice"
-  | "totalPrice"
-  | "metadata"
+  "input" | "output" | "inputPrice" | "outputPrice" | "totalPrice" | "metadata"
 > & {
   traceId: string;
   usageDetails: Record<string, number>;
@@ -297,13 +291,12 @@ export const traceRouter = createTRPCRouter({
             ],
           });
 
-          const scores = await getScoresForTraces(
-            ctx.session.projectId,
-            res.map((r) => r.id),
-            undefined,
-            1000,
-            0,
-          );
+          const scores = await getScoresForTraces({
+            projectId: ctx.session.projectId,
+            traceIds: res.map((r) => r.id),
+            limit: 1000,
+            offset: 0,
+          });
 
           const validatedScores = filterAndValidateDbScoreList(
             scores,
@@ -582,13 +575,11 @@ export const traceRouter = createTRPCRouter({
               input.projectId,
               input.timestamp ?? undefined,
             ),
-            getScoresForTraces(
-              input.projectId,
-              [input.traceId],
-              input.timestamp ?? undefined,
-              undefined,
-              undefined,
-            ),
+            getScoresForTraces({
+              projectId: input.projectId,
+              traceIds: [input.traceId],
+              timestamp: input.timestamp ?? undefined,
+            }),
           ]);
 
           if (!trace) {
@@ -775,7 +766,7 @@ export const traceRouter = createTRPCRouter({
 
         return trace;
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call traces.bookmark", error);
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2025" // Record to update not found
@@ -845,7 +836,7 @@ export const traceRouter = createTRPCRouter({
           return clickhouseTrace;
         }
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call traces.publish", error);
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2025" // Record to update not found
@@ -913,7 +904,7 @@ export const traceRouter = createTRPCRouter({
           await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
         }
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call traces.updateTags", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
         });
