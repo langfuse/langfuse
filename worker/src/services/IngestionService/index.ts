@@ -776,7 +776,8 @@ export class IngestionService {
 
     return await instrumentAsync(
       { name: `get-clickhouse-${table}` },
-      async () => {
+      async (span) => {
+        span.setAttribute("projectId", projectId);
         const queryResult = await this.clickhouseClient.query({
           query: `
             SELECT *
