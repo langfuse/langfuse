@@ -30,6 +30,14 @@ import {
 } from "@/src/features/datasets/server/service";
 import { traceException } from "@langfuse/shared/src/server";
 
+const formatDatasetItemData = (data: string | null | undefined) => {
+  return data === ""
+    ? Prisma.DbNull
+    : !!data
+      ? (JSON.parse(data) as Prisma.InputJsonObject)
+      : undefined;
+};
+
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -583,24 +591,9 @@ export const datasetRouter = createTRPCRouter({
 
       const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
-          input:
-            input.input === ""
-              ? Prisma.DbNull
-              : !!input.input
-                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-                : undefined,
-          expectedOutput:
-            input.expectedOutput === ""
-              ? Prisma.DbNull
-              : !!input.expectedOutput
-                ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
-                : undefined,
-          metadata:
-            input.metadata === ""
-              ? Prisma.DbNull
-              : !!input.metadata
-                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
-                : undefined,
+          input: formatDatasetItemData(input.input),
+          expectedOutput: formatDatasetItemData(input.expectedOutput),
+          metadata: formatDatasetItemData(input.metadata),
           datasetId: input.datasetId,
           sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
@@ -652,24 +645,9 @@ export const datasetRouter = createTRPCRouter({
       }
 
       const datasetItems = input.items.map((item) => ({
-        input:
-          item.input === ""
-            ? Prisma.DbNull
-            : !!item.input
-              ? (JSON.parse(item.input) as Prisma.InputJsonObject)
-              : undefined,
-        expectedOutput:
-          item.expectedOutput === ""
-            ? Prisma.DbNull
-            : !!item.expectedOutput
-              ? (JSON.parse(item.expectedOutput) as Prisma.InputJsonObject)
-              : undefined,
-        metadata:
-          item.metadata === ""
-            ? Prisma.DbNull
-            : !!item.metadata
-              ? (JSON.parse(item.metadata) as Prisma.InputJsonObject)
-              : undefined,
+        input: formatDatasetItemData(item.input),
+        expectedOutput: formatDatasetItemData(item.expectedOutput),
+        metadata: formatDatasetItemData(item.metadata),
         datasetId: input.datasetId,
         projectId: input.projectId,
         status: DatasetStatus.ACTIVE,
