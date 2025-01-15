@@ -1,4 +1,4 @@
-import { ObservationType } from "@langfuse/shared";
+import { ObservationLevel, ObservationType } from "@langfuse/shared";
 import { type NestedObservation } from "@/src/utils/types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
@@ -14,11 +14,17 @@ export const treeItemColors: Map<TreeItemType, string> = new Map([
 
 export function nestObservations(
   list: ObservationReturnType[],
+  minLevel?: ObservationLevel,
 ): NestedObservation[] {
   if (list.length === 0) return [];
 
-  // Data prep: Remove parentObservationId attribute from observations if the id does not exist in the list of observations
-  const mutableList = list.map((o) => ({ ...o }));
+  // Data prep:
+  // - Filter for observations with minimum level
+  // - Remove parentObservationId attribute from observations if the id does not exist in the list of observations
+  const mutableList = list.filter((o) =>
+    getObservationLevels(minLevel).includes(o.level),
+  );
+
   mutableList.forEach((observation) => {
     if (
       observation.parentObservationId &&
@@ -114,7 +120,9 @@ export function calculateDisplayTotalCost(p: {
                   curr.calculatedOutputCost ?? new Decimal(0),
                 ),
             )
-          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
+          : (curr.calculatedInputCost ??
+              curr.calculatedOutputCost ??
+              undefined);
       }
 
       if (!curr.calculatedTotalCost) return prev;
@@ -128,4 +136,19 @@ export function calculateDisplayTotalCost(p: {
   );
 
   return totalCost;
+}
+
+function getObservationLevels(minLevel: ObservationLevel | undefined) {
+  const ascendingLevels = [
+    ObservationLevel.DEBUG,
+    ObservationLevel.DEFAULT,
+    ObservationLevel.WARNING,
+    ObservationLevel.ERROR,
+  ];
+
+  if (!minLevel) return ascendingLevels;
+
+  const minLevelIndex = ascendingLevels.indexOf(minLevel);
+
+  return ascendingLevels.slice(minLevelIndex);
 }

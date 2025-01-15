@@ -1,6 +1,11 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { type APIScore, type Trace, type $Enums } from "@langfuse/shared";
+import {
+  type APIScore,
+  type Trace,
+  type $Enums,
+  type ObservationLevel,
+} from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -39,10 +44,11 @@ export const ObservationTree = ({
   traceCommentCounts?: Map<string, number>;
   className?: string;
   showExpandControls?: boolean;
+  minLevel?: ObservationLevel;
 }) => {
   const nestedObservations = useMemo(
-    () => nestObservations(props.observations),
-    [props.observations],
+    () => nestObservations(props.observations, props.minLevel),
+    [props.observations, props.minLevel],
   );
   const totalCost = useMemo(() => {
     return calculateDisplayTotalCost({
