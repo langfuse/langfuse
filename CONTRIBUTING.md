@@ -121,35 +121,39 @@ flowchart TB
         end
     end
 
-    DB[Postgres Database]
-    Redis[Redis Cache/Queue]
-    Clickhouse[Clickhouse Database]
+    subgraph s9 ["VPC (US and EU separated)"]
+        DB[Postgres Database]
+        Redis[Redis Cache/Queue]
+        Clickhouse[Clickhouse Database]
 
-    subgraph s1["Application (langfuse/langfuse/web)"]
-        API[Public HTTP API]
-        G[TRPC API]
-        I[NextAuth]
-        H[React Frontend]
-        ORM
-        H --> G
-        H --> I
-        G --> I
-        G --- ORM
-        API --- ORM
-        I --- ORM
+        subgraph s1["Application (langfuse/langfuse/web)"]
+            API[Public HTTP API]
+            G[TRPC API]
+            I[NextAuth]
+            H[React Frontend]
+            ORM
+            H --> G
+            H --> I
+            G --> I
+            G --- ORM
+            API --- ORM
+            I --- ORM
+        end
+
+        subgraph s5["Application (langfuse/langfuse/worker)"]
+            Worker
+        end
+
+        Worker --- DB
+        Worker --- Redis
+        Worker --- Clickhouse
+
+        ORM --- DB
+        ORM --- Redis
+        ORM --- Clickhouse
+
+
     end
-
-    subgraph s5["Application (langfuse/langfuse/worker)"]
-        Worker
-    end
-
-    Worker --- DB
-    Worker --- Redis
-    Worker --- Clickhouse
-
-    ORM --- DB
-    ORM --- Redis
-    ORM --- Clickhouse
 
     JS --- API
     Python --- API
