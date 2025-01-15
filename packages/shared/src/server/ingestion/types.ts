@@ -112,6 +112,9 @@ export const UsageOrCostDetails = z
   .union([OpenAIUsageSchema, RawUsageOrCostDetails])
   .nullish();
 
+// Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
+// With this setup parsing should be more lightweight and doesn't block other requests.
+// As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 export const TraceBody = z.object({
   id: z.string().nullish(),
   timestamp: stringDateTime,
