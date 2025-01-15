@@ -25,7 +25,6 @@ import {
 import {
   availableTraceEvalVariables,
   ChatMessageRole,
-  evalTraceTableCols,
   ForbiddenError,
   LangfuseNotFoundError,
   LLMApiKeySchema,
