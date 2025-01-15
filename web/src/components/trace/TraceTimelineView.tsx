@@ -304,7 +304,7 @@ export function TraceTimelineView({
     };
   }, [parentRef]);
 
-  const nestedObservations = useMemo(
+  const { nestedObservations } = useMemo(
     () => nestObservations(observations),
     [observations],
   );

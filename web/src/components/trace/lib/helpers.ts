@@ -15,8 +15,12 @@ export const treeItemColors: Map<TreeItemType, string> = new Map([
 export function nestObservations(
   list: ObservationReturnType[],
   minLevel?: ObservationLevel,
-): NestedObservation[] {
-  if (list.length === 0) return [];
+): {
+  nestedObservations: NestedObservation[];
+  hiddenObservationsCount: number;
+} {
+  if (list.length === 0)
+    return { nestedObservations: [], hiddenObservationsCount: 0 };
 
   // Data prep:
   // - Filter for observations with minimum level
@@ -24,6 +28,7 @@ export function nestObservations(
   const mutableList = list.filter((o) =>
     getObservationLevels(minLevel).includes(o.level),
   );
+  const hiddenObservationsCount = list.length - mutableList.length;
 
   mutableList.forEach((observation) => {
     if (
@@ -67,7 +72,10 @@ export function nestObservations(
   }
 
   // Step 5: Return the roots.
-  return Array.from(roots.values());
+  return {
+    nestedObservations: Array.from(roots.values()),
+    hiddenObservationsCount,
+  };
 }
 
 export function calculateDisplayTotalCost(p: {
