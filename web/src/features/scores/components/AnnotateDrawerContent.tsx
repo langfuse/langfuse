@@ -481,6 +481,7 @@ export function AnnotateDrawerContent({
             ...score,
             scoreId: createdScore.id,
             value: createdScore.value,
+            stringValue: createdScore.stringValue ?? undefined,
           });
         }
       }
