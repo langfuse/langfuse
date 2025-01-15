@@ -42,7 +42,8 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
-  const available = useHasEntitlement("playground");
+  const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const isEntitled = useHasEntitlement("playground");
 
   useEffect(() => {
     if (props.source === "prompt") {
@@ -52,12 +53,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [props]);
 
+  useEffect(() => {
+    if (capturedState && isEntitled) {
+      setIsAvailable(true);
+    } else {
+      setIsAvailable(false);
+    }
+  }, [capturedState, isEntitled, setIsAvailable]);
+
   const handleClick = () => {
     capture(props.analyticsEventName);
     setPlaygroundCache(capturedState);
   };
 
-  if (!available) return null;
+  if (!isAvailable) return null;
 
   return (
     <Button
