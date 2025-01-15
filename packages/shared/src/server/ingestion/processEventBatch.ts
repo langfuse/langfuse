@@ -18,11 +18,9 @@ import {
   traceException,
 } from "../instrumentation";
 import { logger } from "../logger";
-import { LegacyIngestionEventType, QueueJobs } from "../queues";
+import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
-import { LegacyIngestionQueue } from "../redis/legacyIngestion";
 import { redis } from "../redis/redis";
-import { handleBatch } from "./legacy";
 import {
   StorageService,
   StorageServiceFactory,

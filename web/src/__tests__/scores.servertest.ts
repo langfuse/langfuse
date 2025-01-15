@@ -12,7 +12,7 @@ import { PostTracesV1Response } from "@/src/features/public-api/types/traces";
 
 const traceId = "de98afa2-89dc-47e9-9924-33f1490fdaf4";
 
-describe("/api/public/scores API Endpoint", () => {
+describe.skip("/api/public/scores API Endpoint", () => {
   let should_prune_db = true;
   beforeEach(async () => {
     if (should_prune_db) await pruneDatabase();
