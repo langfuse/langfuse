@@ -107,9 +107,6 @@ const EnvSchema = z.object({
     .default(5),
   STRIPE_SECRET_KEY: z.string().optional(),
 
-  // TODO: Remove for go-live
-  LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
-
   // Skip the read from ClickHouse within the Ingestion pipeline for the given
   // project ids. Applicable for projects that were created after the S3 write
   // was activated and which don't rely on historic updates.
@@ -157,9 +154,6 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
 
   // Core data S3 upload - only used internally
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z

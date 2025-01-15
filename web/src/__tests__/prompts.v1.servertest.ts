@@ -9,6 +9,7 @@ import {
   PromptType,
   type LegacyValidatedPrompt,
 } from "@/src/features/prompts/server/utils/validation";
+import { getObservationById } from "@langfuse/shared/src/server";
 
 describe("/api/public/prompts API Endpoint", () => {
   beforeEach(async () => await pruneDatabase());
@@ -411,6 +412,7 @@ describe("/api/public/prompts API Endpoint", () => {
     const generationId = v4();
 
     const promptId = uuidv4();
+    const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
     await prisma.prompt.create({
       data: {
@@ -420,7 +422,7 @@ describe("/api/public/prompts API Endpoint", () => {
         labels: ["production"],
         version: 1,
         project: {
-          connect: { id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+          connect: { id: projectId },
         },
         createdBy: "user-1",
       },
@@ -459,11 +461,10 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(response.status).toBe(207);
 
-    const dbGeneration = await prisma.observation.findUnique({
-      where: {
-        id: generationId,
-      },
-    });
+    // Delay to allow for async processing
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const dbGeneration = await getObservationById(generationId, projectId);
 
     expect(dbGeneration?.id).toBe(generationId);
     expect(dbGeneration?.promptId).toBe(promptId);

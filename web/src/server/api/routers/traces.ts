@@ -736,50 +736,27 @@ export const traceRouter = createTRPCRouter({
         });
 
         let trace;
-        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
-          trace = await ctx.prisma.trace.update({
-            where: {
-              id: input.traceId,
-              projectId: input.projectId,
-            },
-            data: {
-              bookmarked: input.bookmarked,
-            },
-          });
-        }
 
-        if (env.CLICKHOUSE_URL) {
-          const clickhouseTrace = await getTraceById(
-            input.traceId,
-            input.projectId,
+        const clickhouseTrace = await getTraceById(
+          input.traceId,
+          input.projectId,
+        );
+        if (clickhouseTrace) {
+          trace = clickhouseTrace;
+          clickhouseTrace.bookmarked = input.bookmarked;
+          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        } else {
+          logger.error(
+            `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,
           );
-          if (clickhouseTrace) {
-            trace = clickhouseTrace;
-            clickhouseTrace.bookmarked = input.bookmarked;
-            await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
-          } else {
-            logger.error(
-              `Trace not found in Clickhouse: ${input.traceId}. Skipping bookmark.`,
-            );
-          }
         }
 
         return trace;
       } catch (error) {
         logger.error("Failed to call traces.bookmark", error);
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025" // Record to update not found
-        ) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found in project",
-          });
-        } else {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-          });
-        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+        });
       }
     }),
   publish: protectedProjectProcedure
@@ -805,51 +782,27 @@ export const traceRouter = createTRPCRouter({
           after: input.public,
         });
 
-        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
-          await ctx.prisma.trace.update({
-            where: {
-              id: input.traceId,
-              projectId: input.projectId,
-            },
-            data: {
-              public: input.public,
-            },
-          });
-        }
-
-        if (env.CLICKHOUSE_URL) {
-          const clickhouseTrace = await getTraceById(
-            input.traceId,
-            input.projectId,
+        const clickhouseTrace = await getTraceById(
+          input.traceId,
+          input.projectId,
+        );
+        if (!clickhouseTrace) {
+          logger.error(
+            `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
           );
-          if (!clickhouseTrace) {
-            logger.error(
-              `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
-            );
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Trace not found",
-            });
-          }
-          clickhouseTrace.public = input.public;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
-          return clickhouseTrace;
-        }
-      } catch (error) {
-        logger.error("Failed to call traces.publish", error);
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025" // Record to update not found
-        ) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: "Trace not found in project",
-          });
-        } else {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
+            message: "Trace not found",
           });
         }
+        clickhouseTrace.public = input.public;
+        await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
+        return clickhouseTrace;
+      } catch (error) {
+        logger.error("Failed to call traces.publish", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+        });
       }
     }),
   updateTags: protectedProjectProcedure
@@ -875,34 +828,21 @@ export const traceRouter = createTRPCRouter({
           after: input.tags,
         });
 
-        if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
-          await ctx.prisma.trace.update({
-            where: {
-              id: input.traceId,
-              projectId: input.projectId,
-            },
-            data: {
-              tags: {
-                set: input.tags,
-              },
-            },
+        const clickhouseTrace = await getTraceById(
+          input.traceId,
+          input.projectId,
+        );
+        if (!clickhouseTrace) {
+          logger.error(
+            `Trace not found in Clickhouse: ${input.traceId}. Skipping tag update.`,
+          );
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Trace not found",
           });
         }
-
-        if (env.CLICKHOUSE_URL) {
-          const clickhouseTrace = await getTraceById(
-            input.traceId,
-            input.projectId,
-          );
-          if (!clickhouseTrace) {
-            logger.error(
-              `Trace not found in Clickhouse: ${input.traceId}. Skipping tag update.`,
-            );
-            return;
-          }
-          clickhouseTrace.tags = input.tags;
-          await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
-        }
+        clickhouseTrace.tags = input.tags;
+        await upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace));
       } catch (error) {
         logger.error("Failed to call traces.updateTags", error);
         throw new TRPCError({

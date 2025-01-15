@@ -232,24 +232,6 @@ export const env = createEnv({
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
 
-    // TODO: Remove entire block during V3 clean up
-    // Settings to toggle Clickhouse vs Postgres behaviour
-    LANGFUSE_READ_FROM_POSTGRES_ONLY: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
-    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS: z.string().optional(),
-    LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
-      .enum(["true", "false"])
-      .default("true"),
-    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
-      .enum(["true", "false"])
-      .default("true"),
-    LANGFUSE_POSTGRES_INGESTION_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
-
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -314,8 +296,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
-    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS:
-      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS,
     LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
       process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
@@ -484,18 +464,6 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
-    LANGFUSE_READ_FROM_POSTGRES_ONLY:
-      process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
-    LANGFUSE_POSTGRES_INGESTION_ENABLED:
-      process.env.LANGFUSE_POSTGRES_INGESTION_ENABLED,
-    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
-      process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
-    LANGFUSE_RETURN_FROM_CLICKHOUSE:
-      process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
-    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS:
-      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS,
-    LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE:
-      process.env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
