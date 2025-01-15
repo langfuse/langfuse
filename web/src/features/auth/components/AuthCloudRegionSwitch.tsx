@@ -127,7 +127,7 @@ const DataRegionInfo = () => (
         <p>Langfuse Cloud is available in two data regions:</p>
         <ul className="list-disc pl-5">
           <li>
-            US: Northern California (AWS us-west-1) & Virginia (AWS us-east-1)
+            US: Oregon (AWS us-west-2) & Virginia (AWS us-east-1)
           </li>
           <li>
             EU: Germany/Frankfurt (AWS eu-central-1) & Ireland (AWS eu-west-1)
