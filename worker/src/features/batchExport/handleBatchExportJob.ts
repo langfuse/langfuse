@@ -149,83 +149,53 @@ export const getDatabaseReadStream = async ({
             ? [...filter, createdAtCutoffFilter]
             : [createdAtCutoffFilter];
 
-          if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "false") {
-            const query = createSessionsAllQuery(
-              Prisma.sql`
-            s.id,
-            s."created_at" AS "createdAt",
-            s.bookmarked,
-            s.public,
-            t."userIds",
-            t."countTraces",
-            o."sessionDuration",
-            o."inputCost" AS "inputCost",
-            o."outputCost" AS "outputCost",
-            o."totalCost" AS "totalCost",
-            o."promptTokens" AS "inputTokens",
-            o."completionTokens" AS "outputTokens",
-            o."totalTokens" AS "totalTokens",
-            t."tags" AS "traceTags",
-            (count(*) OVER ())::int AS "totalCount" 
-          `,
-              {
-                projectId,
-                filter: finalFilter,
-                orderBy,
-                limit: pageSize,
-                page: Math.floor(offset / pageSize),
-              },
-            );
-            return prisma.$queryRaw<BatchExportSessionsRow[]>(query);
-          } else {
-            const sessionsFilter = await getPublicSessionsFilter(
-              projectId,
-              finalFilter ?? [],
-            );
-            const sessions = await getSessionsWithMetrics({
-              projectId: projectId,
-              filter: sessionsFilter,
-              orderBy: orderBy,
-              limit: pageSize,
-              page: Math.floor(offset / pageSize),
-            });
+          const sessionsFilter = await getPublicSessionsFilter(
+            projectId,
+            finalFilter ?? [],
+          );
+          const sessions = await getSessionsWithMetrics({
+            projectId: projectId,
+            filter: sessionsFilter,
+            orderBy: orderBy,
+            limit: pageSize,
+            page: Math.floor(offset / pageSize),
+          });
 
-            const prismaSessionInfo = await prisma.traceSession.findMany({
-              where: {
-                id: {
-                  in: sessions.map((s) => s.session_id),
-                },
-                projectId: projectId,
+          const prismaSessionInfo = await prisma.traceSession.findMany({
+            where: {
+              id: {
+                in: sessions.map((s) => s.session_id),
               },
-              select: {
-                id: true,
-                bookmarked: true,
-                public: true,
-              },
-            });
-            return sessions.map((s) => {
-              const row: BatchExportSessionsRow = {
-                id: s.session_id,
-                userIds: s.user_ids,
-                countTraces: s.trace_ids.length,
-                sessionDuration: Number(s.duration) / 1000,
-                inputCost: new Decimal(s.session_input_cost),
-                outputCost: new Decimal(s.session_output_cost),
-                totalCost: new Decimal(s.session_total_cost),
-                totalTokens: BigInt(s.session_total_usage),
-                traceTags: s.trace_tags,
-                createdAt: new Date(s.min_timestamp),
-                bookmarked:
-                  prismaSessionInfo.find((p) => p.id === s.session_id)
-                    ?.bookmarked ?? false,
-                public:
-                  prismaSessionInfo.find((p) => p.id === s.session_id)
-                    ?.public ?? false,
-                totalCount: s.trace_count,
-              };
-              return row;
-            });
-          }
+              projectId: projectId,
+            },
+            select: {
+              id: true,
+              bookmarked: true,
+              public: true,
+            },
+          });
+          return sessions.map((s) => {
+            const row: BatchExportSessionsRow = {
+              id: s.session_id,
+              userIds: s.user_ids,
+              countTraces: s.trace_ids.length,
+              sessionDuration: Number(s.duration) / 1000,
+              inputCost: new Decimal(s.session_input_cost),
+              outputCost: new Decimal(s.session_output_cost),
+              totalCost: new Decimal(s.session_total_cost),
+              totalTokens: BigInt(s.session_total_usage),
+              traceTags: s.trace_tags,
+              createdAt: new Date(s.min_timestamp),
+              bookmarked:
+                prismaSessionInfo.find((p) => p.id === s.session_id)
+                  ?.bookmarked ?? false,
+              public:
+                prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
+                false,
+              totalCount: s.trace_count,
+            };
+            return row;
+          });
         },
         1000,
         env.BATCH_EXPORT_ROW_LIMIT,
@@ -244,73 +214,48 @@ export const getDatabaseReadStream = async ({
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          let chunk: FullObservationsWithScores;
-          if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "false") {
-            emptyScoreColumns = await getEmptyScoreColumns(
-              projectId,
-              cutoffCreatedAt,
-              filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-              isGenerationTimestampFilter,
+          const distinctScoreNames = await getDistinctScoreNames(
+            projectId,
+            cutoffCreatedAt,
+            filter
+              ? [...filter, createdAtCutoffFilterCh]
+              : [createdAtCutoffFilterCh],
+            isGenerationTimestampFilter,
+          );
+
+          emptyScoreColumns = distinctScoreNames.reduce(
+            (acc, name) => ({ ...acc, [name]: null }),
+            {} as Record<string, null>,
+          );
+
+          const generations = await getObservationsTableWithModelData({
+            projectId,
+            limit: pageSize,
+            offset: offset,
+            filter: filter
+              ? [...filter, createdAtCutoffFilterCh]
+              : [createdAtCutoffFilterCh],
+            orderBy: orderBy,
+            selectIOAndMetadata: true,
+          });
+          const scores = await getScoresForObservations(
+            projectId,
+            generations.map((gen) => gen.id),
+          );
+
+          const chunk = generations.map((generation) => {
+            const filteredScores = scores.filter(
+              (s) => s.observationId === generation.id,
             );
 
-            const query = createGenerationsQuery({
-              projectId,
-              limit: pageSize,
-              page: Math.floor(offset / pageSize),
-              filterCondition,
-              orderByCondition,
-              datetimeFilter,
-              selectScoreValues: true,
-              selectIOAndMetadata: true,
-            });
+            const outputScores: Record<string, string[] | number[]> =
+              prepareScoresForOutput(filteredScores);
 
-            chunk = await prisma.$queryRaw<FullObservationsWithScores>(query);
-          } else {
-            const distinctScoreNames = await getDistinctScoreNames(
-              projectId,
-              cutoffCreatedAt,
-              filter
-                ? [...filter, createdAtCutoffFilterCh]
-                : [createdAtCutoffFilterCh],
-              isGenerationTimestampFilter,
-            );
-
-            emptyScoreColumns = distinctScoreNames.reduce(
-              (acc, name) => ({ ...acc, [name]: null }),
-              {} as Record<string, null>,
-            );
-
-            const generations = await getObservationsTableWithModelData({
-              projectId,
-              limit: pageSize,
-              offset: offset,
-              filter: filter
-                ? [...filter, createdAtCutoffFilterCh]
-                : [createdAtCutoffFilterCh],
-              orderBy: orderBy,
-              selectIOAndMetadata: true,
-            });
-            const scores = await getScoresForObservations(
-              projectId,
-              generations.map((gen) => gen.id),
-            );
-
-            chunk = generations.map((generation) => {
-              const filteredScores = scores.filter(
-                (s) => s.observationId === generation.id,
-              );
-
-              const outputScores: Record<string, string[] | number[]> =
-                prepareScoresForOutput(filteredScores);
-
-              return {
-                ...generation,
-                scores: outputScores,
-              };
-            });
-          }
+            return {
+              ...generation,
+              scores: outputScores,
+            };
+          });
 
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
@@ -332,138 +277,91 @@ export const getDatabaseReadStream = async ({
 
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          let chunk: BatchExportTracesRow[];
+          const distinctScoreNames = await getDistinctScoreNames(
+            projectId,
+            cutoffCreatedAt,
+            filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            isTraceTimestampFilter,
+          );
+          emptyScoreColumns = distinctScoreNames.reduce(
+            (acc, name) => ({ ...acc, [name]: null }),
+            {} as Record<string, null>,
+          );
 
-          if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-            const distinctScoreNames = await getDistinctScoreNames(
+          const traces = await getTracesTable(
+            projectId,
+            filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            undefined,
+            orderBy,
+            pageSize,
+            Math.floor(offset / pageSize),
+          );
+
+          const [metrics, fullTraces] = await Promise.all([
+            getTracesTableMetrics({
               projectId,
-              cutoffCreatedAt,
-              filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-              isTraceTimestampFilter,
-            );
-            emptyScoreColumns = distinctScoreNames.reduce(
-              (acc, name) => ({ ...acc, [name]: null }),
-              {} as Record<string, null>,
-            );
-
-            const traces = await getTracesTable(
-              projectId,
-              filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-              undefined,
-              orderBy,
-              pageSize,
-              Math.floor(offset / pageSize),
-            );
-
-            const [metrics, fullTraces] = await Promise.all([
-              getTracesTableMetrics({
-                projectId,
-                filter: [
-                  ...(filter ?? []),
-                  {
-                    type: "stringOptions",
-                    operator: "any of",
-                    column: "ID",
-                    value: traces.map((t) => t.id),
-                  },
-                ],
-              }),
-              getTracesByIds(
-                traces.map((t) => t.id),
-                projectId,
-                traces.reduce(
-                  (min, t) => (!min || t.timestamp < min ? t.timestamp : min),
-                  undefined as Date | undefined,
-                ),
-              ),
-            ]);
-
-            const scores = await getScoresForTraces({
-              projectId,
-              traceIds: traces.map((t) => t.id),
-            });
-
-            chunk = traces.map((t) => {
-              const metric = metrics.find((m) => m.id === t.id);
-              const filteredScores = scores.filter((s) => s.traceId === t.id);
-
-              const outputScores: Record<string, string[] | number[]> =
-                prepareScoresForOutput(filteredScores);
-              const fullTrace = fullTraces.find(
-                (fullTrace) => fullTrace.id === t.id,
-              );
-
-              return {
-                ...t,
-                input: fullTrace?.input,
-                output: fullTrace?.output,
-                metadata: fullTrace?.metadata,
-                latency: metric?.latency,
-                name: t.name ?? "",
-                usage: {
-                  promptTokens: metric?.promptTokens,
-                  completionTokens: metric?.completionTokens,
-                  totalTokens: metric?.totalTokens,
+              filter: [
+                ...(filter ?? []),
+                {
+                  type: "stringOptions",
+                  operator: "any of",
+                  column: "ID",
+                  value: traces.map((t) => t.id),
                 },
-                inputCost: metric?.calculatedInputCost,
-                outputCost: metric?.calculatedOutputCost,
-                totalCost: metric?.calculatedTotalCost,
-                level: metric?.level,
-                observationCount: Number(metric?.observationCount),
-                scores: outputScores,
-                inputTokens: metric?.promptTokens,
-                outputTokens: metric?.completionTokens,
-                totalTokens: metric?.totalTokens,
-              };
-            });
-          } else {
-            emptyScoreColumns = await getEmptyScoreColumns(
+              ],
+            }),
+            getTracesByIds(
+              traces.map((t) => t.id),
               projectId,
-              cutoffCreatedAt,
-              filter
-                ? [...filter, createdAtCutoffFilter]
-                : [createdAtCutoffFilter],
-              isTraceTimestampFilter,
+              traces.reduce(
+                (min, t) => (!min || t.timestamp < min ? t.timestamp : min),
+                undefined as Date | undefined,
+              ),
+            ),
+          ]);
+
+          const scores = await getScoresForTraces({
+            projectId,
+            traceIds: traces.map((t) => t.id),
+          });
+
+          const chunk = traces.map((t) => {
+            const metric = metrics.find((m) => m.id === t.id);
+            const filteredScores = scores.filter((s) => s.traceId === t.id);
+
+            const outputScores: Record<string, string[] | number[]> =
+              prepareScoresForOutput(filteredScores);
+            const fullTrace = fullTraces.find(
+              (fullTrace) => fullTrace.id === t.id,
             );
-            const query = createTracesQuery({
-              select: Prisma.sql`
-                t."bookmarked",
-                t."id", 
-                t."timestamp",
-                t."name",
-                t."user_id" AS "userId",
-                observation_metrics."level" AS "level",
-                observation_metrics."observationCount" AS "observationCount",
-                s_avg."scores_values" AS "scores",
-                observation_metrics.latency AS "latency",
-                t."release",
-                t."version", 
-                t.session_id AS "sessionId",
-                t."input",
-                t."output",
-                t."metadata",
-                t."tags",
-                COALESCE(generation_metrics."promptTokens", 0)::bigint AS "usage.promptTokens",
-                COALESCE(generation_metrics."completionTokens", 0)::bigint AS "usage.completionTokens",
-                COALESCE(generation_metrics."totalTokens", 0)::bigint AS "usage.totalTokens",
-                COALESCE(generation_metrics."calculatedInputCost", 0)::numeric AS "inputCost",
-                COALESCE(generation_metrics."calculatedOutputCost", 0)::numeric AS "outputCost",
-                COALESCE(generation_metrics."calculatedTotalCost", 0)::numeric AS "totalCost"
-                `,
-              projectId,
-              limit: pageSize,
-              page: Math.floor(offset / pageSize),
-              filterCondition,
-              orderByCondition,
-              observationTimeseriesFilter,
-              selectScoreValues: true,
-            });
-            chunk = await prisma.$queryRaw<BatchExportTracesRow[]>(query);
-          }
+
+            return {
+              ...t,
+              input: fullTrace?.input,
+              output: fullTrace?.output,
+              metadata: fullTrace?.metadata,
+              latency: metric?.latency,
+              name: t.name ?? "",
+              usage: {
+                promptTokens: metric?.promptTokens,
+                completionTokens: metric?.completionTokens,
+                totalTokens: metric?.totalTokens,
+              },
+              inputCost: metric?.calculatedInputCost,
+              outputCost: metric?.calculatedOutputCost,
+              totalCost: metric?.calculatedTotalCost,
+              level: metric?.level,
+              observationCount: Number(metric?.observationCount),
+              scores: outputScores,
+              inputTokens: metric?.promptTokens,
+              outputTokens: metric?.completionTokens,
+              totalTokens: metric?.totalTokens,
+            };
+          });
 
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
