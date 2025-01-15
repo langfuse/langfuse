@@ -237,7 +237,7 @@ export function Trace(props: {
           </Toggle>
           <Select
             onValueChange={(v: ObservationLevel) => setMinObservationLevel(v)}
-            defaultValue={ObservationLevel.DEFAULT}
+            value={minObservationLevel}
           >
             <SelectTrigger
               hideDownIcon
@@ -283,6 +283,7 @@ export function Trace(props: {
           observationCommentCounts={observationCommentCounts.data}
           traceCommentCounts={traceCommentCounts.data}
           minLevel={minObservationLevel}
+          setMinLevel={setMinObservationLevel}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>
