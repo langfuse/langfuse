@@ -109,7 +109,7 @@ export const generateTracesForPublicApi = async (
     ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
   `;
 
-  const asyncGenerator = queryClickhouseStream<
+  const result = await queryClickhouse<
     Trace & {
       observations: string[];
       scores: string[];
@@ -133,19 +133,6 @@ export const generateTracesForPublicApi = async (
         : {}),
     },
   });
-
-  const result: Array<
-    Trace & {
-      observations: string[];
-      scores: string[];
-      totalCost: number;
-      latency: number;
-      htmlPath: string;
-    }
-  > = [];
-  for await (const row of asyncGenerator) {
-    result.push(row);
-  }
 
   return result.map((trace) => ({
     ...trace,

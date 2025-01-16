@@ -37,7 +37,7 @@ describe("parseJsonPrioritised", () => {
     ["42", 42], // Number
     ["true", true], // Boolean true
     ["false", false], // Boolean false
-    ["null", "null"], // Null
+    ["null", null], // Null
     ["", ""], // Empty string
     ["invalid{json}", "invalid{json}"], // Invalid JSON string
     ['[null, 123, "abc"]', [null, 123, "abc"]], // Mixed array
