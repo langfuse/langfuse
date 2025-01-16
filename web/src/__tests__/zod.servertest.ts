@@ -40,6 +40,7 @@ describe("parseJsonPrioritised", () => {
     ["null", null], // Null
     ["", ""], // Empty string
     ["invalid{json}", "invalid{json}"], // Invalid JSON string
+    ['{"hello": "world"', '{"hello": "world"'], // Invalid JSON string
     ['[null, 123, "abc"]', [null, 123, "abc"]], // Mixed array
     [
       '{"array": [1, 2], "nested": {"key": "value"}}',
