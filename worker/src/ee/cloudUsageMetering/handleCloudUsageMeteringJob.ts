@@ -77,8 +77,8 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
         state: CloudUsageMeteringDbCronJobStates.Queued,
       },
       data: {
-        state: CloudUsageMeteringDbCronJobStates.Processing,
-        jobStartedAt: new Date(),
+        state: cron.state,
+        jobStartedAt: cron.jobStartedAt,
       },
     });
   } catch (e) {
