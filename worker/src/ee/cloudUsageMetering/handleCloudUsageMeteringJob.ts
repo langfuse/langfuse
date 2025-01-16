@@ -170,14 +170,20 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
     );
     if (countObservations > 0) {
-      await stripe.billing.meterEvents.create({
-        event_name: "tracing_observations",
-        timestamp: meterIntervalEnd.getTime() / 1000,
-        payload: {
-          stripe_customer_id: stripeCustomerId,
-          value: countObservations.toString(), // value is a string in stripe
+      await backOff(
+        async () =>
+          await stripe.billing.meterEvents.create({
+            event_name: "tracing_observations",
+            timestamp: meterIntervalEnd.getTime() / 1000,
+            payload: {
+              stripe_customer_id: stripeCustomerId,
+              value: countObservations.toString(), // value is a string in stripe
+            },
+          }),
+        {
+          numOfAttempts: 3,
         },
-      });
+      );
     }
 
     // Events
@@ -204,7 +210,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
             },
           }),
         {
-          numOfAttempts: 2,
+          numOfAttempts: 3,
         },
       );
     }
