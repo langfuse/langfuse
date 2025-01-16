@@ -1,5 +1,9 @@
 import { Processor } from "bullmq";
-import { logger, QueueJobs } from "@langfuse/shared/src/server";
+import {
+  CloudUsageMeteringQueue,
+  logger,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
 import { handleCloudUsageMeteringJob } from "../ee/cloudUsageMetering/handleCloudUsageMeteringJob";
 
 export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
@@ -9,6 +13,11 @@ export const cloudUsageMeteringQueueProcessor: Processor = async (job) => {
       return await handleCloudUsageMeteringJob(job);
     } catch (error) {
       logger.error("Error executing Cloud Usage Metering Job", error);
+      // adding another job to the queue to process again.
+      await CloudUsageMeteringQueue.getInstance()?.add(
+        QueueJobs.CloudUsageMeteringJob,
+        {},
+      );
       throw error;
     }
   }
