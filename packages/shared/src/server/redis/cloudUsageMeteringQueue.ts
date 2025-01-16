@@ -45,7 +45,7 @@ export class CloudUsageMeteringQueue {
         QueueJobs.CloudUsageMeteringJob,
         {},
         {
-          repeat: { pattern: "5 * * * *" },
+          repeat: { pattern: "* * * * *" },
         },
       );
 

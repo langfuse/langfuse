@@ -170,6 +170,15 @@ export type BatchExport = {
     url: string | null;
     log: string | null;
 };
+export type BillingMeterBackup = {
+    stripe_customer_id: string;
+    meter_id: string;
+    start_time: Timestamp;
+    end_time: Timestamp;
+    aggregated_value: number;
+    event_name: string;
+    org_id: string;
+};
 export type Comment = {
     id: string;
     project_id: string;
@@ -611,6 +620,7 @@ export type DB = {
     audit_logs: AuditLog;
     background_migrations: BackgroundMigration;
     batch_exports: BatchExport;
+    billing_meter_backups: BillingMeterBackup;
     comments: Comment;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
