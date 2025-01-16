@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { SelectedTimeOptionSchema } from "@/src/utils/date-range-utils";
@@ -22,13 +21,11 @@ import {
   InvalidRequestError,
   InternalServerError,
 } from "@langfuse/shared";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
+import { type Score } from "@langfuse/shared/src/db";
 import {
   getScoresGroupedByNameSourceType,
   getScoresUiCount,
   getScoresUiTable,
-  orderByToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
   getScoreNames,
   getTracesGroupedByTags,
   deleteScore,
@@ -123,7 +120,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const clickhouseScoreData = await getScoresUiCount({
         projectId: input.projectId,
         filter: input.filter ?? [],
@@ -144,7 +141,7 @@ export const scoresRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { timestampFilter } = input;
       const [names, tags] = await Promise.all([
         getScoreNames(
@@ -375,7 +372,7 @@ export const scoresRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       // TODO: Why is date unused in the ClickHouse flow?
       // const date = getDateFromOption(input.selectedTimeOption);
       const res = await getScoresGroupedByNameSourceType(input.projectId);
@@ -387,38 +384,3 @@ export const scoresRouter = createTRPCRouter({
       }));
     }),
 });
-
-const parseScoresGetAllOptions = (input: z.infer<typeof ScoreAllOptions>) => {
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    input.filter,
-    scoresTableCols,
-    "traces_scores",
-  );
-
-  const orderByCondition = orderByToPrismaSql(input.orderBy, scoresTableCols);
-  return { filterCondition, orderByCondition };
-};
-
-const generateScoresQuery = (
-  select: Prisma.Sql,
-  projectId: string,
-  orgId: string,
-  filterCondition: Prisma.Sql,
-  orderCondition: Prisma.Sql,
-  limit: number,
-  page: number,
-) => {
-  return Prisma.sql`
-  SELECT
-   ${select}
-  FROM scores s
-  LEFT JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
-  LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
-  LEFT JOIN users u ON u.id = s.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${orgId})
-  WHERE s.project_id = ${projectId}
-  ${filterCondition}
-  ${orderCondition}
-  LIMIT ${limit}
-  OFFSET ${page * limit}
-`;
-};

@@ -154,7 +154,7 @@ export const traceRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { timestampFilter } = input;
 
       const [scoreNames, traceNames, tags] = await Promise.all([

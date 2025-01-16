@@ -105,7 +105,7 @@ export const promptRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       if (input.promptNames.length === 0) return [];
       const res = await getObservationsWithPromptName(
         input.projectId,

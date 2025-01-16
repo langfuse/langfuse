@@ -6,10 +6,7 @@ import {
   type ObservationOptions,
 } from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { Prisma } from "@langfuse/shared/src/db";
 import {
-  datetimeFilterToPrisma,
-  datetimeFilterToPrismaSql,
   getObservationsGroupedByModel,
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
@@ -27,25 +24,8 @@ export const filterOptionsQuery = protectedProjectProcedure
       queryClickhouse: z.boolean().default(false),
     }),
   )
-  .query(async ({ input, ctx }) => {
+  .query(async ({ input }) => {
     const { startTimeFilter } = input;
-    const prismaStartTimeFilter = startTimeFilter
-      ? datetimeFilterToPrisma(startTimeFilter)
-      : {};
-
-    const queryFilter = {
-      projectId: input.projectId,
-      type: "GENERATION",
-    } as const;
-
-    const rawStartTimeFilter =
-      startTimeFilter && startTimeFilter.type === "datetime"
-        ? datetimeFilterToPrismaSql(
-            "start_time",
-            startTimeFilter.operator,
-            startTimeFilter.value,
-          )
-        : Prisma.empty;
 
     const getClickhouseTraceName = async (): Promise<
       Array<{ traceName: string }>

@@ -102,7 +102,7 @@ export const sessionRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       try {
         const finalFilter = await getPublicSessionsFilter(
           input.projectId,
@@ -203,7 +203,7 @@ export const sessionRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       try {
         const { timestampFilter } = input;
         const columns = [

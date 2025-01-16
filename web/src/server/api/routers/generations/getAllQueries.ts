@@ -18,7 +18,7 @@ export const getAllQueries = {
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { generations } = await getAllGenerations({
         input,
         selectIOAndMetadata: false,
