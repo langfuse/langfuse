@@ -15,7 +15,8 @@
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts"
+    "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts",
+    "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {

@@ -19,6 +19,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
+import { backOff } from "exponential-backoff";
 
 const delayFromStartOfInterval = 3600000 + 5 * 60 * 1000; // 5 minutes after the end of the interval
 
@@ -179,14 +180,21 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countEvents} events`,
     );
     if (countEvents > 0) {
-      await stripe.billing.meterEvents.create({
-        event_name: "tracing_events",
-        timestamp: meterIntervalEnd.getTime() / 1000,
-        payload: {
-          stripe_customer_id: stripeCustomerId,
-          value: countEvents.toString(), // value is a string in stripe
+      // retrying the stripe call in case of an HTTP error
+      await backOff(
+        async () =>
+          await stripe.billing.meterEvents.create({
+            event_name: "tracing_events",
+            timestamp: meterIntervalEnd.getTime() / 1000,
+            payload: {
+              stripe_customer_id: stripeCustomerId,
+              value: countEvents.toString(), // value is a string in stripe
+            },
+          }),
+        {
+          numOfAttempts: 2,
         },
-      });
+      );
     }
 
     countProcessedOrgs++;

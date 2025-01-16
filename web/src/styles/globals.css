@@ -36,9 +36,9 @@
     --primary-accent: 243 75.4% 58.6%;
     --hover-primary-accent: 239 83.5% 66.7%;
 
-    --muted-green: 141 84.2% 92.5%;
-    --muted-orange: 34 100% 91.8%;
-    --muted-blue: 214 94.6% 92.7%;
+    --muted-green: 190, 80%, 90%;
+    --muted-magenta: 350, 70%, 95%;
+    --muted-blue: 215, 70%, 85%;
     --muted-gray: 210 50% 91.1%;
 
     --accent-light-green: 138 76.5% 96.7%;
@@ -102,9 +102,9 @@
     --primary-accent: 246 55% 70%;
     --muted-primary-accent: 239 83.5% 66.7%;
 
-    --muted-blue: 226 60.7% 30.2%;
-    --muted-green: 143 64.2% 24.1%;
-    --muted-orange: 23 79.1% 33.7%;
+    --muted-blue: 220, 70%, 25%;
+    --muted-green: 190, 70%, 25%;
+    --muted-magenta: 325, 70%, 25%;
     --muted-gray: 210 50% 25%;
 
     --light-red: 0 62.8% 30.6%;
@@ -159,7 +159,6 @@
 }
 
 @layer base {
-
   input[type="number"].appearance-none::-webkit-inner-spin-button,
   input[type="number"].appearance-none::-webkit-outer-spin-button {
     -webkit-appearance: none;

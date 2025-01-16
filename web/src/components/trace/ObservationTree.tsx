@@ -253,6 +253,7 @@ const ObservationTreeNode = (props: {
                       {props.comments ? (
                         <CommentCountIcon
                           count={props.comments.get(observation.id)}
+                          className={treeItemColors.get(observation.type)}
                         />
                       ) : null}
                     </div>
