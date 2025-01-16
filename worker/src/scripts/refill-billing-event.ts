@@ -1,4 +1,4 @@
-// This script can be used to manually refill ingestion events.
+// This script can be used to manually retrigger the metering job.
 // Execute with caution in production.
 import {
   QueueJobs,
