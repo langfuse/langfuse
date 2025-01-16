@@ -227,6 +227,14 @@ export function InlineFilterBuilder({
   );
 }
 
+const getOperator = (
+  type: NonNullable<WipFilterCondition["type"]>,
+): WipFilterCondition["operator"] => {
+  return filterOperators[type]?.length > 0
+    ? filterOperators[type][0]
+    : undefined;
+};
+
 function FilterBuilderForm({
   columns,
   filterState,
@@ -312,19 +320,18 @@ function FilterBuilderForm({
                                   const col = columns.find(
                                     (c) => c.id === value,
                                   );
+                                  const defaultOperator = col?.type
+                                    ? getOperator(col.type)
+                                    : undefined;
+
                                   handleFilterChange(
                                     {
                                       column: col?.name,
                                       type: col?.type,
-                                      operator:
-                                        // does not work as expected on eval-template form when embedded into form via InlineFilterBuilder
-                                        // col?.type !== undefined &&
-                                        // filterOperators[col.type]?.length > 0
-                                        //   ? (filterOperators[col.type][0] as any) // operator matches type
-                                        undefined,
+                                      operator: defaultOperator,
                                       value: undefined,
                                       key: undefined,
-                                    },
+                                    } as WipFilterCondition,
                                     i,
                                   );
                                 }}
@@ -391,6 +398,8 @@ function FilterBuilderForm({
                   <Select
                     disabled={!filter.column || disabled}
                     onValueChange={(value) => {
+                      // protect against invalid empty operator values
+                      if (value === "") return;
                       handleFilterChange(
                         {
                           ...filter,
