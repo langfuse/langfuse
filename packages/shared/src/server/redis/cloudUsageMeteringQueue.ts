@@ -45,6 +45,7 @@ export class CloudUsageMeteringQueue {
         QueueJobs.CloudUsageMeteringJob,
         {},
         {
+          // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
           repeat: { pattern: "5 * * * *" },
         },
       );
