@@ -74,11 +74,12 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     await prisma.cronJobs.update({
       where: {
         name: cloudUsageMeteringDbCronJobName,
-        state: CloudUsageMeteringDbCronJobStates.Queued,
-      },
-      data: {
         state: cron.state,
         jobStartedAt: cron.jobStartedAt,
+      },
+      data: {
+        state: CloudUsageMeteringDbCronJobStates.Processing,
+        jobStartedAt: new Date(),
       },
     });
   } catch (e) {
