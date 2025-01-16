@@ -8,9 +8,6 @@ import { logger } from "@langfuse/shared/src/server";
 import { redis } from "@langfuse/shared/src/server";
 
 const main = async () => {
-  // Read and parse CSV file
-  // Find events.csv in root directory
-
   // Create queue connection
   const billingQueue = CloudUsageMeteringQueue.getInstance();
 
