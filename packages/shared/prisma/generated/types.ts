@@ -178,6 +178,8 @@ export type BillingMeterBackup = {
     aggregated_value: number;
     event_name: string;
     org_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type Comment = {
     id: string;
