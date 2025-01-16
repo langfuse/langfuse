@@ -4,9 +4,14 @@ CREATE TABLE "billing_meter_backups" (
     "meter_id" TEXT NOT NULL,
     "start_time" TIMESTAMP(3) NOT NULL,
     "end_time" TIMESTAMP(3) NOT NULL,
+    
     "aggregated_value" INTEGER NOT NULL,
+    
     "event_name" TEXT NOT NULL,
-    "org_id" TEXT NOT NULL
+    "org_id" TEXT NOT NULL,
+    
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateIndex
