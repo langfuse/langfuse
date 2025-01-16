@@ -4,7 +4,6 @@ import {
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservationToView,
-  queryClickhouseStream,
 } from "@langfuse/shared/src/server";
 
 type QueryType = {

@@ -6,7 +6,6 @@ import {
   orderByToClickhouseSql,
   type DateTimeFilter,
   parseClickhouseUTCDateTimeFormat,
-  queryClickhouseStream,
 } from "@langfuse/shared/src/server";
 import {
   convertRecordToJsonSchema,
