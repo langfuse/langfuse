@@ -16,11 +16,9 @@ import {
   type PrismaClient,
   type ScoreAggregate,
   type ScoreSimplified,
-  filterAndValidateDbScoreList,
   paginationZod,
 } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   createDatasetRunsTable,
   createDatasetRunsTableWithoutMetrics,
@@ -28,7 +26,6 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { traceException } from "@langfuse/shared/src/server";
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -163,64 +160,42 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetId: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      return await measureAndReturnApi({
-        input,
-        operation: "datasets.runsByDatasetId",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          return await runsByDatasetIdPg(ctx.prisma, input);
-        },
-        clickhouseExecution: async () => {
-          // we cannot easily join all the tracing data with the dataset run items
-          // hence, we pull the trace_ids and observation_ids separately for all run items
-          // afterwards, we aggregate them per run
+      // we cannot easily join all the tracing data with the dataset run items
+      // hence, we pull the trace_ids and observation_ids separately for all run items
+      // afterwards, we aggregate them per run
+      const runs = await createDatasetRunsTableWithoutMetrics(input);
 
-          const runs = await createDatasetRunsTableWithoutMetrics(input);
-
-          const totalRuns = await ctx.prisma.datasetRuns.count({
-            where: {
-              datasetId: input.datasetId,
-              projectId: input.projectId,
-            },
-          });
-
-          return {
-            totalRuns,
-            runs,
-          };
+      const totalRuns = await ctx.prisma.datasetRuns.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
         },
       });
+
+      return {
+        totalRuns,
+        runs,
+      };
     }),
   runsByDatasetIdMetrics: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
-      return await measureAndReturnApi({
-        input,
-        operation: "datasets.runsByDatasetId",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          return await runsByDatasetIdPg(ctx.prisma, input);
-        },
-        clickhouseExecution: async () => {
-          // we cannot easily join all the tracing data with the dataset run items
-          // hence, we pull the trace_ids and observation_ids separately for all run items
-          // afterwards, we aggregate them per run
+      // we cannot easily join all the tracing data with the dataset run items
+      // hence, we pull the trace_ids and observation_ids separately for all run items
+      // afterwards, we aggregate them per run
+      const runs = await createDatasetRunsTable(input);
 
-          const runs = await createDatasetRunsTable(input);
-
-          const totalRuns = await ctx.prisma.datasetRuns.count({
-            where: {
-              datasetId: input.datasetId,
-              projectId: input.projectId,
-            },
-          });
-
-          return {
-            totalRuns,
-            runs,
-          };
+      const totalRuns = await ctx.prisma.datasetRuns.count({
+        where: {
+          datasetId: input.datasetId,
+          projectId: input.projectId,
         },
       });
+
+      return {
+        totalRuns,
+        runs,
+      };
     }),
   itemById: protectedProjectProcedure
     .input(
@@ -686,107 +661,11 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      return await measureAndReturnApi({
-        input,
-        operation: "datasets.runitemsByRunIdOrItemId",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          const traceScores = await ctx.prisma.score.findMany({
-            where: {
-              projectId: ctx.session.projectId,
-              traceId: {
-                in: runItems.map((ri) => ri.traceId),
-              },
-            },
-          });
-
-          const observations = await ctx.prisma.observationView.findMany({
-            where: {
-              id: {
-                in: runItems
-                  .map((ri) => ri.observationId)
-                  .filter(Boolean) as string[],
-              },
-              projectId: ctx.session.projectId,
-            },
-            select: {
-              id: true,
-              latency: true,
-              calculatedTotalCost: true,
-            },
-          });
-
-          // Directly access 'traces' table and calculate duration via lateral join
-          // Previously used 'traces_view' was not performant enough
-          const traceIdsSQL = Prisma.sql`ARRAY[${Prisma.join(runItems.map((ri) => ri.traceId))}]`;
-          const traces = await ctx.prisma.$queryRaw<
-            {
-              id: string;
-              duration: number;
-              totalCost: number;
-            }[]
-          >(
-            Prisma.sql`
-            SELECT
-              t.id,
-              o.duration,
-              o.total_cost as "totalCost"
-            FROM
-              traces t
-              LEFT JOIN LATERAL (
-                SELECT
-                  EXTRACT(epoch FROM COALESCE(max(o1.end_time), max(o1.start_time)))::double precision - EXTRACT(epoch FROM min(o1.start_time))::double precision AS duration,
-                  SUM(COALESCE(o1.calculated_total_cost, 0))::double precision AS total_cost
-                FROM
-                  -- Use observations_view as cost are not backfilled for self-hosters. Once V3 is migration is done, we can use observations instead
-                  observations_view o1
-                WHERE
-                  o1.project_id = ${input.projectId}
-                  AND o1.trace_id = t.id
-                GROUP BY
-                  o1.project_id,
-                  o1.trace_id) o ON TRUE
-            WHERE
-              t.project_id = ${input.projectId}
-              AND t.id = ANY(${traceIdsSQL})        
-        `,
-          );
-
-          const validatedTraceScores = filterAndValidateDbScoreList(
-            traceScores,
-            traceException,
-          );
-
-          const items = runItems.map((ri) => {
-            return {
-              id: ri.id,
-              createdAt: ri.createdAt,
-              datasetItemId: ri.datasetItemId,
-              observation: observations.find((o) => o.id === ri.observationId),
-              trace: traces.find((t) => t.id === ri.traceId),
-              scores: aggregateScores(
-                validatedTraceScores.filter((s) => s.traceId === ri.traceId),
-              ),
-            };
-          });
-
-          // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
-          return {
-            totalRunItems,
-            runItems: items,
-          };
-        },
-        clickhouseExecution: async () => {
-          // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
-          return {
-            totalRunItems,
-            runItems: await getRunItemsByRunIdOrItemId(
-              input.projectId,
-              runItems,
-            ),
-          };
-        },
-      });
+      // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
+      return {
+        totalRunItems,
+        runItems: await getRunItemsByRunIdOrItemId(input.projectId, runItems),
+      };
     }),
   datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure
     .input(
