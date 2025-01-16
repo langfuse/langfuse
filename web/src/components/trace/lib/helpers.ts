@@ -7,7 +7,7 @@ export type TreeItemType = ObservationType | "TRACE";
 
 export const treeItemColors: Map<TreeItemType, string> = new Map([
   [ObservationType.SPAN, "bg-muted-blue"],
-  [ObservationType.GENERATION, "bg-muted-orange"],
+  [ObservationType.GENERATION, "bg-muted-magenta"],
   [ObservationType.EVENT, "bg-muted-green"],
   ["TRACE", "bg-input"],
 ]);
