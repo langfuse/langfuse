@@ -70,8 +70,8 @@ export const createDatasetRunsTableWithoutMetrics = async (
     createdAt: run.run_created_at,
     updatedAt: run.run_updated_at,
     // return metric fields as undefined
-    avgTotalCost: undefined,
-    avgLatency: undefined,
+    avgTotalCost: undefined as Decimal | undefined,
+    avgLatency: undefined as number | undefined,
     scores: undefined,
   }));
 };
