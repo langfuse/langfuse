@@ -28,6 +28,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     throw new Error("Stripe secret key not found");
   }
 
+  // Get cron job, create if it does not exist
   const cron = await prisma.cronJobs.upsert({
     where: { name: cloudUsageMeteringDbCronJobName },
     create: {
@@ -68,26 +69,15 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
   }
 
-  try {
-    await prisma.cronJobs.update({
-      where: {
-        name: cloudUsageMeteringDbCronJobName,
-        state: CloudUsageMeteringDbCronJobStates.Queued,
-      },
-      data: {
-        state: CloudUsageMeteringDbCronJobStates.Processing,
-        jobStartedAt: new Date(),
-      },
-    });
-  } catch (e) {
-    logger.warn(
-      "[CLOUD USAGE METERING] Failed to update cron job state, potential race condition, exiting",
-      {
-        e,
-      },
-    );
-    return;
-  }
+  await prisma.cronJobs.update({
+    where: {
+      name: cloudUsageMeteringDbCronJobName,
+    },
+    data: {
+      state: CloudUsageMeteringDbCronJobStates.Processing,
+      jobStartedAt: new Date(),
+    },
+  });
 
   // timing
   const meterIntervalStart = cron.lastRun;
