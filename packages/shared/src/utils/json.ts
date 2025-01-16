@@ -52,7 +52,7 @@ export const mergeJson = (
 
 export const parseJsonPrioritised = (
   json: string,
-): z.infer<typeof jsonSchema> | string | undefined => {
+): JsonNested | string | undefined => {
   try {
     return JSON.parse(json);
   } catch (error) {
