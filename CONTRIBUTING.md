@@ -401,7 +401,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --primary-accent         | Primary accent color used for branding                             | Layout                           |
 | --hover-primary-accent   | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
 | --muted-green            | Muted green for Event label                                        | ObservationTree                  |
-| --muted-orange           | Muted orange for Generation label                                  | ObservationTree                  |
+| --muted-magenta          | Muted magenta for Generation label                                 | ObservationTree                  |
 | --muted-blue             | Muted blue for Span label                                          | ObservationTree                  |
 | --muted-gray             | Muted gray for disabled status badges                              | StatusBadge                      |
 | --accent-light-green     | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
@@ -443,7 +443,7 @@ You can update the default AI models and prices by adding or updating an entry i
 Please note that
 
 - prices are in USD
-- the list is ordered by ID, so make sure to keep this order
+- the list is ordered by ID, so make sure to keep this order and insert new models at the end of the list
 - the `updated_at` field must be updated with the current date in ISO 8601 format. Otherwise, the change will be ignored.
 
 ### Transition period until V3 release
