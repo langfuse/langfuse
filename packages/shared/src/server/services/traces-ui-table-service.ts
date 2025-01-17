@@ -322,7 +322,13 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       clickhouseSelect: "toDate(t.timestamp)",
       uiTableName: "timestamp_to_date",
       uiTableId: "timestamp_to_date",
-      clickhouseTableName: "observations",
+      clickhouseTableName: "traces",
+    },
+    {
+      clickhouseSelect: "t.event_ts",
+      uiTableName: "event_ts",
+      uiTableId: "event_ts",
+      clickhouseTableName: "traces",
     },
   ];
   const chOrderBy = orderByToClickhouseSql(
