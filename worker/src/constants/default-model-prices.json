@@ -1362,5 +1362,15 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": null
+  },
+  {
+    "id": "cm48cjxtc000308jrcsso3avv",
+    "model_name": "gemini-2.0-flash-exp",
+    "match_pattern": "(?i)^(gemini-2.0-flash-exp)(@[a-zA-Z0-9]+)?$",
+    "created_at": "2025-01-17T11:11:35.241Z",
+    "updated_at": "2025-01-17T11:11:35.241Z",
+    "prices": {},
+    "tokenizer_config": null,
+    "tokenizer_id": null
   }
 ]
