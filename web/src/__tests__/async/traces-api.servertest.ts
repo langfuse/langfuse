@@ -1,9 +1,4 @@
-import {
-  createObservation,
-  createScore,
-  createScoresCh,
-  createTrace,
-} from "@langfuse/shared/src/server";
+import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createTracesCh,
