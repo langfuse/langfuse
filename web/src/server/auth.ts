@@ -46,6 +46,14 @@ import {
   type Adapter,
   type AdapterAccount,
 } from "next-auth/adapters";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { HttpProxyAgent } from "http-proxy-agent";
+
+const proxyAgent = env.AUTH_HTTPS_PROXY
+  ? new HttpsProxyAgent(env.AUTH_HTTPS_PROXY)
+  : env.AUTH_HTTP_PROXY
+    ? new HttpProxyAgent(env.AUTH_HTTP_PROXY)
+    : undefined;
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   // if no allowlist is set or no active EE key, allow all users to create organizations
@@ -180,6 +188,11 @@ if (
       authorization: {
         params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
       },
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -190,6 +203,11 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -205,6 +223,11 @@ if (
       issuer: env.AUTH_OKTA_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -220,6 +243,11 @@ if (
       issuer: env.AUTH_AUTH0_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -245,6 +273,11 @@ if (
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 }
@@ -257,6 +290,11 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       allowDangerousEmailAccountLinking:
         env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING === "true",
       issuer: env.AUTH_GITLAB_ISSUER,
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -272,6 +310,11 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -288,6 +331,11 @@ if (
       checks: "nonce",
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
@@ -303,6 +351,11 @@ if (
       issuer: env.AUTH_KEYCLOAK_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
+      ...(proxyAgent && {
+        httpOptions: {
+          agent: proxyAgent,
+        },
+      }),
     }),
   );
 
