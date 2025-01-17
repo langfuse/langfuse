@@ -152,8 +152,8 @@ export const ObservationPreview = ({
       <div className="flex w-full flex-col overflow-y-auto">
         <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <CardTitle>
-              <span className="mr-2 rounded-sm bg-input p-1 text-xs">
+            <CardTitle className="flex flex-row items-center gap-2">
+              <span className="rounded-sm bg-input p-1 text-xs">
                 {preloadedObservation.type}
               </span>
               <span>{preloadedObservation.name}</span>
