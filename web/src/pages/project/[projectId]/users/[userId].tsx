@@ -8,27 +8,31 @@ import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
 import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { cn } from "@/src/utils/tailwind";
+import { Badge } from "@/src/components/ui/badge";
+import { ActionButton } from "@/src/components/ActionButton";
+import { LayoutDashboard } from "lucide-react";
 
-const tabs = ["Overview", "Sessions", "Traces", "Scores"] as const;
+const tabs = ["Traces", "Sessions", "Scores"] as const;
 
 export default function UserPage() {
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
 
+  const user = api.users.byId.useQuery({
+    projectId: projectId,
+    userId,
+    queryClickhouse: useClickhouse(),
+  });
+
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
     withDefault(StringParam, tabs[0]),
   );
 
-  function classNames(...classes: string[]) {
-    return classes.filter(Boolean).join(" ");
-  }
-
   const renderTabContent = () => {
     switch (currentTab as (typeof tabs)[number]) {
-      case "Overview":
-        return <OverviewTab userId={userId} projectId={projectId} />;
       case "Sessions":
         return <SessionsTab userId={userId} projectId={projectId} />;
       case "Traces":
@@ -53,21 +57,54 @@ export default function UserPage() {
   return (
     <div>
       <Header
-        title="User Detail"
-        breadcrumb={[
-          { name: "Users", href: `/project/${projectId}/users` },
-          { name: userId },
-        ]}
+        title={`User: ${userId}`}
+        breadcrumb={[{ name: "Users", href: `/project/${projectId}/users` }]}
         actionButtons={
-          <DetailPageNav
-            currentId={encodeURIComponent(userId)}
-            path={(entry) =>
-              `/project/${projectId}/users/${encodeURIComponent(entry.id)}`
-            }
-            listKey="users"
-          />
+          <>
+            <ActionButton
+              href={`/project/${projectId}?filter=user%3Bstring%3B%3B%3D%3B${userId}`} // dashboard filter serialization
+              variant="secondary"
+              icon={<LayoutDashboard className="h-4 w-4" />}
+            >
+              Dashboard
+            </ActionButton>
+            <DetailPageNav
+              currentId={encodeURIComponent(userId)}
+              path={(entry) =>
+                `/project/${projectId}/users/${encodeURIComponent(entry.id)}`
+              }
+              listKey="users"
+            />
+          </>
         }
       />
+
+      {user.data && (
+        <div className="my-3 flex flex-wrap gap-2 px-1">
+          <Badge variant="outline">
+            Observations: {compactNumberFormatter(user.data.totalObservations)}
+          </Badge>
+          <Badge variant="outline">
+            Traces: {compactNumberFormatter(user.data.totalTraces)}
+          </Badge>
+          <Badge variant="outline">
+            Total Tokens: {compactNumberFormatter(user.data.totalTokens)}
+          </Badge>
+          <Badge variant="outline">
+            <span className="flex items-center gap-1">
+              Total Cost: {usdFormatter(user.data.sumCalculatedTotalCost)}
+            </span>
+          </Badge>
+          <Badge variant="outline">
+            Active:{" "}
+            {user.data.firstTrace
+              ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
+              : "No traces yet"}
+          </Badge>
+        </div>
+      )}
+
+      <div className="my-3 border-t border-border" />
 
       <div>
         <div className="sm:hidden">
@@ -77,7 +114,7 @@ export default function UserPage() {
           <select
             id="tabs"
             name="tabs"
-            className="block w-full rounded-md border-border py-2 pl-3 pr-10 text-base focus:outline-none sm:text-sm"
+            className="block w-full rounded-md border-border bg-background py-1 pl-3 pr-10 text-base text-foreground focus:outline-none sm:text-sm"
             defaultValue={currentTab}
             onChange={(e) => handleTabChange(e.currentTarget.value)}
           >
@@ -92,7 +129,7 @@ export default function UserPage() {
               {tabs.map((tab) => (
                 <button
                   key={tab}
-                  className={classNames(
+                  className={cn(
                     tab === currentTab
                       ? "border-primary-accent text-primary-accent"
                       : "border-transparent text-muted-foreground hover:border-border hover:text-primary",
@@ -117,72 +154,6 @@ type TabProps = {
   userId: string;
   projectId: string;
 };
-
-function OverviewTab({ userId, projectId }: TabProps) {
-  const user = api.users.byId.useQuery({
-    projectId: projectId,
-    userId,
-    queryClickhouse: useClickhouse(),
-  });
-
-  const userData: { value: string; label: string }[] = user.data
-    ? [
-        { label: "User Id", value: user.data.userId },
-        {
-          label: "First Trace",
-          value: user.data.firstTrace?.toLocaleString() ?? "No event yet",
-        },
-        {
-          label: "Last Trace",
-          value: user.data.lastTrace?.toLocaleString() ?? "No event yet",
-        },
-        {
-          label: "Total Observations",
-          value: compactNumberFormatter(user.data.totalObservations),
-        },
-        {
-          label: "Total Traces",
-          value: compactNumberFormatter(user.data.totalTraces),
-        },
-        {
-          label: "Prompt Tokens",
-          value: compactNumberFormatter(user.data.totalPromptTokens),
-        },
-        {
-          label: "Completion Tokens",
-          value: compactNumberFormatter(user.data.totalCompletionTokens),
-        },
-        {
-          label: "Total Tokens",
-          value: compactNumberFormatter(user.data.totalTokens),
-        },
-        {
-          label: "Total Cost",
-          value: usdFormatter(user.data.sumCalculatedTotalCost),
-        },
-      ]
-    : [];
-
-  return (
-    <div className="mt-6 border-t border-muted">
-      <dl className="divide-y divide-muted">
-        {userData.map((item) => (
-          <div
-            key={item.label}
-            className="px-4 py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0"
-          >
-            <dt className="text-sm font-medium leading-6 text-primary">
-              {item.label}
-            </dt>
-            <dd className="mt-1 text-xs leading-6 text-primary sm:col-span-2 sm:mt-0">
-              {item.value ?? "-"}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
 
 function ScoresTab({ userId, projectId }: TabProps) {
   return (
