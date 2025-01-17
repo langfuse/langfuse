@@ -155,7 +155,7 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
-  // Core data S3 upload - only used internally
+  // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -166,6 +166,11 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
+
+  // Metering data Postgres export - Langfuse Cloud
+  LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
 });
