@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -8,7 +7,7 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod } from "@langfuse/shared";
+import { paginationZod, DatasetStatus } from "@langfuse/shared";
 import {
   createDatasetRunsTable,
   createDatasetRunsTableWithoutMetrics,
@@ -16,6 +15,20 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
+import { logger } from "@langfuse/shared/src/server";
+
+const formatDatasetItemData = (data: string | null | undefined) => {
+  if (data === "") return Prisma.DbNull;
+  try {
+    return !!data ? (JSON.parse(data) as Prisma.InputJsonObject) : undefined;
+  } catch (e) {
+    logger.info(
+      "[trpc.datasets.formatDatasetItemData] failed to parse dataset item data",
+      e,
+    );
+    return undefined;
+  }
+};
 
 export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
@@ -515,6 +528,7 @@ export const datasetRouter = createTRPCRouter({
 
       return { id: newDataset.id };
     }),
+
   createDatasetItem: protectedProjectProcedure
     .input(
       z.object({
@@ -547,24 +561,9 @@ export const datasetRouter = createTRPCRouter({
 
       const datasetItem = await ctx.prisma.datasetItem.create({
         data: {
-          input:
-            input.input === ""
-              ? Prisma.DbNull
-              : !!input.input
-                ? (JSON.parse(input.input) as Prisma.InputJsonObject)
-                : undefined,
-          expectedOutput:
-            input.expectedOutput === ""
-              ? Prisma.DbNull
-              : !!input.expectedOutput
-                ? (JSON.parse(input.expectedOutput) as Prisma.InputJsonObject)
-                : undefined,
-          metadata:
-            input.metadata === ""
-              ? Prisma.DbNull
-              : !!input.metadata
-                ? (JSON.parse(input.metadata) as Prisma.InputJsonObject)
-                : undefined,
+          input: formatDatasetItemData(input.input),
+          expectedOutput: formatDatasetItemData(input.expectedOutput),
+          metadata: formatDatasetItemData(input.metadata),
           datasetId: input.datasetId,
           sourceTraceId: input.sourceTraceId,
           sourceObservationId: input.sourceObservationId,
@@ -580,6 +579,55 @@ export const datasetRouter = createTRPCRouter({
       });
       return datasetItem;
     }),
+
+  createManyDatasetItems: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        items: z.array(
+          z.object({
+            input: z.string().nullish(),
+            expectedOutput: z.string().nullish(),
+            metadata: z.string().nullish(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const dataset = await ctx.prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+      });
+
+      if (!dataset) {
+        throw new Error("Dataset not found");
+      }
+
+      const datasetItems = input.items.map((item) => ({
+        input: formatDatasetItemData(item.input),
+        expectedOutput: formatDatasetItemData(item.expectedOutput),
+        metadata: formatDatasetItemData(item.metadata),
+        datasetId: input.datasetId,
+        projectId: input.projectId,
+        status: DatasetStatus.ACTIVE,
+      }));
+
+      return await ctx.prisma.datasetItem.createMany({
+        data: datasetItems,
+      });
+    }),
+
   runitemsByRunIdOrItemId: protectedProjectProcedure
     .input(
       z
