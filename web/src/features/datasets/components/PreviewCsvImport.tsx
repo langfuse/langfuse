@@ -21,6 +21,7 @@ import { api, type RouterInputs } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { Progress } from "@/src/components/ui/progress";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const CHUNK_SIZE = 200;
 const DELAY_BETWEEN_CHUNKS = 100; // milliseconds
@@ -85,6 +86,7 @@ export function PreviewCsvImport({
   setPreview: (preview: CsvPreviewResult | null) => void;
   setOpen?: (open: boolean) => void;
 }) {
+  const capture = usePostHogClientCapture();
   const [selectedInputColumn, setSelectedInputColumn] = useState<Set<string>>(
     new Set(),
   );
@@ -185,6 +187,7 @@ export function PreviewCsvImport({
   };
 
   const handleImport = async () => {
+    capture("dataset_item:upload_csv_form_submit");
     if (!csvFile) return;
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
       showErrorToast("File too large", "Maximum file size is 1MB");

@@ -48,7 +48,7 @@ export const UploadDatasetCsvButton = (props: {
           className={props.className}
           disabled={!hasAccess}
           hasAccess={hasAccess}
-          onClick={() => capture("dataset_item:new_form_open")}
+          onClick={() => capture("dataset_item:upload_csv_button_click")}
           icon={<UploadIcon className="h-4 w-4" aria-hidden="true" />}
         >
           Upload CSV
