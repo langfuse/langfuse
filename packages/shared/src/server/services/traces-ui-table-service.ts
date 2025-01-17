@@ -328,13 +328,16 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   const chOrderBy = orderByToClickhouseSql(
     [
       defaultOrder
-        ? {
-            column: "timestamp_to_date",
-            order: orderBy.order,
-          }
+        ? [
+            {
+              column: "timestamp_to_date",
+              order: orderBy.order,
+            },
+            { column: "event_ts", order: "DESC" as "DESC" },
+          ]
         : null,
       orderBy ?? null,
-    ],
+    ].flat(),
     orderByCols,
   );
 
@@ -342,7 +345,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   // - we only join scores and observations if we really need them to speed up default views
   // - we use FINAL on traces only in case we not need to order by something different than time. Otherwise we cannot guarantee correct reads.
   // - we filter the observations and scores as much as possible before joining them to traces.
-  // - we order by todate(timestamp), timestamp per default and do not use FINAL.
+  // - we order by todate(timestamp) per default and do not use FINAL.
   //   In this case, CH is able to read the data only from the latest date from disk and filtering them in memory. No need to read all data e.g. for 1 month from disk.
 
   const query = `
