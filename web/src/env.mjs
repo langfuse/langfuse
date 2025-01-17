@@ -197,7 +197,7 @@ export const env = createEnv({
     REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
 
     // langfuse caching
-    LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(120),
 
     // Multimodal media upload to S3
