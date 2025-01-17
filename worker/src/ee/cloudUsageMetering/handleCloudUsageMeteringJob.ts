@@ -70,15 +70,27 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
     }
   }
 
-  await prisma.cronJobs.update({
-    where: {
-      name: cloudUsageMeteringDbCronJobName,
-    },
-    data: {
-      state: CloudUsageMeteringDbCronJobStates.Processing,
-      jobStartedAt: new Date(),
-    },
-  });
+  try {
+    await prisma.cronJobs.update({
+      where: {
+        name: cloudUsageMeteringDbCronJobName,
+        state: cron.state,
+        jobStartedAt: cron.jobStartedAt,
+      },
+      data: {
+        state: CloudUsageMeteringDbCronJobStates.Processing,
+        jobStartedAt: new Date(),
+      },
+    });
+  } catch (e) {
+    logger.warn(
+      "[CLOUD USAGE METERING] Failed to update cron job state, potential race condition, exiting",
+      {
+        e,
+      },
+    );
+    return;
+  }
 
   // timing
   const meterIntervalStart = cron.lastRun;
@@ -158,14 +170,20 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
       `[CLOUD USAGE METERING] Job for org ${org.id} - ${stripeCustomerId} stripe customer id - ${countObservations} observations`,
     );
     if (countObservations > 0) {
-      await stripe.billing.meterEvents.create({
-        event_name: "tracing_observations",
-        timestamp: meterIntervalEnd.getTime() / 1000,
-        payload: {
-          stripe_customer_id: stripeCustomerId,
-          value: countObservations.toString(), // value is a string in stripe
+      await backOff(
+        async () =>
+          await stripe.billing.meterEvents.create({
+            event_name: "tracing_observations",
+            timestamp: meterIntervalEnd.getTime() / 1000,
+            payload: {
+              stripe_customer_id: stripeCustomerId,
+              value: countObservations.toString(), // value is a string in stripe
+            },
+          }),
+        {
+          numOfAttempts: 3,
         },
-      });
+      );
     }
 
     // Events
@@ -192,7 +210,7 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
             },
           }),
         {
-          numOfAttempts: 2,
+          numOfAttempts: 3,
         },
       );
     }
