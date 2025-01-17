@@ -25,7 +25,6 @@ import {
 import {
   availableTraceEvalVariables,
   ChatMessageRole,
-  evalTraceTableCols,
   ForbiddenError,
   LangfuseNotFoundError,
   LLMApiKeySchema,
@@ -95,32 +94,12 @@ export const createEvalJobs = async ({
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     // Check whether the trace already exists in the database.
-    let traceExists: boolean = false;
-    if (env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true") {
-      traceExists = await checkTraceExists(
-        event.projectId,
-        event.traceId,
-        new Date(),
-        config.target_object === "trace" ? validatedFilter : [],
-      );
-    } else {
-      const condition = tableColumnsToSqlFilterAndPrefix(
-        config.target_object === "trace" ? validatedFilter : [],
-        evalTraceTableCols,
-        "traces",
-      );
-
-      const joinedQuery = Prisma.sql`
-        SELECT id
-        FROM traces as t
-        WHERE project_id = ${event.projectId}
-        AND id = ${event.traceId}
-        ${condition}
-      `;
-
-      const traces = await prisma.$queryRaw<Array<{ id: string }>>(joinedQuery);
-      traceExists = traces.length > 0;
-    }
+    const traceExists = await checkTraceExists(
+      event.projectId,
+      event.traceId,
+      new Date(),
+      config.target_object === "trace" ? validatedFilter : [],
+    );
 
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem:
@@ -168,19 +147,11 @@ export const createEvalJobs = async ({
         ? event.observationId
         : datasetItem?.sourceObservationId;
     if (observationId) {
-      const observationExists =
-        env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
-          ? await checkObservationExists(
-              event.projectId,
-              observationId,
-              new Date(),
-            )
-          : await kyselyPrisma.$kysely
-              .selectFrom("observations")
-              .select("id")
-              .where("project_id", "=", event.projectId)
-              .where("id", "=", observationId)
-              .executeTakeFirst();
+      const observationExists = await checkObservationExists(
+        event.projectId,
+        observationId,
+        new Date(),
+      );
 
       if (!observationExists) {
         logger.warn(
@@ -472,15 +443,6 @@ export const evaluate = async ({
     source: ScoreSource.EVAL,
   };
 
-  if (env.LANGFUSE_POSTGRES_INGESTION_ENABLED === "true") {
-    await prisma.score.create({
-      data: {
-        ...baseScore,
-        projectId: event.projectId,
-      },
-    });
-  }
-
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
     const s3Client = getS3StorageServiceClient(
@@ -635,19 +597,10 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const trace: Record<string, unknown> | undefined =
-          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
-            ? await getTraceById(traceId, projectId)
-            : await kyselyPrisma.$kysely
-                .selectFrom("traces as t")
-                .select(
-                  sql`${sql.raw(safeInternalColumn.internal)}`.as(
-                    safeInternalColumn.id,
-                  ),
-                ) // query the internal column name raw
-                .where("id", "=", traceId)
-                .where("project_id", "=", projectId)
-                .executeTakeFirst();
+        const trace: Record<string, unknown> | undefined = await getTraceById(
+          traceId,
+          projectId,
+        );
 
         // user facing errors
         if (!trace) {
@@ -684,29 +637,15 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const observation: Record<string, unknown> | undefined =
-          env.LANGFUSE_RETURN_FROM_CLICKHOUSE === "true"
-            ? (
-                await getObservationForTraceIdByName(
-                  traceId,
-                  projectId,
-                  mapping.objectName,
-                  undefined,
-                  true,
-                )
-              ).shift() // We only take the first match and ignore duplicate generation-names in a trace.
-            : await kyselyPrisma.$kysely
-                .selectFrom("observations as o")
-                .select(
-                  sql`${sql.raw(safeInternalColumn.internal)}`.as(
-                    safeInternalColumn.id,
-                  ),
-                ) // query the internal column name raw
-                .where("trace_id", "=", traceId)
-                .where("project_id", "=", projectId)
-                .where("name", "=", mapping.objectName)
-                .orderBy("start_time", "desc")
-                .executeTakeFirst();
+        const observation: Record<string, unknown> | undefined = (
+          await getObservationForTraceIdByName(
+            traceId,
+            projectId,
+            mapping.objectName,
+            undefined,
+            true,
+          )
+        ).shift(); // We only take the first match and ignore duplicate generation-names in a trace.
 
         // user facing errors
         if (!observation) {

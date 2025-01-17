@@ -30,7 +30,6 @@ import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -730,22 +729,7 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await measureAndReturnApi({
-              input: { projectId: input.projectId, queryClickhouse: false },
-              operation: "get-scores-eval-log",
-              user: ctx.session.user,
-              pgExecution: async () => {
-                return await ctx.prisma.score.findMany({
-                  where: {
-                    projectId: input.projectId,
-                    id: { in: scoreIds },
-                  },
-                });
-              },
-              clickhouseExecution: async () => {
-                return await getScoresByIds(input.projectId, scoreIds);
-              },
-            })
+          ? await getScoresByIds(input.projectId, scoreIds)
           : [];
 
       return {

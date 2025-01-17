@@ -10,7 +10,6 @@ import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   getTracesIdentifierForSession,
   logger,
@@ -274,40 +273,27 @@ export const commentsRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       try {
-        return await measureAndReturnApi({
-          input,
-          operation: "comments.getTraceCommentCountsBySessionId",
-          user: ctx.session.user ?? undefined,
-          pgExecution: async () => {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Session not found in project",
-            });
-          },
-          clickhouseExecution: async () => {
-            const clickhouseTraces = await getTracesIdentifierForSession(
-              input.projectId,
-              input.sessionId,
-            );
+        const clickhouseTraces = await getTracesIdentifierForSession(
+          input.projectId,
+          input.sessionId,
+        );
 
-            const allTraceCommentCounts = await ctx.prisma.$queryRaw<
-              Array<{ objectId: string; count: bigint }>
-            >`
-              SELECT object_id as "objectId", COUNT(*) as count
-              FROM comments
-              WHERE project_id = ${input.projectId}
-              AND object_type = 'TRACE'
-              GROUP BY object_id
-            `;
+        const allTraceCommentCounts = await ctx.prisma.$queryRaw<
+          Array<{ objectId: string; count: bigint }>
+        >`
+          SELECT object_id as "objectId", COUNT(*) as count
+          FROM comments
+          WHERE project_id = ${input.projectId}
+          AND object_type = 'TRACE'
+          GROUP BY object_id
+        `;
 
-            const traceIds = new Set(clickhouseTraces.map((t) => t.id));
-            return new Map(
-              allTraceCommentCounts
-                .filter((c) => traceIds.has(c.objectId))
-                .map(({ objectId, count }) => [objectId, Number(count)]),
-            );
-          },
-        });
+        const traceIds = new Set(clickhouseTraces.map((t) => t.id));
+        return new Map(
+          allTraceCommentCounts
+            .filter((c) => traceIds.has(c.objectId))
+            .map(({ objectId, count }) => [objectId, Number(count)]),
+        );
       } catch (error) {
         logger.error(
           "Failed to call comments.getTraceCommentCountBySessionId",

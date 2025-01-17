@@ -25,7 +25,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { env } from "@/src/env.mjs";
 
 export const datasetRunsTableSchema = z.object({
@@ -71,8 +70,8 @@ export const createDatasetRunsTableWithoutMetrics = async (
     createdAt: run.run_created_at,
     updatedAt: run.run_updated_at,
     // return metric fields as undefined
-    avgTotalCost: undefined,
-    avgLatency: undefined,
+    avgTotalCost: undefined as Decimal | undefined,
+    avgLatency: undefined as number | undefined,
     scores: undefined,
   }));
 };
@@ -187,8 +186,6 @@ export const createTempTableInClickhouse = async (
       )  
       ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
       PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
-
-
   `;
   await commandClickhouse({
     query,
@@ -425,65 +422,27 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   });
 
   // check in clickhouse if the traces already exist. They arrive delayed.
-  const tracingData = await measureAndReturnApi({
-    input: { queryClickhouse: false, projectId: input.projectId },
-    operation: "datasets.itemsByDatasetId",
-    user: null,
-    pgExecution: async () => {
-      const traces = await input.prisma.trace.findMany({
-        where: {
-          id: {
-            in: datasetItems
-              .map((item) => item.sourceTraceId)
-              .filter((id): id is string => Boolean(id)),
-          },
-          projectId: input.projectId,
-        },
-      });
+  const traces = await getTracesByIds(
+    datasetItems
+      .map((item) => item.sourceTraceId)
+      .filter((id): id is string => Boolean(id)),
+    input.projectId,
+  );
 
-      const observations = await input.prisma.observation.findMany({
-        where: {
-          id: {
-            in: datasetItems
-              .map((item) => item.sourceObservationId)
-              .filter((id): id is string => Boolean(id)),
-          },
-          projectId: input.projectId,
-        },
-      });
+  const observations = await getObservationsById(
+    datasetItems
+      .map((item) => item.sourceObservationId)
+      .filter((id): id is string => Boolean(id)),
+    input.projectId,
+  );
 
-      return {
-        traceIds: traces.map((t) => t.id),
-        observationIds: observations.map((o) => ({
-          id: o.id,
-          traceId: o.traceId,
-        })),
-      };
-    },
-    clickhouseExecution: async () => {
-      const traces = await getTracesByIds(
-        datasetItems
-          .map((item) => item.sourceTraceId)
-          .filter((id): id is string => Boolean(id)),
-        input.projectId,
-      );
-
-      const observations = await getObservationsById(
-        datasetItems
-          .map((item) => item.sourceObservationId)
-          .filter((id): id is string => Boolean(id)),
-        input.projectId,
-      );
-
-      return {
-        traceIds: traces.map((t) => t.id),
-        observationIds: observations.map((o) => ({
-          id: o.id,
-          traceId: o.traceId,
-        })),
-      };
-    },
-  });
+  const tracingData = {
+    traceIds: traces.map((t) => t.id),
+    observationIds: observations.map((o) => ({
+      id: o.id,
+      traceId: o.traceId,
+    })),
+  };
 
   return {
     totalDatasetItems,

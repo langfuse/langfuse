@@ -33,15 +33,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
-  LANGFUSE_SDK_CI_SYNC_PROCESSING_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_CLICKHOUSE_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -70,6 +61,9 @@ const EnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
 });

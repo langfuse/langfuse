@@ -204,20 +204,24 @@ export const getScoresForObservations = async (
   return rows.map(convertToScore);
 };
 
-export const getScoresGroupedByNameSourceType = async (projectId: string) => {
+export const getScoresGroupedByNameSourceType = async (
+  projectId: string,
+  timestamp: Date | undefined,
+) => {
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
   const query = `
-      select 
-        name,
-        source,
-        data_type
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      GROUP BY name, source, data_type
-      ORDER BY count() desc
-      LIMIT 1000;
-    `;
+    select 
+      name,
+      source,
+      data_type
+    from scores s
+    WHERE s.project_id = {projectId: String}
+    ${timestamp ? `AND s.timestamp >= {timestamp: DateTime64(3)}` : ""}
+    GROUP BY name, source, data_type
+    ORDER BY count() desc
+    LIMIT 1000;
+  `;
 
   const rows = await queryClickhouse<{
     name: string;
@@ -227,6 +231,9 @@ export const getScoresGroupedByNameSourceType = async (projectId: string) => {
     query: query,
     params: {
       projectId: projectId,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
   });
 

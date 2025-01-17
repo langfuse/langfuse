@@ -4,7 +4,6 @@ import {
   type ObservationRecordReadType,
   queryClickhouse,
   convertObservationToView,
-  queryClickhouseStream,
 } from "@langfuse/shared/src/server";
 
 type QueryType = {
@@ -67,7 +66,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
-  const asyncGenerator = queryClickhouseStream<ObservationRecordReadType>({
+  const result = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: {
       ...appliedFilter.params,
@@ -78,10 +77,6 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         : {}),
     },
   });
-  const result: Array<ObservationRecordReadType> = [];
-  for await (const row of asyncGenerator) {
-    result.push(row);
-  }
   return result.map(convertObservationToView);
 };
 

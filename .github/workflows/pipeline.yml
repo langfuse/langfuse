@@ -111,8 +111,9 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
-          echo "LANGFUSE_POSTGRES_INGESTION_ENABLED=true" >> .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -184,7 +185,9 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev${{ matrix.blob-provider }}.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d

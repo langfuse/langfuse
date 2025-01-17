@@ -24,7 +24,7 @@ module.exports = {
       colors: {
         "primary-accent": "hsl(var(--primary-accent))",
         "hover-primary-accent": "hsl(var(--hover-primary-accent))",
-        "muted-orange": "hsl(var(--muted-orange))",
+        "muted-magenta": "hsl(var(--muted-magenta))",
         "muted-blue": "hsl(var(--muted-blue))",
         "muted-green": "hsl(var(--muted-green))",
         "muted-gray": "hsl(var(--muted-gray))",
