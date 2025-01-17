@@ -36,7 +36,7 @@ export const UploadDatasetCsvButton = (props: {
     limit: 50,
   });
 
-  if (items.data?.totalDatasetItems === 0) {
+  if (hasAccess && items.data?.totalDatasetItems === 0) {
     return null;
   }
 

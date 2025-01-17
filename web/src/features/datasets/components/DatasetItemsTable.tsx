@@ -277,7 +277,7 @@ export function DatasetItemsTable({
     columns,
   );
 
-  if (items.data?.totalDatasetItems === 0) {
+  if (items.data?.totalDatasetItems === 0 && hasAccess) {
     return (
       <>
         <DataTableToolbar
@@ -290,19 +290,18 @@ export function DatasetItemsTable({
           setRowHeight={setRowHeight}
           actionButtons={menuItems}
         />
-        {hasAccess &&
-          (preview ? (
-            <PreviewCsvImport
-              preview={preview}
-              csvFile={csvFile}
-              projectId={projectId}
-              datasetId={datasetId}
-              setCsvFile={setCsvFile}
-              setPreview={setPreview}
-            />
-          ) : (
-            <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
-          ))}
+        {preview ? (
+          <PreviewCsvImport
+            preview={preview}
+            csvFile={csvFile}
+            projectId={projectId}
+            datasetId={datasetId}
+            setCsvFile={setCsvFile}
+            setPreview={setPreview}
+          />
+        ) : (
+          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
+        )}
       </>
     );
   }
