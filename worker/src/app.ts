@@ -88,6 +88,13 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.MeteringDataPostgresExportQueue,
     meteringDataPostgresExportProcessor,
+    {
+      limiter: {
+        // Process at most `max` delete jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
+    },
   );
 }
 
@@ -174,6 +181,11 @@ if (
     cloudUsageMeteringQueueProcessor,
     {
       concurrency: 1,
+      limiter: {
+        // Process at most `max` delete jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
     },
   );
 }
