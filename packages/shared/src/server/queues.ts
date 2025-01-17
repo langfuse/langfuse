@@ -119,6 +119,7 @@ export enum QueueName {
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
+  MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
 }
 
 export enum QueueJobs {
@@ -136,6 +137,7 @@ export enum QueueJobs {
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
+  MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
 }
 
 export type TQueueJobTypes = {

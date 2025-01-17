@@ -13,6 +13,7 @@ import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
 import { CoreDataS3ExportQueue } from "./coreDataS3ExportQueue";
+import { MeteringDataPostgresExportQueue } from "./meteringDataPostgresExportQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -44,6 +45,8 @@ export function getQueue(queueName: QueueName): Queue | null {
       return SecondaryIngestionQueue.getInstance();
     case QueueName.CoreDataS3ExportQueue:
       return CoreDataS3ExportQueue.getInstance();
+    case QueueName.MeteringDataPostgresExportQueue:
+      return MeteringDataPostgresExportQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
