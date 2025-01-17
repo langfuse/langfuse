@@ -28,14 +28,19 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { traceException } from "@langfuse/shared/src/server";
+import { logger, traceException } from "@langfuse/shared/src/server";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
-  return data === ""
-    ? Prisma.DbNull
-    : !!data
-      ? (JSON.parse(data) as Prisma.InputJsonObject)
-      : undefined;
+  if (data === "") return Prisma.DbNull;
+  try {
+    return !!data ? (JSON.parse(data) as Prisma.InputJsonObject) : undefined;
+  } catch (e) {
+    logger.info(
+      "[trpc.datasets.formatDatasetItemData] failed to parse dataset item data",
+      e,
+    );
+    return undefined;
+  }
 };
 
 export const datasetRouter = createTRPCRouter({
