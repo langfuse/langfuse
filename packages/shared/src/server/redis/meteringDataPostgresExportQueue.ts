@@ -47,8 +47,7 @@ export class MeteringDataPostgresExportQueue {
           QueueJobs.MeteringDataPostgresExportJob,
           {},
           {
-            // repeat: { pattern: "30 3 * * *" }, // every day at 3:30am UTC
-            repeat: { pattern: "0 * * * *" }, // initially, run every hour
+            repeat: { pattern: "30 2 * * *" }, // every day at 2:30am UTC
           },
         )
         .catch((err) => {
