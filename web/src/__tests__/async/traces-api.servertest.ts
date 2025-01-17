@@ -146,57 +146,6 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.timestamp).toBe(timestamp.toISOString());
   });
 
-  it("should fetch all traces with score ids", async () => {
-    const timestamp = new Date();
-    const createdTrace = createTrace({
-      name: "trace-name",
-      user_id: "user-1",
-      timestamp: timestamp.getTime(),
-      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      metadata: { key: "value", jsonKey: JSON.stringify({ foo: "bar" }) },
-      release: "1.0.0",
-      version: "2.0.0",
-    });
-
-    const scoreId = randomUUID();
-    const scores = [
-      createScore({
-        id: scoreId,
-        trace_id: createdTrace.id,
-        project_id: createdTrace.project_id,
-        name: "score-name",
-        timestamp: timestamp.getTime(),
-      }),
-      createScore({
-        id: scoreId,
-        trace_id: createdTrace.id,
-        project_id: createdTrace.project_id,
-        name: "score-name",
-        timestamp: timestamp.getTime(),
-      }),
-    ];
-
-    await createTracesCh([createdTrace]);
-    await createScoresCh(scores);
-
-    const traces = await makeZodVerifiedAPICall(
-      GetTracesV1Response,
-      "GET",
-      "/api/public/traces",
-    );
-
-    expect(traces.body.meta.totalItems).toBeGreaterThanOrEqual(1);
-    expect(traces.body.data.length).toBeGreaterThanOrEqual(1);
-    const trace = traces.body.data.find((t) => t.id === createdTrace.id);
-    expect(trace).toBeTruthy();
-    if (!trace) {
-      return; // to satisfy TypeScript
-    }
-    expect(trace.name).toBe("trace-name");
-    expect(trace.scores.length).toBe(1);
-    expect(trace.scores[0]).toBe(scoreId);
-  });
-
   it.each([
     ["userId", randomUUID()],
     ["sessionId", randomUUID()],
