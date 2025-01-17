@@ -441,7 +441,7 @@ export const handleBatchExportJob = async (
     },
   );
 
-  const fileDate = new Date().toISOString();
+  const fileDate = new Date().getTime();
   const fileExtension =
     exportOptions[jobDetails.format as BatchExportFileFormat].extension;
   const fileName = `${env.LANGFUSE_S3_BATCH_EXPORT_PREFIX}${fileDate}-lf-${parsedQuery.data.tableName}-export-${projectId}.${fileExtension}`;
