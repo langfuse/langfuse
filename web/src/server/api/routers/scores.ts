@@ -3,7 +3,10 @@ import { z } from "zod";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
-import { SelectedTimeOptionSchema } from "@/src/utils/date-range-utils";
+import {
+  getDateFromOption,
+  SelectedTimeOptionSchema,
+} from "@/src/utils/date-range-utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -373,9 +376,8 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      // TODO: Why is date unused in the ClickHouse flow?
-      // const date = getDateFromOption(input.selectedTimeOption);
-      const res = await getScoresGroupedByNameSourceType(input.projectId);
+      const date = getDateFromOption(input.selectedTimeOption);
+      const res = await getScoresGroupedByNameSourceType(input.projectId, date);
       return res.map(({ name, source, dataType }) => ({
         key: composeAggregateScoreKey({ name, source, dataType }),
         name: name,
