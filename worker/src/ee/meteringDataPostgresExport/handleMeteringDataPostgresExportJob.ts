@@ -51,28 +51,34 @@ export const meteringDataPostgresExportProcessor: Processor = async (
       const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
       if (!stripeCustomerId) continue;
 
-      const eventSummaries = await stripe.billing.meters.listEventSummaries(
-        meter.id,
-        {
-          customer: stripeCustomerId,
-          start_time: startTime,
-          end_time: endTime,
-          limit: 100,
-          value_grouping_window: "day",
-        },
-      );
+      try {
+        const eventSummaries = await stripe.billing.meters.listEventSummaries(
+          meter.id,
+          {
+            customer: stripeCustomerId,
+            start_time: startTime,
+            end_time: endTime,
+            limit: 100,
+            value_grouping_window: "day",
+          },
+        );
 
-      await prisma.billingMeterBackup.createMany({
-        data: eventSummaries.data.map((event) => ({
-          orgId: org.id,
-          meterId: meter.id,
-          eventName: meter.event_name,
-          stripeCustomerId,
-          startTime: new Date(event.start_time * 1000),
-          endTime: new Date(event.end_time * 1000),
-          aggregatedValue: event.aggregated_value,
-        })),
-      });
+        await prisma.billingMeterBackup.createMany({
+          data: eventSummaries.data.map((event) => ({
+            orgId: org.id,
+            meterId: meter.id,
+            eventName: meter.event_name,
+            stripeCustomerId,
+            startTime: new Date(event.start_time * 1000),
+            endTime: new Date(event.end_time * 1000),
+            aggregatedValue: event.aggregated_value,
+          })),
+        });
+      } catch (error) {
+        logger.error(
+          `[METERING POSTGRES EXPORT] Error exporting meter ${meter.id} for org ${org.id}: ${error}`,
+        );
+      }
     }
   }
 
