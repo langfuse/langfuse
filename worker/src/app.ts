@@ -90,7 +90,7 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
     meteringDataPostgresExportProcessor,
     {
       limiter: {
-        // Process at most `max` delete jobs per 30 seconds
+        // Process at most `max` jobs per 30 seconds
         max: 1,
         duration: 30_000,
       },
@@ -182,7 +182,7 @@ if (
     {
       concurrency: 1,
       limiter: {
-        // Process at most `max` delete jobs per 30 seconds
+        // Process at most `max` jobs per 30 seconds
         max: 1,
         duration: 30_000,
       },
