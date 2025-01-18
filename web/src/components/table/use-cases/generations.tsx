@@ -20,6 +20,7 @@ import {
   type FilterState,
   type ObservationOptions,
   BatchExportTableName,
+  type ObservationType,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -44,6 +45,7 @@ import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { ColorCodedObservationType } from "@/src/components/trace/ObservationTree";
 
 export type GenerationsTableRow = {
   id: string;
@@ -274,6 +276,12 @@ export default function GenerationsTable({
       header: "Type",
       size: 100,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: ObservationType = row.getValue("type");
+        return value ? (
+          <ColorCodedObservationType observationType={value} />
+        ) : undefined;
+      },
     },
     {
       accessorKey: "traceId",

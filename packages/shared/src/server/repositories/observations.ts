@@ -621,20 +621,6 @@ const getObservationsTableInternal = async <T>(
     ),
   );
 
-  // by default, add the type filter to the generations table
-  const hasTypeFilter = filter.some((f) => f.column === "type");
-  if (!hasTypeFilter) {
-    observationsFilter.push(
-      new StringFilter({
-        clickhouseTable: "observations",
-        field: "type",
-        operator: "=",
-        value: "GENERATION",
-        tablePrefix: "o",
-      }),
-    );
-  }
-
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
