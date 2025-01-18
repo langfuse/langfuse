@@ -29,13 +29,13 @@ export const sendBatchExportSuccessEmail = async ({
 
   try {
     const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
-    const htmlTemplate = render(
+    const htmlTemplate = await render(
       BatchExportSuccessEmailTemplate({
         receiverEmail,
         downloadLink,
         userName,
         batchExportName,
-      })
+      }),
     );
 
     await mailer.sendMail({
