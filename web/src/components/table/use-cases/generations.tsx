@@ -797,8 +797,6 @@ export default function GenerationsTable({
       : [];
   }, [generations, scoreKeysAndProps]);
 
-  console.log("filterOptions.data", filterOptions.data);
-
   return (
     <>
       <DataTableToolbar
