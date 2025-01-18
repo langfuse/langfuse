@@ -48,7 +48,7 @@ const MemoizedReactMarkdown: FC<Options> = memo(
     prevProps.className === nextProps.className,
 );
 
-const isTextElement = (child: ReactNode): child is ReactElement =>
+const isTextElement = (child: ReactNode): child is ReactElement<any> =>
   isValidElement(child) &&
   typeof child.type !== "string" &&
   ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
@@ -88,7 +88,7 @@ function MarkdownRenderer({
   customCodeHeaderClassName?: string;
 }) {
   return (
-    <MemoizedReactMarkdown
+    (<MemoizedReactMarkdown
       className={cn("space-y-2 overflow-x-auto break-words text-sm", className)}
       remarkPlugins={[remarkGfm, remarkMath]}
       components={{
@@ -153,18 +153,18 @@ function MarkdownRenderer({
 
           return language || isMultiLine ? (
             // code block
-            <CodeBlock
+            (<CodeBlock
               key={Math.random()}
               language={language}
               value={codeContent}
               theme={theme}
               className={customCodeHeaderClassName}
-            />
+            />)
           ) : (
             // inline code
-            <code className="rounded border bg-secondary px-0.5">
+            (<code className="rounded border bg-secondary px-0.5">
               {codeContent}
-            </code>
+            </code>)
           );
         },
         blockquote({ children }) {
@@ -209,7 +209,7 @@ function MarkdownRenderer({
       }}
     >
       {markdown}
-    </MemoizedReactMarkdown>
+    </MemoizedReactMarkdown>)
   );
 }
 const parseOpenAIContentParts = (
@@ -259,7 +259,7 @@ export function MarkdownView({
   };
 
   return (
-    <div
+    (<div
       className={cn("overflow-hidden rounded-md border", className)}
       key={theme}
     >
@@ -309,15 +309,15 @@ export function MarkdownView({
       <div className="grid grid-flow-row gap-2 p-3">
         {typeof markdown === "string" ? (
           // plain string
-          <MarkdownRenderer
+          (<MarkdownRenderer
             markdown={markdown}
             theme={theme}
             className={className}
             customCodeHeaderClassName={customCodeHeaderClassName}
-          />
+          />)
         ) : (
           // content parts (multi-modal)
-          (markdown ?? []).map((content, index) =>
+          ((markdown ?? []).map((content, index) =>
             content.type === "text" ? (
               <MarkdownRenderer
                 key={index}
@@ -350,8 +350,7 @@ export function MarkdownView({
               <LangfuseMediaView
                 mediaReferenceString={content.input_audio.data}
               />
-            ) : null,
-          )
+            ) : null))
         )}
         {audio ? (
           <>
@@ -383,6 +382,6 @@ export function MarkdownView({
           </div>
         </>
       )}
-    </div>
+    </div>)
   );
 }

@@ -4,7 +4,7 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
