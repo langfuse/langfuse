@@ -49,18 +49,15 @@ const reportToHeader = {
 const nextConfig = {
   transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: [
-      "dd-trace",
-      "@opentelemetry/api",
-      "@appsignal/opentelemetry-instrumentation-bullmq",
-      "bullmq",
-      "@opentelemetry/sdk-node",
-      "@opentelemetry/instrumentation-winston",
-      "kysely",
-    ],
-  },
+  serverExternalPackages: [
+    "dd-trace",
+    "@opentelemetry/api",
+    "@appsignal/opentelemetry-instrumentation-bullmq",
+    "bullmq",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/instrumentation-winston",
+    "kysely",
+  ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
 
