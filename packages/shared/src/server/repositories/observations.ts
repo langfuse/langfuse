@@ -415,7 +415,7 @@ export const getObservationsTable = async (
   const observationRecords = await getObservationsTableInternal<
     Omit<
       ObservationsTableQueryResult,
-      "trace_tags" | "trace_name" | "trace_user_id" | "type"
+      "trace_tags" | "trace_name" | "trace_user_id"
     >
   >({
     ...opts,
@@ -432,7 +432,7 @@ export const getObservationsTable = async (
   return observationRecords.map((o) => {
     const trace = traces.find((t) => t.id === o.trace_id);
     return {
-      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      ...convertObservationToView(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -450,7 +450,7 @@ export const getObservationsTableWithModelData = async (
   const observationRecords = await getObservationsTableInternal<
     Omit<
       ObservationsTableQueryResult,
-      "trace_tags" | "trace_name" | "trace_user_id" | "type"
+      "trace_tags" | "trace_name" | "trace_user_id"
     >
   >({
     ...opts,
@@ -491,7 +491,7 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      ...convertObservationToView(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -518,6 +518,7 @@ const getObservationsTableInternal = async <T>(
       ? "count(*) as count"
       : `
         o.id as id,
+        o.type as type,
         o.project_id as "project_id",
         o.name as name,
         o."model_parameters" as model_parameters,

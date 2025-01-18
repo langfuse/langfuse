@@ -117,9 +117,9 @@ export default function GenerationsTable({
     [
       {
         column: "type",
-        type: "string",
-        operator: "=",
-        value: "GENERATION",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
       },
     ],
     "generations",
@@ -266,6 +266,13 @@ export default function GenerationsTable({
       id: "name",
       header: "Name",
       size: 150,
+      enableSorting: true,
+    },
+    {
+      accessorKey: "type",
+      id: "type",
+      header: "Type",
+      size: 100,
       enableSorting: true,
     },
     {
@@ -747,6 +754,7 @@ export default function GenerationsTable({
           return {
             id: generation.id,
             traceId: generation.traceId ?? undefined,
+            type: generation.type ?? undefined,
             traceName: generation.traceName ?? "",
             startTime: generation.startTime,
             endTime: generation.endTime?.toLocaleString() ?? undefined,
@@ -780,6 +788,8 @@ export default function GenerationsTable({
         })
       : [];
   }, [generations, scoreKeysAndProps]);
+
+  console.log("filterOptions.data", filterOptions.data);
 
   return (
     <>

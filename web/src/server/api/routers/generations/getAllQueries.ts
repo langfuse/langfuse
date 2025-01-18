@@ -24,6 +24,7 @@ export const getAllQueries = {
         selectIOAndMetadata: false,
         queryClickhouse: true,
       });
+      console.log("generations", generations);
       return { generations };
     }),
   countAll: protectedProjectProcedure

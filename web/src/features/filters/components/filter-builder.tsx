@@ -51,6 +51,8 @@ export function PopoverFilterBuilder({
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
 }) {
+  console.log("filterState", filterState);
+  console.log("columns", columns);
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
