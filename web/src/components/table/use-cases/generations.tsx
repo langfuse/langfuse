@@ -114,7 +114,14 @@ export default function GenerationsTable({
     useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
-    [],
+    [
+      {
+        column: "type",
+        type: "string",
+        operator: "=",
+        value: "GENERATION",
+      },
+    ],
     "generations",
     projectId,
   );

@@ -620,6 +620,20 @@ const getObservationsTableInternal = async <T>(
     ),
   );
 
+  // by default, add the type filter to the generations table
+  const hasTypeFilter = filter.some((f) => f.column === "type");
+  if (!hasTypeFilter) {
+    observationsFilter.push(
+      new StringFilter({
+        clickhouseTable: "observations",
+        field: "type",
+        operator: "=",
+        value: "GENERATION",
+        tablePrefix: "o",
+      }),
+    );
+  }
+
   const appliedScoresFilter = scoresFilter.apply();
   const appliedObservationsFilter = observationsFilter.apply();
 
@@ -681,7 +695,7 @@ const getObservationsTableInternal = async <T>(
         ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
-        AND o.type = 'GENERATION'
+        
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${chOrderBy}
