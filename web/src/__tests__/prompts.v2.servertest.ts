@@ -1134,7 +1134,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/[version]", () => {
 
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}?/api/public/v2/prompts/prompt-1/1`,
+      `${baseURI}/prompt-1/1`,
       {
         labels: ["new-label"],
       },
