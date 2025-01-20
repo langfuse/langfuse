@@ -1,6 +1,5 @@
 import {
   createHttpHeaderFromRateLimit,
-  createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
 import { Redis } from "ioredis";
