@@ -1,6 +1,6 @@
 import { Terminal } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { z } from "zod";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
@@ -38,6 +38,7 @@ type JumpToPlaygroundButtonProps = (
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   props,
 ) => {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
@@ -64,23 +65,31 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const handleClick = () => {
     capture(props.analyticsEventName);
     setPlaygroundCache(capturedState);
-  };
 
-  if (!isAvailable) return null;
+    router.push(`/project/${projectId}/playground`);
+  };
 
   return (
     <Button
       variant={props.variant ?? "secondary"}
-      title="Test in LLM playground"
+      disabled={!isAvailable}
+      title={
+        isAvailable
+          ? "Test in LLM playground"
+          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a Github issue."
+      }
       onClick={handleClick}
       asChild
+      className={
+        !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+      }
     >
-      <Link href={`/project/${projectId}/playground`}>
+      <span>
         <Terminal className="h-4 w-4" />
         <span className="ml-2">
           {props.source === "generation" ? "Test in playground" : "Playground"}
         </span>
-      </Link>
+      </span>
     </Button>
   );
 };
