@@ -64,9 +64,11 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     const res = await prisma.$transaction(tx);
 
+    logger.info(`Updated prompt ${JSON.stringify(res)}`);
+
     await promptService.unlockCache({ projectId, promptName: promptName });
 
-    return res[1];
+    return res[res.length - 1];
   } catch (e) {
     await promptService.unlockCache({ projectId, promptName: promptName });
     throw e;

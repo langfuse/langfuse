@@ -1136,7 +1136,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
       "PATCH",
       `${baseURI}/prompt-1/version/1`,
       {
-        labels: ["new-label"],
+        newLabels: ["new-label"],
       },
       newAuth,
     );
@@ -1148,7 +1148,9 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
         id: originalPrompt.id,
       },
     });
-    expect(updatedPrompt?.labels).toEqual(["production", "new-label"]);
+    expect(updatedPrompt?.labels).toContain("production");
+    expect(updatedPrompt?.labels).toContain("new-label");
+    expect(updatedPrompt?.labels).toHaveLength(2);
   });
 
   it("should remove label from previous version when adding to new version", async () => {
@@ -1184,7 +1186,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
       "PATCH",
       `${baseURI}/prompt-1/version/2`,
       {
-        labels: ["production"],
+        newLabels: ["production"],
       },
       newAuth,
     );
@@ -1234,7 +1236,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
       "PATCH",
       `${baseURI}/prompt-1/version/1`,
       {
-        labels: ["latest"],
+        newLabels: ["latest"],
       },
       newAuth,
     );
@@ -1250,7 +1252,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
       "PATCH",
       `${baseURI}/non-existing-prompt/version/1`,
       {
-        labels: ["production"],
+        newLabels: ["production"],
       },
       newAuth,
     );
