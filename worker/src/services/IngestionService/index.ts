@@ -2,7 +2,13 @@ import { Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
-import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  Model,
+  Price,
+  PrismaClient,
+  Prompt,
+} from "@langfuse/shared";
 import {
   ClickhouseClientType,
   IngestionEntityTypes,
@@ -722,6 +728,55 @@ export class IngestionService {
     };
   }
 
+  private async shouldSkipClickHouseRead(
+    projectId: string,
+    minProjectCreateDate: string | undefined = undefined,
+  ): Promise<boolean> {
+    if (
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS.split(
+        ",",
+      ).includes(projectId)
+    ) {
+      return true;
+    }
+
+    if (
+      !env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE &&
+      !minProjectCreateDate
+    ) {
+      return false;
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: {
+        id: projectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+      },
+    });
+
+    if (!project) {
+      throw new LangfuseNotFoundError(`Project ${projectId} not found`);
+    }
+
+    if (
+      project.createdAt >=
+      new Date(
+        env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE ??
+          minProjectCreateDate ??
+          new Date(), // Fallback to today. Should never apply.
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -758,12 +813,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }) {
-    if (
-      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
-      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS.split(
-        ",",
-      ).includes(params.projectId)
-    ) {
+    if (await this.shouldSkipClickHouseRead(params.projectId)) {
       return null;
     }
 

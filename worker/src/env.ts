@@ -111,6 +111,12 @@ const EnvSchema = z.object({
   // project ids. Applicable for projects that were created after the S3 write
   // was activated and which don't rely on historic updates.
   LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS: z.string().default(""),
+  // Set a date after which S3 was active. Projects created after this date do
+  // perform a ClickHouse read as part of the ingestion pipeline.
+  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE: z
+    .string()
+    .date()
+    .optional(),
 
   // Otel
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default("http://localhost:4318"),

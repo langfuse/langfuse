@@ -1980,6 +1980,22 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.version).toBe("2.0.0");
   });
 
+  it("should skip clickhouse read for recently created projects", async () => {
+    const projectId = randomUUID();
+    await prisma.project.create({
+      data: {
+        id: projectId,
+        name: randomUUID(),
+        orgId: "seed-org-id",
+      },
+    });
+    const shouldSkip = await ingestionService.shouldSkipClickHouseRead(
+      projectId,
+      "2024-01-01", // Use some date in the past
+    );
+    expect(shouldSkip).toBe(true);
+  });
+
   [
     {
       inputs: [{ a: "a" }, { b: "b" }],
