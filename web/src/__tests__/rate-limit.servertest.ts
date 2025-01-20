@@ -39,6 +39,16 @@ describe("RateLimitService", () => {
       points: 1000,
       remainingPoints: 999,
       msBeforeNext: 1000,
+      resource: "public-api" as const,
+      scope: {
+        orgId: orgId,
+        plan: "cloud:hobby" as const,
+        projectId: "test-project-id",
+        accessLevel: "all" as const,
+        rateLimitOverrides: [],
+      },
+      consumedPoints: 1,
+      isFirstInDuration: true
     };
 
     const headers = createHttpHeaderFromRateLimit(rateLimitRes);
