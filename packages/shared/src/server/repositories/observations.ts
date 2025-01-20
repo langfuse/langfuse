@@ -415,7 +415,7 @@ export const getObservationsTable = async (
   const observationRecords = await getObservationsTableInternal<
     Omit<
       ObservationsTableQueryResult,
-      "trace_tags" | "trace_name" | "trace_user_id" | "type"
+      "trace_tags" | "trace_name" | "trace_user_id"
     >
   >({
     ...opts,
@@ -432,7 +432,7 @@ export const getObservationsTable = async (
   return observationRecords.map((o) => {
     const trace = traces.find((t) => t.id === o.trace_id);
     return {
-      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      ...convertObservationToView(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -450,7 +450,7 @@ export const getObservationsTableWithModelData = async (
   const observationRecords = await getObservationsTableInternal<
     Omit<
       ObservationsTableQueryResult,
-      "trace_tags" | "trace_name" | "trace_user_id" | "type"
+      "trace_tags" | "trace_name" | "trace_user_id"
     >
   >({
     ...opts,
@@ -491,7 +491,7 @@ export const getObservationsTableWithModelData = async (
     const trace = traces.find((t) => t.id === o.trace_id);
     const model = models.find((m) => m.id === o.internal_model_id);
     return {
-      ...convertObservationToView({ ...o, type: "GENERATION" }),
+      ...convertObservationToView(o),
       latency: o.latency ? Number(o.latency) / 1000 : null,
       timeToFirstToken: o.time_to_first_token
         ? Number(o.time_to_first_token) / 1000
@@ -518,6 +518,7 @@ const getObservationsTableInternal = async <T>(
       ? "count(*) as count"
       : `
         o.id as id,
+        o.type as type,
         o.project_id as "project_id",
         o.name as name,
         o."model_parameters" as model_parameters,
@@ -681,7 +682,7 @@ const getObservationsTableInternal = async <T>(
         ${traceTableFilter.length > 0 || orderByTraces || search.query ? "LEFT JOIN traces t FINAL ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
         ${hasScoresFilter ? `LEFT JOIN scores_avg AS s_avg ON s_avg.trace_id = o.trace_id and s_avg.observation_id = o.id` : ""}
       WHERE ${appliedObservationsFilter.query}
-        AND o.type = 'GENERATION'
+        
         ${timeFilter && (traceTableFilter.length > 0 || orderByTraces) ? `AND t.timestamp > {tracesTimestampFilter: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${search.query}
       ${chOrderBy}
