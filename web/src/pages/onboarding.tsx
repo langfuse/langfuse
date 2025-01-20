@@ -18,6 +18,7 @@ import { useRouter } from "next/router";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { Textarea } from "@/src/components/ui/textarea";
 import Image from "next/image";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const referralSourceSchema = z.object({
   referralSource: z.string().optional(),
@@ -25,6 +26,7 @@ const referralSourceSchema = z.object({
 
 export default function ReferralSource() {
   const posthog = usePostHog();
+  const capture = usePostHogClientCapture();
   const router = useRouter();
   const form = useForm<z.infer<typeof referralSourceSchema>>({
     resolver: zodResolver(referralSourceSchema),
@@ -65,7 +67,7 @@ export default function ReferralSource() {
           rel="noopener noreferrer"
           className="flex-shrink-0"
           onClick={() => {
-            posthog.capture("github star clicked");
+            capture("onboarding:click_github_star_cta");
           }}
         >
           <Image
