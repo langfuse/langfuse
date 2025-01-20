@@ -1901,8 +1901,8 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
-          userId: "user-1",
           metadata: { key: "value" },
+          // Do not set user_id here to validate behaviour for missing fields
           release: null,
           version: undefined,
         },
@@ -1922,6 +1922,7 @@ describe("Ingestion end-to-end tests", () => {
 
     expect(trace.release).toBe(null);
     expect(trace.version).toBe("2.0.0");
+    expect(trace.user_id).toBe("user-1");
   });
 
   [
