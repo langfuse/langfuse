@@ -17,6 +17,7 @@ import { usePostHog } from "posthog-js/react";
 import { useRouter } from "next/router";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { Textarea } from "@/src/components/ui/textarea";
+import Image from "next/image";
 
 const referralSourceSchema = z.object({
   referralSource: z.string().optional(),
@@ -51,19 +52,32 @@ export default function ReferralSource() {
           Welcome to Langfuse
         </h2>
       </div>
-      <div className="mt-4 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
-        <p className="text-sm">
-          Star Langfuse on GitHub: See the latest releases and help grow the community.
-        </p>
-        <a href="https://github.com/langfuse/langfuse" target="_blank" rel="noopener noreferrer" className="flex justify-center">
-          <img
+      <div className="mt-4 flex w-full flex-col items-start gap-3 bg-background px-6 py-8 shadow sm:mx-auto sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div>
+          <p className="text-sm font-medium">Star Langfuse on GitHub</p>
+          <div className="text-sm text-muted-foreground">
+            See the latest releases and help grow the community.
+          </div>
+        </div>
+        <a
+          href="https://github.com/langfuse/langfuse"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0"
+          onClick={() => {
+            posthog.capture("github star clicked");
+          }}
+        >
+          <Image
             alt="Langfuse Github stars"
             src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
-            className="mt-4"
+            width={112}
+            height={20}
+            unoptimized
           />
         </a>
       </div>
-      <div className="mt-4 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+      <div className="mt-4 bg-background px-6 py-8 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
         <Form {...form}>
           <form
             className="space-y-6"
