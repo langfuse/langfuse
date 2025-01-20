@@ -10,7 +10,6 @@ import {
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 
 export const TracesAndObservationsTimeSeriesChart = ({
@@ -39,7 +38,6 @@ export const TracesAndObservationsTimeSeriesChart = ({
           temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
         },
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "traces-timeseries",
     },
     {
@@ -87,7 +85,6 @@ export const TracesAndObservationsTimeSeriesChart = ({
           temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
         },
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "observations-status-timeseries",
     },
     {

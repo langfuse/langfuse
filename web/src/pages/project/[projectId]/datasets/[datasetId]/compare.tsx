@@ -24,7 +24,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import {
   isNumericDataType,
@@ -81,7 +80,6 @@ export default function DatasetCompare() {
     {
       projectId,
       datasetId,
-      queryClickhouse: useClickhouse(),
       runIds: runIds,
     },
     {
@@ -94,7 +92,6 @@ export default function DatasetCompare() {
     {
       projectId: projectId,
       selectedTimeOption: { option: "All time", filterSource: "TABLE" },
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled: runIds && runIds.length > 1,

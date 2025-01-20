@@ -49,7 +49,6 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -153,7 +152,6 @@ export default function TracesTable({
     page: 0,
     limit: 0,
     orderBy: null,
-    queryClickhouse: useClickhouse(),
   };
 
   const tracesAllQueryFilter = {
@@ -161,7 +159,6 @@ export default function TracesTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
-    queryClickhouse: useClickhouse(),
   };
   const traces = api.traces.all.useQuery(tracesAllQueryFilter);
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
@@ -170,7 +167,6 @@ export default function TracesTable({
       projectId,
       filter: filterState,
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled: traces.data !== undefined,
@@ -210,7 +206,6 @@ export default function TracesTable({
         dateRangeFilter[0]?.type === "datetime"
           ? dateRangeFilter[0]
           : undefined,
-      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -867,7 +862,7 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, queryClickhouse: useClickhouse(), timestamp },
+    { traceId, projectId, timestamp },
     {
       enabled: typeof traceId === "string",
       trpc: {

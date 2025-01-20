@@ -24,7 +24,6 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 type RowData = {
   userId: string;
@@ -79,7 +78,6 @@ export default function UsersPage() {
     limit: paginationState.pageSize,
     projectId,
     searchQuery: searchQuery ?? undefined,
-    queryClickhouse: useClickhouse(),
   });
 
   // this API call will return an empty array if there are no users.
@@ -88,7 +86,6 @@ export default function UsersPage() {
     {
       projectId,
       userIds: users.data?.users.map((u) => u.userId) ?? [],
-      queryClickhouse: useClickhouse(),
       filter: filterState,
     },
     {

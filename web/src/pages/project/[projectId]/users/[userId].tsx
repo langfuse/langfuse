@@ -7,7 +7,6 @@ import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -23,7 +22,6 @@ export default function UserPage() {
   const user = api.users.byId.useQuery({
     projectId: projectId,
     userId,
-    queryClickhouse: useClickhouse(),
   });
 
   const [currentTab, setCurrentTab] = useQueryParam(

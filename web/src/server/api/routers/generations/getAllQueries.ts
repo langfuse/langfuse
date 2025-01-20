@@ -13,25 +13,16 @@ export type GetAllGenerationsInput = z.infer<typeof GetAllGenerationsInput>;
 
 export const getAllQueries = {
   all: protectedProjectProcedure
-    .input(
-      GetAllGenerationsInput.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(GetAllGenerationsInput)
     .query(async ({ input }) => {
       const { generations } = await getAllGenerations({
         input,
         selectIOAndMetadata: false,
-        queryClickhouse: true,
       });
       return { generations };
     }),
   countAll: protectedProjectProcedure
-    .input(
-      GetAllGenerationsInput.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(GetAllGenerationsInput)
     .query(async ({ input, ctx }) => {
       const countQuery = await getObservationsTableCount({
         projectId: ctx.session.projectId,
