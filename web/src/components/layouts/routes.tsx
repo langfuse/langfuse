@@ -78,10 +78,6 @@ export const ROUTES: Route[] = [
         title: "Scores",
         pathname: `/project/[projectId]/scores`,
       },
-      {
-        title: "Models",
-        pathname: `/project/[projectId]/models`,
-      },
     ],
   },
   {

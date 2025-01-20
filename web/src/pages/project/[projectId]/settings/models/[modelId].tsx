@@ -54,7 +54,7 @@ export default function ModelDetailPage() {
       <div className="flex min-h-screen flex-col items-center justify-center">
         <div className="mb-4 text-xl font-medium">Model not found</div>
         <Button variant="outline" asChild>
-          <Link href={`/project/${projectId}/models`}>
+          <Link href={`/project/${projectId}/settings/models`}>
             Return to Models page
           </Link>
         </Button>
@@ -79,7 +79,7 @@ export default function ModelDetailPage() {
         breadcrumb={[
           {
             name: "Models",
-            href: `/project/${router.query.projectId as string}/models`,
+            href: `/project/${router.query.projectId as string}/settings/models`,
           },
           { name: model.modelName },
         ]}
@@ -93,7 +93,7 @@ export default function ModelDetailPage() {
                     projectId={projectId}
                     modelData={model}
                     onSuccess={() => {
-                      void router.push(`/project/${projectId}/models`);
+                      void router.push(`/project/${projectId}/settings/models`);
                     }}
                   />
                 </>

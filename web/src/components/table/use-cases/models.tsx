@@ -279,6 +279,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         setRowHeight={setRowHeight}
       />
       <DataTable
+        className="mb-4 flex max-h-[60dvh] flex-col overflow-hidden"
         columns={columns}
         data={
           models.isLoading
@@ -306,7 +307,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         onRowClick={(row) => {
-          router.push(`/project/${projectId}/models/${row.modelId}`);
+          router.push(`/project/${projectId}/settings/models/${row.modelId}`);
         }}
       />
     </>
