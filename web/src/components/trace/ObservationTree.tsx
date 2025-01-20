@@ -384,7 +384,7 @@ const ObservationTreeNode = (props: {
   );
 };
 
-const ColorCodedObservationType = (props: {
+export const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
 }) => {
   return (

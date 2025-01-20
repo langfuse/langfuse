@@ -15,7 +15,7 @@ import { extractVariables } from "@langfuse/shared";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
-import Generations from "@/src/components/table/use-cases/generations";
+import Generations from "@/src/components/table/use-cases/observations";
 import {
   Accordion,
   AccordionContent,

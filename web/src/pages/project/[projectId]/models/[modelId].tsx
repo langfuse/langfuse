@@ -20,7 +20,7 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import Generations from "@/src/components/table/use-cases/generations";
+import Generations from "@/src/components/table/use-cases/observations";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 
 export default function ModelDetailPage() {
@@ -180,10 +180,10 @@ export default function ModelDetailPage() {
         <Card className="col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Model generations</span>
+              <span>Model observations</span>
               <Button variant="ghost" asChild>
                 <Link
-                  href={`/project/${projectId}/generations`}
+                  href={`/project/${projectId}/observations`}
                   className="flex items-center gap-1"
                 >
                   <span className="text-sm">View all</span>

@@ -137,6 +137,9 @@ export const filterOptionsQuery = protectedProjectProcedure
         .map((i) => ({
           value: i.tag as string,
         })),
+      type: ["GENERATION", "SPAN", "EVENT"].map((i) => ({
+        value: i,
+      })),
     };
 
     return res;
