@@ -1026,3 +1026,26 @@ model QueueBackUp {
 
   @@map("queue_backups")
 }
+
+model BillingMeterBackup {
+  // unique
+  stripeCustomerId String   @map("stripe_customer_id")
+  meterId          String   @map("meter_id")
+  startTime        DateTime @map("start_time")
+  endTime          DateTime @map("end_time")
+
+  // value
+  aggregatedValue Int @map("aggregated_value")
+
+  // labels
+  eventName String @map("event_name")
+  orgId     String @map("org_id")
+
+  // ts
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([stripeCustomerId, meterId, startTime, endTime])
+  @@index([stripeCustomerId, meterId, startTime, endTime])
+  @@map("billing_meter_backups")
+}

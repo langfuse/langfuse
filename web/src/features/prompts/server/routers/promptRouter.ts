@@ -12,7 +12,6 @@ import {
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt } from "../actions/createPrompt";
-import { type ScoreSimplified } from "@langfuse/shared";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
@@ -28,7 +27,6 @@ import {
   getAggregatedScoresForPrompts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -107,63 +105,16 @@ export const promptRouter = createTRPCRouter({
         queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       if (input.promptNames.length === 0) return [];
-
-      return await measureAndReturnApi({
-        input,
-        operation: "prompts.metrics",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          const promptCounts = await ctx.prisma.$queryRaw<
-            {
-              promptName: string;
-              observationCount: bigint;
-            }[]
-          >(
-            Prisma.sql`
-              WITH prompt_ids AS (
-                SELECT
-                  p.id,
-                  p.name
-                FROM
-                  prompts p
-                WHERE
-                  p.project_id = ${input.projectId}
-                  AND p.name IN (${Prisma.join(input.promptNames)})
-              )
-              SELECT
-                p.name AS "promptName", SUM(oc.observation_count) AS "observationCount"
-              FROM
-                prompt_ids p
-                LEFT JOIN LATERAL (
-                  SELECT
-                    COUNT(*) AS observation_count
-                  FROM
-                    observations o
-                  WHERE
-                    o.project_id = ${input.projectId}
-                    AND o.prompt_id = p.id) oc ON TRUE
-              GROUP BY
-                p.name
-        `,
-          );
-          return promptCounts.map(({ promptName, observationCount }) => ({
-            promptName,
-            observationCount: Number(observationCount),
-          }));
-        },
-        clickhouseExecution: async () => {
-          const res = await getObservationsWithPromptName(
-            input.projectId,
-            input.promptNames,
-          );
-          return res.map(({ promptName, count }) => ({
-            promptName,
-            observationCount: count,
-          }));
-        },
-      });
+      const res = await getObservationsWithPromptName(
+        input.projectId,
+        input.promptNames,
+      );
+      return res.map(({ promptName, count }) => ({
+        promptName,
+        observationCount: count,
+      }));
     }),
   byId: protectedProjectProcedure
     .input(
@@ -708,171 +659,34 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      return await measureAndReturnApi({
-        input,
-        operation: "prompts.versionMetrics",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          if (input.promptIds.length === 0) return [];
-          const [metrics, generationScores, traceScores] = await Promise.all([
-            // metrics
-            ctx.prisma.$queryRaw<
-              Array<{
-                id: string;
-                observationCount: bigint;
-                firstUsed: Date | null;
-                lastUsed: Date | null;
-                medianOutputTokens: number | null;
-                medianInputTokens: number | null;
-                medianTotalCost: number | null;
-                medianLatency: number | null;
-              }>
-            >(
-              Prisma.sql`
-            select p.id, p.version, observation_metrics.* from prompts p
-            LEFT JOIN LATERAL (
-              SELECT
-                count(*) AS "observationCount",
-                MIN(o.start_time) AS "firstUsed",
-                MAX(o.start_time) AS "lastUsed",
-                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.completion_tokens) AS "medianOutputTokens",
-                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.prompt_tokens) AS "medianInputTokens",
-                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.calculated_total_cost) AS "medianTotalCost",
-                PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY o.latency) AS "medianLatency"
-              FROM
-                "observations_view" o
-              WHERE
-                o.prompt_id = p.id
-                AND "type" = 'GENERATION'
-                AND "project_id" = ${input.projectId}
-            ) AS observation_metrics ON true
-            WHERE "project_id" = ${input.projectId}
-            AND p.id in (${Prisma.join(input.promptIds)})
-            ORDER BY version DESC
-          `,
-            ),
-            // generationScores
-            ctx.prisma.$queryRaw<
-              Array<{
-                promptId: string;
-                scores: Array<ScoreSimplified>;
-              }>
-            >(Prisma.sql`
-          SELECT
-            p.id AS "promptId",
-            array_agg(s.score) AS "scores"
-          FROM
-            prompts p
-            LEFT JOIN LATERAL (
-              SELECT
-                jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
-              FROM
-                observations AS o
-                LEFT JOIN scores s ON o.trace_id = s.trace_id
-                  AND s.observation_id = o.id
-                  AND s.project_id = ${input.projectId}
-              WHERE
-                o.prompt_id IS NOT NULL
-                AND o.type = 'GENERATION'
-                AND o.prompt_id = p.id
-                AND o.project_id = ${input.projectId}
-                AND s.name IS NOT NULL
-                AND p.id IN (${Prisma.join(input.promptIds)})
-              ) s ON TRUE
-          WHERE
-            p.project_id = ${input.projectId}
-            AND s.score IS NOT NULL
-            GROUP BY
-              p.id
-          `),
-            // traceScores
-            ctx.prisma.$queryRaw<
-              Array<{
-                promptId: string;
-                scores: Array<ScoreSimplified>;
-              }>
-            >(Prisma.sql`
-          SELECT
-            p.id AS "promptId",
-            array_agg(s.score) AS "scores"
-          FROM
-            prompts p
-            LEFT JOIN LATERAL (
-              SELECT
-                jsonb_build_object ('name', s.name, 'stringValue', s.string_value, 'value', s.value, 'source', s."source", 'dataType', s.data_type, 'comment', s.comment) AS "score"
-                FROM
-                scores s
-              WHERE
-                s.trace_id IN (
-                  SELECT o.trace_id
-                  FROM observations o
-                  WHERE
-                    o.prompt_id IS NOT NULL
-                    AND o.prompt_id = p.id
-                    AND o.type = 'GENERATION'
-                    AND o.project_id = ${input.projectId}
-                    AND o.prompt_id IN (${Prisma.join(input.promptIds)})
-                )
-                AND s.observation_id IS NULL
-                AND s.project_id = ${input.projectId}
-              ) s ON TRUE
-          WHERE
-            p.project_id = ${input.projectId}
-            AND s.score IS NOT NULL
-          GROUP BY
-              p.id
-          `),
-          ]);
+      const [observations, observationScores, traceScores] = await Promise.all([
+        getObservationMetricsForPrompts(input.projectId, input.promptIds),
+        getScoresForPromptIds(input.projectId, input.promptIds, "observation"),
+        getScoresForPromptIds(input.projectId, input.promptIds, "trace"),
+      ]);
 
-          return metrics.map((metric) => ({
-            ...metric,
-            observationScores: aggregateScores(
-              generationScores.find((score) => score.promptId === metric.id)
-                ?.scores ?? [],
-            ),
-            traceScores: aggregateScores(
-              traceScores.find((score) => score.promptId === metric.id)
-                ?.scores ?? [],
-            ),
-          }));
-        },
-        clickhouseExecution: async () => {
-          console.log("clickhouseExecution", input.promptIds);
-          const [observations, observationScores, traceScores] =
-            await Promise.all([
-              getObservationMetricsForPrompts(input.projectId, input.promptIds),
-              getScoresForPromptIds(
-                input.projectId,
-                input.promptIds,
-                "observation",
-              ),
-              getScoresForPromptIds(input.projectId, input.promptIds, "trace"),
-            ]);
+      return observations.map((r) => {
+        const promptObservationScores = observationScores.find(
+          (score) => score.promptId === r.promptId,
+        );
+        const promptTraceScores = traceScores.find(
+          (score) => score.promptId === r.promptId,
+        );
 
-          return observations.map((r) => {
-            const promptObservationScores = observationScores.find(
-              (score) => score.promptId === r.promptId,
-            );
-            const promptTraceScores = traceScores.find(
-              (score) => score.promptId === r.promptId,
-            );
-
-            return {
-              id: r.promptId,
-              observationCount: BigInt(r.count),
-              firstUsed: r.firstObservation,
-              lastUsed: r.lastObservation,
-              medianOutputTokens: r.medianOutputUsage,
-              medianInputTokens: r.medianInputUsage,
-              medianTotalCost: r.medianTotalCost,
-              medianLatency: r.medianLatencyMs,
-              observationScores: aggregateScores(
-                promptObservationScores?.scores ?? [],
-              ),
-              traceScores: aggregateScores(promptTraceScores?.scores ?? []),
-            };
-          });
-        },
+        return {
+          id: r.promptId,
+          observationCount: BigInt(r.count),
+          firstUsed: r.firstObservation,
+          lastUsed: r.lastObservation,
+          medianOutputTokens: r.medianOutputUsage,
+          medianInputTokens: r.medianInputUsage,
+          medianTotalCost: r.medianTotalCost,
+          medianLatency: r.medianLatencyMs,
+          observationScores: aggregateScores(
+            promptObservationScores?.scores ?? [],
+          ),
+          traceScores: aggregateScores(promptTraceScores?.scores ?? []),
+        };
       });
     }),
 });

@@ -20,6 +20,7 @@ import {
   type FilterState,
   type ObservationOptions,
   BatchExportTableName,
+  type ObservationType,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -44,8 +45,9 @@ import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { ColorCodedObservationType } from "@/src/components/trace/ObservationTree";
 
-export type GenerationsTableRow = {
+export type ObservationsTableRow = {
   id: string;
   traceId?: string;
   startTime: Date;
@@ -80,7 +82,7 @@ export type GenerationsTableRow = {
   traceTags?: string[];
 };
 
-export type GenerationsTableProps = {
+export type ObservationsTableProps = {
   projectId: string;
   promptName?: string;
   promptVersion?: number;
@@ -88,13 +90,13 @@ export type GenerationsTableProps = {
   omittedFilter?: string[];
 };
 
-export default function GenerationsTable({
+export default function ObservationsTable({
   projectId,
   promptName,
   promptVersion,
   modelId,
   omittedFilter = [],
-}: GenerationsTableProps) {
+}: ObservationsTableProps) {
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
     withDefault(StringParam, null),
@@ -114,7 +116,14 @@ export default function GenerationsTable({
     useTableDateRange(projectId);
 
   const [inputFilterState, setInputFilterState] = useQueryFilterState(
-    [],
+    [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+    ],
     "generations",
     projectId,
   );
@@ -220,7 +229,7 @@ export default function GenerationsTable({
   );
 
   const { scoreColumns, scoreKeysAndProps, isColumnLoading } =
-    useIndividualScoreColumns<GenerationsTableRow>({
+    useIndividualScoreColumns<ObservationsTableRow>({
       projectId,
       scoreColumnKey: "scores",
       selectedFilterOption: selectedOption,
@@ -234,7 +243,7 @@ export default function GenerationsTable({
     );
   };
 
-  const columns: LangfuseColumnDef<GenerationsTableRow>[] = [
+  const columns: LangfuseColumnDef<ObservationsTableRow>[] = [
     {
       accessorKey: "id",
       id: "id",
@@ -260,6 +269,19 @@ export default function GenerationsTable({
       header: "Name",
       size: 150,
       enableSorting: true,
+    },
+    {
+      accessorKey: "type",
+      id: "type",
+      header: "Type",
+      size: 100,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: ObservationType = row.getValue("type");
+        return value ? (
+          <ColorCodedObservationType observationType={value} />
+        ) : undefined;
+      },
     },
     {
       accessorKey: "traceId",
@@ -724,22 +746,23 @@ export default function GenerationsTable({
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
-    useColumnVisibility<GenerationsTableRow>(
+    useColumnVisibility<ObservationsTableRow>(
       `generationsColumnVisibility-${projectId}`,
       columns,
     );
 
-  const [columnOrder, setColumnOrder] = useColumnOrder<GenerationsTableRow>(
+  const [columnOrder, setColumnOrder] = useColumnOrder<ObservationsTableRow>(
     "generationsColumnOrder",
     columns,
   );
 
-  const rows: GenerationsTableRow[] = useMemo(() => {
+  const rows: ObservationsTableRow[] = useMemo(() => {
     return generations.isSuccess
       ? generations.data.generations.map((generation) => {
           return {
             id: generation.id,
             traceId: generation.traceId ?? undefined,
+            type: generation.type ?? undefined,
             traceName: generation.traceName ?? "",
             startTime: generation.startTime,
             endTime: generation.endTime?.toLocaleString() ?? undefined,

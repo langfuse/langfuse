@@ -48,9 +48,13 @@ export const generateTracesForPublicApi = async (
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  const chOrderBy = orderBy
-    ? orderByToClickhouseSql(orderBy, orderByColumns)
-    : "ORDER BY t.timestamp desc";
+  // If user provides an order we prefer it or fallback to timestamp as the default.
+  // In both cases we append a t.event_ts desc order to pick the latest event in case of duplicates.
+  // This may still return stale information if the orderBy key was updated between traces or if a filter
+  // applies only to a stale value.
+  const chOrderBy =
+    (orderByToClickhouseSql(orderBy || [], orderByColumns) ||
+      "ORDER BY t.timestamp desc") + ", t.event_ts desc";
 
   const query = `
     WITH observation_stats AS (
@@ -68,8 +72,8 @@ export const generateTracesForPublicApi = async (
       SELECT
         trace_id,
         project_id,
-        groupArray(id) as score_ids
-      FROM scores FINAL
+        groupUniqArray(id) as score_ids
+      FROM scores
       WHERE project_id = {projectId: String}
       ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
       GROUP BY project_id, trace_id
@@ -99,8 +103,8 @@ export const generateTracesForPublicApi = async (
       COALESCE(o.latency_milliseconds / 1000, 0) as latency,
       COALESCE(o.total_cost, 0) as totalCost
     FROM traces t
-    LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id
     LEFT JOIN observation_stats o ON t.id = o.trace_id AND t.project_id = o.project_id
+    LEFT JOIN score_stats s ON t.id = s.trace_id AND t.project_id = s.project_id
     WHERE t.project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
     ${chOrderBy}

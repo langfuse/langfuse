@@ -156,14 +156,12 @@ export const SupportMenuDropdown = () => {
             ? (uiCustomization?.[item.customizableHref] ?? item.pathname)
             : item.pathname;
           return (
-            <DropdownMenuItem key={item.title}>
+            <DropdownMenuItem key={item.title} asChild>
               {item.menuNode ?? (
                 <a
                   href={url}
                   target={url.startsWith("http") ? "_blank" : undefined}
-                  rel={
-                    url.startsWith("http") ? "noopener noreferrer" : undefined
-                  }
+                  rel={url.startsWith("http") ? "noopener" : undefined}
                   className="flex cursor-pointer items-center"
                 >
                   <item.icon className="mr-2 h-4 w-4" />

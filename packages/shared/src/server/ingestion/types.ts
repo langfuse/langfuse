@@ -66,8 +66,12 @@ const OpenAIUsageSchema = z
     prompt_tokens: z.number().nonnegative(),
     completion_tokens: z.number().nonnegative(),
     total_tokens: z.number().nonnegative(),
-    prompt_tokens_details: z.record(z.string(), z.number().nonnegative()),
-    completion_tokens_details: z.record(z.string(), z.number().nonnegative()),
+    prompt_tokens_details: z
+      .record(z.string(), z.number().nonnegative())
+      .nullish(),
+    completion_tokens_details: z
+      .record(z.string(), z.number().nonnegative())
+      .nullish(),
   })
   .strict()
   .transform((v) => {

@@ -100,6 +100,8 @@ const events = {
     "new_form_submit",
     "new_from_trace_form_submit",
     "new_from_trace_form_open",
+    "upload_csv_button_click",
+    "upload_csv_form_submit",
   ],
   dataset_run: ["delete_form_open"],
   notification: ["click_link", "dismiss_notification"],

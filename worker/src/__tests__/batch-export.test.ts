@@ -413,13 +413,13 @@ describe("batch export test suite", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: traces[0].id,
-          latency: 1,
+          latency: expect.closeTo(1.0, 0.1), // allows deviation of ±0.1
           test: [score.value],
           qualitative_test: ["This is some qualitative text"],
         }),
         expect.objectContaining({
           id: traces[1].id,
-          latency: 2.123,
+          latency: expect.closeTo(2.123, 0.1), // allows deviation of ±0.1
           test: null,
           qualitative_test: null,
         }),

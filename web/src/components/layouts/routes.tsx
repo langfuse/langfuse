@@ -71,8 +71,8 @@ export const ROUTES: Route[] = [
         pathname: `/project/[projectId]/sessions`,
       },
       {
-        title: "Generations",
-        pathname: `/project/[projectId]/generations`,
+        title: "Observations",
+        pathname: `/project/[projectId]/observations`,
       },
       {
         title: "Scores",

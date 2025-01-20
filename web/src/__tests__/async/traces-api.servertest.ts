@@ -261,6 +261,7 @@ describe("/api/public/traces API Endpoint", () => {
     const trace2 = traces.body.data[1];
     expect(trace2.name).toBe("trace-name1");
   });
+
   it("should return 400 error when page=0", async () => {
     const response = await makeZodVerifiedAPICallSilent(
       GetTracesV1Response,

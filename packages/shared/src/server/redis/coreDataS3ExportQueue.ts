@@ -47,7 +47,7 @@ export class CoreDataS3ExportQueue {
           QueueJobs.CoreDataS3ExportJob,
           {},
           {
-            repeat: { pattern: "30 4 * * *" }, // every day at 4:30am
+            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
           },
         )
         .catch((err) => {
