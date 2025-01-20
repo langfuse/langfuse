@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { type z } from "zod";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
 import { GenerationTableOptions } from "./utils/GenerationTableOptions";
