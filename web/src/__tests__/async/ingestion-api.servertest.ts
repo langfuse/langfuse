@@ -216,4 +216,50 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.body.errors.length).toBe(1);
     expect(response.body.errors[0].message).toBe("Invalid request data");
   });
+
+  it("#4900: should clear score comment on update with `null`", async () => {
+    const scoreId = randomUUID();
+    const score1 = {
+      id: randomUUID(),
+      type: "score-create",
+      timestamp: new Date().toISOString(),
+      body: {
+        id: scoreId,
+        name: "score-name",
+        traceId: randomUUID(),
+        value: 100.5,
+        observationId: randomUUID(),
+        comment: "Foo Bar",
+      },
+    };
+
+    const score2 = {
+      id: randomUUID(),
+      type: "score-create",
+      timestamp: new Date(Date.now() + 1000).toISOString(),
+      body: {
+        id: scoreId,
+        name: "score-name",
+        traceId: randomUUID(),
+        value: 100.5,
+        observationId: randomUUID(),
+        comment: null, // Explicitly set to null to clear the comment
+      },
+    };
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [score1, score2],
+    });
+
+    expect(response.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const score = await getScoreById(projectId, scoreId);
+      expect(score).toBeDefined();
+      expect(score!.id).toBe(scoreId);
+      expect(score!.projectId).toBe(projectId);
+      expect(score!.value).toEqual(100.5);
+      expect(score!.comment).toBe(null);
+    });
+  });
 });
