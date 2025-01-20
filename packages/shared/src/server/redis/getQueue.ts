@@ -6,7 +6,6 @@ import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { IngestionQueue, SecondaryIngestionQueue } from "./ingestionQueue";
-import { LegacyIngestionQueue } from "./legacyIngestion";
 import { TraceUpsertQueue } from "./traceUpsert";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
@@ -17,8 +16,6 @@ import { MeteringDataPostgresExportQueue } from "./meteringDataPostgresExportQue
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
-    case QueueName.LegacyIngestionQueue:
-      return LegacyIngestionQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:
