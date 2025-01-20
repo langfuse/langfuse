@@ -13,6 +13,7 @@ export type UpdatePromptParams = {
 
 export const updatePrompt = async (params: UpdatePromptParams) => {
   const { promptName, projectId, promptVersion, newLabels } = params;
+
   logger.info(
     `Updating prompt ${promptName} in project ${projectId} version ${promptVersion} with labels ${newLabels}`,
   );

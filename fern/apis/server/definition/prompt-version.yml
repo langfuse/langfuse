@@ -23,5 +23,5 @@ service:
           properties:
             newLabels:
               type: list<string>
-              docs: New labels to add to the prompt version. Will remove these labels from other versions of this prompt.
+              docs: New labels for the prompt version. Labels are unique across versions. The "latest" label is reserved and managed by Langfuse.
       response: commons.Prompt

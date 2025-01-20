@@ -7,7 +7,11 @@ import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompt
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 const UpdatePromptBodySchema = z.object({
-  newLabels: z.array(z.string()),
+  newLabels: z
+    .array(z.string())
+    .refine((labels) => !labels.includes("latest"), {
+      message: "Label 'latest' is always assigned to the latest prompt version",
+    }),
 });
 
 export const promptVersionHandler = withMiddlewares({
