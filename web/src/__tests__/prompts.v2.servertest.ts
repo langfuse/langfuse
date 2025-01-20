@@ -1116,7 +1116,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
   });
 });
 
-describe("PATCH api/public/v2/prompts/[promptName]/[version]", () => {
+describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
   it("should update label a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();
@@ -1134,7 +1134,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/[version]", () => {
 
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}/prompt-1/1`,
+      `${baseURI}/prompt-1/version/1`,
       {
         labels: ["new-label"],
       },
@@ -1182,7 +1182,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/[version]", () => {
     // Add "production" label to version 2
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}?/api/public/v2/prompts/prompt-1/2`,
+      `${baseURI}?/api/public/v2/prompts/prompt-1/version/2`,
       {
         labels: ["production"],
       },
