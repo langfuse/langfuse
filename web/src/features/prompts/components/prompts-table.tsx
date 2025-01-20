@@ -187,7 +187,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("numberOfObservations", {
-      header: "Number of Generations",
+      header: "Number of Observations",
       size: 170,
       cell: (row) => {
         const numberOfObservations = row.getValue();
@@ -200,7 +200,7 @@ export function PromptTable() {
         }
         return (
           <TableLink
-            path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            path={`/project/${projectId}/observations?filter=${numberOfObservations ? filter : ""}`}
             value={numberOfObservations.toLocaleString()}
           />
         );
