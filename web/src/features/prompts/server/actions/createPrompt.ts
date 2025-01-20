@@ -8,9 +8,22 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  PromptContentSchema,
+  PromptService,
+  redis,
+} from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
+  createdBy: string;
+  prisma: PrismaClient;
+};
+
+type DuplicatePromptParams = {
+  projectId: string;
+  promptId: string;
+  name: string;
+  isSingleVersion: boolean;
   createdBy: string;
   prisma: PrismaClient;
 };
@@ -90,6 +103,65 @@ export const createPrompt = async ({
 
   // Create prompt and update previous prompt versions
   const [createdPrompt] = await prisma.$transaction(create);
+
+  // Unlock cache
+  await promptService.unlockCache({ projectId, promptName: name });
+
+  return createdPrompt;
+};
+
+export const duplicatePrompt = async ({
+  projectId,
+  promptId,
+  name,
+  isSingleVersion,
+  createdBy,
+  prisma,
+}: DuplicatePromptParams) => {
+  const existingPrompt = await prisma.prompt.findUnique({
+    where: {
+      id: promptId,
+      projectId: projectId,
+    },
+  });
+
+  if (!existingPrompt) {
+    throw new Error(`Existing prompt not found: ${promptId}`);
+  }
+
+  // if defined as single version, duplicate current prompt as new prompt v1
+  // else duplicate the entire prompt, should be all or nothing operation.
+  const promptsDb = await prisma.prompt.findMany({
+    where: {
+      projectId: projectId,
+      name: existingPrompt.name,
+      version: isSingleVersion ? existingPrompt.version : undefined,
+    },
+  });
+
+  const createPrompts = promptsDb.map((prompt) => {
+    return prisma.prompt.create({
+      data: {
+        name,
+        version: isSingleVersion ? 1 : prompt.version,
+        labels: prompt.labels,
+        type: prompt.type,
+        prompt: PromptContentSchema.parse(prompt.prompt),
+        config: jsonSchema.parse(prompt.config),
+        tags: prompt.tags,
+        projectId,
+        createdBy,
+      },
+    });
+  });
+
+  // Lock and invalidate cache for _all_ versions and labels of the prompt name
+  const promptService = new PromptService(prisma, redis);
+  await promptService.lockCache({ projectId, promptName: name });
+  await promptService.invalidateCache({ projectId, promptName: name });
+
+  // Create prompt and update previous prompt versions
+  const [createdPrompt] = await prisma.$transaction(createPrompts);
 
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });

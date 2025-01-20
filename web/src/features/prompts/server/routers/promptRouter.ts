@@ -11,7 +11,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { type Prompt, Prisma } from "@langfuse/shared/src/db";
-import { createPrompt } from "../actions/createPrompt";
+import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
 import { orderBy, singleFilter } from "@langfuse/shared";
@@ -172,6 +172,48 @@ export const promptRouter = createTRPCRouter({
         logger.error(e);
         throw e;
       }
+    }),
+  duplicatePrompt: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        promptId: z.string(),
+        name: z.string(),
+        isSingleVersion: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:CUD",
+      });
+
+      const prompt = await duplicatePrompt({
+        projectId: input.projectId,
+        promptId: input.promptId,
+        name: input.name,
+        isSingleVersion: input.isSingleVersion,
+        createdBy: ctx.session.user.id,
+        prisma: ctx.prisma,
+      });
+
+      if (!prompt) {
+        throw new Error(`Failed to duplicate prompt: ${input.promptId}`);
+      }
+
+      await auditLog(
+        {
+          session: ctx.session,
+          resourceType: "prompt",
+          resourceId: prompt.id,
+          action: "create",
+          after: prompt,
+        },
+        ctx.prisma,
+      );
+
+      return prompt;
     }),
   filterOptions: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
