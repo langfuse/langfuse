@@ -4,6 +4,7 @@ import {
   mergeJson,
 } from "@langfuse/shared";
 import { mergeWith } from "lodash";
+import { logger } from "@langfuse/shared/src/server";
 
 export const convertJsonSchemaToRecord = (
   jsonSchema: JsonNested,
@@ -59,8 +60,9 @@ export function overwriteObject(
   const result = mergeWith({}, a, b, (objValue, srcValue, key) => {
     if (
       nonOverwritableKeys.includes(key) ||
-      srcValue == null ||
-      (typeof srcValue === "object" && Object.keys(srcValue).length === 0) // empty object check for cost / usage details
+      (typeof srcValue === "object" &&
+        srcValue !== null &&
+        Object.keys(srcValue).length === 0) // empty object check for cost / usage details
     ) {
       return objValue;
     } else {
