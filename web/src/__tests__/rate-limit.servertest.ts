@@ -48,7 +48,7 @@ describe("RateLimitService", () => {
         rateLimitOverrides: [],
       },
       consumedPoints: 1,
-      isFirstInDuration: true
+      isFirstInDuration: true,
     };
 
     const headers = createHttpHeaderFromRateLimit(rateLimitRes);

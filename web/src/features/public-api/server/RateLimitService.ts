@@ -157,7 +157,7 @@ export const sendRateLimitResponse = (
   res.status(429).end("429 - rate limit exceeded");
 };
 
-const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
+export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
   return {
     "Retry-After": Math.ceil(res.msBeforeNext / 1000),
     "X-RateLimit-Limit": res.points,
