@@ -1875,7 +1875,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.usage_details.output).toEqual(11);
   });
 
-  it("null does not override set values", async () => {
+  it("null does override set values, undefined doesn't", async () => {
     const traceId = randomUUID();
     const timestamp = Date.now();
 
@@ -1904,7 +1904,7 @@ describe("Ingestion end-to-end tests", () => {
           userId: "user-1",
           metadata: { key: "value" },
           release: null,
-          version: null,
+          version: undefined,
         },
       },
     ];
@@ -1921,7 +1921,7 @@ describe("Ingestion end-to-end tests", () => {
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
     expect(trace.release).toBe(null);
-    expect(trace.version).toBe(null);
+    expect(trace.version).toBe("2.0.0");
   });
 
   [
