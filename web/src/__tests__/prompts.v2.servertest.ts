@@ -1117,7 +1117,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 });
 
 describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
-  it("should update label a prompt", async () => {
+  it("should update the labels of a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =
       await createOrgProjectAndApiKey();
 
@@ -1238,6 +1238,22 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  it("updating non existing prompt results in 404", async () => {
+    const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+    // Try to update non-existing prompt
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/non-existing-prompt/version/1`,
+      {
+        labels: ["production"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(404);
   });
 });
 
