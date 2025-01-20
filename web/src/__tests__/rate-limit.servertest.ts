@@ -1,4 +1,8 @@
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import {
+  createHttpHeaderFromRateLimit,
+  createHttpHeaderFromRateLimit,
+  RateLimitService,
+} from "@/src/features/public-api/server/RateLimitService";
 import { Redis } from "ioredis";
 
 describe("RateLimitService", () => {
@@ -28,6 +32,23 @@ describe("RateLimitService", () => {
     if (keys && keys.length > 0) {
       await redis?.del(keys);
     }
+  });
+
+  it("should create correct ratelimit headers", () => {
+    const rateLimitRes = {
+      points: 1000,
+      remainingPoints: 999,
+      msBeforeNext: 1000,
+    };
+
+    const headers = createHttpHeaderFromRateLimit(rateLimitRes);
+
+    expect(headers).toEqual({
+      "Retry-After": 1,
+      "X-RateLimit-Limit": 1000,
+      "X-RateLimit-Remaining": 999,
+      "X-RateLimit-Reset": expect.any(String),
+    });
   });
 
   it("should rate limit", async () => {
