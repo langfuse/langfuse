@@ -60,6 +60,7 @@ export function overwriteObject(
   const result = mergeWith({}, a, b, (objValue, srcValue, key) => {
     if (
       nonOverwritableKeys.includes(key) ||
+      srcValue === undefined ||
       (typeof srcValue === "object" &&
         srcValue !== null &&
         Object.keys(srcValue).length === 0) // empty object check for cost / usage details
