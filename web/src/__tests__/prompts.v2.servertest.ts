@@ -1182,7 +1182,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     // Add "production" label to version 2
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}?/api/public/v2/prompts/prompt-1/version/2`,
+      `${baseURI}/prompt-1/version/2`,
       {
         labels: ["production"],
       },
@@ -1230,7 +1230,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     // Try to set "latest" label
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}?/api/public/v2/prompts/prompt-1/version/1`,
+      `${baseURI}/prompt-1/version/1`,
       {
         labels: ["latest"],
       },

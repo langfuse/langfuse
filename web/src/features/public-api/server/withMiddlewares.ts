@@ -23,6 +23,8 @@ export function withMiddlewares(handlers: Handlers) {
     try {
       await runMiddleware(req, res, cors);
 
+      logger.info(`Request to ${req.method} ${req.url}`);
+
       const method = req.method as HttpMethod;
       if (!handlers[method]) throw new MethodNotAllowedError();
 

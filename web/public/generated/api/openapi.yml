@@ -1491,8 +1491,9 @@ paths:
                   items:
                     type: string
                   description: >-
-                    New labels to add to the prompt version. Will remove these
-                    labels from other versions of this prompt.
+                    New labels for the prompt version. Labels are unique across
+                    versions. The "latest" label is reserved and managed by
+                    Langfuse.
               required:
                 - newLabels
   /api/public/v2/prompts/{promptName}:
