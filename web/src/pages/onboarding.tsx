@@ -51,7 +51,19 @@ export default function ReferralSource() {
           Welcome to Langfuse
         </h2>
       </div>
-      <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+      <div className="mt-4 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <p className="text-sm">
+          Star Langfuse on GitHub: See the latest releases and help grow the community.
+        </p>
+        <a href="https://github.com/langfuse/langfuse" target="_blank" rel="noopener noreferrer" className="flex justify-center">
+          <img
+            alt="Langfuse Github stars"
+            src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&amp;style=social"
+            className="mt-4"
+          />
+        </a>
+      </div>
+      <div className="mt-4 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
         <Form {...form}>
           <form
             className="space-y-6"
