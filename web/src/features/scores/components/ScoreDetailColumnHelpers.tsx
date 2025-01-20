@@ -1,6 +1,6 @@
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type GenerationsTableRow } from "@/src/components/table/use-cases/generations";
+import { type ObservationsTableRow } from "@/src/components/table/use-cases/observations";
 import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
@@ -39,7 +39,7 @@ export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
 const parseScoreColumn = <
   T extends
     | TracesTableRow
-    | GenerationsTableRow
+    | ObservationsTableRow
     | DatasetRunRowData
     | DatasetRunItemRowData
     | PromptVersionTableRow,

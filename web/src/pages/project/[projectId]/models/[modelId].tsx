@@ -20,7 +20,7 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import Generations from "@/src/components/table/use-cases/generations";
+import Generations from "@/src/components/table/use-cases/observations";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 
 export default function ModelDetailPage() {
