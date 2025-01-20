@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
-  commons: ./commons.yml
+  prompts: ./prompts.yml
   pagination: ./utils/pagination.yml
 service:
   auth: true
@@ -24,4 +24,4 @@ service:
             newLabels:
               type: list<string>
               docs: New labels for the prompt version. Labels are unique across versions. The "latest" label is reserved and managed by Langfuse.
-      response: commons.Prompt
+      response: prompts.Prompt

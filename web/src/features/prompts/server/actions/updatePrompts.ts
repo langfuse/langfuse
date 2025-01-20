@@ -62,11 +62,11 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
     await promptService.invalidateCache({ projectId, promptName: promptName });
 
-    await prisma.$transaction(tx);
+    const res = await prisma.$transaction(tx);
 
     await promptService.unlockCache({ projectId, promptName: promptName });
 
-    return prompt;
+    return res[1];
   } catch (e) {
     await promptService.unlockCache({ projectId, promptName: promptName });
     throw e;

@@ -3358,91 +3358,6 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
-    Prompt:
-      title: Prompt
-      oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - chat
-            - $ref: '#/components/schemas/ChatPrompt'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - text
-            - $ref: '#/components/schemas/TextPrompt'
-          required:
-            - type
-    BasePrompt:
-      title: BasePrompt
-      type: object
-      properties:
-        name:
-          type: string
-        version:
-          type: integer
-        config: {}
-        labels:
-          type: array
-          items:
-            type: string
-          description: List of deployment labels of this prompt version.
-        tags:
-          type: array
-          items:
-            type: string
-          description: >-
-            List of tags. Used to filter via UI and API. The same across
-            versions of a prompt.
-      required:
-        - name
-        - version
-        - config
-        - labels
-        - tags
-    ChatMessage:
-      title: ChatMessage
-      type: object
-      properties:
-        role:
-          type: string
-        content:
-          type: string
-      required:
-        - role
-        - content
-    TextPrompt:
-      title: TextPrompt
-      type: object
-      properties:
-        prompt:
-          type: string
-      required:
-        - prompt
-      allOf:
-        - $ref: '#/components/schemas/BasePrompt'
-    ChatPrompt:
-      title: ChatPrompt
-      type: object
-      properties:
-        prompt:
-          type: array
-          items:
-            $ref: '#/components/schemas/ChatMessage'
-      required:
-        - prompt
-      allOf:
-        - $ref: '#/components/schemas/BasePrompt'
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object
@@ -4636,6 +4551,91 @@ components:
       required:
         - name
         - prompt
+    Prompt:
+      title: Prompt
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - chat
+            - $ref: '#/components/schemas/ChatPrompt'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - text
+            - $ref: '#/components/schemas/TextPrompt'
+          required:
+            - type
+    BasePrompt:
+      title: BasePrompt
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        config: {}
+        labels:
+          type: array
+          items:
+            type: string
+          description: List of deployment labels of this prompt version.
+        tags:
+          type: array
+          items:
+            type: string
+          description: >-
+            List of tags. Used to filter via UI and API. The same across
+            versions of a prompt.
+      required:
+        - name
+        - version
+        - config
+        - labels
+        - tags
+    ChatMessage:
+      title: ChatMessage
+      type: object
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+      required:
+        - role
+        - content
+    TextPrompt:
+      title: TextPrompt
+      type: object
+      properties:
+        prompt:
+          type: string
+      required:
+        - prompt
+      allOf:
+        - $ref: '#/components/schemas/BasePrompt'
+    ChatPrompt:
+      title: ChatPrompt
+      type: object
+      properties:
+        prompt:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+      required:
+        - prompt
+      allOf:
+        - $ref: '#/components/schemas/BasePrompt'
     ScoreConfigs:
       title: ScoreConfigs
       type: object

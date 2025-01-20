@@ -1190,6 +1190,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     );
 
     expect(response.status).toBe(200);
+    const responseBody = response.body as unknown as Prompt;
+    expect(responseBody.labels).toEqual(["production"]);
 
     // Check version 2 got the label
     const promptV2 = await prisma.prompt.findFirst({

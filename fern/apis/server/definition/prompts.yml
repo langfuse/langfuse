@@ -23,7 +23,7 @@ service:
           label:
             type: optional<string>
             docs: Label of the prompt to be retrieved. Defaults to "production" if no label or version is set.
-      response: commons.Prompt
+      response: Prompt
 
     list:
       docs: Get a list of prompt names with versions and labels
@@ -55,7 +55,7 @@ service:
       method: POST
       path: /prompts
       request: CreatePromptRequest
-      response: commons.Prompt
+      response: Prompt
 
 types:
   PromptMetaListResponse:
@@ -82,7 +82,7 @@ types:
   CreateChatPromptRequest:
     properties:
       name: string
-      prompt: list<commons.ChatMessage>
+      prompt: list<ChatMessage>
       config: optional<unknown>
       labels:
         type: optional<list<string>>
@@ -102,3 +102,36 @@ types:
       tags:
         type: optional<list<string>>
         docs: List of tags to apply to all versions of this prompt.
+  Prompt:
+    union:
+      chat: ChatPrompt
+      text: TextPrompt
+
+  BasePrompt:
+    properties:
+      name: string
+      version: integer
+      config: unknown
+      labels:
+        type: list<string>
+        docs: List of deployment labels of this prompt version.
+      tags:
+        type: list<string>
+        docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
+
+  ChatMessage:
+    properties:
+      role:
+        type: string
+      content:
+        type: string
+
+  TextPrompt:
+    extends: BasePrompt
+    properties:
+      prompt: string
+
+  ChatPrompt:
+    extends: BasePrompt
+    properties:
+      prompt: list<ChatMessage>

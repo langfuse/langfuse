@@ -443,39 +443,6 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
-  Prompt:
-    union:
-      chat: ChatPrompt
-      text: TextPrompt
-
-  BasePrompt:
-    properties:
-      name: string
-      version: integer
-      config: unknown
-      labels:
-        type: list<string>
-        docs: List of deployment labels of this prompt version.
-      tags:
-        type: list<string>
-        docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
-
-  ChatMessage:
-    properties:
-      role:
-        type: string
-      content:
-        type: string
-
-  TextPrompt:
-    extends: BasePrompt
-    properties:
-      prompt: string
-
-  ChatPrompt:
-    extends: BasePrompt
-    properties:
-      prompt: list<ChatMessage>
 
 errors:
   Error:
