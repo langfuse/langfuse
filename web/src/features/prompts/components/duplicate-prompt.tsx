@@ -27,13 +27,13 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/src/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
 enum CopySettings {
   SINGLE_VERSION = "single_version",
   ALL_VERSIONS = "all_versions",
 }
 
-// fix name validation
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   isCopySingleVersion: z.nativeEnum(CopySettings),
@@ -55,6 +55,8 @@ const DuplicatePromptForm: React.FC<{
       isCopySingleVersion: CopySettings.SINGLE_VERSION,
     },
   });
+
+  const currentName = form.watch("name");
 
   const utils = api.useUtils();
   const duplicatePrompt = api.prompts.duplicatePrompt.useMutation({
@@ -84,6 +86,24 @@ const DuplicatePromptForm: React.FC<{
         console.error(error);
       });
   }
+
+  const allPrompts = api.prompts.filterOptions.useQuery(
+    {
+      projectId: projectId,
+    },
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  ).data?.name;
+
+  usePromptNameValidation({
+    currentName,
+    allPrompts,
+    form,
+  });
 
   return (
     <Form {...form}>
