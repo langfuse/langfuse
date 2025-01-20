@@ -1060,6 +1060,61 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Prompt Version",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update labels for a specific prompt version",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName/version/:version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts",
+                ":promptName",
+                "version",
+                ":version"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "promptName",
+                  "value": "",
+                  "description": "The name of the prompt"
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Version of the prompt to update"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"newLabels\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Prompts",
       "item": [
         {

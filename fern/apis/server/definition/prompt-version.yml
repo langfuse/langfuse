@@ -9,7 +9,7 @@ service:
     update:
       docs: Update labels for a specific prompt version
       method: PATCH
-      path: /prompts/{promptName}/{version}
+      path: /prompts/{promptName}/version/{version}
       path-parameters:
         promptName:
           type: string
@@ -24,4 +24,4 @@ service:
             newLabels:
               type: list<string>
               docs: New labels to add to the prompt version. Will remove these labels from other versions of this prompt.
-      response: Prompt
+      response: commons.Prompt
