@@ -23,7 +23,7 @@ interface ActionButtonProps extends ButtonProps {
   hasEntitlement?: boolean;
   limitValue?: number;
   limit?: number | false;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
   href?: string;
 }
@@ -75,7 +75,7 @@ export function ActionButton({
       buttonProps={buttonProps}
       href={href}
     >
-      {children}
+      {children && children}
     </ButtonContent>
   );
 
