@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
-import GenerationsTable from "@/src/components/table/use-cases/generations";
+import ObservationsTable from "@/src/components/table/use-cases/observations";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 
 export default function Generations() {
@@ -10,14 +10,14 @@ export default function Generations() {
   return (
     <FullScreenPage>
       <Header
-        title="Generations"
+        title="Observations"
         help={{
           description:
-            "A generation captures a single LLM call. It is one type of observation which can be nested in a trace. See docs to learn more.",
+            "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/tracing",
         }}
       />
-      <GenerationsTable projectId={projectId} />
+      <ObservationsTable projectId={projectId} />
     </FullScreenPage>
   );
 }
