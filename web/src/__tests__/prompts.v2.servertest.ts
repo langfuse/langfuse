@@ -1211,6 +1211,34 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     });
     expect(promptV1?.labels).toEqual([]);
   });
+
+  it("trying to set 'latest' label results in 400 error", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+    // Create initial prompt version
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: [],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Try to set "latest" label
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}?/api/public/v2/prompts/prompt-1/version/1`,
+      {
+        labels: ["latest"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(400);
+  });
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
