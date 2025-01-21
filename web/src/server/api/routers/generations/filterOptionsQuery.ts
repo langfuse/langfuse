@@ -21,7 +21,6 @@ export const filterOptionsQuery = protectedProjectProcedure
     z.object({
       projectId: z.string(),
       startTimeFilter: timeFilter.optional(),
-      queryClickhouse: z.boolean().default(false),
     }),
   )
   .query(async ({ input }) => {

@@ -176,6 +176,7 @@ export const PromptDetail = () => {
                       <Button
                         variant="outline"
                         disabled={!hasExperimentWriteAccess}
+                        onClick={() => capture("dataset_run:new_form_open")}
                       >
                         <FlaskConical className="h-4 w-4" />
                         <span className="ml-2">Experiment</span>

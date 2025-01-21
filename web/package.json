@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.11.1",
+  "version": "3.12.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -19,8 +19,7 @@
     "test-client": "dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects client",
     "test:watch": "dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",
-    "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
+    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -115,7 +114,6 @@
     "graphql": "^16.9.0",
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
-    "js-tiktoken": "^1.0.15",
     "kysely": "^0.27.4",
     "langchain": "^0.3.6",
     "lodash": "^4.17.21",
@@ -196,7 +194,8 @@
   "pnpm": {
     "overrides": {
       "jsonpath-plus": "10.0.7",
-      "nanoid": "^3.3.8"
+      "nanoid": "^3.3.8",
+      "^katex": "0.16.21"
     }
   }
 }

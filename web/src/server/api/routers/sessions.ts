@@ -41,11 +41,7 @@ const SessionFilterOptions = z.object({
 
 export const sessionRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      SessionFilterOptions.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
       try {
         const finalFilter = await getPublicSessionsFilter(
@@ -97,11 +93,7 @@ export const sessionRouter = createTRPCRouter({
       }
     }),
   countAll: protectedProjectProcedure
-    .input(
-      SessionFilterOptions.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(SessionFilterOptions)
     .query(async ({ input }) => {
       try {
         const finalFilter = await getPublicSessionsFilter(
@@ -132,7 +124,6 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         sessionIds: z.array(z.string()),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -200,7 +191,6 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -263,7 +253,6 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         sessionId: z.string(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {

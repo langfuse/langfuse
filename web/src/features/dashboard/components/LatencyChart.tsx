@@ -15,7 +15,6 @@ import {
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 export const GenerationLatencyChart = ({
   className,
@@ -57,7 +56,6 @@ export const GenerationLatencyChart = ({
         },
         { type: "string", column: "model" },
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "model-latencies-over-time",
     },
     {
@@ -69,7 +67,7 @@ export const GenerationLatencyChart = ({
     },
   );
 
-  const allModels = getAllModels(projectId, globalFilterState, useClickhouse());
+  const allModels = getAllModels(projectId, globalFilterState);
 
   const getData = (valueColumn: string) => {
     return latencies.data && allModels.length > 0

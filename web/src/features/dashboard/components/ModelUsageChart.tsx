@@ -1,7 +1,6 @@
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -50,8 +49,7 @@ export const ModelUsageChart = ({
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
 }) => {
-  const clickhouse = useClickhouse();
-  const allModels = getAllModels(projectId, globalFilterState, clickhouse);
+  const allModels = getAllModels(projectId, globalFilterState);
 
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -105,7 +103,6 @@ export const ModelUsageChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
-      queryClickhouse: clickhouse,
       queryName: "observations-usage-timeseries",
     },
     {

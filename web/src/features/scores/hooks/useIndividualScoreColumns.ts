@@ -3,7 +3,6 @@ import { api } from "@/src/utils/api";
 import { type TableRowTypesWithIndividualScoreColumns } from "@/src/features/scores/lib/types";
 import { constructIndividualScoreColumns } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type TableDateRangeOptions } from "@/src/utils/date-range-utils";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { toOrderedScoresList } from "@/src/features/scores/lib/helpers";
 
 export function useIndividualScoreColumns<
@@ -26,7 +25,6 @@ export function useIndividualScoreColumns<
   const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
     {
       projectId,
-      queryClickhouse: useClickhouse(),
       ...(selectedFilterOption
         ? {
             selectedTimeOption: {

@@ -37,7 +37,6 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "./BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
@@ -81,7 +80,6 @@ export const ObservationPreview = ({
     startTime: currentObservation?.startTime,
     traceId: traceId,
     projectId: projectId,
-    queryClickhouse: useClickhouse(),
   });
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(

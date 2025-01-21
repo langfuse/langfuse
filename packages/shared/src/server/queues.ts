@@ -1,41 +1,6 @@
 import { z } from "zod";
 import { eventTypes, ingestionBatchEvent } from ".";
 
-export const LegacyIngestionEventFull = z.object({
-  useS3EventStore: z.literal(false),
-  data: ingestionBatchEvent,
-  authCheck: z.object({
-    validKey: z.literal(true),
-    scope: z.object({
-      projectId: z.string(),
-      accessLevel: z.enum(["all", "scores"]),
-    }),
-  }),
-});
-
-export const LegacyIngestionEventMeta = z.object({
-  useS3EventStore: z.literal(true),
-  data: z.array(
-    z.object({
-      type: z.nativeEnum(eventTypes),
-      eventBodyId: z.string(),
-      eventId: z.string(),
-    }),
-  ),
-  authCheck: z.object({
-    validKey: z.literal(true),
-    scope: z.object({
-      projectId: z.string(),
-      accessLevel: z.enum(["all", "scores"]),
-    }),
-  }),
-});
-
-export const LegacyIngestionEvent = z.discriminatedUnion("useS3EventStore", [
-  LegacyIngestionEventFull,
-  LegacyIngestionEventMeta,
-]);
-
 export const IngestionEvent = z.object({
   data: z.object({
     type: z.nativeEnum(eventTypes),
@@ -95,7 +60,6 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type LegacyIngestionEventType = z.infer<typeof LegacyIngestionEvent>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
   typeof ExperimentCreateEventSchema
@@ -113,7 +77,6 @@ export enum QueueName {
   BatchExport = "batch-export-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
-  LegacyIngestionQueue = "legacy-ingestion-queue", // Used for batch processing of Ingestion
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
@@ -129,7 +92,6 @@ export enum QueueJobs {
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
-  LegacyIngestionJob = "legacy-ingestion-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   IngestionJob = "ingestion-job",
   IngestionSecondaryJob = "secondary-ingestion-job",
@@ -176,12 +138,6 @@ export type TQueueJobTypes = {
     id: string;
     payload: BatchExportJobType;
     name: QueueJobs.BatchExportJob;
-  };
-  [QueueName.LegacyIngestionQueue]: {
-    timestamp: Date;
-    id: string;
-    payload: LegacyIngestionEventType;
-    name: QueueJobs.LegacyIngestionJob;
   };
   [QueueName.IngestionQueue]: {
     timestamp: Date;

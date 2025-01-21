@@ -14,14 +14,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   DatabaseReadStream,
   StorageServiceFactory,
-  createSessionsAllQuery,
   sendBatchExportSuccessEmail,
   streamTransformations,
   BatchExportJobType,
-  createTracesQuery,
-  createGenerationsQuery,
-  parseGetAllGenerationsInput,
-  parseTraceAllFilters,
   FullObservationsWithScores,
   getPublicSessionsFilter,
   getScoresForObservations,
@@ -60,32 +55,6 @@ const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
-};
-
-const getEmptyScoreColumns = async (
-  projectId: string,
-  cutoffCreatedAt: Date,
-  filter: FilterCondition[],
-  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter,
-) => {
-  const scoreTimestampFilter = filter?.find(isTimestampFilter);
-
-  const scoreTimestampFilterCondition = scoreTimestampFilter
-    ? Prisma.sql`AND s.timestamp >= ${scoreTimestampFilter.value}`
-    : Prisma.empty;
-
-  const distinctScoreNames = await prisma.$queryRaw<{ name: string }[]>`
-        SELECT DISTINCT name
-        FROM scores s
-        WHERE s.project_id = ${projectId}
-        AND s.created_at <= ${cutoffCreatedAt}
-        ${scoreTimestampFilterCondition}
-      `;
-
-  return distinctScoreNames.reduce(
-    (acc, { name }) => ({ ...acc, [name]: null }),
-    {} as Record<string, null>,
-  );
 };
 
 const getChunkWithFlattenedScores = <
@@ -201,15 +170,6 @@ export const getDatabaseReadStream = async ({
         env.BATCH_EXPORT_ROW_LIMIT,
       );
     case "generations": {
-      const { orderByCondition, filterCondition, datetimeFilter } =
-        parseGetAllGenerationsInput({
-          projectId,
-          orderBy,
-          filter: filter
-            ? [...filter, createdAtCutoffFilter]
-            : [createdAtCutoffFilter],
-        });
-
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
@@ -264,15 +224,6 @@ export const getDatabaseReadStream = async ({
       );
     }
     case "traces": {
-      const { orderByCondition, filterCondition, observationTimeseriesFilter } =
-        parseTraceAllFilters({
-          projectId,
-          orderBy,
-          filter: filter
-            ? [...filter, createdAtCutoffFilter]
-            : [createdAtCutoffFilter],
-        });
-
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
