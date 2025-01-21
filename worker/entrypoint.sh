@@ -12,6 +12,12 @@ if [ -z "$DATABASE_URL" ]; then
         echo "Error: Required database environment variables are not set. Provide a postgres url for DATABASE_URL."
         exit 1
     fi
+    if [ -n "$DATABASE_ARGS" ]; then
+        # Append this to DATABASE_URL
+	DATABASE_URL="${DATABASE_URL}?$DATABASE_ARGS"
+	export DATABASE_URL
+    fi
+
 fi
 
 # Run the command passed to the docker image on start
