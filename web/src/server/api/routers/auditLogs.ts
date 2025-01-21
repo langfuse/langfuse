@@ -52,6 +52,17 @@ export const auditLogsRouter = createTRPCRouter({
           id: {
             in: userIds,
           },
+          organizationMemberships: {
+            some: {
+              organization: {
+                projects: {
+                  some: {
+                    id: input.projectId,
+                  },
+                },
+              },
+            },
+          },
         },
         select: {
           id: true,
