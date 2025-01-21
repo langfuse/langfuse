@@ -1,5 +1,4 @@
 export { createSessionsAllQuery } from "./createSessionsAllQuery";
-export { createTracesQuery, parseTraceAllFilters } from "./createTracesQuery";
 export {
   type FullObservations,
   type FullObservationsWithScores,
