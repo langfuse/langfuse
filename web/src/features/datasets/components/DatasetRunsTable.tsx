@@ -44,6 +44,7 @@ import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChar
 import { Card, CardContent } from "@/src/components/ui/card";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type DatasetRunRowData = {
   id: string;
@@ -67,11 +68,15 @@ const DatasetRunTableMultiSelectAction = ({
   projectId: string;
   datasetId: string;
 }) => {
+  const capture = usePostHogClientCapture();
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button disabled={selectedRunIds.length < 1}>
+          <Button
+            disabled={selectedRunIds.length < 1}
+            onClick={() => capture("dataset_run:compare_view_click")}
+          >
             Actions ({selectedRunIds.length} selected)
             <ChevronDown className="h-5 w-5" />
           </Button>
