@@ -19,16 +19,16 @@ importers:
         specifier: 3.0.3
         version: 3.0.3
       dotenv-cli:
-        specifier: ^7.4.4
+        specifier: ^7.4.2
         version: 7.4.4
       husky:
-        specifier: ^9.1.7
+        specifier: ^9.0.11
         version: 9.1.7
       prettier:
-        specifier: ^3.4.2
+        specifier: ^3.3.3
         version: 3.4.2
       release-it:
-        specifier: ^17.11.0
+        specifier: ^17.3.0
         version: 17.11.0(typescript@5.4.5)
       turbo:
         specifier: ^1.13.4
@@ -20331,7 +20331,7 @@ snapshots:
 
   http-proxy-agent@7.0.0:
     dependencies:
-      agent-base: 7.1.1
+      agent-base: 7.1.3
       debug: 4.3.7(supports-color@5.5.0)
     transitivePeerDependencies:
       - supports-color
@@ -20352,7 +20352,7 @@ snapshots:
 
   https-proxy-agent@7.0.2:
     dependencies:
-      agent-base: 7.1.1
+      agent-base: 7.1.3
       debug: 4.3.7(supports-color@5.5.0)
     transitivePeerDependencies:
       - supports-color
@@ -21265,7 +21265,7 @@ snapshots:
   jsondiffpatch@0.6.0:
     dependencies:
       '@types/diff-match-patch': 1.0.36
-      chalk: 5.3.0
+      chalk: 5.4.1
       diff-match-patch: 1.0.5
 
   jsonfile@6.1.0:
