@@ -192,7 +192,6 @@ export const cloudBillingRouter = createTRPCRouter({
           message: "Cannot change plan for orgs that have a manual/legacy plan",
         });
 
-      const stripeCustomerId = parsedOrg.cloudConfig?.stripe?.customerId;
       const stripeSubscriptionId =
         parsedOrg.cloudConfig?.stripe?.activeSubscriptionId;
 
@@ -250,8 +249,8 @@ export const cloudBillingRouter = createTRPCRouter({
         });
 
       // remove current product from subscription
-      // reset billing cycle and invoice immediately
       // add new product to subscription
+      // reset billing cycle which causes immediate invoice for existing plan
       await stripeClient.subscriptions.update(stripeSubscriptionId, {
         items: [
           {
