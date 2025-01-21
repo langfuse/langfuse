@@ -14,13 +14,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   DatabaseReadStream,
   StorageServiceFactory,
-  createSessionsAllQuery,
   sendBatchExportSuccessEmail,
   streamTransformations,
   BatchExportJobType,
-  createTracesQuery,
-  createGenerationsQuery,
-  parseGetAllGenerationsInput,
   parseTraceAllFilters,
   FullObservationsWithScores,
   getPublicSessionsFilter,
@@ -201,15 +197,6 @@ export const getDatabaseReadStream = async ({
         env.BATCH_EXPORT_ROW_LIMIT,
       );
     case "generations": {
-      const { orderByCondition, filterCondition, datetimeFilter } =
-        parseGetAllGenerationsInput({
-          projectId,
-          orderBy,
-          filter: filter
-            ? [...filter, createdAtCutoffFilter]
-            : [createdAtCutoffFilter],
-        });
-
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
