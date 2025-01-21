@@ -728,6 +728,8 @@ export class IngestionService {
     };
   }
 
+  private skipClickhouseReadProjectsCache = new Map<string, boolean>();
+
   private async shouldSkipClickHouseRead(
     projectId: string,
     minProjectCreateDate: string | undefined = undefined,
@@ -748,6 +750,10 @@ export class IngestionService {
       return false;
     }
 
+    if (this.skipClickhouseReadProjectsCache.has(projectId)) {
+      return this.skipClickhouseReadProjectsCache.get(projectId) ?? false;
+    }
+
     const project = await this.prisma.project.findFirst({
       where: {
         id: projectId,
@@ -763,18 +769,14 @@ export class IngestionService {
       throw new LangfuseNotFoundError(`Project ${projectId} not found`);
     }
 
-    if (
-      project.createdAt >=
-      new Date(
-        env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE ??
-          minProjectCreateDate ??
-          new Date(), // Fallback to today. Should never apply.
-      )
-    ) {
-      return true;
-    }
-
-    return false;
+    const cutoffDate = new Date(
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE ??
+        minProjectCreateDate ??
+        new Date(), // Fallback to today. Should never apply.
+    );
+    const result = project.createdAt >= cutoffDate;
+    this.skipClickhouseReadProjectsCache.set(projectId, result);
+    return result;
   }
 
   private async getClickhouseRecord(params: {
