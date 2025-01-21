@@ -26,7 +26,7 @@ jobs:
       - id: skip_check
         uses: fkirc/skip-duplicate-actions@v5
         with:
-          do_not_skip: '["workflow_dispatch", "push"]'
+          do_not_skip: '["workflow_dispatch"]'
 
   lint:
     runs-on: ubuntu-latest
