@@ -84,12 +84,7 @@ export function AuditLogsTable(props: { projectId: string }) {
       cell: (row) => {
         const value = row.getValue() as string | null;
         if (!value) return null;
-        try {
-          const parsed = JSON.parse(value);
-          return <IOTableCell data={parsed} singleLine={rowHeight === "s"} />;
-        } catch {
-          return value;
-        }
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },
     {
@@ -99,12 +94,7 @@ export function AuditLogsTable(props: { projectId: string }) {
       cell: (row) => {
         const value = row.getValue() as string | null;
         if (!value) return null;
-        try {
-          const parsed = JSON.parse(value);
-          return <IOTableCell data={parsed} singleLine={rowHeight === "s"} />;
-        } catch {
-          return value;
-        }
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },
   ];
