@@ -27,7 +27,7 @@ fi
 
 # Set DIRECT_URL to the value of DATABASE_URL if it is not set, required for migrations
 if [ -z "$DIRECT_URL" ]; then
-    export DIRECT_URL=$DATABASE_URL
+    export DIRECT_URL="${DATABASE_URL}"
 fi
 
 # Always execute the postgres migration, except when disabled.
