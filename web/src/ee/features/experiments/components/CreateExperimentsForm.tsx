@@ -427,7 +427,10 @@ export const CreateExperimentsForm = ({
               <CardFooter className="mt-auto flex flex-row gap-2">
                 <Button
                   className="w-full"
-                  onClick={() => setShowPromptForm(true)}
+                  onClick={() => {
+                    setShowPromptForm(true);
+                    capture("dataset_run:view_prompt_experiment_docs");
+                  }}
                 >
                   Create
                 </Button>
