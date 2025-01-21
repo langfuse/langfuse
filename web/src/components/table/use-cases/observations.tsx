@@ -41,7 +41,6 @@ import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndivi
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
@@ -191,7 +190,6 @@ export default function ObservationsTable({
     page: 0,
     limit: 0,
     orderBy: null,
-    queryClickhouse: useClickhouse(),
   };
 
   const getAllPayload = {
@@ -199,7 +197,6 @@ export default function ObservationsTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
-    queryClickhouse: useClickhouse(),
   };
 
   const generations = api.generations.all.useQuery(getAllPayload);
@@ -213,7 +210,6 @@ export default function ObservationsTable({
       projectId,
       startTimeFilter:
         startTimeFilter?.type === "datetime" ? startTimeFilter : undefined,
-      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -881,7 +877,6 @@ const GenerationsDynamicCell = ({
       traceId,
       projectId,
       startTime,
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled: typeof traceId === "string" && typeof observationId === "string",

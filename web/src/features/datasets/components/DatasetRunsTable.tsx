@@ -34,7 +34,6 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -123,7 +122,6 @@ export function DatasetRunsTable(props: {
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    queryClickhouse: useClickhouse(),
   });
 
   const runsMetrics = api.datasets.runsByDatasetIdMetrics.useQuery({
@@ -131,7 +129,6 @@ export function DatasetRunsTable(props: {
     datasetId: props.datasetId,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    queryClickhouse: useClickhouse(),
   });
 
   type DatasetsCoreOutput =

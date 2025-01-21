@@ -19,7 +19,6 @@ import { NumericScoreHistogram } from "@/src/features/dashboard/components/score
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Flex, Text } from "@tremor/react";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
 export function ScoreAnalytics(props: {
@@ -39,7 +38,6 @@ export function ScoreAnalytics(props: {
     {
       projectId: props.projectId,
       selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
-      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
