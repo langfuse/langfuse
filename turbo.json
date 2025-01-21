@@ -20,7 +20,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["db:generate", "@langfuse/shared#build"]
     },
     "db:generate": {
       "cache": false,
