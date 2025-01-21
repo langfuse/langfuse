@@ -40,7 +40,12 @@ export const DeleteDatasetRunButton = ({
   });
 
   const button = fullWidth ? (
-    <Button variant="ghost" className="w-full" disabled={!hasAccess}>
+    <Button
+      variant="ghost"
+      className="w-full"
+      disabled={!hasAccess}
+      onClick={() => capture("dataset_run:delete_form_open")}
+    >
       <div className="flex w-full flex-row items-center gap-1">
         <Trash className="h-4 w-4" />
         <span className="text-sm font-normal">Delete</span>
@@ -76,7 +81,7 @@ export const DeleteDatasetRunButton = ({
           disabled={mutDelete.isLoading}
           onClick={async (event) => {
             event.preventDefault();
-            capture("dataset_run:delete_form_open");
+            capture("dataset_run:delete_form_submit");
             await mutDelete.mutateAsync({
               projectId,
               datasetRunId,
