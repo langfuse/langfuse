@@ -427,14 +427,18 @@ export const CreateExperimentsForm = ({
               <CardFooter className="mt-auto flex flex-row gap-2">
                 <Button
                   className="w-full"
-                  onClick={() => {
-                    setShowPromptForm(true);
-                    capture("dataset_run:view_prompt_experiment_docs");
-                  }}
+                  onClick={() => setShowPromptForm(true)}
                 >
                   Create
                 </Button>
-                <Button variant="secondary" className="w-full" asChild>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  asChild
+                  onClick={() =>
+                    capture("dataset_run:view_prompt_experiment_docs")
+                  }
+                >
                   <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
                     View Docs
                   </Link>
