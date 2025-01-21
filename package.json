@@ -25,17 +25,16 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "models:migrate": "turbo run models:migrate",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"
   },
   "devDependencies": {
     "@release-it/bumper": "^6.0.1",
     "braces": "3.0.3",
-    "dotenv-cli": "^7.4.2",
-    "husky": "^9.0.11",
-    "prettier": "^3.3.3",
-    "release-it": "^17.3.0",
+    "dotenv-cli": "^7.4.4",
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2",
+    "release-it": "^17.11.0",
     "turbo": "^1.13.4"
   },
   "release-it": {
