@@ -26,11 +26,7 @@ const UserAllOptions = UserFilterOptions.extend({
 
 export const userRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      UserAllOptions.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
       const [users, totalUsers] = await Promise.all([
         getTracesGroupedByUsers(
@@ -62,7 +58,6 @@ export const userRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userIds: z.array(z.string().min(1)),
-        queryClickhouse: z.boolean().default(false),
         filter: z.array(singleFilter).nullable(),
       }),
     )
@@ -94,7 +89,6 @@ export const userRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         userId: z.string(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
