@@ -223,7 +223,8 @@ export const cloudBillingRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
-            "Subscription is not active, currently in " + subscription.status,
+            "Subscription is not active, current status: " +
+            subscription.status,
         });
 
       if (subscription.items.data.length !== 1)
