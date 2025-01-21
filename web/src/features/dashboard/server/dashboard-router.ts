@@ -38,7 +38,6 @@ export const dashboardRouter = createTRPCRouter({
       sqlInterface.extend({
         projectId: z.string(),
         filter: filterInterface.optional(),
-        queryClickhouse: z.boolean().default(false),
         queryName: z
           .enum([
             "traces-total",
@@ -288,7 +287,6 @@ export const dashboardRouter = createTRPCRouter({
       sqlInterface.extend({
         projectId: z.string(),
         filter: filterInterface.optional(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {

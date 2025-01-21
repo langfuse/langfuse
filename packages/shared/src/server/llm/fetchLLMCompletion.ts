@@ -122,7 +122,6 @@ export async function fetchLLMCompletion(
         await processEventBatch(
           JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
           traceParams.authCheck,
-          traceParams.tokenCountDelegate,
         );
       } catch (e) {
         logger.error("Failed to process traced events", { error: e });

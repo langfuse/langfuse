@@ -207,9 +207,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         "inputCost",
         "outputCost",
         "sessionDuration",
-        "totalUsage",
-        "outputUsage",
-        "inputUsage",
+        "totalTokens",
+        "outputTokens",
+        "inputTokens",
+        "usage",
       ].includes(orderBy?.column));
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;

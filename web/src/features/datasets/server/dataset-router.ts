@@ -635,7 +635,6 @@ export const datasetRouter = createTRPCRouter({
           projectId: z.string(),
           datasetRunId: z.string().optional(),
           datasetItemId: z.string().optional(),
-          queryClickhouse: z.boolean().optional().default(false),
           ...paginationZod,
         })
         .refine(

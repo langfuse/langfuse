@@ -62,7 +62,7 @@ const EnvSchema = z.object({
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS: z.coerce
     .number()
     .positive()
-    .default(10000),
+    .default(1000),
   LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: z.coerce
     .number()
     .positive()
@@ -87,10 +87,6 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
 
-  LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(15),
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -121,9 +117,6 @@ const EnvSchema = z.object({
     .default("true"),
 
   // Flags to toggle queue consumers on or off.
-  QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),

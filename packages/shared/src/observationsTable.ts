@@ -20,6 +20,13 @@ export const observationsTableCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
     nullable: true,
   },
+  {
+    name: "type",
+    id: "type",
+    type: "stringOptions",
+    options: [],
+    internal: 'o."type"',
+  },
   { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
     name: "Trace Name",
@@ -200,6 +207,7 @@ export type ObservationOptions = {
   scores_avg: Array<string>;
   promptName: Array<OptionsDefinition>;
   tags: Array<OptionsDefinition>;
+  type: Array<OptionsDefinition>;
 };
 
 export function observationsTableColsWithOptions(
@@ -226,6 +234,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
+    }
+    if (col.id === "type") {
+      return { ...col, options: options?.type ?? [] };
     }
     return col;
   });

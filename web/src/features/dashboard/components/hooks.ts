@@ -6,7 +6,6 @@ import { api } from "@/src/utils/api";
 export const getAllModels = (
   projectId: string,
   globalFilterState: FilterState,
-  useClickhouse: boolean,
 ) => {
   const allModels = api.dashboard.chart.useQuery(
     {
@@ -23,7 +22,6 @@ export const getAllModels = (
         },
       ],
       groupBy: [{ type: "string", column: "model" }],
-      queryClickhouse: useClickhouse,
       queryName: "distinct-models",
     },
     {

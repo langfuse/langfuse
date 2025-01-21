@@ -21,7 +21,6 @@ export const filterOptionsQuery = protectedProjectProcedure
     z.object({
       projectId: z.string(),
       startTimeFilter: timeFilter.optional(),
-      queryClickhouse: z.boolean().default(false),
     }),
   )
   .query(async ({ input }) => {
@@ -137,6 +136,9 @@ export const filterOptionsQuery = protectedProjectProcedure
         .map((i) => ({
           value: i.tag as string,
         })),
+      type: ["GENERATION", "SPAN", "EVENT"].map((i) => ({
+        value: i,
+      })),
     };
 
     return res;

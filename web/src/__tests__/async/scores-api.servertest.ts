@@ -107,6 +107,7 @@ describe("/api/public/scores API Endpoint", () => {
     expect(fetchedScore.body?.source).toBe("API");
     expect(fetchedScore.body?.projectId).toBe(projectId);
   });
+
   it("should GET score with minimal score data and minimal trace data", async () => {
     const { projectId, auth } = await createOrgProjectAndApiKey();
 
@@ -142,6 +143,7 @@ describe("/api/public/scores API Endpoint", () => {
 
     expect(fetchedScore.status).toBe(200);
   });
+
   describe("should Filter scores", () => {
     let configId = "";
     const userId = "user-name";
@@ -450,235 +452,243 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
-    it("test only operator", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=<`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 3,
-        totalPages: 1,
-      });
-    });
-
-    it("test only value", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&value=0.8`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 3,
-        totalPages: 1,
-      });
-    });
-
-    it("test operator <", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=<&value=50`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 1,
-        totalPages: 1,
-      });
-      expect(getScore.body.data).toMatchObject([
-        {
-          id: scoreId_1,
-          name: scoreName,
-          value: 10.5,
-        },
-      ]);
-    });
-    it("test operator >", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=>&value=100`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 1,
-        totalPages: 1,
-      });
-      expect(getScore.body.data).toMatchObject([
-        {
-          id: scoreId_3,
-          name: scoreName,
-          value: 100.8,
-        },
-      ]);
-    });
-    it("test operator <=", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 2,
-        totalPages: 1,
-      });
-      expect(getScore.body.data).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: scoreId_2,
-            name: scoreName,
-            value: 50.5,
-          }),
-          expect.objectContaining({
-            id: scoreId_1,
-            name: scoreName,
-            value: 10.5,
-          }),
-        ]),
-      );
-    });
-    it("test operator >=", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 2,
-        totalPages: 1,
-      });
-      expect(getScore.body.data).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: scoreId_3,
-            name: scoreName,
-            value: 100.8,
-          }),
-          expect.objectContaining({
-            id: scoreId_2,
-            name: scoreName,
-            value: 50.5,
-          }),
-        ]),
-      );
-    });
-    it("test operator !=", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 2,
-        totalPages: 1,
-      });
-      expect(getScore.body.data).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: scoreId_3,
-            name: scoreName,
-            value: 100.8,
-          }),
-          expect.objectContaining({
-            id: scoreId_1,
-            name: scoreName,
-            value: 10.5,
-          }),
-        ]),
-      );
-    });
-    it("test operator =", async () => {
-      const getScore = await makeZodVerifiedAPICall(
-        GetScoresResponse,
-        "GET",
-        `/api/public/scores?${queryUserName}&operator==&value=50.5`,
-        undefined,
-        authentication,
-      );
-      expect(getScore.status).toBe(200);
-      expect(getScore.body.meta).toMatchObject({
-        page: 1,
-        limit: 50,
-        totalItems: 1,
-        totalPages: 1,
-      });
-      expect(getScore.body.data).toMatchObject([
-        {
-          id: scoreId_2,
-          name: scoreName,
-          value: 50.5,
-        },
-      ]);
-    });
-
-    it("test invalid operator", async () => {
-      try {
-        await makeZodVerifiedAPICall(
-          z.object({
-            message: z.string(),
-            error: z.array(z.object({})),
-          }),
+    describe("should use score operators correctly", () => {
+      it("test only operator", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
           "GET",
-          `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+          `/api/public/scores?${queryUserName}&operator=<`,
           undefined,
           authentication,
         );
-      } catch (error) {
-        expect((error as Error).message).toBe(
-          `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
-        );
-      }
-    });
-    it("test invalid value", async () => {
-      try {
-        await makeZodVerifiedAPICall(
-          z.object({
-            message: z.string(),
-            error: z.array(z.object({})),
-          }),
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 3,
+          totalPages: 1,
+        });
+      });
+
+      it("test only value", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
           "GET",
-          `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+          `/api/public/scores?${queryUserName}&value=0.8`,
           undefined,
           authentication,
         );
-      } catch (error) {
-        expect((error as Error).message).toBe(
-          'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 3,
+          totalPages: 1,
+        });
+      });
+
+      it("test operator <", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=<&value=50`,
+          undefined,
+          authentication,
         );
-      }
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 1,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toMatchObject([
+          {
+            id: scoreId_1,
+            name: scoreName,
+            value: 10.5,
+          },
+        ]);
+      });
+
+      it("test operator >", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=>&value=100`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 1,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toMatchObject([
+          {
+            id: scoreId_3,
+            name: scoreName,
+            value: 100.8,
+          },
+        ]);
+      });
+
+      it("test operator <=", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=<=&value=50.5`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_2,
+              name: scoreName,
+              value: 50.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_1,
+              name: scoreName,
+              value: 10.5,
+            }),
+          ]),
+        );
+      });
+
+      it("test operator >=", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=>=&value=50.5`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_3,
+              name: scoreName,
+              value: 100.8,
+            }),
+            expect.objectContaining({
+              id: scoreId_2,
+              name: scoreName,
+              value: 50.5,
+            }),
+          ]),
+        );
+      });
+
+      it("test operator !=", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?${queryUserName}&operator=!=&value=50.5`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_3,
+              name: scoreName,
+              value: 100.8,
+            }),
+            expect.objectContaining({
+              id: scoreId_1,
+              name: scoreName,
+              value: 10.5,
+            }),
+          ]),
+        );
+      });
+
+      it("test operator =", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponse,
+          "GET",
+          `/api/public/scores?${queryUserName}&operator==&value=50.5`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 1,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toMatchObject([
+          {
+            id: scoreId_2,
+            name: scoreName,
+            value: 50.5,
+          },
+        ]);
+      });
+
+      it("test invalid operator", async () => {
+        try {
+          await makeZodVerifiedAPICall(
+            z.object({
+              message: z.string(),
+              error: z.array(z.object({})),
+            }),
+            "GET",
+            `/api/public/scores?${queryUserName}&operator=op&value=50.5`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toBe(
+            `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"received\":\"op\",\"code\":\"invalid_enum_value\",\"options\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid enum value. Expected '<' | '>' | '<=' | '>=' | '!=' | '=', received 'op'\"}]}`,
+          );
+        }
+      });
+
+      it("test invalid value", async () => {
+        try {
+          await makeZodVerifiedAPICall(
+            z.object({
+              message: z.string(),
+              error: z.array(z.object({})),
+            }),
+            "GET",
+            `/api/public/scores?${queryUserName}&operator=<&value=myvalue`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toBe(
+            'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"code":"invalid_type","expected":"number","received":"nan","path":["value"],"message":"Expected number, received nan"}]}',
+          );
+        }
+      });
     });
 
     it("should filter scores by score IDs", async () => {

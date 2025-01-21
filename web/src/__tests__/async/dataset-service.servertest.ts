@@ -192,7 +192,6 @@ describe("Fetch datasets for UI presentation", () => {
     const runs = await createDatasetRunsTable({
       projectId,
       datasetId,
-      queryClickhouse: false,
       page: 0,
       limit: 10,
     });
@@ -328,7 +327,6 @@ describe("Fetch datasets for UI presentation", () => {
     const runs = await createDatasetRunsTable({
       projectId,
       datasetId,
-      queryClickhouse: false,
       page: 0,
       limit: 10,
     });

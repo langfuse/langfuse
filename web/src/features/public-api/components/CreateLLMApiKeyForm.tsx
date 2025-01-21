@@ -398,14 +398,16 @@ export function CreateLLMApiKeyForm({
                   </FormDescription>
                   {currentAdapter === LLMAdapter.Azure && (
                     <FormDescription className="text-dark-yellow">
-                      Azure LLM adapter does not support default models. Please
-                      add a custom model with your deployment name.
+                      Azure LLM adapter does not support default model names
+                      maintained by Langfuse. Instead, please add a custom model
+                      below that is the same as your deployment name.
                     </FormDescription>
                   )}
                   {currentAdapter === LLMAdapter.Bedrock && (
                     <FormDescription className="text-dark-yellow">
-                      Bedrock LLM adapter does not support default models.
-                      Please add your enabled Bedrock model IDs.
+                      Bedrock LLM adapter does not support default model names
+                      maintained by Langfuse. Instead, please add the Bedrock
+                      model IDs you have enabled in the AWS console.
                     </FormDescription>
                   )}
                 </span>

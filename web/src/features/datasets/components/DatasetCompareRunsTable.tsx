@@ -23,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetCompareRunPeekView } from "@/src/features/datasets/components/DatasetCompareRunPeekView";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import _ from "lodash";
@@ -100,7 +99,6 @@ export function DatasetCompareRunsTable(props: {
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
-  const queryClickhouse = useClickhouse();
 
   // 1. First, separate the run definitions
   const runQueries = useMemo(
@@ -112,7 +110,6 @@ export function DatasetCompareRunsTable(props: {
           datasetRunId: runId,
           page: paginationState.pageIndex,
           limit: paginationState.pageSize,
-          queryClickhouse,
         }),
       })),
     [
@@ -120,7 +117,6 @@ export function DatasetCompareRunsTable(props: {
       props.projectId,
       paginationState.pageIndex,
       paginationState.pageSize,
-      queryClickhouse,
     ],
   );
 
@@ -153,7 +149,6 @@ export function DatasetCompareRunsTable(props: {
         datasetRunId: runId,
         page: paginationState.pageIndex,
         limit: paginationState.pageSize,
-        queryClickhouse,
       },
       {
         refetchOnWindowFocus: false,

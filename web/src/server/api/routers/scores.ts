@@ -62,9 +62,7 @@ type AllScoresReturnType = Score & {
 
 export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
-    )
+    .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
       const clickhouseScoreData = await getScoresUiTable({
         projectId: input.projectId,
@@ -120,9 +118,7 @@ export const scoresRouter = createTRPCRouter({
       };
     }),
   countAll: protectedProjectProcedure
-    .input(
-      ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
-    )
+    .input(ScoreAllOptions)
     .query(async ({ input }) => {
       const clickhouseScoreData = await getScoresUiCount({
         projectId: input.projectId,
@@ -141,7 +137,6 @@ export const scoresRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -372,7 +367,6 @@ export const scoresRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         selectedTimeOption: SelectedTimeOptionSchema,
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {

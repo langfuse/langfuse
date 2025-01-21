@@ -1,6 +1,5 @@
 import { PlusIcon } from "lucide-react";
 import { useEffect } from "react";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -79,7 +78,6 @@ export function PromptTable() {
     {
       projectId: projectId as string,
       promptNames: prompts.data?.prompts.map((p) => p.name) ?? [],
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled:
@@ -187,7 +185,7 @@ export function PromptTable() {
       },
     }),
     columnHelper.accessor("numberOfObservations", {
-      header: "Number of Generations",
+      header: "Number of Observations",
       size: 170,
       cell: (row) => {
         const numberOfObservations = row.getValue();
@@ -200,7 +198,7 @@ export function PromptTable() {
         }
         return (
           <TableLink
-            path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            path={`/project/${projectId}/observations?filter=${numberOfObservations ? filter : ""}`}
             value={numberOfObservations.toLocaleString()}
           />
         );
