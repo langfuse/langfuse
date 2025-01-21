@@ -1,5 +1,5 @@
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { filterAndValidateDbScoreList, type Score } from "@langfuse/shared";
+import { filterAndValidateDbScoreList } from "@langfuse/shared";
 import { type GetAllGenerationsInput } from "../getAllQueries";
 import {
   getObservationsTableWithModelData,
