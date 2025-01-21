@@ -84,7 +84,8 @@
   "pnpm": {
     "overrides": {
       "jsonpath-plus": "10.0.7",
-      "nanoid": "^3.3.8"
+      "nanoid": "^3.3.8",
+      "katex": "^0.16.21"
     }
   }
 }
