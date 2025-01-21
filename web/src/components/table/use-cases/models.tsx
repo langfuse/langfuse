@@ -15,7 +15,7 @@ import { DeleteModelButton } from "@/src/features/models/components/DeleteModelB
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
-import { UserCircle2Icon } from "lucide-react";
+import { UserCircle2Icon, PlusIcon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +25,10 @@ import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { ActionButton } from "@/src/components/ActionButton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type ModelTableRow = {
   modelId: string;
@@ -57,6 +61,7 @@ const modelConfigDescriptions = {
 
 export default function ModelTable({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -77,6 +82,11 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   const totalCount = models.data?.totalCount ?? null;
   const { priceUnit } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
+
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "models:CUD",
+  });
 
   // Set row height to medium if small as view is not optimized for small row heights
   useEffect(() => {
@@ -277,9 +287,21 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={
+          <UpsertModelFormDrawer {...{ projectId, action: "create" }}>
+            <ActionButton
+              variant="secondary"
+              icon={<PlusIcon className="h-4 w-4" />}
+              hasAccess={hasWriteAccess}
+              onClick={() => capture("models:new_form_open")}
+            >
+              Add model definition
+            </ActionButton>
+          </UpsertModelFormDrawer>
+        }
       />
       <DataTable
-        className="mb-4 flex max-h-[60dvh] flex-col overflow-hidden"
+        className="flex max-h-[60dvh] flex-col overflow-hidden"
         columns={columns}
         data={
           models.isLoading
