@@ -16,13 +16,18 @@ type SidebarNotification = {
   id: string; // Add unique ID for each notification
   title: string;
   description: React.ReactNode;
-  link: string;
+  link?: string;
   // defaults to "Learn more" if no linkContent and no linkTitle
   linkTitle?: string;
   linkContent?: React.ReactNode;
 };
 
 const notifications: SidebarNotification[] = [
+  {
+    id: "models-redirect",
+    title: "Models page moved",
+    description: "Manage your models in settings from now on",
+  },
   {
     id: "github-star",
     title: "Star Langfuse",
@@ -96,20 +101,8 @@ export function SidebarNotifications() {
         <CardDescription>{currentNotification.description}</CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-2">
-        {currentNotification.linkContent ? (
-          <Link
-            href={currentNotification.link}
-            target="_blank"
-            onClick={() => {
-              capture("notification:click_link", {
-                notification_id: currentNotification.id,
-              });
-            }}
-          >
-            {currentNotification.linkContent}
-          </Link>
-        ) : (
-          <Button variant="secondary" size="sm" asChild>
+        {currentNotification.link &&
+          (currentNotification.linkContent ? (
             <Link
               href={currentNotification.link}
               target="_blank"
@@ -119,10 +112,23 @@ export function SidebarNotifications() {
                 });
               }}
             >
-              {currentNotification.linkTitle ?? "Learn more"} &rarr;
+              {currentNotification.linkContent}
             </Link>
-          </Button>
-        )}
+          ) : (
+            <Button variant="secondary" size="sm" asChild>
+              <Link
+                href={currentNotification.link}
+                target="_blank"
+                onClick={() => {
+                  capture("notification:click_link", {
+                    notification_id: currentNotification.id,
+                  });
+                }}
+              >
+                {currentNotification.linkTitle ?? "Learn more"} &rarr;
+              </Link>
+            </Button>
+          ))}
       </CardContent>
     </Card>
   );

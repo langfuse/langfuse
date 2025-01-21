@@ -52,6 +52,8 @@ const projectScopes = [
 
   "promptExperiments:CUD",
   "promptExperiments:read",
+
+  "auditLogs:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"
@@ -94,6 +96,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueues:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
+    "auditLogs:read",
   ],
   ADMIN: [
     "project:read",
@@ -130,6 +133,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "annotationQueues:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
+    "auditLogs:read",
   ],
   MEMBER: [
     "project:read",
