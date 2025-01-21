@@ -2,14 +2,14 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProjectProcedure } from "../trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { paginationZod } from "@langfuse/shared";
 
 export const auditLogsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        page: z.number(),
-        limit: z.number(),
+        ...paginationZod,
       }),
     )
     .query(async ({ ctx, input }) => {
