@@ -262,4 +262,53 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(score!.comment).toBe(null);
     });
   });
+
+  it("#4882: should merge metadata objects", async () => {
+    const traceId = randomUUID();
+    const trace1 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date().toISOString(),
+      body: {
+        id: traceId,
+        metadata: { func1: "1" },
+      },
+    };
+    const trace2 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date().toISOString(),
+      body: {
+        id: traceId,
+        metadata: { func2: "2" },
+      },
+    };
+    const trace3 = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date(new Date().getTime() + 1000).toISOString(),
+      body: {
+        id: traceId,
+        metadata: { func3: "3" },
+      },
+    };
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [trace1, trace2, trace3],
+    });
+
+    expect(response.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById(traceId, projectId);
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(traceId);
+      expect(trace!.projectId).toBe(projectId);
+      expect(trace!.metadata).toEqual({
+        func1: 1,
+        func2: 2,
+        func3: 3,
+      });
+    });
+  });
 });
