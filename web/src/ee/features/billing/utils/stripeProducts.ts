@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import { type Plan } from "@langfuse/shared";
 
 type StripeProduct = {
+  id: number;
   stripeProductId: string;
   mappedPlan: Plan;
   // include checkout if product can be subscribed to by new users
@@ -15,6 +16,7 @@ type StripeProduct = {
 // map of planid to plan name
 export const stripeProducts: StripeProduct[] = [
   {
+    id: 1,
     stripeProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
@@ -29,6 +31,7 @@ export const stripeProducts: StripeProduct[] = [
     },
   },
   {
+    id: 2,
     stripeProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
