@@ -32,9 +32,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function Dataset() {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
@@ -129,6 +131,7 @@ export default function Dataset() {
                 <Button
                   variant="secondary"
                   disabled={!hasExperimentWriteAccess}
+                  onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
                   <span className="ml-2">New experiment</span>
