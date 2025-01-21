@@ -160,6 +160,11 @@ export const cloudBillingRouter = createTRPCRouter({
         scope: "langfuseCloudBilling:CRUD",
         session: ctx.session,
       });
+      throwIfNoEntitlement({
+        entitlement: "cloud-billing",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
 
       // check that product is valid
       if (
