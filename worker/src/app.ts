@@ -17,7 +17,6 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
-import { legacyIngestionQueueProcessor } from "./queues/legacyIngestionQueue";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -187,14 +186,6 @@ if (
         duration: 30_000,
       },
     },
-  );
-}
-
-if (env.QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.LegacyIngestionQueue,
-    legacyIngestionQueueProcessor,
-    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY }, // n ingestion batches at a time
   );
 }
 

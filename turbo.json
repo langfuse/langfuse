@@ -16,9 +16,6 @@
     "db:reset": {},
     "db:push": {},
     "db:seed": {},
-    "models:migrate": {
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
-    },
     "db:seed:examples": {},
     "dev": {
       "cache": false,

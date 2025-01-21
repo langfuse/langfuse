@@ -25,7 +25,6 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "models:migrate": "turbo run models:migrate",
     "release": "dotenv -e ../.env -- release-it",
     "prepare": "husky"
   },
