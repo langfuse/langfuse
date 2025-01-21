@@ -64,18 +64,13 @@ export const traceRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
       return hasAnyTrace(input.projectId);
     }),
   all: protectedProjectProcedure
-    .input(
-      TraceFilterOptions.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
       const traces = await getTracesTable(
         ctx.session.projectId,
@@ -88,11 +83,7 @@ export const traceRouter = createTRPCRouter({
       return { traces };
     }),
   countAll: protectedProjectProcedure
-    .input(
-      TraceFilterOptions.extend({
-        queryClickhouse: z.boolean().default(false),
-      }),
-    )
+    .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
       const totalCount = await getTracesTableCount({
         projectId: ctx.session.projectId,
@@ -109,7 +100,6 @@ export const traceRouter = createTRPCRouter({
         projectId: z.string(),
         traceIds: z.array(z.string()),
         filter: z.array(singleFilter).nullable(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -151,7 +141,6 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -185,7 +174,6 @@ export const traceRouter = createTRPCRouter({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -208,7 +196,6 @@ export const traceRouter = createTRPCRouter({
         traceId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input }) => {

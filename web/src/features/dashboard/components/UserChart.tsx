@@ -14,7 +14,6 @@ import {
 import { env } from "@/src/env.mjs";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 type BarChartDataPoint = {
   name: string;
@@ -61,7 +60,6 @@ export const UserChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "observations-usage-by-users",
     },
     {
@@ -86,7 +84,6 @@ export const UserChart = ({
         },
       ],
       orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
-      queryClickhouse: useClickhouse(),
       queryName: "traces-grouped-by-user",
     },
     {

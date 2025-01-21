@@ -268,7 +268,6 @@ export const commentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         sessionId: z.string(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {

@@ -30,7 +30,6 @@ import { env } from "@/src/env.mjs";
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  queryClickhouse: z.boolean().optional().default(false),
   runIds: z.array(z.string()).optional(),
   ...optionalPaginationZod,
 });

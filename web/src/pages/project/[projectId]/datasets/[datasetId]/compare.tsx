@@ -24,7 +24,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import {
   isNumericDataType,
@@ -35,9 +34,11 @@ import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function DatasetCompare() {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const [runState, setRunState] = useQueryParams({
@@ -81,7 +82,6 @@ export default function DatasetCompare() {
     {
       projectId,
       datasetId,
-      queryClickhouse: useClickhouse(),
       runIds: runIds,
     },
     {
@@ -94,7 +94,6 @@ export default function DatasetCompare() {
     {
       projectId: projectId,
       selectedTimeOption: { option: "All time", filterSource: "TABLE" },
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled: runIds && runIds.length > 1,
@@ -185,7 +184,11 @@ export default function DatasetCompare() {
             onOpenChange={setIsCreateExperimentDialogOpen}
           >
             <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-              <Button variant="secondary" disabled={!hasExperimentWriteAccess}>
+              <Button
+                variant="secondary"
+                disabled={!hasExperimentWriteAccess}
+                onClick={() => capture("dataset_run:new_form_open")}
+              >
                 <FlaskConical className="h-4 w-4" />
                 <span className="ml-2">New experiment</span>
               </Button>
@@ -252,11 +255,13 @@ export default function DatasetCompare() {
               if (values.length === 0) return;
               if (changedValueId) {
                 if (selectedValueKeys?.has(changedValueId)) {
+                  capture("dataset_run:compare_run_added");
                   setRunState({
                     runs: [...(runIds ?? []), changedValueId],
                   });
                   setLocalRuns([]);
                 } else {
+                  capture("dataset_run:compare_run_removed");
                   setRunState({
                     runs: runIds?.filter((id) => id !== changedValueId) ?? [],
                   });
