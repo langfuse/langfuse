@@ -275,7 +275,9 @@ export default function ObservationsTable({
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
         return value ? (
-          <ColorCodedObservationType observationType={value} />
+          <div className="flex items-center gap-1">
+            <ColorCodedObservationType observationType={value} />
+          </div>
         ) : undefined;
       },
     },
