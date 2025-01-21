@@ -490,7 +490,7 @@ export default function ObservationsTable({
 
         return modelId ? (
           <TableLink
-            path={`/project/${projectId}/models/${modelId}`}
+            path={`/project/${projectId}/settings/models/${modelId}`}
             value={model}
           />
         ) : (

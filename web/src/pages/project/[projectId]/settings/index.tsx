@@ -21,6 +21,7 @@ import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
+import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -78,6 +79,11 @@ export default function SettingsPage() {
                 <LlmApiKeyList projectId={project.id} />
               </div>
             ),
+          },
+          {
+            title: "Models",
+            slug: "models",
+            content: <ModelsSettings projectId={project.id} />,
           },
           {
             title: "Scores / Evaluation",
