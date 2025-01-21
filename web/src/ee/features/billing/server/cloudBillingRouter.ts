@@ -248,19 +248,19 @@ export const cloudBillingRouter = createTRPCRouter({
           message: "New product does not have a default price in Stripe",
         });
 
-      // remove current product from subscription
-      // add new product to subscription
-      // reset billing cycle which causes immediate invoice for existing plan
       await stripeClient.subscriptions.update(stripeSubscriptionId, {
         items: [
+          // remove current product from subscription
           {
             id: item.id,
             deleted: true,
           },
+          // add new product to subscription
           {
             price: newProduct.default_price as string,
           },
         ],
+        // reset billing cycle which causes immediate invoice for existing plan
         billing_cycle_anchor: "now",
         proration_behavior: "none",
       });
