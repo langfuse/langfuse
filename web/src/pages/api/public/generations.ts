@@ -6,7 +6,6 @@ import {
 } from "@/src/features/public-api/types/generations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import { tokenCount } from "@/src/features/ingest/usage";
 import {
   eventTypes,
   logger,
@@ -36,7 +35,7 @@ export default withMiddlewares({
       if (!event.body.id) {
         event.body.id = v4();
       }
-      const result = await processEventBatch([event], auth, tokenCount);
+      const result = await processEventBatch([event], auth);
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
@@ -70,7 +69,7 @@ export default withMiddlewares({
           output: completion,
         },
       };
-      const result = await processEventBatch([event], auth, tokenCount);
+      const result = await processEventBatch([event], auth);
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res

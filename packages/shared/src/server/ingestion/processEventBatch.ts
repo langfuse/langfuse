@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type Model } from "../../db";
 import { env } from "../../env";
 import {
+  ForbiddenError,
   InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
@@ -25,7 +26,6 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
-import { getProcessorForEvent } from "./legacy/EventProcessor";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
 
 export type TokenCountDelegate = (p: {
@@ -52,7 +52,6 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
-  tokenCountDelegate: TokenCountDelegate,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -97,7 +96,7 @@ export const processEventBatch = async (
         });
         return [];
       }
-      if (!isAuthorized(parsed.data, authCheck, tokenCountDelegate)) {
+      if (!isAuthorized(parsed.data, authCheck)) {
         authenticationErrors.push({
           id: parsed.data.id,
           error: new UnauthorizedError("Access Scope Denied"),
@@ -230,14 +229,19 @@ export const processEventBatch = async (
 const isAuthorized = (
   event: IngestionEventType,
   authScope: AuthHeaderValidVerificationResult,
-  tokenCountDelegate: TokenCountDelegate,
 ): boolean => {
-  try {
-    getProcessorForEvent(event, tokenCountDelegate).auth(authScope.scope);
+  if (event.type === eventTypes.SDK_LOG) {
     return true;
-  } catch (error) {
-    return false;
   }
+
+  if (event.type === eventTypes.SCORE_CREATE) {
+    return (
+      authScope.scope.accessLevel === "scores" ||
+      authScope.scope.accessLevel === "all"
+    );
+  }
+
+  return authScope.scope.accessLevel === "all";
 };
 
 /**

@@ -7,7 +7,6 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
-import { tokenCount } from "@/src/features/ingest/usage";
 
 import { eventTypes, logger } from "@langfuse/shared/src/server";
 
@@ -35,7 +34,7 @@ export default withMiddlewares({
       if (!event.body.id) {
         event.body.id = v4();
       }
-      const result = await processEventBatch([event], auth, tokenCount);
+      const result = await processEventBatch([event], auth);
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
