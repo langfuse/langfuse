@@ -105,7 +105,7 @@ export const ingestionQueueProcessorBuilder = (
         kind: clickhouseEntityType,
       });
       span?.setAttribute(
-        "langfuse.ingestion.event.count_files",
+        "langfuse.ingestion.event.count_files.distribution",
         eventFiles.length,
       );
       span?.setAttribute("langfuse.ingestion.event.kind", clickhouseEntityType);
