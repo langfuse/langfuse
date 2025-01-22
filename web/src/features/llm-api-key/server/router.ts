@@ -41,6 +41,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           data: {
             projectId: input.projectId,
             secretKey: encrypt(input.secretKey),
+            extraHeaders: input.extraHeaders
+              ? encrypt(JSON.stringify(input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: input.extraHeaders
+              ? Object.keys(input.extraHeaders)
+              : undefined,
             adapter: input.adapter,
             displaySecretKey: getDisplaySecretKey(input.secretKey),
             provider: input.provider,

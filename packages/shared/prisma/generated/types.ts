@@ -305,6 +305,7 @@ export type LlmApiKeys = {
     custom_models: Generated<string[]>;
     with_default_models: Generated<boolean>;
     extra_headers: string | null;
+    extra_header_keys: Generated<string[]>;
     config: unknown | null;
     project_id: string;
 };
