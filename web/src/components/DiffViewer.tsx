@@ -50,7 +50,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
 
     // Get the complete diff first
     const changes = diffWordsWithSpace(oldString, newString, {});
-    console.log(changes);
 
     // Group changes by line
     const oldParts: { value: string; type?: "removed" }[][] = [[]];
