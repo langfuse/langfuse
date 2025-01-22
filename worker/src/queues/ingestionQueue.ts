@@ -101,11 +101,15 @@ export const ingestionQueueProcessorBuilder = (
       const eventFiles = await s3Client.listFiles(
         `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
       );
-      recordDistribution("langfuse.ingestion.count_files", eventFiles.length, {
-        kind: clickhouseEntityType,
-      });
+      recordDistribution(
+        "langfuse.ingestion.count_files_distribution",
+        eventFiles.length,
+        {
+          kind: clickhouseEntityType,
+        },
+      );
       span?.setAttribute(
-        "langfuse.ingestion.event.count_files.distribution",
+        "langfuse.ingestion.event.count_files",
         eventFiles.length,
       );
       span?.setAttribute("langfuse.ingestion.event.kind", clickhouseEntityType);
