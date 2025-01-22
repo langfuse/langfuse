@@ -70,6 +70,10 @@ export type TracesMetricsUiReturnType = {
   scores: ScoreAggregate;
   usageDetails: Record<string, number>;
   costDetails: Record<string, number>;
+  errorCount: bigint;
+  warningCount: bigint;
+  defaultCount: bigint;
+  debugCount: bigint;
 };
 
 export const convertToUiTableRows = (
@@ -125,6 +129,10 @@ export const convertToUITableMetrics = (
       ? new Decimal(row.cost_details.output)
       : null,
     level: row.level,
+    debugCount: BigInt(row.debug_count ?? 0),
+    warningCount: BigInt(row.warning_count ?? 0),
+    errorCount: BigInt(row.error_count ?? 0),
+    defaultCount: BigInt(row.default_count ?? 0),
   };
 };
 
@@ -138,6 +146,10 @@ export type TracesTableMetricsClickhouseReturnType = {
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
+  error_count: number | null;
+  warning_count: number | null;
+  default_count: number | null;
+  debug_count: number | null;
 };
 
 export type FetchTracesTableProps = {
@@ -225,7 +237,11 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         os.latency_milliseconds / 1000 as latency,
         os.cost_details as cost_details,
         os.usage_details as usage_details,
-        os.level as level,
+        os.computed_level as level,
+        os.error_count as error_count,
+        os.warning_count as warning_count,
+        os.default_count as default_count,
+        os.debug_count as debug_count,
         os.observation_count as observation_count,
         s.scores_avg as scores_avg,
         t.public as public`;
@@ -245,7 +261,6 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         t.public as public`;
       break;
     default:
-      const exhaustiveCheckDefault: never = select;
       throw new Error(`Unknown select type: ${select}`);
   }
 
@@ -361,12 +376,16 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
           sumMap(usage_details) as usage_details,
           SUM(total_cost) AS total_cost,
           date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+          countIf(level = 'ERROR') as error_count,
+          countIf(level = 'WARNING') as warning_count,
+          countIf(level = 'DEFAULT') as default_count,
+          countIf(level = 'DEBUG') as debug_count,
           multiIf(
             arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
             arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
             arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
             'DEBUG'
-          ) AS level,
+          ) AS computed_level,
           sumMap(cost_details) as cost_details,
           trace_id,
           project_id

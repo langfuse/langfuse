@@ -24,7 +24,11 @@ import {
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DeleteButton } from "@/src/components/deleteButton";
-import { LevelColors } from "@/src/components/level-colors";
+import {
+  formatAsLabel,
+  LevelColors,
+  LevelSymbols,
+} from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -52,6 +56,8 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { Separator } from "@/src/components/ui/separator";
+import React from "react";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -61,6 +67,12 @@ export type TracesTableRow = {
   userId: string;
   level?: ObservationLevel;
   observationCount?: bigint;
+  levelCounts: {
+    errorCount?: bigint;
+    warningCount?: bigint;
+    debugCount?: bigint;
+    defaultCount?: bigint;
+  };
   // scores holds grouped column with individual scores
   scores?: ScoreAggregate;
   latency?: number;
@@ -630,6 +642,40 @@ export default function TracesTable({
       enableSorting: true,
     },
     {
+      accessorKey: "levelCounts",
+      id: "levelCounts",
+      header: "Observation Levels",
+      size: 75,
+      cell: ({ row }) => {
+        const value: TracesTableRow["levelCounts"] =
+          row.getValue("levelCounts");
+        if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
+
+        const nonZeroCounts = Object.entries(value).filter(
+          ([_, count]) => count > 0,
+        );
+
+        return (
+          <div className="flex min-h-6 flex-row gap-2 overflow-x-auto whitespace-nowrap">
+            {nonZeroCounts.map(([level, count], index) => (
+              <React.Fragment key={level}>
+                <div className="flex min-w-6 flex-row gap-2">
+                  <span className="text-xs">
+                    {LevelSymbols[formatAsLabel(level)]}{" "}
+                    {numberFormatter(count, 0)}
+                  </span>
+                </div>
+                {index < nonZeroCounts.length - 1 && (
+                  <Separator orientation="vertical" className="h-5" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        );
+      },
+      enableHiding: true,
+    },
+    {
       accessorKey: "observationCount",
       id: "observationCount",
       header: "Observations",
@@ -753,6 +799,12 @@ export default function TracesTable({
               promptTokens: trace.promptTokens,
               completionTokens: trace.completionTokens,
               totalTokens: trace.totalTokens,
+            },
+            levelCounts: {
+              errorCount: trace.errorCount,
+              warningCount: trace.warningCount,
+              defaultCount: trace.defaultCount,
+              debugCount: trace.debugCount,
             },
             usageDetails: trace.usageDetails,
             costDetails: trace.costDetails,
