@@ -10,7 +10,7 @@ import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
 const PromptHistoryTraceNode = (props: {
   index: number;
   prompt: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
-  currentPrompt: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
+  currentPrompt?: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
@@ -74,7 +74,8 @@ const PromptHistoryTraceNode = (props: {
         </div>
         {(isHovered || props.currentPromptVersion === prompt.version) && (
           <div className="flex flex-row justify-end space-x-1">
-            {props.currentPromptVersion !== prompt.version ? (
+            {props.currentPrompt &&
+            props.currentPromptVersion !== prompt.version ? (
               <PromptVersionDiffDialog
                 leftPrompt={prompt}
                 rightPrompt={props.currentPrompt}
