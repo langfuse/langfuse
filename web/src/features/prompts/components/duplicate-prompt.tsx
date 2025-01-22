@@ -187,7 +187,7 @@ export const DuplicatePromptButton: React.FC<{
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
   const capture = usePostHogClientCapture();
 
-  const totalPromptCount = api.prompts.count.useQuery(
+  const allPromptNames = api.prompts.allNames.useQuery(
     {
       projectId,
     },
@@ -208,7 +208,7 @@ export const DuplicatePromptButton: React.FC<{
           variant="secondary"
           limit={promptLimit}
           title="Duplicate prompt"
-          limitValue={totalPromptCount.data ?? undefined}
+          limitValue={allPromptNames.data?.length ?? undefined}
           onClick={() => {
             capture("prompt_detail:duplicate_button_click");
           }}

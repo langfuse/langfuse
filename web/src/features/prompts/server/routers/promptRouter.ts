@@ -97,16 +97,6 @@ export const promptRouter = createTRPCRouter({
           promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
       };
     }),
-  count: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "prompts:read",
-      });
-      return ctx.prisma.prompt.count({ where: { projectId: input.projectId } });
-    }),
   metrics: protectedProjectProcedure
     .input(
       z.object({
