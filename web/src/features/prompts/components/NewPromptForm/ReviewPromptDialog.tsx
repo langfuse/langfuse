@@ -94,27 +94,27 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
               </div>
             </div>
           </div>
-
-          <DialogFooter className="flex flex-row gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setOpen(false)}
-              className="min-w-[6rem]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={onConfirm}
-              loading={isLoading}
-              variant={newPromptValue?.isActive ? "destructive" : "default"}
-              className="min-w-[6rem]"
-            >
-              Save new version
-              {newPromptValue?.isActive ? " and promote to production" : ""}
-            </Button>
-          </DialogFooter>
         </div>
+
+        <DialogFooter className="flex flex-row">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setOpen(false)}
+            className="min-w-[8rem]"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={onConfirm}
+            loading={isLoading}
+            variant={newPromptValue?.isActive ? "destructive" : "default"}
+            className="min-w-[8rem]"
+          >
+            Save new version
+            {newPromptValue?.isActive ? " and promote to production" : ""}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

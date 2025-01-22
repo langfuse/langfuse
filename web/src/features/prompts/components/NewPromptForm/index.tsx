@@ -396,16 +396,31 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           )}
         />
         {initialPrompt ? (
-          <ReviewPromptDialog
-            initialPrompt={initialPrompt}
-            getNewPromptValues={form.getValues}
-            isLoading={createPromptMutation.isLoading}
-            onConfirm={form.handleSubmit(onSubmit)}
-          >
-            <Button disabled={!form.formState.isValid} className="w-full">
-              Review new version
+          <div className="flex flex-col gap-2">
+            <ReviewPromptDialog
+              initialPrompt={initialPrompt}
+              getNewPromptValues={form.getValues}
+              isLoading={createPromptMutation.isLoading}
+              onConfirm={form.handleSubmit(onSubmit)}
+            >
+              <Button
+                disabled={!form.formState.isValid}
+                variant="secondary"
+                className="w-full"
+              >
+                Review changes
+              </Button>
+            </ReviewPromptDialog>
+
+            <Button
+              type="submit"
+              loading={createPromptMutation.isLoading}
+              className="w-full"
+              disabled={!form.formState.isValid}
+            >
+              Save new prompt version
             </Button>
-          </ReviewPromptDialog>
+          </div>
         ) : (
           <Button
             type="submit"
