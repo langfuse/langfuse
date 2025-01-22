@@ -110,7 +110,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
               variant={newPromptValue?.isActive ? "destructive" : "default"}
               className="min-w-[6rem]"
             >
-              Save Changes
+              Save new version
               {newPromptValue?.isActive ? " and promote to production" : ""}
             </Button>
           </DialogFooter>

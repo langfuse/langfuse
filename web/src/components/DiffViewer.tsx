@@ -45,46 +45,69 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   }>({ left: [], right: [] });
 
   useEffect(() => {
-    const oldLines = oldString.split("\n");
-    const newLines = newString.split("\n");
     const left: DiffLine[] = [];
     const right: DiffLine[] = [];
 
-    const maxLength = Math.max(oldLines.length, newLines.length);
+    // Get the complete diff first
+    const changes = diffWordsWithSpace(oldString, newString, {});
+    console.log(changes);
+
+    // Group changes by line
+    const oldParts: { value: string; type?: "removed" }[][] = [[]];
+    const newParts: { value: string; type?: "added" }[][] = [[]];
+
+    changes.forEach((part) => {
+      const lines = part.value.split("\n");
+
+      lines.forEach((line, idx) => {
+        if (idx > 0) {
+          if (!part.added) oldParts.push([]);
+          if (!part.removed) newParts.push([]);
+        }
+
+        if (!part.added) {
+          oldParts[oldParts.length - 1].push({
+            value: line,
+            type: part.removed ? "removed" : undefined,
+          });
+        }
+        if (!part.removed) {
+          newParts[newParts.length - 1].push({
+            value: line,
+            type: part.added ? "added" : undefined,
+          });
+        }
+      });
+    });
+
+    // Convert parts to DiffLines
+    const maxLength = Math.max(oldParts.length, newParts.length);
     for (let i = 0; i < maxLength; i++) {
-      const oldLine = oldLines[i] || "";
-      const newLine = newLines[i] || "";
+      const oldLineParts = oldParts[i] || [];
+      const newLineParts = newParts[i] || [];
 
-      if (oldLine === newLine) {
-        left.push({ text: oldLine, type: "unchanged" });
-        right.push({ text: newLine, type: "unchanged" });
-      } else if (oldLine === "" || newLine === "") {
-        left.push({ text: oldLine, type: oldLine ? "removed" : "empty" });
-        right.push({
-          text: newLine,
-          type: newLine ? "added" : "empty",
-          parts: newLine ? [{ value: newLine, type: "added" }] : undefined,
-        });
+      if (oldLineParts.length === 0 && newLineParts.length === 0) {
+        left.push({ text: "", type: "empty" });
+        right.push({ text: "", type: "empty" });
+        continue;
+      }
+
+      const oldText = oldLineParts.map((p) => p.value).join("");
+      const newText = newLineParts.map((p) => p.value).join("");
+
+      if (oldText === newText) {
+        left.push({ text: oldText, type: "unchanged" });
+        right.push({ text: newText, type: "unchanged" });
       } else {
-        const wordDiffs = diffWordsWithSpace(oldLine, newLine);
-        const leftParts = wordDiffs.filter((part) => !part.added);
-        const rightParts = wordDiffs.filter((part) => !part.removed);
-
         left.push({
-          text: leftParts.map((p) => p.value).join(""),
-          type: "removed",
-          parts: leftParts.map((p) => ({
-            value: p.value,
-            type: p.removed ? "removed" : undefined,
-          })),
+          text: oldText,
+          type: oldText ? "removed" : "empty",
+          parts: oldLineParts.length ? oldLineParts : undefined,
         });
         right.push({
-          text: rightParts.map((p) => p.value).join(""),
-          type: "added",
-          parts: rightParts.map((p) => ({
-            value: p.value,
-            type: p.added ? "added" : undefined,
-          })),
+          text: newText,
+          type: newText ? "added" : "empty",
+          parts: newLineParts.length ? newLineParts : undefined,
         });
       }
     }
