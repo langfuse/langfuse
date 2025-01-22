@@ -153,26 +153,34 @@ export const duplicatePrompt = async ({
     },
   });
 
-  const createPrompts = promptsDb.map((prompt) => {
-    return prisma.prompt.create({
-      data: {
-        name,
-        version: isSingleVersion ? 1 : prompt.version,
-        labels: isSingleVersion
-          ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
-          : prompt.labels,
-        type: prompt.type,
-        prompt: PromptContentSchema.parse(prompt.prompt),
-        config: jsonSchema.parse(prompt.config),
-        tags: prompt.tags,
-        projectId,
-        createdBy,
-      },
-    });
+  // prepare createMany prompt records
+  const promptsToCreate = promptsDb.map((prompt) => ({
+    name,
+    version: isSingleVersion ? 1 : prompt.version,
+    labels: isSingleVersion
+      ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+      : prompt.labels,
+    type: prompt.type,
+    prompt: PromptContentSchema.parse(prompt.prompt),
+    config: jsonSchema.parse(prompt.config),
+    tags: prompt.tags,
+    projectId,
+    createdBy,
+  }));
+
+  // Create all prompts in a single operation
+  const result = await prisma.prompt.createMany({
+    data: promptsToCreate,
   });
 
-  // Create prompt and update previous prompt versions
-  const [createdPrompt] = await prisma.$transaction(createPrompts);
+  // If you need the created prompt, fetch it separately since createMany doesn't return created records
+  const createdPrompt = await prisma.prompt.findFirst({
+    where: {
+      name,
+      projectId,
+      version: isSingleVersion ? 1 : result.count,
+    },
+  });
 
   return createdPrompt;
 };
