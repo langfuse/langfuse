@@ -13,10 +13,12 @@ export function JsonEditor({
   editable = true,
   lineWrapping = true,
   className,
+  onBlur,
 }: {
   defaultValue: string;
   onChange?: (value: string) => void;
   editable?: boolean;
+  onBlur?: () => void;
   lineWrapping?: boolean;
   className?: string;
 }) {
@@ -45,6 +47,7 @@ export function JsonEditor({
         if (onChange) onChange(c);
         setLinterEnabled(c !== "");
       }}
+      onBlur={onBlur}
       className={cn("overflow-hidden rounded-md border text-xs", className)}
       editable={editable}
     />
