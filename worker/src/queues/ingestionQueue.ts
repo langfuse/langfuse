@@ -13,6 +13,7 @@ import {
   getCurrentSpan,
   getQueue,
   recordHistogram,
+  recordDistribution,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -100,7 +101,7 @@ export const ingestionQueueProcessorBuilder = (
       const eventFiles = await s3Client.listFiles(
         `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
       );
-      recordHistogram("langfuse.ingestion.count_files", eventFiles.length, {
+      recordDistribution("langfuse.ingestion.count_files", eventFiles.length, {
         kind: clickhouseEntityType,
       });
       span?.setAttribute(
