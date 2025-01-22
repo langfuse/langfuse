@@ -61,13 +61,16 @@ export const checkTraceExists = async (
   const query = `
     WITH observations_agg AS (
         SELECT
-          
             multiIf(
               arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
               arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
               arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
               'DEBUG'
-            ) AS level,
+            ) AS computed_level,
+            countIf(level = 'ERROR') as error_count,
+            countIf(level = 'WARNING') as warning_count,
+            countIf(level = 'DEFAULT') as default_count,
+            countIf(level = 'DEBUG') as debug_count,
             trace_id,
             project_id
         FROM observations o FINAL 

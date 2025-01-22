@@ -264,7 +264,7 @@ describe("Clickhouse Traces Repository Test", () => {
     const exists = await checkTraceExists(projectId, traceId, new Date(), [
       {
         type: "stringOptions",
-        column: "computed_level",
+        column: "level",
         operator: "none of",
         value: ["ERROR"],
       },
