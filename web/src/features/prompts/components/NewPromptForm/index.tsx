@@ -33,6 +33,7 @@ import {
   getIsCharOrUnderscore,
 } from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
+import { ReviewPromptDialog } from "./ReviewPromptDialog";
 import {
   NewPromptFormSchema,
   type NewPromptFormSchemaType,
@@ -94,6 +95,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
   const form = useForm<NewPromptFormSchemaType>({
     resolver: zodResolver(NewPromptFormSchema),
+    mode: "onTouched",
     defaultValues,
   });
 
@@ -356,6 +358,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               <JsonEditor
                 defaultValue={field.value}
                 onChange={field.onChange}
+                onBlur={field.onBlur}
                 editable
               />
               <FormDescription>
@@ -392,16 +395,44 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             </FormItem>
           )}
         />
-        <Button
-          type="submit"
-          loading={createPromptMutation.isLoading}
-          className="w-full"
-          disabled={Boolean(
-            !initialPrompt && form.formState.errors.name?.message,
-          )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
-        >
-          {!initialPrompt ? "Create prompt" : "Save prompt version"}
-        </Button>
+        {initialPrompt ? (
+          <div className="flex flex-col gap-2">
+            <ReviewPromptDialog
+              initialPrompt={initialPrompt}
+              getNewPromptValues={form.getValues}
+              isLoading={createPromptMutation.isLoading}
+              onConfirm={form.handleSubmit(onSubmit)}
+            >
+              <Button
+                disabled={!form.formState.isValid}
+                variant="secondary"
+                className="w-full"
+              >
+                Review changes
+              </Button>
+            </ReviewPromptDialog>
+
+            <Button
+              type="submit"
+              loading={createPromptMutation.isLoading}
+              className="w-full"
+              disabled={!form.formState.isValid}
+            >
+              Save new prompt version
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="submit"
+            loading={createPromptMutation.isLoading}
+            className="w-full"
+            disabled={Boolean(
+              !initialPrompt && form.formState.errors.name?.message,
+            )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
+          >
+            Create prompt
+          </Button>
+        )}
       </form>
       {formError && (
         <p className="text-red text-center">
