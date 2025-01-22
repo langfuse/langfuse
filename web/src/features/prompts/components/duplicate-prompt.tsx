@@ -203,8 +203,7 @@ export const DuplicatePromptButton: React.FC<{
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <ActionButton
-          size="icon"
-          icon={<Copy className="-mr-1 h-4 w-4" aria-hidden="true" />}
+          icon={<Copy className="mr-1 h-4 w-4" aria-hidden="true" />}
           hasAccess={hasAccess}
           variant="secondary"
           limit={promptLimit}
@@ -213,7 +212,9 @@ export const DuplicatePromptButton: React.FC<{
           onClick={() => {
             capture("prompt_detail:duplicate_button_click");
           }}
-        ></ActionButton>
+        >
+          Duplicate
+        </ActionButton>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] min-h-0">
         <DialogHeader>
