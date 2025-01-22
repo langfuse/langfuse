@@ -816,8 +816,16 @@ export class IngestionService {
     };
   }) {
     if (await this.shouldSkipClickHouseRead(params.projectId)) {
+      recordIncrement("langfuse.ingestion.clickhouse_read_for_update", 1, {
+        skipped: "true",
+        table: params.table,
+      });
       return null;
     }
+    recordIncrement("langfuse.ingestion.clickhouse_read_for_update", 1, {
+      skipped: "false",
+      table: params.table,
+    });
 
     const recordParser = {
       traces: traceRecordReadSchema,

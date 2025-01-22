@@ -12,6 +12,7 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
+  recordHistogram,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -93,9 +94,20 @@ export const ingestionQueueProcessorBuilder = (
       );
 
       // Download all events from folder into a local array
-      const eventFiles = await s3Client.listFiles(
-        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/`,
+      const clickhouseEntityType = getClickhouseEntityType(
+        job.data.payload.data.type,
       );
+      const eventFiles = await s3Client.listFiles(
+        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
+      );
+      recordHistogram("langfuse.ingestion.count_files", eventFiles.length, {
+        kind: clickhouseEntityType,
+      });
+      span?.setAttribute(
+        "langfuse.ingestion.event.count_files",
+        eventFiles.length,
+      );
+      span?.setAttribute("langfuse.ingestion.event.kind", clickhouseEntityType);
 
       const firstS3WriteTime =
         eventFiles
