@@ -230,7 +230,6 @@ export const PromptDetail = () => {
                 projectId={projectId}
                 promptName={prompt.name}
                 promptVersion={prompt.version}
-                totalPromptCount={promptHistory.data.totalCount}
               />
             )}
             <DetailPageNav

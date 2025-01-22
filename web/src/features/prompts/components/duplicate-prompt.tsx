@@ -178,8 +178,7 @@ export const DuplicatePromptButton: React.FC<{
   promptId: string;
   promptName: string;
   promptVersion: number;
-  totalPromptCount: number;
-}> = ({ projectId, promptId, promptName, promptVersion, totalPromptCount }) => {
+}> = ({ projectId, promptId, promptName, promptVersion }) => {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -187,6 +186,18 @@ export const DuplicatePromptButton: React.FC<{
   });
   const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
   const capture = usePostHogClientCapture();
+
+  const totalPromptCount = api.prompts.count.useQuery(
+    {
+      projectId,
+    },
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      enabled: hasAccess,
+    },
+  );
 
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
@@ -198,7 +209,7 @@ export const DuplicatePromptButton: React.FC<{
           variant="secondary"
           limit={promptLimit}
           title="Duplicate prompt"
-          limitValue={totalPromptCount}
+          limitValue={totalPromptCount.data ?? undefined}
           onClick={() => {
             capture("prompt_detail:duplicate_button_click");
           }}
