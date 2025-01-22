@@ -1,4 +1,4 @@
-import { ObservationLevel } from "@langfuse/shared";
+import { type ObservationLevel } from "@langfuse/shared";
 
 export const LevelColors = {
   DEFAULT: { text: "", bg: "" },
