@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -197,7 +197,7 @@
     "overrides": {
       "jsonpath-plus": "10.0.7",
       "nanoid": "^3.3.8",
-      "^katex": "0.16.21"
+      "katex": "0.16.21"
     }
   }
 }

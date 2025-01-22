@@ -13,6 +13,7 @@ const entitlements = [
   "self-host-allowed-organization-creators",
   "prompt-experiments",
   "trace-deletion",
+  "audit-logs",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -71,7 +72,11 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:team": {
-    entitlements: [...cloudAllPlansEntitlements, "rbac-project-roles"],
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "rbac-project-roles",
+      "audit-logs",
+    ],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -118,6 +123,7 @@ export const entitlementAccess: Record<
       "self-host-allowed-organization-creators",
       "self-host-ui-customization",
       "integration-posthog",
+      "audit-logs",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
