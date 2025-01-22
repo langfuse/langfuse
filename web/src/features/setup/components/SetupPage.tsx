@@ -80,7 +80,7 @@ export function SetupPage() {
             "Create a new organization. This will be used to manage your projects and teams.",
         }}
       />
-      <div className="md:container md:mx-auto">
+      <div className="mt-3 md:container md:mx-auto">
         <Breadcrumb className="mb-3">
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -142,11 +142,17 @@ export function SetupPage() {
           {
             // 1. Create Org
             stepInt === 1 && (
-              <NewOrganizationForm
-                onSuccess={(orgId) => {
-                  router.push(inviteMembersRoute(orgId));
-                }}
-              />
+              <div>
+                <Header title="New Organization" level="h3" />
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Organizations are used to manage your projects and teams.
+                </p>
+                <NewOrganizationForm
+                  onSuccess={(orgId) => {
+                    router.push(inviteMembersRoute(orgId));
+                  }}
+                />
+              </div>
             )
           }
           {
@@ -155,6 +161,10 @@ export function SetupPage() {
               <div className="flex flex-col gap-10">
                 <div>
                   <Header title="Organization Members" level="h3" />
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    Invite members to your organization to collaborate on
+                    projects. You can always add more members later.
+                  </p>
                   <MembersTable orgId={organization.id} />
                 </div>
                 <div>
@@ -166,12 +176,20 @@ export function SetupPage() {
           {
             // 3. Create Project
             stepInt === 3 && organization && (
-              <NewProjectForm
-                orgId={organization.id}
-                onSuccess={(projectId) =>
-                  router.push(setupTracingRoute(projectId))
-                }
-              />
+              <div>
+                <Header title="New Project" level="h3" />
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Projects are used to group traces, datasets, evals and
+                  prompts. Multiple environments are best separated via tags
+                  within a project.
+                </p>
+                <NewProjectForm
+                  orgId={organization.id}
+                  onSuccess={(projectId) =>
+                    router.push(setupTracingRoute(projectId))
+                  }
+                />
+              </div>
             )
           }
           {
@@ -180,6 +198,10 @@ export function SetupPage() {
               <div className="space-y-8">
                 <div>
                   <Header title="API Keys" level="h3" />
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    These keys are used to authenticate your API requests. You
+                    can create more keys later in the project settings.
+                  </p>
                   <TracingSetup
                     projectId={project.id}
                     hasAnyTrace={hasAnyTrace ?? false}
@@ -266,6 +288,10 @@ const TracingSetup = ({
             level="h3"
             status={hasAnyTrace ? "active" : "pending"}
           />
+          <p className="mb-4 text-sm text-muted-foreground">
+            Tracing is used to track and analyze your LLM calls. You can always
+            skip this step and setup tracing later.
+          </p>
           <QuickstartExamples
             secretKey={apiKeys.secretKey}
             publicKey={apiKeys.publicKey}

@@ -5,6 +5,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,
+  ModelLastUsedQueryResult,
   UpsertModelSchema,
 } from "@/src/features/models/validation";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -13,12 +14,25 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
+import { queryClickhouse } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
   projectId: z.string(),
   ...paginationZod,
 });
+
+const paginateArray = <T>(params: {
+  limit: number;
+  page: number;
+  data: Array<T>;
+}): Array<T> => {
+  const { data, limit, page } = params;
+  const startIndex = limit * page;
+  const endIndex = startIndex + limit;
+
+  return data.slice(startIndex, endIndex);
+};
 
 export const modelRouter = createTRPCRouter({
   getById: protectedProjectProcedure
@@ -68,6 +82,8 @@ export const modelRouter = createTRPCRouter({
   getAll: protectedProjectProcedure
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
+      const { projectId, page, limit } = input;
+
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
         ctx.prisma.$queryRaw`
@@ -93,12 +109,11 @@ export const modelRouter = createTRPCRouter({
             models m
           WHERE
             project_id IS NULL
-            OR project_id = ${input.projectId}
+            OR project_id = ${projectId}
           ORDER BY
             project_id,
             model_name,
             m.created_at DESC NULLS LAST 
-          LIMIT ${input.limit} OFFSET ${input.page * input.limit};
           `,
 
         // Total count
@@ -110,7 +125,7 @@ export const modelRouter = createTRPCRouter({
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
           WHERE project_id IS NULL 
-          OR project_id = '${input.projectId}';
+          OR project_id = ${projectId};
         `,
       ]);
 
@@ -119,8 +134,57 @@ export const modelRouter = createTRPCRouter({
         .parse(allModelsQueryResult);
       const totalCount = z.coerce.number().parse(totalCountQuery[0].count);
 
+      // Check whether model was used in last month
+      const lastUsedQuery = `
+            SELECT 
+                internal_model_id as modelId,
+                MAX(start_time) as lastUsed
+            FROM 
+                observations
+            WHERE
+                project_id = {projectId: String}
+                AND internal_model_id IS NOT NULL
+            GROUP BY
+                internal_model_id
+      `;
+
+      const lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
+        await queryClickhouse({
+          query: lastUsedQuery,
+          params: { projectId },
+        }),
+      );
+
+      if (lastUsedQueryResult.success) {
+        const lastUsedMap = new Map(
+          lastUsedQueryResult.data.map((res) => [res.modelId, res.lastUsed]),
+        );
+
+        const sortedModels = allModels
+          .map((m) => ({ ...m, lastUsed: lastUsedMap.get(m.id) }))
+          .sort((a, b) => {
+            const lastUsedA = lastUsedMap.get(a.id);
+            const lastUsedB = lastUsedMap.get(b.id);
+
+            if (lastUsedA && lastUsedB) {
+              return lastUsedB.getTime() - lastUsedA.getTime();
+            } else if (lastUsedA) {
+              return -1;
+            } else if (lastUsedB) {
+              return 1;
+            }
+
+            return 0;
+          });
+
+        return {
+          models: paginateArray({ data: sortedModels, page, limit }),
+          totalCount,
+        };
+      }
+
       return {
-        models: allModels,
+        models: paginateArray({ data: allModels, page, limit }),
         totalCount,
       };
     }),

@@ -6,10 +6,11 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogPortal,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import Link from "next/link";
-import { Bug, LifeBuoy, Sparkles } from "lucide-react";
+import { Bug, Sparkles } from "lucide-react";
 
 interface FeedbackDialogProps {
   className?: string;
@@ -28,32 +29,33 @@ export function FeedbackButtonWrapper({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={className} asChild>
+      <DialogTrigger
+        className={className}
+        asChild
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-row flex-wrap items-center justify-center gap-3 sm:justify-start">
-          <Link href="https://langfuse.com/ideas" target="_blank">
-            <Button variant="secondary">
-              <Sparkles className="mr-2 h-4 w-4" /> Submit Feature Request
-            </Button>
-          </Link>
-          <Link href="https://langfuse.com/issues" target="_blank">
-            <Button variant="secondary">
-              <Bug className="mr-2 h-4 w-4" /> Report a Bug
-            </Button>
-          </Link>
-          <Link href="/support" target="_blank">
-            <Button variant="outline">
-              <LifeBuoy className="mr-2 h-4 w-4" /> Support
-            </Button>
-          </Link>
-        </div>
-      </DialogContent>
+      <DialogPortal>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-row flex-wrap items-center justify-center gap-3 sm:justify-start">
+            <Link href="https://langfuse.com/ideas" target="_blank">
+              <Button variant="secondary">
+                <Sparkles className="mr-2 h-4 w-4" /> Submit Feature Request
+              </Button>
+            </Link>
+            <Link href="https://langfuse.com/issues" target="_blank">
+              <Button variant="secondary">
+                <Bug className="mr-2 h-4 w-4" /> Report a Bug
+              </Button>
+            </Link>
+          </div>
+        </DialogContent>
+      </DialogPortal>
     </Dialog>
   );
 }

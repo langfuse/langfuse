@@ -14,11 +14,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
-export function CreateLLMApiKeyDialog({
-  evalModelsOnly,
-}: {
-  evalModelsOnly?: boolean;
-}) {
+export function CreateLLMApiKeyDialog() {
   const projectId = useProjectIdFromURL();
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
@@ -49,7 +45,6 @@ export function CreateLLMApiKeyDialog({
         {open && (
           <CreateLLMApiKeyForm
             projectId={projectId}
-            evalModelsOnly={evalModelsOnly}
             onSuccess={() => setOpen(false)}
             customization={uiCustomization}
           />

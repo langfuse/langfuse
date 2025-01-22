@@ -6,7 +6,6 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters";
 import { type ScoreData } from "@/src/features/scores/types";
 import { CategoricalChart } from "@/src/features/scores/components/ScoreChart";
@@ -74,7 +73,6 @@ export function CategoricalScoreChart(props: {
             ]
           : []),
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "categorical-score-chart",
     },
     {

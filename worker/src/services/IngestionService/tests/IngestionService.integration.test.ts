@@ -73,6 +73,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(timestamp),
       traceEventList: eventList,
     });
     await clickhouseWriter.flushAll(true);
@@ -442,21 +443,25 @@ describe("Ingestion end-to-end tests", () => {
         ingestionService.processTraceEventList({
           projectId,
           entityId: traceId,
+          createdAtTimestamp: new Date(),
           traceEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: spanId,
+          createdAtTimestamp: new Date(),
           observationEventList: spanEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: generationId,
+          createdAtTimestamp: new Date(),
           observationEventList: generationEventList,
         }),
         ingestionService.processScoreEventList({
           projectId,
           entityId: scoreId,
+          createdAtTimestamp: new Date(),
           scoreEventList,
         }),
       ]);
@@ -778,11 +783,13 @@ describe("Ingestion end-to-end tests", () => {
         ingestionService.processTraceEventList({
           projectId,
           entityId: traceId,
+          createdAtTimestamp: new Date(),
           traceEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: generationId,
+          createdAtTimestamp: new Date(),
           observationEventList: generationEventList,
         }),
       ]);
@@ -918,26 +925,31 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: spanId,
+        createdAtTimestamp: new Date(),
         observationEventList: spanEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: eventId,
+        createdAtTimestamp: new Date(),
         observationEventList: eventEventList,
       }),
       ingestionService.processScoreEventList({
         projectId,
         entityId: scoreId,
+        createdAtTimestamp: new Date(),
         scoreEventList,
       }),
     ]);
@@ -1009,6 +1021,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList: traceEventList1,
     });
 
@@ -1032,6 +1045,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList: traceEventList2,
     });
 
@@ -1088,6 +1102,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList,
     });
 
@@ -1135,6 +1150,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList,
     });
 
@@ -1145,123 +1161,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.name).toBe("trace-name");
     expect(trace.user_id).toBe("user-1");
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-  });
-
-  it("should merge scores from postgres and event list", async () => {
-    const traceId = randomUUID();
-    const scoreId = randomUUID();
-    const observationId = randomUUID();
-
-    const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
-
-    await prisma.score.create({
-      data: {
-        id: scoreId,
-        name: "score-name",
-        value: 100.5,
-        observationId,
-        traceId,
-        projectId,
-        source: ScoreSource.API,
-        timestamp: new Date(oldEvent),
-      },
-    });
-
-    const scoreEventList: ScoreEventType[] = [
-      {
-        id: randomUUID(),
-        type: "score-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: scoreId,
-          dataType: "NUMERIC",
-          source: ScoreSource.API,
-          name: "score-name",
-          traceId: traceId,
-          value: 100.5,
-          observationId,
-        },
-      },
-    ];
-
-    await ingestionService.processScoreEventList({
-      projectId,
-      entityId: scoreId,
-      scoreEventList,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    const score = await getClickhouseRecord(TableName.Scores, scoreId);
-
-    expect(score.name).toBe("score-name");
-    expect(score.value).toBe(100.5);
-    expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-  });
-
-  it("should merge observations from postgres and event list", async () => {
-    const traceId = randomUUID();
-    const observationId = randomUUID();
-
-    const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
-
-    await prisma.observation.create({
-      data: {
-        id: observationId,
-        type: "GENERATION",
-        traceId,
-        name: "generation-name",
-        input: { key: "value" },
-        output: "should be overwritten",
-        model: "gpt-3.5",
-        projectId,
-        startTime: new Date(oldEvent),
-        completionTokens: 5,
-        // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
-        calculatedTotalCost: "0.273330000000000000000000000000",
-        modelParameters: { hello: "world" },
-      },
-    });
-
-    const observationEventList: ObservationEvent[] = [
-      {
-        id: randomUUID(),
-        type: "generation-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: observationId,
-          traceId: traceId,
-          output: "overwritten",
-          usage: undefined,
-        },
-      },
-    ];
-
-    await ingestionService.processObservationEventList({
-      projectId,
-      entityId: observationId,
-      observationEventList,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    const observation = await getClickhouseRecord(
-      TableName.Observations,
-      observationId,
-    );
-
-    expect(observation.name).toBe("generation-name");
-    expect(observation.input).toBe(JSON.stringify({ key: "value" }));
-    expect(observation.output).toBe("overwritten");
-    expect(observation.model_parameters).toBe('{"hello":"world"}');
-    expect(observation.usage_details.output).toBe(5);
-    expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
   it("should merge observations and set negative tokens and cost to null", async () => {
@@ -1374,6 +1273,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList,
     });
 
@@ -1513,6 +1413,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList,
     });
 
@@ -1566,6 +1467,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList: observationEventList1,
     });
     await clickhouseWriter.flushAll(true);
@@ -1587,6 +1489,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList: observationEventList2,
     });
     await clickhouseWriter.flushAll(true);
@@ -1636,6 +1539,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: generationEventList,
     });
 
@@ -1697,11 +1601,13 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList1,
       }),
     ]);
@@ -1742,6 +1648,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: generationEventList2,
     });
 
@@ -1833,11 +1740,13 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
     ]);
@@ -1933,11 +1842,13 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
     ]);
@@ -1964,7 +1875,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.usage_details.output).toEqual(11);
   });
 
-  it("null does not override set values", async () => {
+  it("null does override set values, undefined doesn't", async () => {
     const traceId = randomUUID();
     const timestamp = Date.now();
 
@@ -1990,10 +1901,10 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
-          userId: "user-1",
           metadata: { key: "value" },
+          // Do not set user_id here to validate behaviour for missing fields
           release: null,
-          version: null,
+          version: undefined,
         },
       },
     ];
@@ -2001,6 +1912,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList,
     });
 
@@ -2008,8 +1920,25 @@ describe("Ingestion end-to-end tests", () => {
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
-    expect(trace.release).toBe("1.0.0");
+    expect(trace.release).toBe(null);
     expect(trace.version).toBe("2.0.0");
+    expect(trace.user_id).toBe("user-1");
+  });
+
+  it("should skip clickhouse read for recently created projects", async () => {
+    const projectId = randomUUID();
+    await prisma.project.create({
+      data: {
+        id: projectId,
+        name: randomUUID(),
+        orgId: "seed-org-id",
+      },
+    });
+    const shouldSkip = await ingestionService.shouldSkipClickHouseRead(
+      projectId,
+      "2024-01-01", // Use some date in the past
+    );
+    expect(shouldSkip).toBe(true);
   });
 
   [
@@ -2114,11 +2043,13 @@ describe("Ingestion end-to-end tests", () => {
         ingestionService.processTraceEventList({
           projectId,
           entityId: traceId,
+          createdAtTimestamp: new Date(),
           traceEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: generationId,
+          createdAtTimestamp: new Date(),
           observationEventList: generationEventList,
         }),
       ]);

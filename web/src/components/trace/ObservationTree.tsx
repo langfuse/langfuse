@@ -1,12 +1,23 @@
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { type APIScore, type Trace, type $Enums } from "@langfuse/shared";
+import {
+  type APIScore,
+  type Trace,
+  type $Enums,
+  ObservationLevel,
+} from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { MinusCircle, MinusIcon, PlusCircleIcon, PlusIcon } from "lucide-react";
+import {
+  InfoIcon,
+  MinusCircle,
+  MinusIcon,
+  PlusCircleIcon,
+  PlusIcon,
+} from "lucide-react";
 import { Toggle } from "@/src/components/ui/toggle";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -39,10 +50,12 @@ export const ObservationTree = ({
   traceCommentCounts?: Map<string, number>;
   className?: string;
   showExpandControls?: boolean;
+  minLevel?: ObservationLevel;
+  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevel>>;
 }) => {
-  const nestedObservations = useMemo(
-    () => nestObservations(props.observations),
-    [props.observations],
+  const { nestedObservations, hiddenObservationsCount } = useMemo(
+    () => nestObservations(props.observations, props.minLevel),
+    [props.observations, props.minLevel],
   );
   const totalCost = useMemo(() => {
     return calculateDisplayTotalCost({
@@ -82,6 +95,23 @@ export const ObservationTree = ({
           props.trace.latency ? props.trace.latency * 1000 : undefined
         }
       />
+      {props.minLevel && hiddenObservationsCount > 0 ? (
+        <span className="flex items-center gap-1 p-2 py-4">
+          <InfoIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="flex flex-row gap-1 text-sm text-muted-foreground">
+            <p>
+              {hiddenObservationsCount} observations below {props.minLevel}{" "}
+              level are hidden.
+            </p>
+            <p
+              className="cursor-pointer underline"
+              onClick={() => props.setMinLevel?.(ObservationLevel.DEBUG)}
+            >
+              Show all
+            </p>
+          </span>
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -223,6 +253,7 @@ const ObservationTreeNode = (props: {
                       {props.comments ? (
                         <CommentCountIcon
                           count={props.comments.get(observation.id)}
+                          className={treeItemColors.get(observation.type)}
                         />
                       ) : null}
                     </div>
@@ -353,7 +384,7 @@ const ObservationTreeNode = (props: {
   );
 };
 
-const ColorCodedObservationType = (props: {
+export const ColorCodedObservationType = (props: {
   observationType: $Enums.ObservationType;
 }) => {
   return (

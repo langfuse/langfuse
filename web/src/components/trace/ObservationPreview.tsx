@@ -37,7 +37,6 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { BreakdownTooltip } from "./BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
@@ -81,7 +80,6 @@ export const ObservationPreview = ({
     startTime: currentObservation?.startTime,
     traceId: traceId,
     projectId: projectId,
-    queryClickhouse: useClickhouse(),
   });
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
@@ -152,8 +150,8 @@ export const ObservationPreview = ({
       <div className="flex w-full flex-col overflow-y-auto">
         <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <CardTitle>
-              <span className="mr-2 rounded-sm bg-input p-1 text-xs">
+            <CardTitle className="flex flex-row items-center gap-2">
+              <span className="rounded-sm bg-input p-1 text-xs">
                 {preloadedObservation.type}
               </span>
               <span>{preloadedObservation.name}</span>
@@ -214,7 +212,7 @@ export const ObservationPreview = ({
                   preloadedObservation.modelId ? (
                     <Badge>
                       <Link
-                        href={`/project/${preloadedObservation.projectId}/models/${preloadedObservation.modelId}`}
+                        href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
                         className="flex items-center"
                         title="View model details"
                       >
@@ -290,55 +288,58 @@ export const ObservationPreview = ({
               </div>
             )}
           </div>
-          {viewType === "detailed" && (
-            <div className="flex flex-wrap gap-2">
-              <CommentDrawerButton
-                projectId={preloadedObservation.projectId}
-                objectId={preloadedObservation.id}
-                objectType="OBSERVATION"
-                count={commentCounts?.get(preloadedObservation.id)}
-              />
-              <div className="flex items-start">
-                <AnnotateDrawer
-                  key={"annotation-drawer" + preloadedObservation.id}
-                  projectId={projectId}
-                  traceId={traceId}
-                  observationId={preloadedObservation.id}
-                  scores={scores}
-                  emptySelectedConfigIds={emptySelectedConfigIds}
-                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  type="observation"
-                  hasGroupedButton={hasEntitlement}
+
+          <div className="flex flex-wrap gap-2">
+            {viewType === "detailed" && (
+              <>
+                <CommentDrawerButton
+                  projectId={preloadedObservation.projectId}
+                  objectId={preloadedObservation.id}
+                  objectType="OBSERVATION"
+                  count={commentCounts?.get(preloadedObservation.id)}
                 />
-                {hasEntitlement && (
-                  <CreateNewAnnotationQueueItem
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + preloadedObservation.id}
                     projectId={projectId}
-                    objectId={preloadedObservation.id}
-                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                    traceId={traceId}
+                    observationId={preloadedObservation.id}
+                    scores={scores}
+                    emptySelectedConfigIds={emptySelectedConfigIds}
+                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                    type="observation"
+                    hasGroupedButton={hasEntitlement}
+                  />
+                  {hasEntitlement && (
+                    <CreateNewAnnotationQueueItem
+                      projectId={projectId}
+                      objectId={preloadedObservation.id}
+                      objectType={AnnotationQueueObjectType.OBSERVATION}
+                    />
+                  )}
+                </div>
+
+                {observationWithInputAndOutput.data?.type === "GENERATION" && (
+                  <JumpToPlaygroundButton
+                    source="generation"
+                    generation={observationWithInputAndOutput.data}
+                    analyticsEventName="trace_detail:test_in_playground_button_click"
                   />
                 )}
-              </div>
-
-              {observationWithInputAndOutput.data?.type === "GENERATION" && (
-                <JumpToPlaygroundButton
-                  source="generation"
-                  generation={observationWithInputAndOutput.data}
-                  analyticsEventName="trace_detail:test_in_playground_button_click"
-                />
-              )}
-              {observationWithInputAndOutput.data ? (
-                <NewDatasetItemFromTrace
-                  traceId={preloadedObservation.traceId}
-                  observationId={preloadedObservation.id}
-                  projectId={projectId}
-                  input={observationWithInputAndOutput.data.input}
-                  output={observationWithInputAndOutput.data.output}
-                  metadata={observationWithInputAndOutput.data.metadata}
-                  key={preloadedObservation.id}
-                />
-              ) : null}
-            </div>
-          )}
+              </>
+            )}
+            {observationWithInputAndOutput.data ? (
+              <NewDatasetItemFromTrace
+                traceId={preloadedObservation.traceId}
+                observationId={preloadedObservation.id}
+                projectId={projectId}
+                input={observationWithInputAndOutput.data.input}
+                output={observationWithInputAndOutput.data.output}
+                metadata={observationWithInputAndOutput.data.metadata}
+                key={preloadedObservation.id}
+              />
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {selectedTab === "preview" && (

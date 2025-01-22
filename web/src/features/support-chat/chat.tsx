@@ -115,4 +115,9 @@ export const showChat = () => {
   }
 };
 
+export const chatIsVisible = () => {
+  if (!chatAvailable) return false;
+  return sessionStorage.getItem("supportChatVisible") === "true";
+};
+
 export const chatAvailable = !!process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID;

@@ -6,18 +6,16 @@ import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { IngestionQueue, SecondaryIngestionQueue } from "./ingestionQueue";
-import { LegacyIngestionQueue } from "./legacyIngestion";
 import { TraceUpsertQueue } from "./traceUpsert";
 import { TraceDeleteQueue } from "./traceDelete";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
 import { CoreDataS3ExportQueue } from "./coreDataS3ExportQueue";
+import { MeteringDataPostgresExportQueue } from "./meteringDataPostgresExportQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
-    case QueueName.LegacyIngestionQueue:
-      return LegacyIngestionQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:
@@ -44,6 +42,8 @@ export function getQueue(queueName: QueueName): Queue | null {
       return SecondaryIngestionQueue.getInstance();
     case QueueName.CoreDataS3ExportQueue:
       return CoreDataS3ExportQueue.getInstance();
+    case QueueName.MeteringDataPostgresExportQueue:
+      return MeteringDataPostgresExportQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

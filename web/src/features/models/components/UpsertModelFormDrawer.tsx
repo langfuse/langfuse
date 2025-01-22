@@ -135,7 +135,9 @@ export const UpsertModelFormDrawer = ({
         title: `Model ${props.action === "edit" ? "updated" : "created"}`,
         description: `The model '${upsertedModel.modelName}' has been successfully ${props.action === "edit" ? "updated" : "created"}. New generations will use these model prices.`,
       });
-      router.push(`/project/${props.projectId}/models/${upsertedModel.id}`);
+      router.push(
+        `/project/${props.projectId}/settings/models/${upsertedModel.id}`,
+      );
     },
     onError: (error) => setFormError(error.message),
   });

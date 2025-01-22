@@ -25,6 +25,9 @@ describe("Create and get sessions", () => {
       },
     );
 
+    // Delay to allow for async processing
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     const dbSession = await prisma.traceSession.findFirst({
       where: {
         id: "session-id",

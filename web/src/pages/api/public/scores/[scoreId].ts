@@ -1,7 +1,5 @@
-import { env } from "@/src/env.mjs";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
@@ -10,7 +8,6 @@ import {
   InternalServerError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   deleteScore,
   getScoreById,
@@ -24,24 +21,7 @@ export default withMiddlewares({
     querySchema: GetScoreQuery,
     responseSchema: GetScoreResponse,
     fn: async ({ query, auth }) => {
-      const { scoreId } = query;
-
-      const score = await measureAndReturnApi({
-        input: { projectId: auth.scope.projectId, queryClickhouse: false },
-        operation: "api/public/scores/[scoreId]",
-        user: null,
-        pgExecution: async () => {
-          return await prisma.score.findUnique({
-            where: {
-              id: scoreId,
-              projectId: auth.scope.projectId,
-            },
-          });
-        },
-        clickhouseExecution: async () => {
-          return await getScoreById(auth.scope.projectId, scoreId);
-        },
-      });
+      const score = await getScoreById(auth.scope.projectId, query.scoreId);
 
       if (!score) {
         throw new LangfuseNotFoundError("Score not found");
@@ -64,34 +44,7 @@ export default withMiddlewares({
     responseSchema: DeleteScoreResponse,
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
-
-      const score = await prisma.score.findUnique({
-        select: {
-          id: true,
-        },
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      if (!score) {
-        throw new LangfuseNotFoundError(
-          "Score not found within authorized project",
-        );
-      }
-
-      if (env.CLICKHOUSE_URL) {
-        await deleteScore(auth.scope.projectId, scoreId);
-      }
-
-      await prisma.score.delete({
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
-
+      await deleteScore(auth.scope.projectId, scoreId);
       return { message: "Score deleted successfully" };
     },
   }),

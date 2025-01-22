@@ -12,6 +12,8 @@ const entitlements = [
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
   "prompt-experiments",
+  "trace-deletion",
+  "audit-logs",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -23,6 +25,8 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "annotation-queues",
   "prompt-experiments",
 ];
+
+const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
 const entitlementLimits = [
@@ -68,7 +72,11 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:team": {
-    entitlements: [...cloudAllPlansEntitlements, "rbac-project-roles"],
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "rbac-project-roles",
+      "audit-logs",
+    ],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
@@ -78,7 +86,7 @@ export const entitlementAccess: Record<
     },
   },
   oss: {
-    entitlements: [],
+    entitlements: [...selfHostedAllPlansEntitlements],
     entitlementLimits: {
       "annotation-queue-count": 0,
       "organization-member-count": false,
@@ -89,6 +97,7 @@ export const entitlementAccess: Record<
   },
   "self-hosted:pro": {
     entitlements: [
+      ...selfHostedAllPlansEntitlements,
       "annotation-queues",
       "model-based-evaluations",
       "playground",
@@ -105,6 +114,7 @@ export const entitlementAccess: Record<
   },
   "self-hosted:enterprise": {
     entitlements: [
+      ...selfHostedAllPlansEntitlements,
       "annotation-queues",
       "model-based-evaluations",
       "playground",
@@ -113,6 +123,7 @@ export const entitlementAccess: Record<
       "self-host-allowed-organization-creators",
       "self-host-ui-customization",
       "integration-posthog",
+      "audit-logs",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

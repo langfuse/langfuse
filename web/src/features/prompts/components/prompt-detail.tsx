@@ -16,7 +16,7 @@ import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import { PromptCodeDiffsViewer, PromptJsonDiffsViewer } from "./prompt-diff";
-import Generations from "@/src/components/table/use-cases/generations";
+import Generations from "@/src/components/table/use-cases/observations";
 import {
   Accordion,
   AccordionContent,
@@ -179,6 +179,12 @@ export const PromptDetail = () => {
         ]}
         actionButtons={
           <>
+            <JumpToPlaygroundButton
+              source="prompt"
+              prompt={prompt}
+              analyticsEventName="prompt_detail:test_in_playground_button_click"
+              variant="outline"
+            />
             {hasAccess ? (
               <>
                 {hasEntitlement && (
@@ -188,11 +194,12 @@ export const PromptDetail = () => {
                   >
                     <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                       <Button
-                        variant="secondary"
+                        variant="outline"
                         disabled={!hasExperimentWriteAccess}
+                        onClick={() => capture("dataset_run:new_form_open")}
                       >
                         <FlaskConical className="h-4 w-4" />
-                        <span className="ml-2">New experiment</span>
+                        <span className="ml-2">Experiment</span>
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -214,7 +221,7 @@ export const PromptDetail = () => {
                 )}
 
                 <Button
-                  variant="secondary"
+                  variant="default"
                   onClick={() => {
                     capture("prompts:update_form_open");
                   }}
@@ -237,12 +244,6 @@ export const PromptDetail = () => {
                 </div>
               </Button>
             )}
-            <JumpToPlaygroundButton
-              source="prompt"
-              prompt={prompt}
-              analyticsEventName="prompt_detail:test_in_playground_button_click"
-              variant="outline"
-            />
             <DetailPageNav
               key="nav"
               currentId={promptName}
@@ -282,7 +283,11 @@ export const PromptDetail = () => {
         </div>
         <div className="col-span-2 md:h-full">
           {prompt.type === PromptType.Chat && chatMessages ? (
-            <OpenAiMessageView title="Chat prompt" messages={chatMessages} />
+            <OpenAiMessageView
+              title="Chat prompt"
+              messages={chatMessages}
+              collapseLongHistory={false}
+            />
           ) : typeof prompt.prompt === "string" ? (
             <CodeView content={prompt.prompt} title="Text prompt" />
           ) : (

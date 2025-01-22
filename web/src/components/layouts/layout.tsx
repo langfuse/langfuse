@@ -13,9 +13,8 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { ClickhouseAdminToggle } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/app-sidebar";
+import { AppSidebar } from "@/src/components/nav/app-sidebar";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -24,8 +23,8 @@ const signOutUser = async () => {
   await signOut();
 };
 
-const getUserNavigation = (isAdmin: boolean) => {
-  const navigationItems = [
+const getUserNavigation = () => {
+  return [
     {
       name: "Theme",
       onClick: () => {},
@@ -36,17 +35,6 @@ const getUserNavigation = (isAdmin: boolean) => {
       onClick: signOutUser,
     },
   ];
-
-  return isAdmin
-    ? [
-        {
-          name: "CH Query",
-          onClick: () => {},
-          content: <ClickhouseAdminToggle />,
-        },
-        ...navigationItems,
-      ]
-    : navigationItems;
 };
 
 const pathsWithoutNavigation: string[] = [
@@ -305,7 +293,7 @@ export default function Layout(props: PropsWithChildren) {
             navItems={topNavigation}
             secondaryNavItems={bottomNavigation}
             userNavProps={{
-              items: getUserNavigation(cloudAdmin),
+              items: getUserNavigation(),
               user: {
                 name: session.data?.user?.name ?? "",
                 email: session.data?.user?.email ?? "",

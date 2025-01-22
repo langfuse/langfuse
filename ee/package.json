@@ -27,7 +27,7 @@
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "axios": "^1.7.7",
-    "next": "^14.2.15",
+    "next": "^14.2.21",
     "next-auth": "^4.24.11",
     "zod": "^3.23.8"
   },
@@ -47,7 +47,8 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.7"
+      "jsonpath-plus": "10.0.7",
+      "nanoid": "^3.3.8"
     }
   }
 }

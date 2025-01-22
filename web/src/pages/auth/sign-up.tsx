@@ -116,8 +116,9 @@ export default function SignIn({
           </div>
         ) : null}
 
+        <CloudRegionSwitch isSignUpPage />
+
         <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
-          <CloudRegionSwitch isSignUpPage />
           <Form {...form}>
             <form
               className="space-y-6"
@@ -201,16 +202,16 @@ export default function SignIn({
               </>
             )
           }
+          <p className="mt-10 text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link
+              href="/auth/sign-in"
+              className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
-        <p className="mt-10 text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link
-            href="/auth/sign-in"
-            className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
-          >
-            Sign in
-          </Link>
-        </p>
         <CloudPrivacyNotice action="creating an account" />
       </div>
     </>

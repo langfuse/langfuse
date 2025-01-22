@@ -10,11 +10,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
-// Interval between jobs in milliseconds
-const JOB_INTERVAL_MINUTES = Prisma.raw("60");
+// Interval between jobs in minutes
+const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
 
 // Timeout for job in minutes, if job is not finished in this time, it will be retried
-const JOB_TIMEOUT_MINUTES = Prisma.raw("10");
+const JOB_TIMEOUT_MINUTES = Prisma.raw("10"); // 10 minutes
 
 export async function telemetry() {
   try {

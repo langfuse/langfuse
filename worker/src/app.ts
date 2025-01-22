@@ -17,7 +17,6 @@ import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 
 import helmet from "helmet";
-import { legacyIngestionQueueProcessor } from "./queues/legacyIngestionQueue";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
@@ -25,6 +24,7 @@ import {
   logger,
   PostHogIntegrationQueue,
   CoreDataS3ExportQueue,
+  MeteringDataPostgresExportQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -37,6 +37,7 @@ import {
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
 import { coreDataS3ExportProcessor } from "./queues/coreDataS3ExportQueue";
+import { meteringDataPostgresExportProcessor } from "./ee/meteringDataPostgresExport/handleMeteringDataPostgresExportJob";
 
 const app = express();
 
@@ -77,6 +78,22 @@ if (env.LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.CoreDataS3ExportQueue,
     coreDataS3ExportProcessor,
+  );
+}
+
+if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  MeteringDataPostgresExportQueue.getInstance();
+  WorkerManager.register(
+    QueueName.MeteringDataPostgresExportQueue,
+    meteringDataPostgresExportProcessor,
+    {
+      limiter: {
+        // Process at most `max` jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
+    },
   );
 }
 
@@ -143,7 +160,7 @@ if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
+if (env.QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.IngestionSecondaryQueue,
     ingestionQueueProcessorBuilder(false),
@@ -163,15 +180,12 @@ if (
     cloudUsageMeteringQueueProcessor,
     {
       concurrency: 1,
+      limiter: {
+        // Process at most `max` jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
     },
-  );
-}
-
-if (env.QUEUE_CONSUMER_LEGACY_INGESTION_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.LegacyIngestionQueue,
-    legacyIngestionQueueProcessor,
-    { concurrency: env.LANGFUSE_LEGACY_INGESTION_WORKER_CONCURRENCY }, // n ingestion batches at a time
   );
 }
 

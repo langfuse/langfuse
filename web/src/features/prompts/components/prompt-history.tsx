@@ -5,10 +5,12 @@ import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
 import { useState } from "react";
+import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
   prompt: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
+  currentPrompt?: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
@@ -72,6 +74,14 @@ const PromptHistoryTraceNode = (props: {
         </div>
         {(isHovered || props.currentPromptVersion === prompt.version) && (
           <div className="flex flex-row justify-end space-x-1">
+            {props.currentPrompt &&
+            props.currentPromptVersion !== prompt.version ? (
+              <PromptVersionDiffDialog
+                leftPrompt={prompt}
+                rightPrompt={props.currentPrompt}
+                onClose={() => setIsHovered(false)}
+              />
+            ) : null}
             <SetPromptVersionLabels
               prompt={prompt}
               isOpen={isLabelPopoverOpen}
@@ -100,6 +110,10 @@ export const PromptHistoryNode = (props: {
 }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const currentPrompt = props.prompts.find(
+    (p) => p.version === props.currentPromptVersion,
+  );
+
   return (
     <div className="w-full flex-1">
       {props.prompts.map((prompt, index) => (
@@ -107,6 +121,7 @@ export const PromptHistoryNode = (props: {
           key={prompt.id}
           index={index}
           prompt={prompt}
+          currentPrompt={currentPrompt}
           currentPromptVersion={props.currentPromptVersion}
           setCurrentPromptVersion={props.setCurrentPromptVersion}
           router={router}

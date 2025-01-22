@@ -30,7 +30,6 @@ import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -38,7 +37,7 @@ const APIEvaluatorSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string(),
   targetObject: z.string(),
-  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
@@ -94,7 +93,7 @@ const CreateEvalJobSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
   target: z.string(),
-  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
@@ -730,22 +729,7 @@ export const evalRouter = createTRPCRouter({
 
       const scores =
         scoreIds.length > 0
-          ? await measureAndReturnApi({
-              input: { projectId: input.projectId, queryClickhouse: false },
-              operation: "get-scores-eval-log",
-              user: ctx.session.user,
-              pgExecution: async () => {
-                return await ctx.prisma.score.findMany({
-                  where: {
-                    projectId: input.projectId,
-                    id: { in: scoreIds },
-                  },
-                });
-              },
-              clickhouseExecution: async () => {
-                return await getScoresByIds(input.projectId, scoreIds);
-              },
-            })
+          ? await getScoresByIds(input.projectId, scoreIds)
           : [];
 
       return {

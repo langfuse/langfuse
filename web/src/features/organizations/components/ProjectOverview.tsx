@@ -1,4 +1,10 @@
-import { Building2, LifeBuoy, LockIcon, Settings, Users } from "lucide-react";
+import {
+  BookOpen,
+  LockIcon,
+  MessageSquareText,
+  Settings,
+  Users,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -13,7 +19,6 @@ import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
 import { Divider } from "@tremor/react";
@@ -178,7 +183,12 @@ export const OrganizationProjectOverview = () => {
       {!queryOrgId && (
         <>
           <Header
-            title="Home"
+            title="Organizations"
+            help={{
+              description:
+                "Organizations help you manage access to projects. Each organization can have multiple projects and team members with different roles.",
+              href: "https://langfuse.com/docs/rbac",
+            }}
             actionButtons={
               <>
                 <Input
@@ -197,7 +207,6 @@ export const OrganizationProjectOverview = () => {
               </>
             }
           />
-          {!showOnboarding && <IntroducingOrganizations />}
         </>
       )}
       {showOnboarding && <Onboarding />}
@@ -227,29 +236,11 @@ export const OrganizationProjectOverview = () => {
   );
 };
 
-const IntroducingOrganizations = () => (
-  <Alert className="mb-10 mt-5">
-    <Building2 className="h-4 w-4" />
-    <AlertTitle>Introducing Organizations</AlertTitle>
-    <AlertDescription>
-      Organizations are a way to group projects and manage access to them. See{" "}
-      <Link
-        href="https://langfuse.com/changelog/2024-08-13-organizations"
-        className="underline"
-        target="_blank"
-      >
-        changelog
-      </Link>{" "}
-      to learn more.
-    </AlertDescription>
-  </Alert>
-);
-
 const Onboarding = () => {
   const session = useSession();
   const canCreateOrgs = session.data?.user?.canCreateOrganizations;
   return (
-    <Card>
+    <Card className="mt-5">
       <CardHeader>
         <CardTitle data-testid="create-new-project-title">
           Get Started
@@ -272,9 +263,15 @@ const Onboarding = () => {
           </Button>
         )}
         <Button variant="secondary" asChild>
-          <Link href="/support">
-            <LifeBuoy className="mr-2 h-4 w-4" aria-hidden="true" />
-            Support
+          <Link href="https://langfuse.com/docs" target="_blank">
+            <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+            Docs
+          </Link>
+        </Button>
+        <Button variant="secondary" asChild>
+          <Link href="https://langfuse.com/docs/ask-ai" target="_blank">
+            <MessageSquareText className="mr-2 h-4 w-4" aria-hidden="true" />
+            Ask AI
           </Link>
         </Button>
       </CardFooter>

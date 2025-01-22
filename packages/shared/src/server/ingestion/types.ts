@@ -66,8 +66,12 @@ const OpenAIUsageSchema = z
     prompt_tokens: z.number().nonnegative(),
     completion_tokens: z.number().nonnegative(),
     total_tokens: z.number().nonnegative(),
-    prompt_tokens_details: z.record(z.string(), z.number().nonnegative()),
-    completion_tokens_details: z.record(z.string(), z.number().nonnegative()),
+    prompt_tokens_details: z
+      .record(z.string(), z.number().nonnegative())
+      .nullish(),
+    completion_tokens_details: z
+      .record(z.string(), z.number().nonnegative())
+      .nullish(),
   })
   .strict()
   .transform((v) => {
@@ -112,13 +116,16 @@ export const UsageOrCostDetails = z
   .union([OpenAIUsageSchema, RawUsageOrCostDetails])
   .nullish();
 
+// Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
+// With this setup parsing should be more lightweight and doesn't block other requests.
+// As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 export const TraceBody = z.object({
   id: z.string().nullish(),
   timestamp: stringDateTime,
   name: z.string().max(1000).nullish(),
   externalId: z.string().nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
+  input: z.any().nullish(),
+  output: z.any().nullish(),
   sessionId: z.string().nullish(),
   userId: z.string().nullish(),
   metadata: jsonSchema.nullish(),
@@ -133,8 +140,8 @@ export const OptionalObservationBody = z.object({
   name: z.string().nullish(),
   startTime: stringDateTime,
   metadata: jsonSchema.nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
+  input: z.any().nullish(),
+  output: z.any().nullish(),
   level: z.nativeEnum(ObservationLevel).nullish(),
   statusMessage: z.string().nullish(),
   parentObservationId: z.string().nullish(),

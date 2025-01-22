@@ -28,16 +28,14 @@ export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
-export * from "./redis/legacyIngestion";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
+export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/experimentCreateQueue";
 export * from "./auth/types";
-export * from "./ingestion/legacy/index";
 export * from "./queues";
-export * from "./ingestion/legacy/EventProcessor";
 export * from "./orderByToPrisma";
 export * from "./filterToPrisma";
 export * from "./instrumentation";
@@ -45,6 +43,7 @@ export * from "./logger";
 export * from "./queries";
 export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
+export * from "./services/sessions-ui-table-service";
 
 // test utils
 export * from "./test-utils";

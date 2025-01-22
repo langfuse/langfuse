@@ -10,8 +10,10 @@ import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
-import { getTracesIdentifierForSession } from "@langfuse/shared/src/server";
+import {
+  getTracesIdentifierForSession,
+  logger,
+} from "@langfuse/shared/src/server";
 
 export const commentsRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -56,7 +58,7 @@ export const commentsRouter = createTRPCRouter({
 
         return comment;
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call comments.create", error);
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -115,7 +117,7 @@ export const commentsRouter = createTRPCRouter({
           before: comment,
         });
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call comments.delete", error);
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -172,7 +174,7 @@ export const commentsRouter = createTRPCRouter({
 
         return comments;
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call comments.getByObjectId", error);
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -207,7 +209,7 @@ export const commentsRouter = createTRPCRouter({
         });
         return new Map([[input.objectId, commentCount]]);
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call comments.getCountByObjectId", error);
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -251,7 +253,7 @@ export const commentsRouter = createTRPCRouter({
           ]),
         );
       } catch (error) {
-        console.error(error);
+        logger.error("Failed to call comments.getCountByObjectType", error);
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -266,81 +268,36 @@ export const commentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         sessionId: z.string(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
       try {
-        return await measureAndReturnApi({
-          input,
-          operation: "comments.getTraceCommentCountsBySessionId",
-          user: ctx.session.user ?? undefined,
-          pgExecution: async () => {
-            const session = await ctx.prisma.traceSession.findFirst({
-              where: {
-                id: input.sessionId,
-                projectId: input.projectId,
-              },
-              include: {
-                traces: {
-                  select: {
-                    id: true,
-                  },
-                },
-              },
-            });
-            if (!session) {
-              throw new TRPCError({
-                code: "NOT_FOUND",
-                message: "Session not found in project",
-              });
-            }
+        const clickhouseTraces = await getTracesIdentifierForSession(
+          input.projectId,
+          input.sessionId,
+        );
 
-            const allTraceCommentCounts = await ctx.prisma.$queryRaw<
-              Array<{ objectId: string; count: bigint }>
-            >`
-            SELECT object_id as "objectId", COUNT(*) as count
-            FROM comments
-            WHERE project_id = ${input.projectId}
-            AND object_type = 'TRACE'
-            GROUP BY object_id
-          `;
+        const allTraceCommentCounts = await ctx.prisma.$queryRaw<
+          Array<{ objectId: string; count: bigint }>
+        >`
+          SELECT object_id as "objectId", COUNT(*) as count
+          FROM comments
+          WHERE project_id = ${input.projectId}
+          AND object_type = 'TRACE'
+          GROUP BY object_id
+        `;
 
-            const traceIds = new Set(
-              session.traces.map((t: { id: string }) => t.id),
-            );
-            return new Map(
-              allTraceCommentCounts
-                .filter((c) => traceIds.has(c.objectId))
-                .map(({ objectId, count }) => [objectId, Number(count)]),
-            );
-          },
-          clickhouseExecution: async () => {
-            const clickhouseTraces = await getTracesIdentifierForSession(
-              input.projectId,
-              input.sessionId,
-            );
-
-            const allTraceCommentCounts = await ctx.prisma.$queryRaw<
-              Array<{ objectId: string; count: bigint }>
-            >`
-              SELECT object_id as "objectId", COUNT(*) as count
-              FROM comments
-              WHERE project_id = ${input.projectId}
-              AND object_type = 'TRACE'
-              GROUP BY object_id
-            `;
-
-            const traceIds = new Set(clickhouseTraces.map((t) => t.id));
-            return new Map(
-              allTraceCommentCounts
-                .filter((c) => traceIds.has(c.objectId))
-                .map(({ objectId, count }) => [objectId, Number(count)]),
-            );
-          },
-        });
-      } catch (e) {
-        console.error(e);
+        const traceIds = new Set(clickhouseTraces.map((t) => t.id));
+        return new Map(
+          allTraceCommentCounts
+            .filter((c) => traceIds.has(c.objectId))
+            .map(({ objectId, count }) => [objectId, Number(count)]),
+        );
+      } catch (error) {
+        logger.error(
+          "Failed to call comments.getTraceCommentCountBySessionId",
+          error,
+        );
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Unable to get trace comment counts by session id",

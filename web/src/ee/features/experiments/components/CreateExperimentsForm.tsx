@@ -78,6 +78,7 @@ import {
 import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const CreateExperimentData = z.object({
   name: z
@@ -147,6 +148,7 @@ export const CreateExperimentsForm = ({
   showSDKRunInfoPage?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
+  const capture = usePostHogClientCapture();
   const hasPromptExperimentEntitlement =
     useHasEntitlement("prompt-experiments");
   const [evaluatorOptions, setEvaluatorOptions] = useState<
@@ -319,6 +321,7 @@ export const CreateExperimentsForm = ({
   }, [modelParams, form]);
 
   const onSubmit = async (data: CreateExperiment) => {
+    capture("dataset_run:new_form_submit");
     const experiment = {
       ...data,
       projectId,
@@ -428,7 +431,14 @@ export const CreateExperimentsForm = ({
                 >
                   Create
                 </Button>
-                <Button variant="secondary" className="w-full" asChild>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  asChild
+                  onClick={() =>
+                    capture("dataset_run:view_prompt_experiment_docs")
+                  }
+                >
                   <Link href="https://langfuse.com/docs/datasets/prompt-experiments">
                     View Docs
                   </Link>
@@ -455,7 +465,14 @@ export const CreateExperimentsForm = ({
               </ul>
             </CardContent>
             <CardFooter className="mt-auto">
-              <Button className="w-full" variant="secondary" asChild>
+              <Button
+                className="w-full"
+                variant="secondary"
+                asChild
+                onClick={() =>
+                  capture("dataset_run:view_custom_experiment_docs")
+                }
+              >
                 <Link
                   href="https://langfuse.com/docs/datasets/get-started"
                   target="_blank"
@@ -683,10 +700,7 @@ export const CreateExperimentsForm = ({
                       availableProviders,
                       updateModelParamValue: updateModelParamValue,
                       setModelParamEnabled,
-                      modelParamsDescription:
-                        "Select a model which supports function calling.",
                     }}
-                    evalModelsOnly
                   />
                 </Card>
                 {form.formState.errors.modelConfig && (

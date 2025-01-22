@@ -12,6 +12,7 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
+  recordDistribution,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -93,14 +94,34 @@ export const ingestionQueueProcessorBuilder = (
       );
 
       // Download all events from folder into a local array
-      const eventFiles = await s3Client.listFiles(
-        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/`,
+      const clickhouseEntityType = getClickhouseEntityType(
+        job.data.payload.data.type,
       );
+      const eventFiles = await s3Client.listFiles(
+        `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
+      );
+      recordDistribution(
+        "langfuse.ingestion.count_files_distribution",
+        eventFiles.length,
+        {
+          kind: clickhouseEntityType,
+        },
+      );
+      span?.setAttribute(
+        "langfuse.ingestion.event.count_files",
+        eventFiles.length,
+      );
+      span?.setAttribute("langfuse.ingestion.event.kind", clickhouseEntityType);
 
+      const firstS3WriteTime =
+        eventFiles
+          .map((fileRef) => fileRef.createdAt)
+          .sort()
+          .shift() ?? new Date();
       const events: IngestionEventType[] = (
         await Promise.all(
-          eventFiles.map(async (key) => {
-            const file = await s3Client.download(key);
+          eventFiles.map(async (fileRef) => {
+            const file = await s3Client.download(fileRef.file);
             const parsedFile = JSON.parse(file);
             return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
           }),
@@ -126,6 +147,7 @@ export const ingestionQueueProcessorBuilder = (
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,
         job.data.payload.data.eventBodyId,
+        firstS3WriteTime,
         events,
       );
     } catch (e) {

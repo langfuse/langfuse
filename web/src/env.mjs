@@ -9,6 +9,7 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
+    BUILD_ID: z.string().optional(),
     NEXTAUTH_SECRET:
       process.env.NODE_ENV === "production"
         ? z.string().min(1)
@@ -150,9 +151,11 @@ export const env = createEnv({
 
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
+    CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+    CLICKHOUSE_DB: z.string().default("default"),
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
-    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
+    CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -229,24 +232,6 @@ export const env = createEnv({
         );
       }, "LANGFUSE_ALLOWED_ORGANIZATION_CREATORS must be a comma separated list of valid email addresses"),
 
-    // TODO: Remove entire block during V3 clean up
-    // Settings to toggle Clickhouse vs Postgres behaviour
-    LANGFUSE_READ_FROM_POSTGRES_ONLY: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_RETURN_FROM_CLICKHOUSE: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS: z.string().optional(),
-    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS: z.string().optional(),
-    LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE: z
-      .enum(["true", "false"])
-      .default("true"),
-    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY: z
-      .enum(["true", "false"])
-      .default("true"),
-    LANGFUSE_POSTGRES_INGESTION_ENABLED: z
-      .enum(["true", "false"])
-      .default("false"),
-
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -301,6 +286,7 @@ export const env = createEnv({
     NEXT_PUBLIC_DEMO_ORG_ID: process.env.NEXT_PUBLIC_DEMO_ORG_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
+    BUILD_ID: process.env.BUILD_ID,
     NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
@@ -310,8 +296,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
-    LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS:
-      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_OPERATIONS,
     LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES:
       process.env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
@@ -378,12 +362,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
     AUTH_CUSTOM_NAME: process.env.AUTH_CUSTOM_NAME,
     AUTH_CUSTOM_SCOPE: process.env.AUTH_CUSTOM_SCOPE,
-    AUTH_CUSTOM_CLIENT_AUTH_METHOD:
-      process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+    AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
-    AUTH_IGNORE_ACCOUNT_FIELDS:
-      process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
+    AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
@@ -445,6 +427,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     // clickhouse
     CLICKHOUSE_URL: process.env.CLICKHOUSE_URL,
+    CLICKHOUSE_CLUSTER_NAME: process.env.CLICKHOUSE_CLUSTER_NAME,
+    CLICKHOUSE_DB: process.env.CLICKHOUSE_DB,
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
@@ -480,18 +464,6 @@ export const env = createEnv({
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
-    LANGFUSE_READ_FROM_POSTGRES_ONLY:
-      process.env.LANGFUSE_READ_FROM_POSTGRES_ONLY,
-    LANGFUSE_POSTGRES_INGESTION_ENABLED:
-      process.env.LANGFUSE_POSTGRES_INGESTION_ENABLED,
-    LANGFUSE_READ_FROM_CLICKHOUSE_ONLY:
-      process.env.LANGFUSE_READ_FROM_CLICKHOUSE_ONLY,
-    LANGFUSE_RETURN_FROM_CLICKHOUSE:
-      process.env.LANGFUSE_RETURN_FROM_CLICKHOUSE,
-    LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS:
-      process.env.LANGFUSE_EXPERIMENT_EXCLUDED_PROJECT_IDS,
-    LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE:
-      process.env.LANGFUSE_READ_DASHBOARDS_FROM_CLICKHOUSE,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,

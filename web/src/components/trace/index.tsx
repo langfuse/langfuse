@@ -5,6 +5,14 @@ import { TracePreview } from "./TracePreview";
 
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectLabel,
+  SelectGroup,
+} from "@/src/components/ui/select";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
@@ -22,6 +30,7 @@ import {
   Award,
   ChevronsDownUp,
   ChevronsUpDown,
+  FilterIcon,
   ListTree,
   Network,
   Percent,
@@ -31,17 +40,17 @@ import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScore } from "@langfuse/shared";
+import { type APIScore, ObservationLevel } from "@langfuse/shared";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import {
   TabsBar,
   TabsBarContent,
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -72,6 +81,9 @@ export function Trace(props: {
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
   );
+
+  const [minObservationLevel, setMinObservationLevel] =
+    useState<ObservationLevel>(ObservationLevel.DEFAULT);
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
@@ -222,6 +234,36 @@ export function Trace(props: {
           >
             <Percent className="h-4 w-4" />
           </Toggle>
+          <Select
+            onValueChange={(v: ObservationLevel) => setMinObservationLevel(v)}
+            value={minObservationLevel}
+          >
+            <SelectTrigger
+              hideDownIcon
+              className="focus:ring-none h-auto w-auto border-none px-0 py-0 text-sm focus:outline-none focus:ring-0 focus:ring-offset-0"
+            >
+              <Toggle
+                pressed={colorCodeMetricsOnObservationTree}
+                onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
+                size="xs"
+                title="Color code metrics (>50% yellow, >75% red)"
+              >
+                <FilterIcon className="h-4 w-4" />
+              </Toggle>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel className="py-1 text-sm font-semibold">
+                  Min. Level
+                </SelectLabel>
+                {Object.values(ObservationLevel).map((level) => (
+                  <SelectItem value={level} key={level}>
+                    {level}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         <ObservationTree
@@ -239,6 +281,8 @@ export function Trace(props: {
           colorCodeMetrics={colorCodeMetricsOnObservationTree}
           observationCommentCounts={observationCommentCounts.data}
           traceCommentCounts={traceCommentCounts.data}
+          minLevel={minObservationLevel}
+          setMinLevel={setMinObservationLevel}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>
@@ -264,7 +308,6 @@ export function TracePage({
       traceId,
       timestamp,
       projectId: router.query.projectId as string,
-      queryClickhouse: useClickhouse(),
     },
     {
       retry(failureCount, error) {
@@ -310,6 +353,8 @@ export function TracePage({
     "display",
     withDefault(StringParam, "details"),
   );
+
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
 
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
@@ -372,15 +417,17 @@ export function TracePage({
               }}
               listKey="traces"
             />
-            <DeleteButton
-              itemId={traceId}
-              projectId={trace.data.projectId}
-              scope="traces:delete"
-              invalidateFunc={() => void utils.traces.all.invalidate()}
-              type="trace"
-              redirectUrl={`/project/${router.query.projectId as string}/traces`}
-              deleteConfirmation={trace.data.name ?? ""}
-            />
+            {hasTraceDeletionEntitlement && (
+              <DeleteButton
+                itemId={traceId}
+                projectId={trace.data.projectId}
+                scope="traces:delete"
+                invalidateFunc={() => void utils.traces.all.invalidate()}
+                type="trace"
+                redirectUrl={`/project/${router.query.projectId as string}/traces`}
+                deleteConfirmation={trace.data.name ?? ""}
+              />
+            )}
           </>
         }
       />

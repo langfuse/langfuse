@@ -13,6 +13,7 @@ import {
 import { nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
+import { getObservationById } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -395,11 +396,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(response.status).toBe(207);
 
-      const dbGeneration = await prisma.observation.findUnique({
-        where: {
-          id: generationId,
-        },
-      });
+      // Delay to allow for async processing
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const dbGeneration = await getObservationById(generationId, projectId);
 
       expect(dbGeneration?.id).toBe(generationId);
       expect(dbGeneration?.promptId).toBe(promptId);

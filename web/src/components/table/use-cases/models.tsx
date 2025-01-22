@@ -15,7 +15,7 @@ import { DeleteModelButton } from "@/src/features/models/components/DeleteModelB
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
 import { PriceBreakdownTooltip } from "@/src/features/models/components/PriceBreakdownTooltip";
-import { UserCircle2Icon } from "lucide-react";
+import { UserCircle2Icon, PlusIcon } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +25,10 @@ import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { ActionButton } from "@/src/components/ActionButton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type ModelTableRow = {
   modelId: string;
@@ -34,6 +38,7 @@ export type ModelTableRow = {
   prices?: Record<string, number>;
   tokenizerId?: string;
   config?: Prisma.JsonValue;
+  lastUsed?: Date | null;
   serverResponse: GetModelResult;
 };
 
@@ -51,10 +56,12 @@ const modelConfigDescriptions = {
     "Some tokenizers require additional configuration (e.g. openai tiktoken). See docs for details.",
   maintainer:
     "Maintainer of the model. Langfuse managed models can be cloned, user managed models can be edited and deleted. To supersede a Langfuse managed model, set the custom model name to the Langfuse model name.",
+  lastUsed: "Start time of the latest generation using this model",
 } as const;
 
 export default function ModelTable({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -75,6 +82,11 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   const totalCount = models.data?.totalCount ?? null;
   const { priceUnit } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
+
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "models:CUD",
+  });
 
   // Set row height to medium if small as view is not optimized for small row heights
   useEffect(() => {
@@ -199,6 +211,20 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
     },
     {
+      accessorKey: "lastUsed",
+      id: "lastUsed",
+      header: "Last used",
+      headerTooltip: {
+        description: modelConfigDescriptions.lastUsed,
+      },
+      enableHiding: true,
+      size: 120,
+      cell: ({ row }) => {
+        const value: Date | null | undefined = row.getValue("lastUsed");
+        return value?.toLocaleString() ?? "";
+      },
+    },
+    {
       accessorKey: "actions",
       header: "Actions",
       size: 120,
@@ -246,6 +272,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       prices: model.prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
+      lastUsed: model.lastUsed,
       serverResponse: model,
     };
   };
@@ -260,8 +287,21 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={
+          <UpsertModelFormDrawer {...{ projectId, action: "create" }}>
+            <ActionButton
+              variant="secondary"
+              icon={<PlusIcon className="h-4 w-4" />}
+              hasAccess={hasWriteAccess}
+              onClick={() => capture("models:new_form_open")}
+            >
+              Add model definition
+            </ActionButton>
+          </UpsertModelFormDrawer>
+        }
       />
       <DataTable
+        className="flex max-h-[60dvh] flex-col overflow-hidden"
         columns={columns}
         data={
           models.isLoading
@@ -289,7 +329,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         onRowClick={(row) => {
-          router.push(`/project/${projectId}/models/${row.modelId}`);
+          router.push(`/project/${projectId}/settings/models/${row.modelId}`);
         }}
       />
     </>

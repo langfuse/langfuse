@@ -17,11 +17,13 @@ export const GetModelResultSchema = z.object({
   projectId: z.string().nullable(),
   modelName: z.string(),
   matchPattern: z.string(),
-  tokenizerConfig: z
-    .record(z.union([z.string(), z.coerce.number()]))
-    .nullable(),
+  tokenizerConfig: z.union([
+    z.record(z.union([z.string(), z.coerce.number()])).nullable(),
+    z.string(),
+  ]),
   tokenizerId: TokenizerSchema,
   prices: PriceMapSchema,
+  lastUsed: z.date().nullish(),
 });
 
 export type GetModelResult = z.infer<typeof GetModelResultSchema>;
@@ -75,3 +77,10 @@ export enum PriceUnit {
   Per1KUnits = "per 1K units",
   Per1MUnits = "per 1M units",
 }
+
+export const ModelLastUsedQueryResult = z.array(
+  z.object({
+    modelId: z.string(),
+    lastUsed: z.coerce.date(),
+  }),
+);

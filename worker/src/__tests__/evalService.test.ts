@@ -20,6 +20,7 @@ import {
   LLMAdapter,
   LangfuseNotFoundError,
   variableMappingList,
+  ApiError,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
@@ -938,6 +939,118 @@ describe("eval service tests", () => {
       await expect(evaluate({ event: payload })).rejects.toThrowError(
         new LangfuseNotFoundError(
           "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found.",
+        ),
+      );
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      // the job will be failed when the exception is caught in the worker consumer
+      expect(jobs[0].status.toString()).toBe("PENDING");
+    }, 10_000);
+
+    test("fails to eval on openai error", async () => {
+      openAIServer.respondWithError(401, "Not authorized");
+
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      const templateId = randomUUID();
+      await kyselyPrisma.$kysely
+        .insertInto("eval_templates")
+        .values({
+          id: templateId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          model_params: {},
+          output_schema: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        })
+        .executeTakeFirst();
+
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "User ID",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          evalTemplateId: templateId,
+        },
+      });
+
+      const jobExecutionId = randomUUID();
+
+      await kyselyPrisma.$kysely
+        .insertInto("job_executions")
+        .values({
+          id: jobExecutionId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          job_configuration_id: jobConfiguration.id,
+          status: sql`'PENDING'::"JobExecutionStatus"`,
+          start_time: new Date(),
+          job_input_trace_id: traceId,
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
+      const payload = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        jobExecutionId: jobExecutionId,
+        delay: 1000,
+      };
+
+      await expect(evaluate({ event: payload })).rejects.toThrowError(
+        new ApiError(
+          "Failed to call LLM: Error: 401 status code (no body)\n" +
+            "\n" +
+            "Troubleshooting URL: https://js.langchain.com/docs/troubleshooting/errors/MODEL_AUTHENTICATION/\n",
+          401,
         ),
       );
 

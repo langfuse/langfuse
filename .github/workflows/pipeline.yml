@@ -17,8 +17,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  pre-job:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    timeout-minutes: 15
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v5
+        with:
+          do_not_skip: '["workflow_dispatch"]'
+
   lint:
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -41,6 +55,9 @@ jobs:
   test-docker-build:
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,6 +91,9 @@ jobs:
   tests-web-sync:
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
@@ -111,8 +131,9 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.legacy.example > .env
-          echo "LANGFUSE_POSTGRES_INGESTION_ENABLED=true" >> .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
+          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -146,6 +167,9 @@ jobs:
   tests-web-async:
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
@@ -184,7 +208,9 @@ jobs:
       - name: Load default env
         run: |
           cp .env.dev${{ matrix.blob-provider }}.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^REDIS_HOST=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
+          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
@@ -216,6 +242,9 @@ jobs:
   tests-worker:
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
@@ -281,6 +310,9 @@ jobs:
 
   e2e-tests:
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -322,6 +354,9 @@ jobs:
 
   e2e-server-tests:
     runs-on: ubuntu-latest
+    needs:
+      - pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub

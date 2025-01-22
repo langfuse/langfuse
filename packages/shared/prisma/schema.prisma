@@ -272,7 +272,6 @@ model TraceSession {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   bookmarked Boolean  @default(false)
   public     Boolean  @default(false)
-  traces     Trace[]
 
   @@id([id, projectId])
   @@index([projectId])
@@ -284,25 +283,24 @@ model TraceSession {
 // Update TraceView below when making changes to this model!
 
 model Trace {
-  id         String        @id @default(cuid())
-  externalId String?       @map("external_id")
-  timestamp  DateTime      @default(now())
+  id         String   @id @default(cuid())
+  externalId String?  @map("external_id")
+  timestamp  DateTime @default(now())
   name       String?
-  userId     String?       @map("user_id")
+  userId     String?  @map("user_id")
   metadata   Json?
   release    String?
   version    String?
-  projectId  String        @map("project_id")
-  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  public     Boolean       @default(false)
-  bookmarked Boolean       @default(false)
-  tags       String[]      @default([])
+  projectId  String   @map("project_id")
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  public     Boolean  @default(false)
+  bookmarked Boolean  @default(false)
+  tags       String[] @default([])
   input      Json?
   output     Json?
-  sessionId  String?       @map("session_id")
-  session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
+  sessionId  String?  @map("session_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([projectId, timestamp])
   @@index([sessionId])
@@ -1016,4 +1014,38 @@ model ObservationMedia {
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, observationId])
   @@map("observation_media")
+}
+
+model QueueBackUp {
+  id        String  @id @default(cuid())
+  projectId String? @map("project_id")
+  queueName String  @map("queue_name")
+  content   Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("queue_backups")
+}
+
+model BillingMeterBackup {
+  // unique
+  stripeCustomerId String   @map("stripe_customer_id")
+  meterId          String   @map("meter_id")
+  startTime        DateTime @map("start_time")
+  endTime          DateTime @map("end_time")
+
+  // value
+  aggregatedValue Int @map("aggregated_value")
+
+  // labels
+  eventName String @map("event_name")
+  orgId     String @map("org_id")
+
+  // ts
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([stripeCustomerId, meterId, startTime, endTime])
+  @@index([stripeCustomerId, meterId, startTime, endTime])
+  @@map("billing_meter_backups")
 }

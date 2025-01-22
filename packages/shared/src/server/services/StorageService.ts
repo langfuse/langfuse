@@ -30,7 +30,7 @@ export interface StorageService {
 
   download(path: string): Promise<string>;
 
-  listFiles(prefix: string): Promise<string[]>;
+  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
 
   getSignedUrl(
     fileName: string,
@@ -201,7 +201,9 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
-  public async listFiles(prefix: string): Promise<string[]> {
+  public async listFiles(
+    prefix: string,
+  ): Promise<{ file: string; createdAt: Date }[]> {
     try {
       await this.createContainerIfNotExists();
 
@@ -209,7 +211,10 @@ class AzureBlobStorageService implements StorageService {
       const files = [];
       for await (const blob of result) {
         if (blob.name.startsWith(prefix)) {
-          files.push(blob.name);
+          files.push({
+            file: blob.name,
+            createdAt: blob?.properties?.createdOn ?? new Date(),
+          });
         }
       }
       return files;
@@ -364,7 +369,9 @@ class S3StorageService implements StorageService {
     }
   }
 
-  public async listFiles(prefix: string): Promise<string[]> {
+  public async listFiles(
+    prefix: string,
+  ): Promise<{ file: string; createdAt: Date }[]> {
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: prefix,
@@ -373,7 +380,11 @@ class S3StorageService implements StorageService {
     try {
       const response = await this.client.send(listCommand);
       return (
-        response.Contents?.flatMap((file) => (file.Key ? [file.Key] : [])) ?? []
+        response.Contents?.flatMap((file) =>
+          file.Key
+            ? [{ file: file.Key, createdAt: file.LastModified ?? new Date() }]
+            : [],
+        ) ?? []
       );
     } catch (err) {
       logger.error(`Failed to list files from S3 ${prefix}`, err);
