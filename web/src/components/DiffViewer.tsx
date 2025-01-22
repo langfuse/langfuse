@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { diffWordsWithSpace } from "diff";
+import { diffChars } from "diff";
 
 type DiffLine = {
   text: string;
@@ -49,7 +49,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
     const right: DiffLine[] = [];
 
     // Get the complete diff first
-    const changes = diffWordsWithSpace(oldString, newString, {});
+    const changes = diffChars(oldString, newString, {});
 
     // Group changes by line
     const oldParts: { value: string; type?: "removed" }[][] = [[]];
@@ -114,7 +114,10 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
     setDiffLines({ left, right });
   }, [oldString, newString]);
 
-  const LineContent: React.FC<{ line: DiffLine }> = ({ line }) => {
+  const DiffRow: React.FC<{ leftLine: DiffLine; rightLine: DiffLine }> = ({
+    leftLine,
+    rightLine,
+  }) => {
     const typeClasses = {
       unchanged: "",
       removed: DIFF_COLORS.removed.line,
@@ -122,23 +125,36 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       empty: DIFF_COLORS.empty,
     };
 
+    const renderContent = (line: DiffLine) =>
+      line.parts
+        ? line.parts.map((part, idx) => (
+            <span
+              key={idx}
+              className={part.type ? DIFF_COLORS[part.type].text : undefined}
+            >
+              {part.value}
+            </span>
+          ))
+        : line.text || "\u00A0";
+
     return (
-      <div
-        className={cn(
-          "whitespace-pre px-4 py-1 font-mono text-xs",
-          typeClasses[line.type],
-        )}
-      >
-        {line.parts
-          ? line.parts.map((part, idx) => (
-              <span
-                key={idx}
-                className={part.type ? DIFF_COLORS[part.type].text : undefined}
-              >
-                {part.value}
-              </span>
-            ))
-          : line.text || "\u00A0"}
+      <div className="grid grid-cols-2">
+        <div
+          className={cn(
+            "whitespace-pre-wrap break-words border-r px-4 py-1 font-mono text-xs",
+            typeClasses[leftLine.type],
+          )}
+        >
+          {renderContent(leftLine)}
+        </div>
+        <div
+          className={cn(
+            "whitespace-pre-wrap break-words px-4 py-1 font-mono text-xs",
+            typeClasses[rightLine.type],
+          )}
+        >
+          {renderContent(rightLine)}
+        </div>
       </div>
     );
   };
@@ -152,27 +168,21 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       <Card>
         <CardContent className="p-0">
           <div className="grid grid-cols-2">
-            <div className="border-r">
-              <div className="border-b bg-muted px-4 py-2 text-xs font-semibold">
-                {oldLabel}
-              </div>
-              <div className="overflow-x-auto">
-                {diffLines.left.map((line, idx) => (
-                  <LineContent key={`left-${idx}`} line={line} />
-                ))}
-              </div>
+            <div className="border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
+              {oldLabel}
             </div>
-
-            <div>
-              <div className="border-b bg-muted px-4 py-2 text-xs font-semibold">
-                {newLabel}
-              </div>
-              <div className="overflow-x-auto">
-                {diffLines.right.map((line, idx) => (
-                  <LineContent key={`right-${idx}`} line={line} />
-                ))}
-              </div>
+            <div className="border-b bg-muted px-4 py-2 text-xs font-semibold">
+              {newLabel}
             </div>
+          </div>
+          <div>
+            {diffLines.left.map((leftLine, idx) => (
+              <DiffRow
+                key={idx}
+                leftLine={leftLine}
+                rightLine={diffLines.right[idx]}
+              />
+            ))}
           </div>
         </CardContent>
       </Card>
