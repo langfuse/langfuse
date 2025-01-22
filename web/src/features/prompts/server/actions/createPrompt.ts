@@ -118,6 +118,20 @@ export const duplicatePrompt = async ({
   createdBy,
   prisma,
 }: DuplicatePromptParams) => {
+  // validate that name is unique in project, uniqueness constraint too permissive as it includes version
+  const promptNameExists = await prisma.prompt.findFirst({
+    where: {
+      projectId,
+      name,
+    },
+  });
+
+  if (promptNameExists) {
+    throw new InvalidRequestError(
+      `Prompt name ${name} already exists in project ${projectId}`,
+    );
+  }
+
   const existingPrompt = await prisma.prompt.findUnique({
     where: {
       id: promptId,
@@ -144,7 +158,9 @@ export const duplicatePrompt = async ({
       data: {
         name,
         version: isSingleVersion ? 1 : prompt.version,
-        labels: prompt.labels,
+        labels: isSingleVersion
+          ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+          : prompt.labels,
         type: prompt.type,
         prompt: PromptContentSchema.parse(prompt.prompt),
         config: jsonSchema.parse(prompt.config),
@@ -155,16 +171,8 @@ export const duplicatePrompt = async ({
     });
   });
 
-  // Lock and invalidate cache for _all_ versions and labels of the prompt name
-  const promptService = new PromptService(prisma, redis);
-  await promptService.lockCache({ projectId, promptName: name });
-  await promptService.invalidateCache({ projectId, promptName: name });
-
   // Create prompt and update previous prompt versions
   const [createdPrompt] = await prisma.$transaction(createPrompts);
-
-  // Unlock cache
-  await promptService.unlockCache({ projectId, promptName: name });
 
   return createdPrompt;
 };
