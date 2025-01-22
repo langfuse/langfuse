@@ -12,7 +12,6 @@ import {
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
-  recordHistogram,
   recordDistribution,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
