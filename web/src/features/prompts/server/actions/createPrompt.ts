@@ -8,9 +8,22 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
 import { updatePromptTagsOnAllVersions } from "@/src/features/prompts/server/utils/updatePromptTags";
-import { PromptService, redis } from "@langfuse/shared/src/server";
+import {
+  PromptContentSchema,
+  PromptService,
+  redis,
+} from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
+  createdBy: string;
+  prisma: PrismaClient;
+};
+
+type DuplicatePromptParams = {
+  projectId: string;
+  promptId: string;
+  name: string;
+  isSingleVersion: boolean;
   createdBy: string;
   prisma: PrismaClient;
 };
@@ -93,6 +106,81 @@ export const createPrompt = async ({
 
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });
+
+  return createdPrompt;
+};
+
+export const duplicatePrompt = async ({
+  projectId,
+  promptId,
+  name,
+  isSingleVersion,
+  createdBy,
+  prisma,
+}: DuplicatePromptParams) => {
+  // validate that name is unique in project, uniqueness constraint too permissive as it includes version
+  const promptNameExists = await prisma.prompt.findFirst({
+    where: {
+      projectId,
+      name,
+    },
+  });
+
+  if (promptNameExists) {
+    throw new InvalidRequestError(
+      `Prompt name ${name} already exists in project ${projectId}`,
+    );
+  }
+
+  const existingPrompt = await prisma.prompt.findUnique({
+    where: {
+      id: promptId,
+      projectId: projectId,
+    },
+  });
+
+  if (!existingPrompt) {
+    throw new Error(`Existing prompt not found: ${promptId}`);
+  }
+
+  // if defined as single version, duplicate current prompt as new prompt v1
+  // else duplicate the entire prompt, should be all or nothing operation.
+  const promptsDb = await prisma.prompt.findMany({
+    where: {
+      projectId: projectId,
+      name: existingPrompt.name,
+      version: isSingleVersion ? existingPrompt.version : undefined,
+    },
+  });
+
+  // prepare createMany prompt records
+  const promptsToCreate = promptsDb.map((prompt) => ({
+    name,
+    version: isSingleVersion ? 1 : prompt.version,
+    labels: isSingleVersion
+      ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+      : prompt.labels,
+    type: prompt.type,
+    prompt: PromptContentSchema.parse(prompt.prompt),
+    config: jsonSchema.parse(prompt.config),
+    tags: prompt.tags,
+    projectId,
+    createdBy,
+  }));
+
+  // Create all prompts in a single operation
+  const result = await prisma.prompt.createMany({
+    data: promptsToCreate,
+  });
+
+  // If you need the created prompt, fetch it separately since createMany doesn't return created records
+  const createdPrompt = await prisma.prompt.findFirst({
+    where: {
+      name,
+      projectId,
+      version: isSingleVersion ? 1 : result.count,
+    },
+  });
 
   return createdPrompt;
 };

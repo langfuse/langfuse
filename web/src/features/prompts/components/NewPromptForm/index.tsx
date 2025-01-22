@@ -50,6 +50,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { Switch } from "@/src/components/ui/switch";
+import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
 type NewPromptFormProps = {
   initialPrompt?: Prompt | null;
@@ -186,24 +187,11 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     }
   }, [playgroundCache, initialPrompt, form, shouldLoadPlaygroundCache]);
 
-  useEffect(() => {
-    const isNewPrompt = !allPrompts
-      ?.map((prompt) => prompt.value)
-      .includes(currentName);
-
-    if (!isNewPrompt) {
-      form.setError("name", { message: "Prompt name already exist." });
-    } else if (currentName === "new") {
-      form.setError("name", { message: "Prompt name cannot be 'new'" });
-    } else if (currentName && !/^[a-zA-Z0-9_\-.]+$/.test(currentName)) {
-      form.setError("name", {
-        message:
-          "Name must be alphanumeric with optional underscores, hyphens, or periods",
-      });
-    } else {
-      form.clearErrors("name");
-    }
-  }, [currentName, allPrompts, form]);
+  usePromptNameValidation({
+    currentName,
+    allPrompts,
+    form,
+  });
 
   return (
     <Form {...form}>

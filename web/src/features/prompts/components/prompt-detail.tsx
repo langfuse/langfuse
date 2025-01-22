@@ -39,6 +39,7 @@ import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/
 import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -223,6 +224,14 @@ export const PromptDetail = () => {
                   <span className="ml-2">New version</span>
                 </div>
               </Button>
+            )}
+            {projectId && (
+              <DuplicatePromptButton
+                promptId={prompt.id}
+                projectId={projectId}
+                promptName={prompt.name}
+                promptVersion={prompt.version}
+              />
             )}
             <DetailPageNav
               key="nav"
