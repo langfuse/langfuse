@@ -60,7 +60,8 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 }) => {
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
+  const { playgroundCache, clearCache, setPlaygroundCache } =
+    usePlaygroundCache();
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
   const [outputJson, setOutputJson] = useState("");
@@ -77,6 +78,10 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     updateModelParamValue,
     setModelParamEnabled,
   } = useModelParams();
+
+  useEffect(() => {
+    clearCache();
+  }, []);
 
   // Load state from cache
   useEffect(() => {

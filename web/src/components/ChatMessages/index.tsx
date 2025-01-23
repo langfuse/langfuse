@@ -74,7 +74,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
       sensors={sensors}
     >
       <div className="flex h-full flex-col">
-        <div className="mb-2 font-semibold">Messages</div>
+        {/* <div className="mb-2 font-semibold">Messages</div> */}
         <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
           <div className="mb-4 flex-1 space-y-3">
             <SortableContext
