@@ -192,6 +192,8 @@ model LlmApiKeys {
   baseURL           String?  @map("base_url")
   customModels      String[] @default([]) @map("custom_models")
   withDefaultModels Boolean  @default(true) @map("with_default_models")
+  extraHeaders      String?  @map("extra_headers")
+  extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
 
   projectId String  @map("project_id")

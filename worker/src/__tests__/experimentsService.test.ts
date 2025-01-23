@@ -384,6 +384,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
       secretKey: encrypt("test-key"),
       baseURL: null,
       customModels: [],
+      extraHeaderKeys: [],
       withDefaultModels: true,
       config: null,
     } as any);
