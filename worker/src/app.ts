@@ -20,11 +20,12 @@ import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
+  CoreDataS3ExportQueue,
+  DataRetentionQueue,
+  MeteringDataPostgresExportQueue,
+  PostHogIntegrationQueue,
   QueueName,
   logger,
-  PostHogIntegrationQueue,
-  CoreDataS3ExportQueue,
-  MeteringDataPostgresExportQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -38,6 +39,10 @@ import {
 } from "./queues/postHogIntegrationQueue";
 import { coreDataS3ExportProcessor } from "./queues/coreDataS3ExportQueue";
 import { meteringDataPostgresExportProcessor } from "./ee/meteringDataPostgresExport/handleMeteringDataPostgresExportJob";
+import {
+  dataRetentionProcessingProcessor,
+  dataRetentionProcessor,
+} from "./queues/dataRetentionQueue";
 
 const app = express();
 
@@ -214,6 +219,23 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.PostHogIntegrationProcessingQueue,
     postHogIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  DataRetentionQueue.getInstance();
+
+  WorkerManager.register(QueueName.DataRetentionQueue, dataRetentionProcessor, {
+    concurrency: 1,
+  });
+
+  WorkerManager.register(
+    QueueName.DataRetentionProcessingQueue,
+    dataRetentionProcessingProcessor,
     {
       concurrency: 1,
     },

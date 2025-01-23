@@ -32,6 +32,8 @@ export * from "./redis/batchExport";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";
+export * from "./redis/dataRetentionQueue";
+export * from "./redis/dataRetentionProcessingQueue";
 export * from "./redis/coreDataS3ExportQueue";
 export * from "./redis/meteringDataPostgresExportQueue";
 export * from "./redis/experimentCreateQueue";

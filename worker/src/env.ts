@@ -156,6 +156,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_DATA_RETENTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -168,6 +171,17 @@ const EnvSchema = z.object({
   LANGFUSE_S3_CORE_DATA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_CORE_DATA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_CORE_DATA_UPLOAD_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false"),
+
+  // Media upload
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
 

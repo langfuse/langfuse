@@ -51,6 +51,10 @@ export const ExperimentCreateEventSchema = z.object({
   runId: z.string(),
   description: z.string().optional(),
 });
+export const DataRetentionProcessingEventSchema = z.object({
+  projectId: z.string(),
+  retention: z.number(),
+});
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
@@ -66,6 +70,9 @@ export type ExperimentCreateEventType = z.infer<
 >;
 export type PostHogIntegrationProcessingEventType = z.infer<
   typeof PostHogIntegrationProcessingEventSchema
+>;
+export type DataRetentionProcessingEventType = z.infer<
+  typeof DataRetentionProcessingEventSchema
 >;
 
 export enum QueueName {
@@ -83,6 +90,8 @@ export enum QueueName {
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
   MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
+  DataRetentionQueue = "data-retention-queue",
+  DataRetentionProcessingQueue = "data-retention-processing-queue",
 }
 
 export enum QueueJobs {
@@ -100,6 +109,8 @@ export enum QueueJobs {
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
   MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
+  DataRetentionJob = "data-retention-job",
+  DataRetentionProcessingJob = "data-retention-processing-job",
 }
 
 export type TQueueJobTypes = {
@@ -162,5 +173,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: PostHogIntegrationProcessingEventType;
     name: QueueJobs.PostHogIntegrationProcessingJob;
+  };
+  [QueueName.DataRetentionProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: DataRetentionProcessingEventType;
+    name: QueueJobs.DataRetentionProcessingJob;
   };
 };
