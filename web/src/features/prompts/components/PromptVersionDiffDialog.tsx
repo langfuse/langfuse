@@ -14,23 +14,22 @@ import DiffViewer from "@/src/components/DiffViewer";
 import { FileDiffIcon } from "lucide-react";
 
 type PromptVersionDiffDialogProps = {
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
   leftPrompt: Prompt;
   rightPrompt: Prompt;
-  onClose: () => void;
 };
 
 export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
   props,
 ) => {
-  const { leftPrompt, rightPrompt, onClose } = props;
-  const [open, setOpen] = React.useState<boolean>(false);
+  const { leftPrompt, rightPrompt, isOpen, setIsOpen } = props;
 
   return (
     <Dialog
-      open={open}
+      open={isOpen}
       onOpenChange={(open) => {
-        setOpen(open);
-        if (!open) onClose();
+        setIsOpen(open);
       }}
     >
       <DialogTrigger asChild>
@@ -98,8 +97,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
         <DialogFooter className="flex flex-row">
           <Button
             onClick={() => {
-              setOpen(false);
-              onClose();
+              setIsOpen(false);
             }}
             className="w-full"
           >
