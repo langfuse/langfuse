@@ -27,7 +27,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   const { projectId, retention } = job.data.payload;
 
   // Delete media files if bucket is configured
-  if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET !== undefined) {
+  if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.info(
       `Deleting media files older than ${retention} days for project ${projectId}`,
     );

@@ -30,7 +30,7 @@ export const handleDataRetentionSchedule = async (job: Job) => {
       name: QueueJobs.DataRetentionProcessingJob,
       data: {
         id: randomUUID(),
-        name: QueueJobs.PostHogIntegrationProcessingJob,
+        name: QueueJobs.DataRetentionProcessingJob,
         timestamp: new Date(),
         payload: {
           projectId: project.id,
