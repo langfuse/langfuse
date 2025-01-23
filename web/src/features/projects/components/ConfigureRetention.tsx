@@ -108,11 +108,12 @@ export default function ConfigureRetention() {
                     <div className="relative">
                       <Input
                         type="number"
+                        step="1"
                         placeholder={project?.retentionDays?.toString() ?? ""}
                         {...field}
                         value={field.value ?? ""}
                         className="flex-1"
-                        disabled={!hasAccess}
+                        disabled={!hasAccess || !hasEntitlement}
                       />
                       {!hasAccess && (
                         <span title="No access">

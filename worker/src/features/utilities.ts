@@ -1,5 +1,6 @@
 import {
   ChatMessage,
+  decryptAndParseExtraHeaders,
   fetchLLMCompletion,
   logger,
   type TraceParams,
@@ -24,6 +25,7 @@ export async function callStructuredLLM<T extends ZodSchema>(
     const { completion, processTracedEvents } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
+      extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
       baseURL: llmApiKey.baseURL || undefined,
       messages,
       modelParams: {
@@ -67,6 +69,7 @@ export async function callLLM(
     const { completion, processTracedEvents } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
+      extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
       baseURL: llmApiKey.baseURL || undefined,
       messages,
       modelParams: {

@@ -10,4 +10,5 @@ export const CreateLlmApiKey = z.object({
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
   config: BedrockConfigSchema.optional(),
+  extraHeaders: z.record(z.string(), z.string()).optional(),
 });

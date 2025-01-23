@@ -49,6 +49,7 @@ type LLMCompletionParams = {
   callbacks?: BaseCallbackHandler[];
   baseURL?: string;
   apiKey: string;
+  extraHeaders?: Record<string, string>;
   maxRetries?: number;
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
@@ -100,6 +101,7 @@ export async function fetchLLMCompletion(
     maxRetries,
     config,
     traceParams,
+    extraHeaders,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
@@ -176,6 +178,7 @@ export async function fetchLLMCompletion(
       maxRetries,
       configuration: {
         baseURL,
+        defaultHeaders: extraHeaders,
       },
       timeout: 1000 * 60 * 2, // 2 minutes timeout
     });

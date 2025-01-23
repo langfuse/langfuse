@@ -44,6 +44,9 @@ const formSchema = z
     awsAccessKeyId: z.string().optional(),
     awsSecretAccessKey: z.string().optional(),
     awsRegion: z.string().optional(),
+    extraHeaders: z.array(
+      z.object({ key: z.string().min(1), value: z.string().min(1) }),
+    ),
   })
   .refine((data) => data.withDefaultModels || data.customModels.length > 0, {
     message:
@@ -115,6 +118,7 @@ export function CreateLLMApiKeyForm({
       baseURL: getCustomizedBaseURL(defaultAdapter),
       withDefaultModels: true,
       customModels: [],
+      extraHeaders: [],
     },
   });
 
@@ -123,6 +127,15 @@ export function CreateLLMApiKeyForm({
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "customModels",
+  });
+
+  const {
+    fields: headerFields,
+    append: appendHeader,
+    remove: removeHeader,
+  } = useFieldArray({
+    control: form.control,
+    name: "extraHeaders",
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -155,6 +168,17 @@ export function CreateLLMApiKeyForm({
       };
     }
 
+    const extraHeaders =
+      values.extraHeaders.length > 0
+        ? values.extraHeaders.reduce(
+            (acc, header) => {
+              acc[header.key] = header.value;
+              return acc;
+            },
+            {} as Record<string, string>,
+          )
+        : undefined;
+
     const newKey = {
       projectId,
       secretKey: secretKey ?? "",
@@ -166,6 +190,7 @@ export function CreateLLMApiKeyForm({
       customModels: values.customModels
         .map((m) => m.value.trim())
         .filter(Boolean),
+      extraHeaders,
     };
 
     try {
@@ -382,6 +407,57 @@ export function CreateLLMApiKeyForm({
             )}
           />
         )}
+
+        {/* Extra Headers */}
+        {currentAdapter === "openai" ? (
+          <FormField
+            control={form.control}
+            name="extraHeaders"
+            render={() => (
+              <FormItem>
+                <FormLabel>Extra Headers</FormLabel>
+                <FormDescription>
+                  Optional additional HTTP headers to include with requests
+                  towards LLM provider. All header values stored encrypted on
+                  our servers.
+                </FormDescription>
+
+                {headerFields.map((header, index) => (
+                  <div key={header.id} className="flex flex-row space-x-2">
+                    <Input
+                      {...form.register(`extraHeaders.${index}.key`)}
+                      placeholder="Header name"
+                    />
+                    <Input
+                      {...form.register(`extraHeaders.${index}.value`)}
+                      placeholder="Header value"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeHeader(index)}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => appendHeader({ key: "", value: "" })}
+                  className="w-full"
+                >
+                  <PlusIcon
+                    className="-ml-0.5 mr-1.5 h-5 w-5"
+                    aria-hidden="true"
+                  />
+                  Add Header
+                </Button>
+              </FormItem>
+            )}
+          />
+        ) : null}
 
         {/* With default models */}
         <FormField
