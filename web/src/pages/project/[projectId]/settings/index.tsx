@@ -23,6 +23,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
+import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -42,6 +43,7 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-6">
                 <HostNameProject />
                 <RenameProject />
+                <ConfigureRetention />
                 <div>
                   <Header title="Debug Information" level="h3" />
                   <JSONView

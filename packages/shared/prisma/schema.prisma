@@ -115,6 +115,7 @@ model Project {
   updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
   deletedAt           DateTime?              @map("deleted_at")
   name                String
+  retentionDays       Int?                   @map("retention_days")
   projectMembers      ProjectMembership[]
   organization        Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   traces              Trace[]

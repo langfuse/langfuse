@@ -466,6 +466,7 @@ export type Project = {
     updated_at: Generated<Timestamp>;
     deleted_at: Timestamp | null;
     name: string;
+    retention_days: number | null;
 };
 export type ProjectMembership = {
     org_membership_id: string;
