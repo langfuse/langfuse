@@ -1,5 +1,6 @@
 import { Readable } from "stream";
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -45,6 +46,8 @@ export interface StorageService {
     contentType: string;
     contentLength: number;
   }): Promise<string>;
+
+  deleteFiles(paths: string[]): Promise<void>;
 }
 
 export class StorageServiceFactory {
@@ -198,6 +201,25 @@ class AzureBlobStorageService implements StorageService {
         err,
       );
       throw Error("Failed to download file from Azure Blob Storage");
+    }
+  }
+
+  public async deleteFiles(paths: string[]): Promise<void> {
+    try {
+      await this.createContainerIfNotExists();
+
+      await Promise.all(
+        paths.map(async (path) => {
+          const blobClient = this.client.getBlobClient(path);
+          await blobClient.deleteIfExists();
+        }),
+      );
+    } catch (err) {
+      logger.error(
+        `Failed to delete files from Azure Blob Storage ${paths}`,
+        err,
+      );
+      throw Error("Failed to delete files from Azure Blob Storage");
     }
   }
 
@@ -412,6 +434,37 @@ class S3StorageService implements StorageService {
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
+    }
+  }
+
+  public async deleteFiles(paths: string[]): Promise<void> {
+    const chunkSize = 900;
+    const chunks = [];
+
+    for (let i = 0; i < paths.length; i += chunkSize) {
+      chunks.push(paths.slice(i, i + chunkSize));
+    }
+
+    try {
+      for (const chunk of chunks) {
+        const command = new DeleteObjectsCommand({
+          Bucket: this.bucketName,
+          Delete: {
+            Objects: chunk.map((path) => ({ Key: path })),
+            Quiet: true,
+          },
+        });
+        const result = await this.client.send(command);
+        if (result?.Errors && result?.Errors?.length > 0) {
+          logger.error("Failed to delete files from S3", {
+            errors: result.Errors,
+          });
+          throw new Error("Failed to delete files from S3");
+        }
+      }
+    } catch (err) {
+      logger.error(`Failed to delete files from S3`, err);
+      throw new Error("Failed to delete files from S3");
     }
   }
 
