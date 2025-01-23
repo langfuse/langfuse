@@ -29,7 +29,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   // Delete media files if bucket is configured
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.info(
-      `Deleting media files older than ${retention} days for project ${projectId}`,
+      `[Data Retention] Deleting media files older than ${retention} days for project ${projectId}`,
     );
     const mediaFilesToDelete = await prisma.media.findMany({
       select: {
@@ -62,6 +62,9 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
         projectId,
       },
     });
+    logger.info(
+      `[Data Retention] Deleted ${mediaFilesToDelete.length} media files for project ${projectId}`,
+    );
   }
 
   // Delete ClickHouse (TTL / Delete Queries)
