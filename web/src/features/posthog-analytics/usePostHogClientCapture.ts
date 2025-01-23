@@ -57,6 +57,8 @@ const events = {
     "apply_labels",
     "version_delete_open",
     "version_delete_submit",
+    "duplicate_button_click",
+    "duplicate_form_submit",
   ],
   session_detail: ["publish_button_click"],
   eval_config: [
