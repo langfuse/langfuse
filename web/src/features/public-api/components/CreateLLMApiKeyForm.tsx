@@ -409,53 +409,55 @@ export function CreateLLMApiKeyForm({
         )}
 
         {/* Extra Headers */}
-        <FormField
-          control={form.control}
-          name="extraHeaders"
-          render={() => (
-            <FormItem>
-              <FormLabel>Extra Headers</FormLabel>
-              <FormDescription>
-                Optional additional HTTP headers to include with requests
-                towards LLM provider. All header values stored encrypted on our
-                servers.
-              </FormDescription>
+        {currentAdapter === "openai" ? (
+          <FormField
+            control={form.control}
+            name="extraHeaders"
+            render={() => (
+              <FormItem>
+                <FormLabel>Extra Headers</FormLabel>
+                <FormDescription>
+                  Optional additional HTTP headers to include with requests
+                  towards LLM provider. All header values stored encrypted on
+                  our servers.
+                </FormDescription>
 
-              {headerFields.map((header, index) => (
-                <div key={header.id} className="flex flex-row space-x-2">
-                  <Input
-                    {...form.register(`extraHeaders.${index}.key`)}
-                    placeholder="Header name"
-                  />
-                  <Input
-                    {...form.register(`extraHeaders.${index}.value`)}
-                    placeholder="Header value"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => removeHeader(index)}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                {headerFields.map((header, index) => (
+                  <div key={header.id} className="flex flex-row space-x-2">
+                    <Input
+                      {...form.register(`extraHeaders.${index}.key`)}
+                      placeholder="Header name"
+                    />
+                    <Input
+                      {...form.register(`extraHeaders.${index}.value`)}
+                      placeholder="Header value"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeHeader(index)}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
 
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => appendHeader({ key: "", value: "" })}
-                className="w-full"
-              >
-                <PlusIcon
-                  className="-ml-0.5 mr-1.5 h-5 w-5"
-                  aria-hidden="true"
-                />
-                Add Header
-              </Button>
-            </FormItem>
-          )}
-        />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => appendHeader({ key: "", value: "" })}
+                  className="w-full"
+                >
+                  <PlusIcon
+                    className="-ml-0.5 mr-1.5 h-5 w-5"
+                    aria-hidden="true"
+                  />
+                  Add Header
+                </Button>
+              </FormItem>
+            )}
+          />
+        ) : null}
 
         {/* With default models */}
         <FormField

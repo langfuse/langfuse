@@ -8,6 +8,7 @@ export * from "./auth/apiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
 export * from "./llm/fetchLLMCompletion";
+export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";

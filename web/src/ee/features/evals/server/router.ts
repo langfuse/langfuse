@@ -20,6 +20,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
+  decryptAndParseExtraHeaders,
   fetchLLMCompletion,
   getScoresByIds,
   LLMApiKeySchema,
@@ -536,6 +537,9 @@ export const evalRouter = createTRPCRouter({
           await fetchLLMCompletion({
             streaming: false,
             apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+            extraHeaders: decryptAndParseExtraHeaders(
+              parsedKey.data.extraHeaders,
+            ),
             baseURL: parsedKey.data.baseURL ?? undefined,
             messages: [
               {
