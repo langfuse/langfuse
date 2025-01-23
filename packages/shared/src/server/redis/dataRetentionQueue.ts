@@ -42,7 +42,9 @@ export class DataRetentionQueue {
           QueueJobs.DataRetentionJob,
           {},
           {
-            repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
+            // TODO: Revert before merge
+            repeat: { pattern: "*/5 * * * *" }, // every 5 minutes for testing
+            // repeat: { pattern: "15 3 * * *" }, // every day at 3:15am
           },
         )
         .catch((err) => {
