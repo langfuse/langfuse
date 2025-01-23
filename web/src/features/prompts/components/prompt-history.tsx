@@ -19,6 +19,7 @@ const PromptHistoryTraceNode = (props: {
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
+  const [isPromptDiffOpen, setIsPromptDiffOpen] = useState(false);
   const { prompt } = props;
   let badges: JSX.Element[] = prompt.labels
     .sort((a, b) =>
@@ -72,14 +73,20 @@ const PromptHistoryTraceNode = (props: {
             </span>
           </div>
         </div>
-        {(isHovered || props.currentPromptVersion === prompt.version) && (
+        {(isHovered ||
+          props.currentPromptVersion === prompt.version ||
+          isPromptDiffOpen) && (
           <div className="flex flex-row justify-end space-x-1">
             {props.currentPrompt &&
             props.currentPromptVersion !== prompt.version ? (
               <PromptVersionDiffDialog
+                isOpen={isPromptDiffOpen}
+                setIsOpen={(open) => {
+                  setIsPromptDiffOpen(open);
+                  if (!open) setIsHovered(false);
+                }}
                 leftPrompt={prompt}
                 rightPrompt={props.currentPrompt}
-                onClose={() => setIsHovered(false)}
               />
             ) : null}
             <SetPromptVersionLabels
