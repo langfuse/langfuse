@@ -23,11 +23,14 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
+import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
+import { env } from "@/src/env.mjs";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
   const router = useRouter();
   const showBillingSettings = useHasEntitlement("cloud-billing");
+  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   if (!project || !organization) return null;
   return (
     <div className="lg:container">
@@ -42,6 +45,7 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-6">
                 <HostNameProject />
                 <RenameProject />
+                {isLangfuseCloud && <ConfigureRetention />}
                 <div>
                   <Header title="Debug Information" level="h3" />
                   <JSONView

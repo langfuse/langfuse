@@ -14,6 +14,7 @@ const entitlements = [
   "prompt-experiments",
   "trace-deletion",
   "audit-logs",
+  "data-retention",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -76,6 +77,7 @@ export const entitlementAccess: Record<
       ...cloudAllPlansEntitlements,
       "rbac-project-roles",
       "audit-logs",
+      "data-retention",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

@@ -469,6 +469,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 id: project.id,
                                 name: project.name,
                                 role: projectRole,
+                                retentionDays: project.retentionDays,
                                 deletedAt: project.deletedAt,
                               };
                             })

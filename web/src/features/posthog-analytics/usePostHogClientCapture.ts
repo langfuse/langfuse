@@ -130,6 +130,7 @@ const events = {
   project_settings: [
     "project_delete",
     "rename_form_submit",
+    "retention_form_submit",
     "project_transfer",
     "api_key_delete",
     "api_key_create",
