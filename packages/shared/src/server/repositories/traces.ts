@@ -30,7 +30,7 @@ import { env } from "../../env";
 export const checkTraceExists = async (
   projectId: string,
   traceId: string,
-  timestamp: Date | undefined,
+  timestamp: Date,
   filter: FilterState,
 ): Promise<boolean> => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
@@ -73,6 +73,7 @@ export const checkTraceExists = async (
         FROM observations o FINAL 
         WHERE o.project_id = {projectId: String}
         ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+        ${timestamp ? `AND o.start_time >= {timestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         GROUP BY trace_id, project_id
       )
     SELECT 
