@@ -1,3 +1,3 @@
 -- AlterTable
-ALTER TABLE postgres.public."projects"
+ALTER TABLE "projects"
     ADD COLUMN "retention_days" INTEGER;
