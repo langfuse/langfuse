@@ -93,7 +93,7 @@ export const GetPromptByNameSchema = z.object({
   label: z.string().optional(),
 });
 
-export const TextPromptSchema = z.object({
+export const LegacyTextPromptSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -106,6 +106,9 @@ export const TextPromptSchema = z.object({
   type: z.literal(PromptType.Text),
   prompt: z.string(),
   config: jsonSchema,
+});
+
+export const TextPromptSchema = LegacyTextPromptSchema.extend({
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
 });
 
@@ -114,7 +117,7 @@ export type TextPromptType =
     ? z.infer<typeof TextPromptSchema>
     : never;
 
-export const ChatPromptSchema = z.object({
+export const LegacyChatPromptSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -127,6 +130,9 @@ export const ChatPromptSchema = z.object({
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema,
+});
+
+export const ChatPromptSchema = LegacyChatPromptSchema.extend({
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
 });
 
@@ -144,7 +150,7 @@ export const LegacyCreatePromptSchema = z.union([
   LegacyCreateChatPromptSchema.extend({ isActive: z.boolean() }),
 ]);
 export const LegacyPromptSchema = z.union([
-  TextPromptSchema.extend({ isActive: z.boolean() }),
-  ChatPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyTextPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyChatPromptSchema.extend({ isActive: z.boolean() }),
 ]);
 export type LegacyValidatedPrompt = z.infer<typeof LegacyPromptSchema>;
