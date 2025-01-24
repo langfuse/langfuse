@@ -76,6 +76,7 @@ function TreeItemInner({
   totalScaleSpan,
   type,
   startOffset = 0,
+  firstTokenTimeOffset,
   name,
   children,
   setBackgroundColor,
@@ -86,6 +87,7 @@ function TreeItemInner({
   totalScaleSpan: number;
   type: TreeItemType;
   startOffset?: number;
+  firstTokenTimeOffset?: number;
   name?: string | null;
   children?: React.ReactNode;
   setBackgroundColor: (color: string) => void;
@@ -147,31 +149,75 @@ function TreeItemInner({
       <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
         <div className={`relative w-[${SCALE_WIDTH}px]`}>
           <div className="ml-4 mr-4 h-full border-r-2"></div>
-          <div
-            className={cn(
-              "flex h-5 items-center justify-end rounded-sm",
-              itemWidth
-                ? treeItemColors.get(type)
-                : "border border-dashed bg-muted",
-            )}
-            style={{
-              width: `${itemWidth || 10}px`,
-              marginLeft: `${startOffset}px`,
-            }}
-          >
-            <span
+          {firstTokenTimeOffset ? (
+            <div className="flex" style={{ marginLeft: `${startOffset}px` }}>
+              <div
+                className={cn(
+                  "flex h-5 items-center justify-end rounded-l-sm border-r border-gray-400 opacity-60",
+                  itemWidth
+                    ? treeItemColors.get(type)
+                    : "border border-dashed bg-muted",
+                )}
+                style={{
+                  width: `${firstTokenTimeOffset - startOffset}px`,
+                }}
+              >
+                <span className="text mr-2 text-xs font-light italic text-foreground group-hover:block">
+                  First token
+                </span>
+              </div>
+              <div
+                className={cn(
+                  "flex h-5 items-center justify-end rounded-r-sm",
+                  itemWidth
+                    ? treeItemColors.get(type)
+                    : "border border-dashed bg-muted",
+                )}
+                style={{
+                  width: `${itemWidth - (firstTokenTimeOffset - startOffset)}px`,
+                }}
+              >
+                <span
+                  className={cn(
+                    "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                    itemOffsetLabelWidth > SCALE_WIDTH
+                      ? "mr-1"
+                      : isPresent(latency)
+                        ? `-mr-9`
+                        : "-mr-6",
+                  )}
+                >
+                  {isPresent(latency) ? `${latency.toFixed(2)}s` : "n/a"}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div
               className={cn(
-                "hidden justify-end text-xs text-muted-foreground group-hover:block",
-                itemOffsetLabelWidth > SCALE_WIDTH
-                  ? "mr-1"
-                  : isPresent(latency)
-                    ? `-mr-9`
-                    : "-mr-6",
+                "flex h-5 items-center justify-end rounded-sm",
+                itemWidth
+                  ? treeItemColors.get(type)
+                  : "border border-dashed bg-muted",
               )}
+              style={{
+                width: `${itemWidth || 10}px`,
+                marginLeft: `${startOffset}px`,
+              }}
             >
-              {isPresent(latency) ? `${latency.toFixed(2)}s` : "n/a"}
-            </span>
-          </div>
+              <span
+                className={cn(
+                  "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                  itemOffsetLabelWidth > SCALE_WIDTH
+                    ? "mr-1"
+                    : isPresent(latency)
+                      ? `-mr-9`
+                      : "-mr-6",
+                )}
+              >
+                {isPresent(latency) ? `${latency.toFixed(2)}s` : "n/a"}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -199,7 +245,7 @@ function TraceTreeItem({
   cardWidth: number;
   commentCounts?: Map<string, number>;
 }) {
-  const { startTime, endTime } = observation || {};
+  const { startTime, completionStartTime, endTime } = observation || {};
   const [backgroundColor, setBackgroundColor] = useState("");
 
   const latency = endTime
@@ -208,6 +254,12 @@ function TraceTreeItem({
   const startOffset =
     ((startTime.getTime() - traceStartTime.getTime()) / totalScaleSpan / 1000) *
     SCALE_WIDTH;
+  const firstTokenTimeOffset = completionStartTime
+    ? ((completionStartTime.getTime() - traceStartTime.getTime()) /
+        totalScaleSpan /
+        1000) *
+      SCALE_WIDTH
+    : undefined;
 
   return (
     <TreeItem
@@ -224,6 +276,7 @@ function TraceTreeItem({
           type={observation.type}
           name={observation.name}
           startOffset={startOffset}
+          firstTokenTimeOffset={firstTokenTimeOffset}
           totalScaleSpan={totalScaleSpan}
           setBackgroundColor={setBackgroundColor}
           level={level}
