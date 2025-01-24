@@ -162,7 +162,12 @@ function TreeItemInner({
                   width: `${firstTokenTimeOffset - startOffset}px`,
                 }}
               >
-                <span className="text mr-2 text-xs font-light italic text-foreground group-hover:block">
+                <span
+                  className={cn(
+                    "text text-xs font-light italic text-foreground group-hover:block",
+                    firstTokenTimeOffset - startOffset < 30 ? "-mr-14" : "mr-2",
+                  )}
+                >
                   First token
                 </span>
               </div>
