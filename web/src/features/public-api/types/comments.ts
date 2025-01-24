@@ -17,7 +17,7 @@ const APIComment = z
     updatedAt: z.coerce.date(),
     objectType: z.nativeEnum(CommentObjectType),
     objectId: z.string(),
-    content: z.string().min(1).max(500),
+    content: z.string().min(1).max(3000),
     authorUserId: z.string().nullish(),
   })
   .strict();

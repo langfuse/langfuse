@@ -12,7 +12,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Level",
     uiTableId: "level",
     clickhouseTableName: "observations",
-    clickhouseSelect: "level",
+    clickhouseSelect: "aggregated_level",
   },
   {
     uiTableName: "ID",
@@ -67,6 +67,30 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "tags",
     clickhouseTableName: "traces",
     clickhouseSelect: "tags",
+  },
+  {
+    uiTableName: "Warning Level Count",
+    uiTableId: "warningCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "warning_count",
+  },
+  {
+    uiTableName: "Error Level Count",
+    uiTableId: "errorCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "error_count",
+  },
+  {
+    uiTableName: "Default Level Count",
+    uiTableId: "defaultCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "default_count",
+  },
+  {
+    uiTableName: "Debug Level Count",
+    uiTableId: "debugCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "debug_count",
   },
   {
     uiTableName: "Input Tokens",
