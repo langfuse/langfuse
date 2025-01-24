@@ -496,7 +496,7 @@ export const promptRouter = createTRPCRouter({
         // Unlock cache
         await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
-        logger.error(e);
+        logger.error(`Failed to set prompt labels: ${e}`, e);
         throw e;
       }
     }),
