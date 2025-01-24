@@ -48,4 +48,6 @@ const getPromptNameHandler = async (
   return res.status(200).json(prompt);
 };
 
-export const promptNameHandler = withMiddlewares({ GET: getPromptNameHandler });
+export const promptNameHandler = withMiddlewares({
+  GET: getPromptNameHandler,
+});
