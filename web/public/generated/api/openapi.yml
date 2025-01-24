@@ -1426,6 +1426,76 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/v2/prompts/{promptName}/version/{version}:
+    patch:
+      description: Update labels for a specific prompt version
+      operationId: promptVersion_update
+      tags:
+        - PromptVersion
+      parameters:
+        - name: promptName
+          in: path
+          description: The name of the prompt
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          description: Version of the prompt to update
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newLabels:
+                  type: array
+                  items:
+                    type: string
+                  description: >-
+                    New labels for the prompt version. Labels are unique across
+                    versions. The "latest" label is reserved and managed by
+                    Langfuse.
+              required:
+                - newLabels
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt

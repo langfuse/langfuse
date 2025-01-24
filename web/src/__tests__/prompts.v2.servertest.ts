@@ -13,7 +13,10 @@ import {
 import { nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
-import { getObservationById } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  getObservationById,
+} from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -1110,6 +1113,151 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     expect(body3.data[2].versions.length).toBe(1);
 
     expect(body3.meta.totalItems).toBe(3);
+  });
+});
+
+describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
+  it("should update the labels of a prompt", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    const originalPrompt = await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/version/1`,
+      {
+        newLabels: ["new-label"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: {
+        id: originalPrompt.id,
+      },
+    });
+    expect(updatedPrompt?.labels).toContain("production");
+    expect(updatedPrompt?.labels).toContain("new-label");
+    expect(updatedPrompt?.labels).toHaveLength(2);
+  });
+
+  it("should remove label from previous version when adding to new version", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    // Create version 1 with "production" label
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Create version 2 initially without the label
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 2,
+        labels: [],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Add "production" label to version 2
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/version/2`,
+      {
+        newLabels: ["production"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+    const responseBody = response.body as unknown as Prompt;
+    expect(responseBody.labels).toEqual(["production"]);
+
+    // Check version 2 got the label
+    const promptV2 = await prisma.prompt.findFirst({
+      where: {
+        projectId: newProjectId,
+        name: "prompt-1",
+        version: 2,
+      },
+    });
+    expect(promptV2?.labels).toEqual(["production"]);
+
+    // Check version 1 had the label removed
+    const promptV1 = await prisma.prompt.findFirst({
+      where: {
+        projectId: newProjectId,
+        name: "prompt-1",
+        version: 1,
+      },
+    });
+    expect(promptV1?.labels).toEqual([]);
+  });
+
+  it("trying to set 'latest' label results in 400 error", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+    // Create initial prompt version
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: [],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Try to set "latest" label
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/version/1`,
+      {
+        newLabels: ["latest"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("updating non existing prompt results in 404", async () => {
+    const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+    // Try to update non-existing prompt
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/non-existing-prompt/version/1`,
+      {
+        newLabels: ["production"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(404);
   });
 });
 
