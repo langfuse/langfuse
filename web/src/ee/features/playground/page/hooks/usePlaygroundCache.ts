@@ -23,8 +23,14 @@ export default function usePlaygroundCache() {
     }
   }, []);
 
+  const clearCache = () => {
+    setCache(null);
+    sessionStorage.removeItem(playgroundCacheKey);
+  };
+
   return {
     playgroundCache: available ? cache : null,
     setPlaygroundCache: available ? setPlaygroundCache : () => {},
+    clearCache: available ? clearCache : () => {},
   };
 }

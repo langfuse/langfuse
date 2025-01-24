@@ -3,7 +3,8 @@ import Header from "@/src/components/layouts/header";
 import { ResetPlaygroundButton } from "@/src/ee/features/playground/page/components/ResetPlaygroundButton";
 import { SaveToPromptButton } from "@/src/ee/features/playground/page/components/SaveToPromptButton";
 import { PlaygroundProvider } from "@/src/ee/features/playground/page/context";
-import Playground from "@/src/ee/features/playground/page/playground";
+// import Playground from "@/src/ee/features/playground/page/playground";
+import NewPlayground from "@/src/ee/features/playground/page/new-playground";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function PlaygroundPage() {
@@ -26,7 +27,8 @@ export default function PlaygroundPage() {
           }
         />
         <div className="flex-1 overflow-auto">
-          <Playground />
+          <NewPlayground />
+          {/* <Playground /> */}
         </div>
       </FullScreenPage>
     </PlaygroundProvider>
