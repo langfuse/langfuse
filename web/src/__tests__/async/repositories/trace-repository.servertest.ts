@@ -312,4 +312,52 @@ describe("Clickhouse Traces Repository Test", () => {
     const exists = await checkTraceExists(projectId, traceId, new Date(), []);
     expect(exists).toBe(true);
   });
+  it("should check if trace exists with error level count > 0", async () => {
+    const traceId = v4();
+    const trace = createTrace({
+      id: traceId,
+      user_id: "user-1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      release: "1.0.0",
+      version: "2.0.0",
+    });
+
+    const observations = [
+      createObservation({
+        trace_id: trace.id,
+        project_id: trace.project_id,
+        name: "observation-name",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 1000,
+        input: "input",
+        output: "output",
+        provided_model_name: "model-1",
+        level: "ERROR",
+      }),
+      createObservation({
+        trace_id: trace.id,
+        project_id: trace.project_id,
+        name: "observation-name-2",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 100000,
+        input: "input-2",
+        output: "output-2",
+        provided_model_name: "model-2",
+      }),
+    ];
+
+    await createTracesCh([trace]);
+    await createObservationsCh(observations);
+
+    const exists = await checkTraceExists(projectId, traceId, new Date(), [
+      {
+        type: "number",
+        column: "errorCount",
+        operator: ">",
+        value: 0,
+      },
+    ]);
+    expect(exists).toBe(true);
+  });
 });
