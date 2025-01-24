@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
+import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
 export const ChatMessageSchema = z.object({
   role: z.string(),
@@ -105,7 +106,7 @@ export const TextPromptSchema = z.object({
   type: z.literal(PromptType.Text),
   prompt: z.string(),
   config: jsonSchema,
-  commitMessage: z.string().max(500).optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
 });
 
 export type TextPromptType =
@@ -126,7 +127,7 @@ export const ChatPromptSchema = z.object({
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema,
-  commitMessage: z.string().max(500).optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
 });
 
 export type ChatPromptType =
