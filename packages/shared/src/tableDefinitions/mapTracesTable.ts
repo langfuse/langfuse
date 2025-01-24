@@ -12,7 +12,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Level",
     uiTableId: "level",
     clickhouseTableName: "observations",
-    clickhouseSelect: "computed_level",
+    clickhouseSelect: "aggregated_level",
   },
   {
     uiTableName: "ID",

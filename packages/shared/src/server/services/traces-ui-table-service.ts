@@ -237,7 +237,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         os.latency_milliseconds / 1000 as latency,
         os.cost_details as cost_details,
         os.usage_details as usage_details,
-        os.computed_level as level,
+        os.aggregated_level as level,
         os.error_count as error_count,
         os.warning_count as warning_count,
         os.default_count as default_count,
@@ -385,7 +385,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
             arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
             arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
             'DEBUG'
-          ) AS computed_level,
+          ) AS aggregated_level,
           sumMap(cost_details) as cost_details,
           trace_id,
           project_id

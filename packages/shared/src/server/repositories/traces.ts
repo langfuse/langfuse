@@ -66,7 +66,7 @@ export const checkTraceExists = async (
               arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
               arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
               'DEBUG'
-            ) AS computed_level,
+            ) AS aggregated_level,
             countIf(level = 'ERROR') as error_count,
             countIf(level = 'WARNING') as warning_count,
             countIf(level = 'DEFAULT') as default_count,
