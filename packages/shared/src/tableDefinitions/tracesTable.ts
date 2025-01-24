@@ -89,6 +89,30 @@ export const tracesTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Error Level Count",
+    id: "errorCount",
+    type: "number",
+    internal: 'generation_metrics."errorCount"',
+  },
+  {
+    name: "Warning Level Count",
+    id: "warningCount",
+    type: "number",
+    internal: 'generation_metrics."warningCount"',
+  },
+  {
+    name: "Default Level Count",
+    id: "defaultCount",
+    type: "number",
+    internal: 'generation_metrics."defaultCount"',
+  },
+  {
+    name: "Debug Level Count",
+    id: "debugCount",
+    type: "number",
+    internal: 'generation_metrics."debugCount"',
+  },
+  {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
@@ -102,7 +126,6 @@ export const tracesTableCols: ColumnDefinition[] = [
     internal: 'generation_metrics."totalTokens"',
     nullable: true,
   },
-
   {
     name: "Scores",
     id: "scores_avg",
