@@ -32,7 +32,7 @@ const LegacyCreateTextPromptSchema = z.object({
 });
 
 export const CreateTextPromptSchema = LegacyCreateTextPromptSchema.extend({
-  commitMessage: z.string().optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 const LegacyCreateChatPromptSchema = z.object({
@@ -45,7 +45,7 @@ const LegacyCreateChatPromptSchema = z.object({
 });
 
 export const CreateChatPromptSchema = LegacyCreateChatPromptSchema.extend({
-  commitMessage: z.string().optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 export const CreatePromptSchema = z.union([
@@ -109,7 +109,7 @@ export const LegacyTextPromptSchema = z.object({
 });
 
 export const TextPromptSchema = LegacyTextPromptSchema.extend({
-  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 export type TextPromptType =
@@ -133,7 +133,7 @@ export const LegacyChatPromptSchema = z.object({
 });
 
 export const ChatPromptSchema = LegacyChatPromptSchema.extend({
-  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).optional(),
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 export type ChatPromptType =
