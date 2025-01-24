@@ -22,6 +22,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
+import { CodeExamples } from "@/src/features/prompts/components/code-snippets";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import { CommentList } from "@/src/features/comments/CommentList";
@@ -137,6 +138,36 @@ export const PromptDetail = () => {
   if (!promptHistory.data || !prompt) {
     return <div>Loading...</div>;
   }
+
+  const codeSnippets = {
+    Python: {
+      langCode: "py",
+      commentChar: "#",
+      snippets: [
+        `prompt = langfuse.get_prompt("${promptName}", label="latest")`,
+        `prompt = langfuse.get_prompt("${promptName}", version=1)`,
+        `prompt = langfuse.get_prompt("${promptName}", label="staging")`,
+        `compiled_prompt = prompt.compile(criticlevel="expert", movie="Dune 2")`,
+      ],
+    },
+    "JS/TS": {
+      langCode: "js",
+      commentChar: "//",
+      snippets: [
+        `const prompt = await langfuse.getPrompt("${promptName}", undefined, {label: "latest"});`,
+        `const prompt = await langfuse.getPrompt("${promptName}", 1);`,
+        `const prompt = await langfuse.getPrompt("${promptName}", undefined, {label: "staging"});`,
+        `const compiledChatPrompt = prompt.compile({criticlevel: "expert", movie: "Dune 2"});`,
+      ],
+    },
+  };
+
+  const codeDescriptions = [
+    "Fetch the latest production version",
+    "Fetch by version",
+    "Fetch by custom label you have defined",
+    "Compile prompts with variables",
+  ];
 
   return (
     <ScrollScreenPage>
@@ -298,22 +329,15 @@ export const PromptDetail = () => {
               )}
             </div>
           </div>
-
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
-          <p className="mt-6 text-xs text-muted-foreground">
-            Fetch prompts via Python or JS/TS SDKs. See{" "}
-            <a
-              href="https://langfuse.com/docs/prompts"
-              className="underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              documentation
-            </a>{" "}
-            for details.
-          </p>
+          <CodeExamples
+            title="Code samples for prompt management"
+            snippetLanguageConfig={codeSnippets}
+            descriptions={codeDescriptions}
+            docUrl="https://langfuse.com/docs/prompts"
+          />
           <Accordion type="single" collapsible className="mt-10">
             <AccordionItem value="item-1">
               <AccordionTrigger>
