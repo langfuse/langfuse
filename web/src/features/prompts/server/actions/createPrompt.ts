@@ -38,6 +38,7 @@ export const createPrompt = async ({
   createdBy,
   prisma,
   tags,
+  commitMessage,
 }: CreatePromptParams) => {
   const latestPrompt = await prisma.prompt.findFirst({
     where: { projectId, name },
@@ -67,6 +68,7 @@ export const createPrompt = async ({
         version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
         project: { connect: { id: projectId } },
         config: jsonSchema.parse(config),
+        commitMessage,
       },
     }),
   ];
@@ -166,6 +168,7 @@ export const duplicatePrompt = async ({
     tags: prompt.tags,
     projectId,
     createdBy,
+    commitMessage: prompt.commitMessage,
   }));
 
   // Create all prompts in a single operation

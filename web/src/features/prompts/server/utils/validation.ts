@@ -21,7 +21,7 @@ export const PromptLabelSchema = z
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
   );
 
-export const CreateTextPromptSchema = z.object({
+const LegacyCreateTextPromptSchema = z.object({
   name: z.string(),
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Text).optional(),
@@ -30,13 +30,21 @@ export const CreateTextPromptSchema = z.object({
   tags: z.array(z.string()).nullish(),
 });
 
-export const CreateChatPromptSchema = z.object({
+export const CreateTextPromptSchema = LegacyCreateTextPromptSchema.extend({
+  commitMessage: z.string().optional(),
+});
+
+const LegacyCreateChatPromptSchema = z.object({
   name: z.string(),
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema.nullable().default({}),
   tags: z.array(z.string()).nullish(),
+});
+
+export const CreateChatPromptSchema = LegacyCreateChatPromptSchema.extend({
+  commitMessage: z.string().optional(),
 });
 
 export const CreatePromptSchema = z.union([
@@ -97,6 +105,7 @@ export const TextPromptSchema = z.object({
   type: z.literal(PromptType.Text),
   prompt: z.string(),
   config: jsonSchema,
+  commitMessage: z.string().max(500).optional(),
 });
 
 export type TextPromptType =
@@ -117,6 +126,7 @@ export const ChatPromptSchema = z.object({
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema,
+  commitMessage: z.string().max(500).optional(),
 });
 
 export type ChatPromptType =
@@ -129,8 +139,8 @@ export type ValidatedPrompt = z.infer<typeof PromptSchema>;
 
 // Backward compat for V1 prompts endpoint
 export const LegacyCreatePromptSchema = z.union([
-  CreateTextPromptSchema.extend({ isActive: z.boolean() }),
-  CreateChatPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyCreateTextPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyCreateChatPromptSchema.extend({ isActive: z.boolean() }),
 ]);
 export const LegacyPromptSchema = z.union([
   TextPromptSchema.extend({ isActive: z.boolean() }),

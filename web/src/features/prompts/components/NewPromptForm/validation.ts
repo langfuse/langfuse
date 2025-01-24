@@ -8,6 +8,7 @@ const NewPromptBaseSchema = z.object({
     required_error: "Enter whether the prompt should go live",
   }),
   config: z.string().refine(validateJson, "Config needs to be valid JSON"),
+  commitMessage: z.string().trim().min(1).max(500).optional(),
 });
 
 const NewChatPromptSchema = NewPromptBaseSchema.extend({
