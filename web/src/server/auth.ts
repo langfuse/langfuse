@@ -184,6 +184,7 @@ if (
       clientId: env.AUTH_CUSTOM_CLIENT_ID,
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
+      idToken: env.AUTH_CUSTOM_ID_TOKEN !== "false",
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {

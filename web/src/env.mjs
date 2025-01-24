@@ -108,6 +108,7 @@ export const env = createEnv({
       ])
       .optional(),
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
@@ -365,6 +366,7 @@ export const env = createEnv({
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
+    AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
