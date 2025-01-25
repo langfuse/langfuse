@@ -180,6 +180,7 @@ export default withMiddlewares({
                 },
                 {
                   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+                  maxWait: 5000,
                 },
               );
             } catch (error) {
