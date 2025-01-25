@@ -1,6 +1,8 @@
 import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
+import { TokenCountDelegate } from "../ingestion/processEventBatch";
+import { AuthHeaderValidVerificationResult } from "../auth/types";
 
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
 
@@ -71,6 +73,7 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    error: z.string().optional(),
   })
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
@@ -163,3 +166,12 @@ export type LLMApiKey =
   z.infer<typeof LLMApiKeySchema> extends LlmApiKeys
     ? z.infer<typeof LLMApiKeySchema>
     : never;
+
+export type TraceParams = {
+  traceName: string;
+  traceId: string;
+  projectId: string;
+  tags: string[];
+  tokenCountDelegate: TokenCountDelegate;
+  authCheck: AuthHeaderValidVerificationResult;
+};

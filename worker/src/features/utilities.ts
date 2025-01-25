@@ -3,9 +3,16 @@ import {
   decryptAndParseExtraHeaders,
   fetchLLMCompletion,
   logger,
+  processEventBatch,
   type TraceParams,
+  createLangchainCallbackHandler,
 } from "@langfuse/shared/src/server";
-import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
+import {
+  ApiError,
+  BaseError,
+  LLMApiKeySchema,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import { z, ZodSchema } from "zod";
 import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
@@ -68,7 +75,7 @@ export async function callLLM(
   try {
     const { completion, processTracedEvents } = await fetchLLMCompletion({
       streaming: false,
-      apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
+      apiKey: decrypt(llmApiKey.secretKey),
       extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
       baseURL: llmApiKey.baseURL || undefined,
       messages,
@@ -90,12 +97,27 @@ export async function callLLM(
     }
 
     return completion;
-  } catch (e) {
-    logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, e);
-    throw new ApiError(
-      `Failed to call LLM: ${e}`,
-      (e as any)?.response?.status ?? (e as any)?.status,
-    );
+  } catch (error) {
+    logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, error);
+
+    // Create erroneous trace if we have traceParams
+    if (traceParams) {
+      const handler = createLangchainCallbackHandler(traceParams);
+
+      try {
+        const events = await handler.langfuse._exportLocalEvents(
+          traceParams.projectId,
+        );
+        await processEventBatch(
+          JSON.parse(JSON.stringify(events)),
+          traceParams.authCheck,
+        );
+      } catch (traceError) {
+        logger.error("Failed to process error trace", { error: traceError });
+      }
+    }
+
+    return error instanceof BaseError ? error.message : "Unknown error";
   }
 }
 

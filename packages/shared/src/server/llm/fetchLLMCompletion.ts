@@ -1,7 +1,5 @@
 import type { ZodSchema } from "zod";
 
-import { CallbackHandler } from "langfuse-langchain";
-
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
@@ -21,26 +19,20 @@ import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
-import {
-  processEventBatch,
-  type TokenCountDelegate,
-} from "../ingestion/processEventBatch";
+import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
-import { ChatMessage, ChatMessageRole, LLMAdapter, ModelParams } from "./types";
+import {
+  ChatMessage,
+  ChatMessageRole,
+  LLMAdapter,
+  ModelParams,
+  TraceParams,
+} from "./types";
 
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
+import { createLangchainCallbackHandler } from "./createLangchainCallbackHandler";
 
 type ProcessTracedEvents = () => Promise<void>;
-
-export type TraceParams = {
-  traceName: string;
-  traceId: string;
-  projectId: string;
-  tags: string[];
-  tokenCountDelegate: TokenCountDelegate;
-  authCheck: AuthHeaderValidVerificationResult;
-};
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -108,12 +100,7 @@ export async function fetchLLMCompletion(
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceParams) {
-    const handler = new CallbackHandler({
-      _projectId: traceParams.projectId,
-      _isLocalEventExportEnabled: true,
-      tags: traceParams.tags,
-    });
-
+    const handler = createLangchainCallbackHandler(traceParams);
     finalCallbacks.push(handler);
 
     processTracedEvents = async () => {
