@@ -181,7 +181,8 @@ export default withMiddlewares({
                 {
                   isolationLevel:
                     Prisma.TransactionIsolationLevel.RepeatableRead,
-                  maxWait: 5000,
+                  maxWait: 5_000,
+                  timeout: 10_000,
                 },
               );
             } catch (error) {
