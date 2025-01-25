@@ -105,9 +105,8 @@ export default withMiddlewares({
           contentLength,
         });
 
-        await Promise.all([
-          // Use raw upserts to avoid deadlocks
-          prisma.$queryRaw`
+        // Create media record first to ensure fkey constraint is met on next queries
+        await prisma.$queryRaw`
             INSERT INTO "media" (
                 "id", 
                 "project_id", 
@@ -132,19 +131,21 @@ export default withMiddlewares({
                 "bucket_path" = ${bucketPath},
                 "content_type" = ${contentType},
                 "content_length" = ${contentLength}
-          `,
-          observationId
-            ? prisma.$queryRaw`
+          `;
+
+        if (observationId) {
+          await prisma.$queryRaw`
                 INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
                 VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
                 ON CONFLICT DO NOTHING;
-            `
-            : prisma.$queryRaw`
+            `;
+        } else {
+          await prisma.$queryRaw`
                 INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
                 VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
                 ON CONFLICT DO NOTHING;
-            `,
-        ]);
+            `;
+        }
 
         return {
           mediaId,
