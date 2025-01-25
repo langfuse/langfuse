@@ -179,7 +179,8 @@ export default withMiddlewares({
                   };
                 },
                 {
-                  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+                  isolationLevel:
+                    Prisma.TransactionIsolationLevel.RepeatableRead,
                   maxWait: 5000,
                 },
               );
