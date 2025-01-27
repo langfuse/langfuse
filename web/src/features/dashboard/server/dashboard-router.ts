@@ -112,6 +112,7 @@ export const dashboardRouter = createTRPCRouter({
           if (!dateTrunc) {
             return [];
           }
+
           const rows = await groupTracesByTime(
             input.projectId,
             input.filter ?? [],
