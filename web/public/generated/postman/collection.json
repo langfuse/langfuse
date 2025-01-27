@@ -1068,7 +1068,7 @@
           "request": {
             "description": "Update labels for a specific prompt version",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName/version/:version",
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:name/versions/:version",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1077,14 +1077,14 @@
                 "public",
                 "v2",
                 "prompts",
-                ":promptName",
-                "version",
+                ":name",
+                "versions",
                 ":version"
               ],
               "query": [],
               "variable": [
                 {
-                  "key": "promptName",
+                  "key": "name",
                   "value": "",
                   "description": "The name of the prompt"
                 },

@@ -1234,7 +1234,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     // Try to set "latest" label
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}/prompt-1/version/1`,
+      `${baseURI}/prompt-1/versions/1`,
       {
         newLabels: ["latest"],
       },
@@ -1250,7 +1250,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/version/[version]", () => {
     // Try to update non-existing prompt
     const response = await makeAPICall(
       "PATCH",
-      `${baseURI}/non-existing-prompt/version/1`,
+      `${baseURI}/non-existing-prompt/versions/1`,
       {
         newLabels: ["production"],
       },

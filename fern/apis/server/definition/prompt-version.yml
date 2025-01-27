@@ -9,7 +9,7 @@ service:
     update:
       docs: Update labels for a specific prompt version
       method: PATCH
-      path: /prompts/{name}/version/{version}
+      path: /prompts/{name}/versions/{version}
       path-parameters:
         name:
           type: string
