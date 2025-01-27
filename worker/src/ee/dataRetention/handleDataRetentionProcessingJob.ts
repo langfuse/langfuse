@@ -80,7 +80,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     deleteOScoresOlderThanDays(projectId, retention),
   ]);
   logger.info(
-    `[Data Retention] Deleted ClickHouse data for project ${projectId}`,
+    `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,
   );
 
   // Set S3 Lifecycle for deletion (Future)
