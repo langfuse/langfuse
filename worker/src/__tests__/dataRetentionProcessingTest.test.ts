@@ -17,7 +17,6 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
-import { LangfuseNotFoundError } from "@langfuse/shared";
 
 describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
