@@ -3,9 +3,7 @@ import {
   decryptAndParseExtraHeaders,
   fetchLLMCompletion,
   logger,
-  processEventBatch,
   type TraceParams,
-  createLangchainCallbackHandler,
 } from "@langfuse/shared/src/server";
 import {
   ApiError,
@@ -26,10 +24,9 @@ export async function callStructuredLLM<T extends ZodSchema>(
   provider: string,
   model: string,
   structuredOutputSchema: T,
-  traceParams?: Omit<TraceParams, "tokenCountDelegate">,
 ): Promise<z.infer<T>> {
   try {
-    const { completion, processTracedEvents } = await fetchLLMCompletion({
+    const { completion } = await fetchLLMCompletion({
       streaming: false,
       apiKey: decrypt(llmApiKey.secretKey), // decrypt the secret key
       extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
@@ -43,15 +40,8 @@ export async function callStructuredLLM<T extends ZodSchema>(
       },
       structuredOutputSchema,
       config: llmApiKey.config,
-      traceParams: traceParams
-        ? { ...traceParams, tokenCountDelegate: tokenCount }
-        : undefined,
       maxRetries: 1,
     });
-
-    if (traceParams) {
-      await processTracedEvents();
-    }
 
     return structuredOutputSchema.parse(completion);
   } catch (e) {
@@ -64,7 +54,6 @@ export async function callStructuredLLM<T extends ZodSchema>(
 }
 
 export async function callLLM(
-  jeId: string,
   llmApiKey: z.infer<typeof LLMApiKeySchema>,
   messages: ChatMessage[],
   modelParams: z.infer<typeof ZodModelConfig>,
@@ -72,53 +61,31 @@ export async function callLLM(
   model: string,
   traceParams?: Omit<TraceParams, "tokenCountDelegate">,
 ): Promise<string> {
-  try {
-    const { completion, processTracedEvents } = await fetchLLMCompletion({
-      streaming: false,
-      apiKey: decrypt(llmApiKey.secretKey),
-      extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
-      baseURL: llmApiKey.baseURL || undefined,
-      messages,
-      modelParams: {
-        provider,
-        model,
-        adapter: llmApiKey.adapter,
-        ...modelParams,
-      },
-      config: llmApiKey.config,
-      traceParams: traceParams
-        ? { ...traceParams, tokenCountDelegate: tokenCount }
-        : undefined,
-      maxRetries: 1,
-    });
+  const { completion, processTracedEvents } = await fetchLLMCompletion({
+    streaming: false,
+    apiKey: decrypt(llmApiKey.secretKey),
+    extraHeaders: decryptAndParseExtraHeaders(llmApiKey.extraHeaders),
+    baseURL: llmApiKey.baseURL || undefined,
+    messages,
+    modelParams: {
+      provider,
+      model,
+      adapter: llmApiKey.adapter,
+      ...modelParams,
+    },
+    config: llmApiKey.config,
+    traceParams: traceParams
+      ? { ...traceParams, tokenCountDelegate: tokenCount }
+      : undefined,
+    maxRetries: 1,
+    throwOnError: false,
+  });
 
-    if (traceParams) {
-      await processTracedEvents();
-    }
-
-    return completion;
-  } catch (error) {
-    logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, error);
-
-    // Create erroneous trace if we have traceParams
-    if (traceParams) {
-      const handler = createLangchainCallbackHandler(traceParams);
-
-      try {
-        const events = await handler.langfuse._exportLocalEvents(
-          traceParams.projectId,
-        );
-        await processEventBatch(
-          JSON.parse(JSON.stringify(events)),
-          traceParams.authCheck,
-        );
-      } catch (traceError) {
-        logger.error("Failed to process error trace", { error: traceError });
-      }
-    }
-
-    return error instanceof BaseError ? error.message : "Unknown error";
+  if (traceParams) {
+    await processTracedEvents();
   }
+
+  return completion;
 }
 
 export function compileHandlebarString(

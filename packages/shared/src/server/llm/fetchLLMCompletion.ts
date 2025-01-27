@@ -28,9 +28,8 @@ import {
   ModelParams,
   TraceParams,
 } from "./types";
-
+import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { createLangchainCallbackHandler } from "./createLangchainCallbackHandler";
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -45,6 +44,7 @@ type LLMCompletionParams = {
   maxRetries?: number;
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
+  throwOnError?: boolean; // default is true
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -94,13 +94,18 @@ export async function fetchLLMCompletion(
     config,
     traceParams,
     extraHeaders,
+    throwOnError = true,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
   if (traceParams) {
-    const handler = createLangchainCallbackHandler(traceParams);
+    const handler = new CallbackHandler({
+      _projectId: traceParams.projectId,
+      _isLocalEventExportEnabled: true,
+      tags: traceParams.tags,
+    });
     finalCallbacks.push(handler);
 
     processTracedEvents = async () => {
@@ -123,7 +128,7 @@ export async function fetchLLMCompletion(
   let finalMessages: BaseMessage[];
   // VertexAI requires at least 1 user message
   if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    finalMessages = [new HumanMessage(messages[0].content)];
+    finalMessages = [new SystemMessage(messages[0].content)];
   } else {
     finalMessages = messages.map((message) => {
       if (message.role === ChatMessageRole.User)
@@ -226,16 +231,17 @@ export async function fetchLLMCompletion(
     runName: traceParams?.traceName,
   };
 
-  if (params.structuredOutputSchema) {
-    return {
-      completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-        .withStructuredOutput(params.structuredOutputSchema)
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  }
+  try {
+    if (params.structuredOutputSchema) {
+      return {
+        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+          .withStructuredOutput(params.structuredOutputSchema)
+          .invoke(finalMessages, runConfig),
+        processTracedEvents,
+      };
+    }
 
-  /*
+    /*
   Workaround OpenAI o1 while in beta:
   
   This is a temporary workaround to avoid sending system messages to OpenAI's O1 models.
@@ -247,43 +253,49 @@ export async function fetchLLMCompletion(
 
   Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
   */
-  if (modelParams.model.startsWith("o1-")) {
-    return {
-      completion: await new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName: modelParams.model,
-        temperature: 1,
-        maxTokens: undefined,
-        topP: undefined,
-        callbacks,
-        maxRetries,
-        configuration: {
-          baseURL,
-        },
-        timeout: 1000 * 60 * 2, // 2 minutes timeout
-      })
-        .pipe(new StringOutputParser())
-        .invoke(
-          finalMessages.filter((message) => message._getType() !== "system"),
-          runConfig,
-        ),
-      processTracedEvents,
-    };
-  }
+    if (modelParams.model.startsWith("o1-")) {
+      return {
+        completion: await new ChatOpenAI({
+          openAIApiKey: apiKey,
+          modelName: modelParams.model,
+          temperature: 1,
+          maxTokens: undefined,
+          topP: undefined,
+          callbacks,
+          maxRetries,
+          configuration: {
+            baseURL,
+          },
+          timeout: 1000 * 60 * 2, // 2 minutes timeout
+        })
+          .pipe(new StringOutputParser())
+          .invoke(
+            finalMessages.filter((message) => message._getType() !== "system"),
+            runConfig,
+          ),
+        processTracedEvents,
+      };
+    }
 
-  if (streaming) {
+    if (streaming) {
+      return {
+        completion: await chatModel
+          .pipe(new BytesOutputParser())
+          .stream(finalMessages, runConfig),
+        processTracedEvents,
+      };
+    }
+
     return {
       completion: await chatModel
-        .pipe(new BytesOutputParser())
-        .stream(finalMessages, runConfig),
+        .pipe(new StringOutputParser())
+        .invoke(finalMessages, runConfig),
       processTracedEvents,
     };
+  } catch (error) {
+    if (throwOnError) {
+      throw error;
+    }
+    return { completion: null, processTracedEvents };
   }
-
-  return {
-    completion: await chatModel
-      .pipe(new StringOutputParser())
-      .invoke(finalMessages, runConfig),
-    processTracedEvents,
-  };
 }

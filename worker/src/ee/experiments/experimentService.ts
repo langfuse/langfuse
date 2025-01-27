@@ -277,7 +277,6 @@ export const createExperimentJob = async ({
     await backOff(
       async () =>
         await callLLM(
-          datasetItem.id,
           validatedApiKey.data,
           messages,
           model_params,
