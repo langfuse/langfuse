@@ -154,22 +154,15 @@ describe("create experiment jobs", () => {
       runId,
     };
 
-    await createExperimentJob({ event: payload });
-
-    const datasetRun = await kyselyPrisma.$kysely
-      .selectFrom("dataset_runs")
-      .selectAll()
-      .where("id", "=", runId)
-      .executeTakeFirst();
-
-    expect(datasetRun?.metadata).toContain(
-      "Langfuse in-app experiments can only be run with available model and prompt configurations",
+    await expect(createExperimentJob({ event: payload })).rejects.toThrow(
+      /Langfuse in-app experiments can only be run with prompt and model configurations in metadata./,
     );
 
     const runItems = await kyselyPrisma.$kysely
       .selectFrom("dataset_run_items")
       .selectAll()
       .where("project_id", "=", projectId)
+      .where("dataset_run_id", "=", runId)
       .execute();
 
     expect(runItems.length).toBe(0);
@@ -403,7 +396,6 @@ describe("create experiment job calls with langfuse server side tracing", async 
 
     // Verify callLLM was called with correct trace parameters
     expect(callLLM).toHaveBeenCalledWith(
-      expect.any(String),
       expect.any(Object),
       expect.any(Array),
       expect.any(Object),
