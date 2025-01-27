@@ -5,15 +5,11 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   orderByToClickhouseSql,
   type DateTimeFilter,
-  parseClickhouseUTCDateTimeFormat,
+  convertClickhouseToDomain,
+  type TraceRecordReadType,
 } from "@langfuse/shared/src/server";
-import {
-  convertRecordToJsonSchema,
-  type OrderByState,
-  type Trace,
-} from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
-import { type JsonValue } from "@prisma/client/runtime/binary";
 
 type QueryType = {
   page: number;
@@ -82,22 +78,21 @@ export const generateTracesForPublicApi = async (
     SELECT
       t.id as id,
       CONCAT('/project/', t.project_id, '/traces/', t.id) as "htmlPath",
-      t.project_id as projectId,
+      t.project_id as project_id,
       t.timestamp as timestamp,
       t.name as name,
       t.input as input,
       t.output as output,
-      null as externalId,
-      t.session_id as sessionId,
+      t.session_id as session_id,
       t.metadata as metadata,
-      t.user_id as userId,
+      t.user_id as user_id,
       t.release as release,
       t.version as version,
       t.bookmarked as bookmarked,
       t.public as public,
       t.tags as tags,
-      t.created_at as createdAt,
-      t.updated_at as updatedAt,
+      t.created_at as created_at,
+      t.updated_at as updated_at,
       s.score_ids as scores,
       o.observation_ids as observations,
       COALESCE(o.latency_milliseconds / 1000, 0) as latency,
@@ -113,7 +108,7 @@ export const generateTracesForPublicApi = async (
   `;
 
   const result = await queryClickhouse<
-    Trace & {
+    TraceRecordReadType & {
       observations: string[];
       scores: string[];
       totalCost: number;
@@ -138,14 +133,12 @@ export const generateTracesForPublicApi = async (
   });
 
   return result.map((trace) => ({
-    ...trace,
-    timestamp: parseClickhouseUTCDateTimeFormat(trace.timestamp.toString()),
-    createdAt: parseClickhouseUTCDateTimeFormat(trace.createdAt.toString()),
-    updatedAt: parseClickhouseUTCDateTimeFormat(trace.updatedAt.toString()),
-    // Parse metadata values to JSON and make TypeScript happy
-    metadata: convertRecordToJsonSchema(
-      (trace.metadata as Record<string, string>) || {},
-    ) as JsonValue,
+    ...convertClickhouseToDomain(trace),
+    observations: trace.observations,
+    scores: trace.scores,
+    totalCost: trace.totalCost,
+    latency: trace.latency,
+    htmlPath: trace.htmlPath,
   }));
 };
 
