@@ -1,7 +1,5 @@
 import type { ZodSchema } from "zod";
 
-import { CallbackHandler } from "langfuse-langchain";
-
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
@@ -21,26 +19,19 @@ import GCPServiceAccountKeySchema, {
   BedrockConfigSchema,
   BedrockCredentialSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
-import {
-  processEventBatch,
-  type TokenCountDelegate,
-} from "../ingestion/processEventBatch";
+import { processEventBatch } from "../ingestion/processEventBatch";
 import { logger } from "../logger";
-import { ChatMessage, ChatMessageRole, LLMAdapter, ModelParams } from "./types";
-
+import {
+  ChatMessage,
+  ChatMessageRole,
+  LLMAdapter,
+  ModelParams,
+  TraceParams,
+} from "./types";
+import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 
 type ProcessTracedEvents = () => Promise<void>;
-
-export type TraceParams = {
-  traceName: string;
-  traceId: string;
-  projectId: string;
-  tags: string[];
-  tokenCountDelegate: TokenCountDelegate;
-  authCheck: AuthHeaderValidVerificationResult;
-};
 
 type LLMCompletionParams = {
   messages: ChatMessage[];
@@ -53,6 +44,7 @@ type LLMCompletionParams = {
   maxRetries?: number;
   config?: Record<string, string> | null;
   traceParams?: TraceParams;
+  throwOnError?: boolean; // default is true
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -102,6 +94,7 @@ export async function fetchLLMCompletion(
     config,
     traceParams,
     extraHeaders,
+    throwOnError = true,
   } = params;
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
@@ -113,7 +106,6 @@ export async function fetchLLMCompletion(
       _isLocalEventExportEnabled: true,
       tags: traceParams.tags,
     });
-
     finalCallbacks.push(handler);
 
     processTracedEvents = async () => {
@@ -239,16 +231,17 @@ export async function fetchLLMCompletion(
     runName: traceParams?.traceName,
   };
 
-  if (params.structuredOutputSchema) {
-    return {
-      completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-        .withStructuredOutput(params.structuredOutputSchema)
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  }
+  try {
+    if (params.structuredOutputSchema) {
+      return {
+        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+          .withStructuredOutput(params.structuredOutputSchema)
+          .invoke(finalMessages, runConfig),
+        processTracedEvents,
+      };
+    }
 
-  /*
+    /*
   Workaround OpenAI o1 while in beta:
   
   This is a temporary workaround to avoid sending system messages to OpenAI's O1 models.
@@ -260,43 +253,49 @@ export async function fetchLLMCompletion(
 
   Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
   */
-  if (modelParams.model.startsWith("o1-")) {
-    return {
-      completion: await new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName: modelParams.model,
-        temperature: 1,
-        maxTokens: undefined,
-        topP: undefined,
-        callbacks,
-        maxRetries,
-        configuration: {
-          baseURL,
-        },
-        timeout: 1000 * 60 * 2, // 2 minutes timeout
-      })
-        .pipe(new StringOutputParser())
-        .invoke(
-          finalMessages.filter((message) => message._getType() !== "system"),
-          runConfig,
-        ),
-      processTracedEvents,
-    };
-  }
+    if (modelParams.model.startsWith("o1-")) {
+      return {
+        completion: await new ChatOpenAI({
+          openAIApiKey: apiKey,
+          modelName: modelParams.model,
+          temperature: 1,
+          maxTokens: undefined,
+          topP: undefined,
+          callbacks,
+          maxRetries,
+          configuration: {
+            baseURL,
+          },
+          timeout: 1000 * 60 * 2, // 2 minutes timeout
+        })
+          .pipe(new StringOutputParser())
+          .invoke(
+            finalMessages.filter((message) => message._getType() !== "system"),
+            runConfig,
+          ),
+        processTracedEvents,
+      };
+    }
 
-  if (streaming) {
+    if (streaming) {
+      return {
+        completion: await chatModel
+          .pipe(new BytesOutputParser())
+          .stream(finalMessages, runConfig),
+        processTracedEvents,
+      };
+    }
+
     return {
       completion: await chatModel
-        .pipe(new BytesOutputParser())
-        .stream(finalMessages, runConfig),
+        .pipe(new StringOutputParser())
+        .invoke(finalMessages, runConfig),
       processTracedEvents,
     };
+  } catch (error) {
+    if (throwOnError) {
+      throw error;
+    }
+    return { completion: null, processTracedEvents };
   }
-
-  return {
-    completion: await chatModel
-      .pipe(new StringOutputParser())
-      .invoke(finalMessages, runConfig),
-    processTracedEvents,
-  };
 }

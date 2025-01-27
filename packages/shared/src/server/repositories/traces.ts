@@ -442,6 +442,27 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
+export const deleteTracesOlderThanDays = async (
+  projectId: string,
+  days: number,
+) => {
+  const query = `
+    DELETE FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp < now() - INTERVAL {numDays: Int} DAYS;
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      numDays: days,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
 export const deleteTracesByProjectId = async (projectId: string) => {
   const query = `
     DELETE FROM traces
