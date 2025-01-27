@@ -410,7 +410,7 @@ export const cloudBillingRouter = createTRPCRouter({
               upcomingInvoice,
             };
           } catch (e) {
-            logger.warning(
+            logger.error(
               "Failed to get usage from Stripe, using usage from Clickhouse",
               {
                 error: e,
