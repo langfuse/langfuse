@@ -1,6 +1,26 @@
 import { z } from "zod";
 import { createEnv } from "@t3-oss/env-nextjs";
 
+const zAuthMethod = z
+  .enum([
+    "client_secret_basic",
+    "client_secret_post",
+    "client_secret_jwt",
+    "private_key_jwt",
+    "tls_client_auth",
+    "self_signed_tls_client_auth",
+    "none",
+  ])
+  .optional()
+  .default("client_secret_basic");
+
+
+const zAuthChecks = z
+  .string()
+  .optional()
+  .transform((s) => s?.split(",").map((s) => s.trim()))
+  .pipe(z.array(z.enum(["nonce", "none", "pkce", "state"])).optional());
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -58,55 +78,64 @@ export const env = createEnv({
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
     AUTH_GOOGLE_ALLOWED_DOMAINS: z.string().optional(),
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GOOGLE_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_GOOGLE_CHECKS: zAuthChecks,
     AUTH_GITHUB_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_GITHUB_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_GITHUB_CHECKS: zAuthChecks,
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_BASE_URL: z.string().optional(),
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING: z
       .enum(["true", "false"])
       .optional(),
+    AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_GITHUB_ENTERPRISE_CHECKS: zAuthChecks,
     AUTH_GITLAB_CLIENT_ID: z.string().optional(),
     AUTH_GITLAB_CLIENT_SECRET: z.string().optional(),
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_GITLAB_ISSUER: z.string().optional(),
+    AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_GITLAB_CHECKS: zAuthChecks,
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_AZURE_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AZURE_CHECKS: zAuthChecks,
     AUTH_OKTA_CLIENT_ID: z.string().optional(),
     AUTH_OKTA_CLIENT_SECRET: z.string().optional(),
     AUTH_OKTA_ISSUER: z.string().optional(),
     AUTH_OKTA_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_OKTA_CHECKS: zAuthChecks,
+    AUTH_OKTA_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CLIENT_ID: z.string().optional(),
     AUTH_AUTH0_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTH0_ISSUER: z.string().url().optional(),
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTH0_CHECKS: zAuthChecks,
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_COGNITO_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_COGNITO_CHECKS: zAuthChecks,
     AUTH_KEYCLOAK_CLIENT_ID: z.string().optional(),
     AUTH_KEYCLOAK_CLIENT_SECRET: z.string().optional(),
     AUTH_KEYCLOAK_ISSUER: z.string().optional(),
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_KEYCLOAK_CHECKS: zAuthChecks,
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.string().url().optional(),
     AUTH_CUSTOM_NAME: z.string().optional(),
     AUTH_CUSTOM_SCOPE: z.string().optional(),
-    AUTH_CUSTOM_CLIENT_AUTH_METHOD: z
-      .enum([
-        "client_secret_basic",
-        "client_secret_post",
-        "client_secret_jwt",
-        "private_key_jwt",
-        "tls_client_auth",
-        "self_signed_tls_client_auth",
-        "none",
-      ])
-      .optional(),
+    AUTH_CUSTOM_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_CUSTOM_CHECKS: zAuthChecks,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
@@ -318,10 +347,14 @@ export const env = createEnv({
     AUTH_GOOGLE_ALLOWED_DOMAINS: process.env.AUTH_GOOGLE_ALLOWED_DOMAINS,
     AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING,
+    AUTH_GOOGLE_CLIENT_AUTH_METHOD: process.env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+    AUTH_GOOGLE_CHECKS: process.env.AUTH_GOOGLE_CHECKS,
     AUTH_GITHUB_CLIENT_ID: process.env.AUTH_GITHUB_CLIENT_ID,
     AUTH_GITHUB_CLIENT_SECRET: process.env.AUTH_GITHUB_CLIENT_SECRET,
     AUTH_GITHUB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITHUB_CLIENT_AUTH_METHOD: process.env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
+    AUTH_GITHUB_CHECKS: process.env.AUTH_GITHUB_CHECKS,
     AUTH_GITHUB_ENTERPRISE_CLIENT_ID:
       process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
     AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET:
@@ -330,42 +363,58 @@ export const env = createEnv({
       process.env.AUTH_GITHUB_ENTERPRISE_BASE_URL,
     AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD:
+      process.env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
+    AUTH_GITHUB_ENTERPRISE_CHECKS: process.env.AUTH_GITHUB_ENTERPRISE_CHECKS,
     AUTH_GITLAB_ISSUER: process.env.AUTH_GITLAB_ISSUER,
     AUTH_GITLAB_CLIENT_ID: process.env.AUTH_GITLAB_CLIENT_ID,
     AUTH_GITLAB_CLIENT_SECRET: process.env.AUTH_GITLAB_CLIENT_SECRET,
     AUTH_GITLAB_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
+    AUTH_GITLAB_CLIENT_AUTH_METHOD: process.env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+    AUTH_GITLAB_CHECKS: process.env.AUTH_GITLAB_CHECKS,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
     AUTH_AZURE_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING,
+    AUTH_AZURE_CLIENT_AUTH_METHOD: process.env.AUTH_AZURE_CLIENT_AUTH_METHOD,
+    AUTH_AZURE_CHECKS: process.env.AUTH_AZURE_CHECKS,
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
     AUTH_OKTA_CLIENT_SECRET: process.env.AUTH_OKTA_CLIENT_SECRET,
     AUTH_OKTA_ISSUER: process.env.AUTH_OKTA_ISSUER,
     AUTH_OKTA_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING,
+    AUTH_OKTA_CLIENT_AUTH_METHOD: process.env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+    AUTH_OKTA_CHECKS: process.env.AUTH_OKTA_CHECKS,
     AUTH_AUTH0_CLIENT_ID: process.env.AUTH_AUTH0_CLIENT_ID,
     AUTH_AUTH0_CLIENT_SECRET: process.env.AUTH_AUTH0_CLIENT_SECRET,
     AUTH_AUTH0_ISSUER: process.env.AUTH_AUTH0_ISSUER,
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
+    AUTH_AUTH0_CLIENT_AUTH_METHOD: process.env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+    AUTH_AUTH0_CHECKS: process.env.AUTH_AUTH0_CHECKS,
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
     AUTH_COGNITO_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING,
+    AUTH_COGNITO_CLIENT_AUTH_METHOD: process.env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+    AUTH_COGNITO_CHECKS: process.env.AUTH_COGNITO_CHECKS,
     AUTH_KEYCLOAK_CLIENT_ID: process.env.AUTH_KEYCLOAK_CLIENT_ID,
     AUTH_KEYCLOAK_CLIENT_SECRET: process.env.AUTH_KEYCLOAK_CLIENT_SECRET,
     AUTH_KEYCLOAK_ISSUER: process.env.AUTH_KEYCLOAK_ISSUER,
     AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING,
+    AUTH_KEYCLOAK_CLIENT_AUTH_METHOD: process.env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+    AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,
     AUTH_CUSTOM_NAME: process.env.AUTH_CUSTOM_NAME,
     AUTH_CUSTOM_SCOPE: process.env.AUTH_CUSTOM_SCOPE,
     AUTH_CUSTOM_CLIENT_AUTH_METHOD: process.env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+    AUTH_CUSTOM_CHECKS: process.env.AUTH_CUSTOM_CHECKS,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
