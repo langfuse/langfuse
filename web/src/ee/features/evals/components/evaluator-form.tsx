@@ -69,7 +69,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 const formSchema = z.object({
   scoreName: z.string(),
   target: z.string(),
-  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().optional().default(10),
