@@ -128,7 +128,7 @@ export async function fetchLLMCompletion(
   let finalMessages: BaseMessage[];
   // VertexAI requires at least 1 user message
   if (modelParams.adapter === LLMAdapter.VertexAI && messages.length === 1) {
-    finalMessages = [new SystemMessage(messages[0].content)];
+    finalMessages = [new HumanMessage(messages[0].content)];
   } else {
     finalMessages = messages.map((message) => {
       if (message.role === ChatMessageRole.User)
