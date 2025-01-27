@@ -1,6 +1,6 @@
 import {
   deleteObservationsOlderThanDays,
-  deleteOScoresOlderThanDays,
+  deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
   logger,
   StorageService,
@@ -77,7 +77,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   await Promise.all([
     deleteTracesOlderThanDays(projectId, retention),
     deleteObservationsOlderThanDays(projectId, retention),
-    deleteOScoresOlderThanDays(projectId, retention),
+    deleteScoresOlderThanDays(projectId, retention),
   ]);
   logger.info(
     `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,

@@ -536,7 +536,7 @@ export const deleteScoresByProjectId = async (projectId: string) => {
   });
 };
 
-export const deleteOScoresOlderThanDays = async (
+export const deleteScoresOlderThanDays = async (
   projectId: string,
   days: number,
 ) => {
