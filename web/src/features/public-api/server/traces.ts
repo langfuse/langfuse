@@ -6,7 +6,7 @@ import {
   orderByToClickhouseSql,
   type DateTimeFilter,
   convertClickhouseToDomain,
-  TraceRecordReadType,
+  type TraceRecordReadType,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
