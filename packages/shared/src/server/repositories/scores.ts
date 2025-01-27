@@ -536,6 +536,27 @@ export const deleteScoresByProjectId = async (projectId: string) => {
   });
 };
 
+export const deleteScoresOlderThanDays = async (
+  projectId: string,
+  days: number,
+) => {
+  const query = `
+    DELETE FROM scores
+    WHERE project_id = {projectId: String}
+    AND timestamp < now() - INTERVAL {numDays: Int} DAYS;
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      numDays: days,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
 export const getNumericScoreHistogram = async (
   projectId: string,
   filter: FilterState,
