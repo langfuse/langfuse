@@ -5,13 +5,11 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   orderByToClickhouseSql,
   type DateTimeFilter,
-  parseClickhouseUTCDateTimeFormat,
   convertClickhouseToDomain,
   TraceRecordReadType,
 } from "@langfuse/shared/src/server";
-import { convertRecordToJsonSchema, type OrderByState } from "@langfuse/shared";
+import { type OrderByState } from "@langfuse/shared";
 import { snakeCase } from "lodash";
-import { type JsonValue } from "@prisma/client/runtime/binary";
 
 type QueryType = {
   page: number;
