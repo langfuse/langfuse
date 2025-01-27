@@ -737,7 +737,7 @@ paths:
         - Ingestion
       parameters: []
       responses:
-        '200':
+        '207':
           description: ''
           content:
             application/json:
