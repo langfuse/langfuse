@@ -7,7 +7,7 @@ import {
   ObservationLevel,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useRef, useEffect } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -298,6 +298,23 @@ const ObservationTreeNodeCard = ({
   const duration = observation.endTime
     ? observation.endTime.getTime() - observation.startTime.getTime()
     : undefined;
+
+  // On initial render, scroll node into view if it's the current observation
+  const currentObservationRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (
+      currentObservationId &&
+      currentObservationRef.current &&
+      currentObservationId === observation.id
+    ) {
+      currentObservationRef.current.scrollIntoView({
+        behavior: "smooth",
+      });
+    }
+    // Should only trigger a single time on initial render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentObservationRef.current]);
+
   return (
     <div className="flex">
       {Array.from({ length: indentationLevel }, (_, i) => (
@@ -310,6 +327,7 @@ const ObservationTreeNodeCard = ({
             ? "bg-muted"
             : "hover:bg-primary-foreground",
         )}
+        ref={currentObservationRef}
         onClick={() => setCurrentObservationId(observation.id)}
       >
         <div className="flex gap-2">
