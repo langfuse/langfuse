@@ -154,8 +154,16 @@ describe("create experiment jobs", () => {
       runId,
     };
 
-    await expect(createExperimentJob({ event: payload })).rejects.toThrow(
-      /Langfuse in-app experiments can only be run with available model and prompt configurations/,
+    await createExperimentJob({ event: payload });
+
+    const datasetRun = await kyselyPrisma.$kysely
+      .selectFrom("dataset_runs")
+      .selectAll()
+      .where("id", "=", runId)
+      .executeTakeFirst();
+
+    expect(datasetRun?.metadata).toContain(
+      "Langfuse in-app experiments can only be run with available model and prompt configurations",
     );
 
     const runItems = await kyselyPrisma.$kysely
