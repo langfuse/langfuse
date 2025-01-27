@@ -737,7 +737,7 @@ paths:
         - Ingestion
       parameters: []
       responses:
-        '200':
+        '207':
           description: ''
           content:
             application/json:
@@ -2012,7 +2012,9 @@ paths:
           schema:
             type: array
             items:
-              type: string
+              type: array
+              items:
+                type: string
               nullable: true
       responses:
         '200':
@@ -3716,8 +3718,8 @@ components:
         costDetails:
           type: object
           additionalProperties:
-            type: number
-            format: double
+            type: integer
+            format: float
           nullable: true
         promptName:
           type: string
@@ -3755,8 +3757,8 @@ components:
         costDetails:
           type: object
           additionalProperties:
-            type: number
-            format: double
+            type: integer
+            format: float
           nullable: true
         promptVersion:
           type: integer
