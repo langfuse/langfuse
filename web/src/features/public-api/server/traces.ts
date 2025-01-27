@@ -61,9 +61,8 @@ export const generateTracesForPublicApi = async (
   // applies only to a stale value.
   const chOrderBy =
     (orderByToClickhouseSql(orderBy || [], orderByColumns) ||
-      "ORDER BY t.timestamp desc") + shouldUseSkipIndexes
-      ? ", t.event_ts desc"
-      : "";
+      "ORDER BY t.timestamp desc") +
+    (shouldUseSkipIndexes ? ", t.event_ts desc" : "");
 
   const query = `
     WITH observation_stats AS (
