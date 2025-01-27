@@ -402,13 +402,7 @@ export const evaluate = async ({
     );
   }
 
-  const messages = [
-    {
-      role: ChatMessageRole.System,
-      content: "You are an expert at evaluating LLM outputs.",
-    },
-    { role: ChatMessageRole.User, content: prompt },
-  ];
+  const messages = [{ role: ChatMessageRole.User, content: prompt }];
 
   const parsedLLMOutput = await backOff(
     async () =>
