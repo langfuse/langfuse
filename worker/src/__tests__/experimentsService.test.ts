@@ -345,15 +345,19 @@ describe("create experiment job calls with langfuse server side tracing", async 
     vi.spyOn(kyselyPrisma.$kysely, "selectFrom").mockImplementation(
       (table) =>
         ({
-          selectAll: () => ({
-            where: () => ({
-              where: () => ({
-                executeTakeFirstOrThrow: () =>
-                  // Return different mock data based on the table being queried
-                  table === "dataset_runs"
-                    ? mockDatasetRunResponse
-                    : mockPromptResponse,
-              }),
+          selectAll: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnThis(), // This allows for infinite where chaining
+            executeTakeFirst: vi.fn().mockImplementation(() => {
+              // Different responses based on table
+              if (table === "dataset_run_items") {
+                return Promise.resolve(null); // For the 3-where query
+              }
+              if (table === "dataset_runs") {
+                return Promise.resolve(mockDatasetRunResponse);
+              }
+              if (table === "prompts") {
+                return Promise.resolve(mockPromptResponse);
+              }
             }),
           }),
         }) as any,
