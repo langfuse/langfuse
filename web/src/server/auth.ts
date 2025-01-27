@@ -181,6 +181,10 @@ if (
       authorization: {
         params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
       },
+      client: {
+        token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_CUSTOM_CHECKS,
     }),
   );
 
@@ -191,6 +195,10 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GOOGLE_CHECKS,
     }),
   );
 
@@ -206,6 +214,10 @@ if (
       issuer: env.AUTH_OKTA_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_OKTA_CHECKS,
     }),
   );
 
@@ -221,6 +233,10 @@ if (
       issuer: env.AUTH_AUTH0_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_AUTH0_CHECKS,
     }),
   );
 
@@ -231,6 +247,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GITHUB_CHECKS,
     }),
   );
 
@@ -246,6 +266,11 @@ if (
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS,
     }),
   );
 }
@@ -258,6 +283,10 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       allowDangerousEmailAccountLinking:
         env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING === "true",
       issuer: env.AUTH_GITLAB_ISSUER,
+      client: {
+        token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GITLAB_CHECKS,
     }),
   );
 
@@ -273,6 +302,10 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AZURE_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_AZURE_CHECKS,
     }),
   );
 
@@ -286,9 +319,12 @@ if (
       clientId: env.AUTH_COGNITO_CLIENT_ID,
       clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
       issuer: env.AUTH_COGNITO_ISSUER,
-      checks: "nonce",
+      checks: env.AUTH_COGNITO_CHECKS ?? "nonce",
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+      },
     }),
   );
 
@@ -304,6 +340,10 @@ if (
       issuer: env.AUTH_KEYCLOAK_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_KEYCLOAK_CHECKS,
     }),
   );
 
