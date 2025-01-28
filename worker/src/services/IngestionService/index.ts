@@ -384,7 +384,7 @@ export class IngestionService {
       clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
     mergedObservationRecord.level = mergedObservationRecord.level ?? "DEFAULT";
 
-    // Search for the first non-null input and output in the trace events and set them on the merged result.
+    // Search for the first non-null input and output in the observation events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
     mergedObservationRecord.input = this.stringify(
