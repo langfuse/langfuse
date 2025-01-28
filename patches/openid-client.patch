@@ -1,0 +1,13 @@
+diff --git a/lib/helpers/process_response.js b/lib/helpers/process_response.js
+index 7dad56556f717a3e4cd72b4d4599af90538ab385..d9b9dc990784c6b9b306130dc901063a31226364 100644
+--- a/lib/helpers/process_response.js
++++ b/lib/helpers/process_response.js
+@@ -29,7 +29,7 @@ const isStandardBodyError = (response) => {
+ };
+ 
+ function processResponse(response, { statusCode = 200, body = true, bearer = false } = {}) {
+-  if (response.statusCode !== statusCode) {
++  if (response.statusCode >= 400) {
+     if (bearer) {
+       throwAuthenticateErrors(response);
+     }
