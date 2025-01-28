@@ -131,20 +131,32 @@ export const ModelUsageChart = ({
       model: string;
     }[]
   >();
-
   queryResult.data?.forEach((row) => {
-    for (const [key, value] of Object.entries(row.units ?? {})) {
-      usageTypeMap.set(key, [
-        ...(usageTypeMap.get(key) ?? []),
-        {
-          ...row,
-          units: value,
-          cost: Number(row.cost?.[key as keyof typeof row.cost]),
-          usageType: key,
-          model: row.model as string,
-        },
+    const units = row.units ?? {};
+    const costs = row.cost ?? {};
+    const model = row.model as string;
+
+    // Get all known usage types, including existing ones from the map
+    const allUsageTypes = new Set([
+      ...Object.keys(units),
+      ...Array.from(usageTypeMap.keys()),
+    ]);
+
+    // Process each usage type once
+    allUsageTypes.forEach((usageType) => {
+      const entry = {
+        ...row,
+        units: Number(units[usageType as keyof typeof units]) ?? 0,
+        cost: Number(costs[usageType as keyof typeof costs]) ?? 0,
+        usageType,
+        model,
+      };
+
+      usageTypeMap.set(usageType, [
+        ...(usageTypeMap.get(usageType) ?? []),
+        entry,
       ]);
-    }
+    });
   });
 
   const usageData = Array.from(usageTypeMap.values()).flat();
@@ -164,6 +176,8 @@ export const ModelUsageChart = ({
           Array.from(usageTypeMap.keys()),
         )
       : [];
+
+  console.log("unitsByType", unitsByType);
 
   const unitsByModel =
     usageData && allModels.length > 0
@@ -261,6 +275,7 @@ export const ModelUsageChart = ({
     },
   ];
 
+  console.log("data", data, queryResult.isLoading, selectedModels.length);
   return (
     <DashboardCard
       className={className}
@@ -347,6 +362,7 @@ export const ModelUsageChart = ({
                     agg={agg}
                     data={item.data}
                     showLegend={true}
+                    connectNulls={true}
                     valueFormatter={item.formatter}
                   />
                 )}

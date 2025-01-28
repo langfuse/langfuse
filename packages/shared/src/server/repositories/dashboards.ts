@@ -145,7 +145,6 @@ export const getScoreAggregate = async (
 export const groupTracesByTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -155,8 +154,6 @@ export const groupTracesByTime = async (
     filter,
     "timestamp",
   );
-
-  console.log("huhu", orderByQuery, orderByParams);
 
   const query = `
     SELECT 
@@ -192,7 +189,6 @@ export const groupTracesByTime = async (
 export const getObservationUsageByTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -229,8 +225,6 @@ export const getObservationUsageByTime = async (
     GROUP BY start_time, provided_model_name
     ${orderByQuery}
     `;
-
-  console.log("hehe", query, orderByParams);
 
   const result = await queryClickhouse<{
     start_time: string;
@@ -314,7 +308,6 @@ export const getDistinctModels = async (
 export const getScoresAggregateOverTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -530,7 +523,6 @@ export const getTracesLatencies = async (
 export const getModelLatenciesOverTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -582,7 +574,6 @@ export const getModelLatenciesOverTime = async (
 export const getNumericScoreTimeSeries = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -626,7 +617,6 @@ export const getNumericScoreTimeSeries = async (
 export const getCategoricalScoreTimeSeries = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc | undefined,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -635,9 +625,10 @@ export const getCategoricalScoreTimeSeries = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
-  const [orderByQuery, orderByParams, bucketSizeInSeconds] = groupBy
-    ? orderByTimeSeries(filter, "score_timestamp")
-    : [undefined, undefined, undefined];
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "score_timestamp",
+  );
 
   const query = `
     SELECT
@@ -675,7 +666,6 @@ export const getCategoricalScoreTimeSeries = async (
 export const getObservationsStatusTimeSeries = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc | undefined,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -684,9 +674,10 @@ export const getObservationsStatusTimeSeries = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
-  const [orderByQuery, orderByParams, bucketSizeInSeconds] = groupBy
-    ? orderByTimeSeries(filter, "start_time_bucket")
-    : [undefined, undefined];
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "start_time_bucket",
+  );
 
   const query = `
     SELECT 
@@ -698,7 +689,7 @@ export const getObservationsStatusTimeSeries = async (
     WHERE project_id = {projectId: String}
     AND o.level IS NOT NULL
     AND ${chFilterRes?.query}
-    GROUP BY level ${groupBy ? ", start_time_bucket" : ""}
+    GROUP BY level ${bucketSizeInSeconds ? ", start_time_bucket" : ""}
     ${orderByQuery}
   `;
 
