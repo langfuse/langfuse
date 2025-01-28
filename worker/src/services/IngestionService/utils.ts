@@ -1,5 +1,5 @@
-import { JsonNested, mergeJson } from "@langfuse/shared";
-import { mergeWith } from "lodash";
+import { JsonNested } from "@langfuse/shared";
+import { mergeWith, merge } from "lodash";
 
 export const convertJsonSchemaToRecord = (
   jsonSchema: JsonNested,
@@ -63,7 +63,7 @@ export function overwriteObject(
       ? b.metadata
       : !b.metadata && a.metadata
         ? a.metadata
-        : (mergeJson(a.metadata, b.metadata) ?? {});
+        : (merge(a.metadata, b.metadata) ?? {});
 
   if ("tags" in result) {
     result.tags = Array.from(

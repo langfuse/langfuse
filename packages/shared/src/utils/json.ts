@@ -1,6 +1,4 @@
-import { z } from "zod";
-import { merge } from "lodash";
-import { JsonNested, jsonSchema } from "./zod";
+import { JsonNested } from "./zod";
 
 /**
  * Deeply parses a JSON string or object for nested stringified JSON
@@ -39,16 +37,6 @@ export function deepParseJson(json: unknown): unknown {
 
   return json;
 }
-
-export const mergeJson = (
-  json1?: z.infer<typeof jsonSchema>,
-  json2?: z.infer<typeof jsonSchema>,
-) => {
-  if (json1 === undefined) {
-    return json2;
-  }
-  return merge(json1, json2);
-};
 
 export const parseJsonPrioritised = (
   json: string,
