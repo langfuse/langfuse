@@ -262,7 +262,7 @@ export class IngestionService {
 
     // Search for the first non-null input and output in the trace events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
-    const reversedRawRecords = timeSortedEvents.reverse();
+    const reversedRawRecords = timeSortedEvents.slice().reverse();
     finalTraceRecord.input = this.stringify(
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
         clickhouseTraceRecord?.input,
@@ -389,7 +389,7 @@ export class IngestionService {
 
     // Search for the first non-null input and output in the trace events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
-    const reversedRawRecords = timeSortedEvents.reverse();
+    const reversedRawRecords = timeSortedEvents.slice().reverse();
     finalObservationRecord.input = this.stringify(
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
         clickhouseObservationRecord?.input,
