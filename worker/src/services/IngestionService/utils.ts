@@ -18,13 +18,17 @@ export const convertJsonSchemaToRecord = (
     return record;
   }
 
-  if (typeof jsonSchema === "object") {
-    for (const key in jsonSchema) {
-      const value = jsonSchema[key];
-      record[key] = typeof value === "string" ? value : JSON.stringify(value);
-    }
-  }
   return record;
+};
+
+export const convertRecordValuesToString = (
+  record: Record<string, unknown>,
+): Record<string, string> => {
+  for (const key in record) {
+    const value = record[key];
+    record[key] = typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return record as Record<string, string>;
 };
 
 export function overwriteObject(
