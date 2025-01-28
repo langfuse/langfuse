@@ -755,7 +755,6 @@ export const selectTimeseriesColumn = (
   col: string,
   as: String,
 ) => {
-  // return `${interval}(${col}) as ${as}`;
   return `toStartOfInterval(${col}, INTERVAL ${bucketSizeInSeconds} SECOND) as ${as}`;
 };
 
