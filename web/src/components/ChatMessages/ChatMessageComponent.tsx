@@ -13,13 +13,14 @@ import { CSS } from "@dnd-kit/utilities";
 type ChatMessageProps = Pick<
   MessagesContext,
   "deleteMessage" | "updateMessage" | "availableRoles"
-> & { message: ChatMessageWithId };
+> & { message: ChatMessageWithId; index: number };
 
 export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
   updateMessage,
   deleteMessage,
   availableRoles,
+  index,
 }) => {
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const [textAreaRows, setTextAreaRows] = useState(1);
@@ -35,8 +36,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   } = useSortable({ id: message.id });
 
   const toggleRole = () => {
-    if (message.role === ChatMessageRole.System) return;
-
     // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
     if (!!availableRoles && Boolean(availableRoles.length)) {
       let randomRole = availableRoles[roleIndex % availableRoles.length];
@@ -52,7 +51,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         "role",
         message.role === ChatMessageRole.User
           ? ChatMessageRole.Assistant
-          : ChatMessageRole.User,
+          : message.role === ChatMessageRole.Assistant && index === 0
+            ? ChatMessageRole.System
+            : ChatMessageRole.User,
       );
     }
   };
@@ -119,7 +120,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           type="button" // prevents submitting a form if this button is inside a form
           size="icon"
           onClick={() => deleteMessage(message.id)}
-          disabled={message.role === ChatMessageRole.System}
         >
           <MinusCircleIcon size={16} />
         </Button>
