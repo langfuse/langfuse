@@ -22,7 +22,7 @@ describe("orderByTimeSeries", () => {
     // For 1 hour difference, should pick 60 second buckets to get ~60 data points
     expect(bucketSize).toBe(60);
     expect(query).toBe(
-      "ORDER BY timestamp ASC \n    WITH FILL\n    STEP toIntervalSecond(60)",
+      "ORDER BY timestamp ASC \n    WITH FILL\n    FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL 60 SECOND)\n    TO toStartOfInterval(toDateTime({toTime: DateTime64(3)}), INTERVAL 60 SECOND)\n    STEP toIntervalSecond(60)",
     );
     expect(params.fromTime).toEqual(new Date("2024-01-01T00:00:00Z"));
     expect(params.toTime).toEqual(new Date("2024-01-01T01:00:00Z"));
@@ -49,7 +49,7 @@ describe("orderByTimeSeries", () => {
     // For 24 hour difference, should pick 1800 second (30 min) buckets
     expect(bucketSize).toBe(1800);
     expect(query).toBe(
-      "ORDER BY timestamp ASC \n    WITH FILL\n    STEP toIntervalSecond(1800)",
+      "ORDER BY timestamp ASC \n    WITH FILL\n    FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL 1800 SECOND)\n    TO toStartOfInterval(toDateTime({toTime: DateTime64(3)}), INTERVAL 1800 SECOND)\n    STEP toIntervalSecond(1800)",
     );
     expect(params.fromTime).toEqual(new Date("2024-01-01T00:00:00Z"));
     expect(params.toTime).toEqual(new Date("2024-01-02T00:00:00Z"));
@@ -61,7 +61,7 @@ describe("orderByTimeSeries", () => {
     // Should use default 1 year range and pick appropriate bucket size
     expect(bucketSize).toBe(604800); // 1 week buckets
     expect(query).toBe(
-      "ORDER BY timestamp ASC \n    WITH FILL\n    STEP toIntervalSecond(604800)",
+      "ORDER BY timestamp ASC \n    WITH FILL\n    FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL 604800 SECOND)\n    TO toStartOfInterval(toDateTime({toTime: DateTime64(3)}), INTERVAL 604800 SECOND)\n    STEP toIntervalSecond(604800)",
     );
     expect(params.fromTime).toBeDefined();
     expect(params.toTime).toBeDefined();
