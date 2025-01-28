@@ -175,7 +175,10 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
             <div className="flex flex-row gap-1 border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
               {oldLabel}
               {oldSubLabel && (
-                <div className="truncate text-xs text-muted-foreground">
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={oldSubLabel}
+                >
                   {oldSubLabel}
                 </div>
               )}
@@ -183,7 +186,10 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
             <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
               {newLabel}
               {newSubLabel && (
-                <div className="truncate text-xs text-muted-foreground">
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={newSubLabel}
+                >
                   {newSubLabel}
                 </div>
               )}
