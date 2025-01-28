@@ -81,10 +81,10 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
               items={props.messages.map((message) => message.id)}
               strategy={verticalListSortingStrategy}
             >
-              {props.messages.map((message) => {
+              {props.messages.map((message, index) => {
                 return (
                   <ChatMessageComponent
-                    {...{ message, ...props }}
+                    {...{ message, ...props, index }}
                     key={message.id}
                   />
                 );
