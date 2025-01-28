@@ -2,7 +2,10 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
-import * as root from "./otlp-proto/generated/root";
+
+// TODO: For some reason this import does not work within Next.js
+// The same setup works within a bare express setup so it must be something around Next.js imports.
+const root = require("./otlp-proto/generated/root") as any;
 
 export const config = {
   api: {
@@ -23,11 +26,10 @@ export default withMiddlewares({
         req.on("error", reject);
       });
 
-      const parsed = (
-        root as any
-      ).opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
-        body,
-      );
+      const parsed =
+        root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
+          body,
+        );
       logger.info(`Received OTel Trace`, {
         headers: req.headers,
         trace: parsed,
