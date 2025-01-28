@@ -59,24 +59,3 @@ export const parseJsonPrioritised = (
     return json;
   }
 };
-
-export const convertRecordToJsonSchema = (
-  record: Record<string, string>,
-): JsonNested | undefined => {
-  const jsonSchema: JsonNested = {};
-
-  // if record is empty, return undefined
-  if (Object.keys(record).length === 0) {
-    return undefined;
-  }
-
-  for (const key in record) {
-    try {
-      jsonSchema[key] = JSON.parse(record[key]);
-    } catch (e) {
-      jsonSchema[key] = record[key];
-    }
-  }
-
-  return jsonSchema;
-};
