@@ -79,6 +79,8 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
                   }
                   oldLabel={`v${leftPrompt.version}`}
                   newLabel={`v${rightPrompt.version}`}
+                  oldSubLabel={leftPrompt.commitMessage ?? undefined}
+                  newSubLabel={rightPrompt.commitMessage ?? undefined}
                 />
               </div>
               <div>

@@ -69,9 +69,24 @@ function useSessionWithRetryOnUnauthenticated() {
     if (session.status === "unauthenticated" && retryCount < MAX_RETRIES) {
       const fetchSession = async () => {
         try {
-          await getSession({ broadcast: true });
+          try {
+            await getSession({ broadcast: true });
+          } catch (error) {
+            console.error(
+              "Error fetching session:",
+              error,
+              "\nError details:",
+              JSON.stringify(error, null, 2),
+            );
+            throw error;
+          }
         } catch (error) {
-          console.error("Error fetching session:", error, "\nError details:", JSON.stringify(error, null, 2));
+          console.error(
+            "Error fetching session:",
+            error,
+            "\nError details:",
+            JSON.stringify(error, null, 2),
+          );
           throw error;
         }
         setRetryCount((prevCount) => prevCount + 1);

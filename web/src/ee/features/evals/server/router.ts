@@ -541,13 +541,7 @@ export const evalRouter = createTRPCRouter({
               parsedKey.data.extraHeaders,
             ),
             baseURL: parsedKey.data.baseURL ?? undefined,
-            messages: [
-              {
-                role: ChatMessageRole.System,
-                content: "You are an expert at evaluating LLM outputs.",
-              },
-              { role: ChatMessageRole.User, content: input.prompt },
-            ],
+            messages: [{ role: ChatMessageRole.User, content: input.prompt }],
             modelParams: {
               provider: input.provider,
               model: input.model,

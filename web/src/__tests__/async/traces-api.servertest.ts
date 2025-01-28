@@ -271,4 +271,76 @@ describe("/api/public/traces API Endpoint", () => {
 
     expect(response.status).toBe(400);
   });
+
+  it("LFE-3699: should fetch a single trace with unescaped metadata via traces list", async () => {
+    const traceId = randomUUID();
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: JSON.stringify({ foo: "bar" }) },
+      input: JSON.stringify({
+        args: [
+          {
+            foo: "bar",
+          },
+        ],
+      }),
+    });
+
+    await createTracesCh([trace]);
+
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
+      "GET",
+      `/api/public/traces`,
+    );
+
+    const traceResponse = traces.body.data.find((t) => t.id === traceId);
+    expect(traceResponse).toBeDefined();
+    expect(traceResponse!.name).toBe("trace-name1");
+    expect(traceResponse!.metadata).toEqual({ key: { foo: "bar" } });
+    expect(traceResponse!.input).toEqual({
+      args: [
+        {
+          foo: "bar",
+        },
+      ],
+    });
+  });
+
+  it("LFE-3699: should fetch a single trace with unescaped metadata via single trace endpoint", async () => {
+    const traceId = randomUUID();
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: JSON.stringify({ foo: "bar" }) },
+      input: JSON.stringify({
+        args: [
+          {
+            foo: "bar",
+          },
+        ],
+      }),
+    });
+
+    await createTracesCh([trace]);
+
+    const traceResponse = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      `/api/public/traces/${traceId}`,
+    );
+
+    expect(traceResponse.body.name).toBe("trace-name1");
+    expect(traceResponse.body.metadata).toEqual({ key: { foo: "bar" } });
+    expect(traceResponse.body.input).toEqual({
+      args: [
+        {
+          foo: "bar",
+        },
+      ],
+    });
+  });
 });

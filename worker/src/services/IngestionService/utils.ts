@@ -1,11 +1,8 @@
-import {
-  JsonNested,
-  convertRecordToJsonSchema,
-  mergeJson,
-} from "@langfuse/shared";
-import { mergeWith } from "lodash";
-import { logger } from "@langfuse/shared/src/server";
+import { JsonNested } from "@langfuse/shared";
+import { mergeWith, merge } from "lodash";
 
+// Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
+// It's easier to pretend here and let JavaScript do its magic.
 export const convertJsonSchemaToRecord = (
   jsonSchema: JsonNested,
 ): Record<string, string> => {
@@ -23,25 +20,17 @@ export const convertJsonSchemaToRecord = (
     return record;
   }
 
-  if (typeof jsonSchema === "object") {
-    for (const key in jsonSchema) {
-      const value = jsonSchema[key];
-      record[key] = typeof value === "string" ? value : JSON.stringify(value);
-    }
-  }
-  return record;
+  return jsonSchema as Record<string, string>;
 };
 
-const mergeRecords = (
-  record1?: Record<string, string>,
-  record2?: Record<string, string>,
-): Record<string, string> | undefined => {
-  const merged = mergeJson(
-    record1 ? (convertRecordToJsonSchema(record1) ?? undefined) : undefined,
-    record2 ? (convertRecordToJsonSchema(record2) ?? undefined) : undefined,
-  );
-
-  return merged ? convertJsonSchemaToRecord(merged) : undefined;
+export const convertRecordValuesToString = (
+  record: Record<string, unknown>,
+): Record<string, string> => {
+  for (const key in record) {
+    const value = record[key];
+    record[key] = typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return record as Record<string, string>;
 };
 
 export function overwriteObject(
@@ -76,7 +65,7 @@ export function overwriteObject(
       ? b.metadata
       : !b.metadata && a.metadata
         ? a.metadata
-        : (mergeRecords(a.metadata, b.metadata) ?? {});
+        : (merge(a.metadata, b.metadata) ?? {});
 
   if ("tags" in result) {
     result.tags = Array.from(

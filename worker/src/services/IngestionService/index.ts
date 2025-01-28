@@ -43,7 +43,11 @@ import {
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
-import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
+import {
+  convertJsonSchemaToRecord,
+  convertRecordValuesToString,
+  overwriteObject,
+} from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
 
@@ -256,6 +260,18 @@ export class IngestionService {
     finalTraceRecord.created_at =
       clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
 
+    // Search for the first non-null input and output in the trace events and set them on the merged result.
+    // Fallback to the ClickHouse input/output if none are found within the events list.
+    const reversedRawRecords = timeSortedEvents.slice().reverse();
+    finalTraceRecord.input = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
+        clickhouseTraceRecord?.input,
+    );
+    finalTraceRecord.output = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
+        clickhouseTraceRecord?.output,
+    );
+
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
       try {
@@ -359,14 +375,35 @@ export class IngestionService {
       prompt,
     });
 
-    const finalObservationRecord = await this.mergeObservationRecords({
+    const mergedObservationRecord = await this.mergeObservationRecords({
       projectId,
       observationRecords,
       clickhouseObservationRecord,
     });
-    finalObservationRecord.created_at =
+    mergedObservationRecord.created_at =
       clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
-    finalObservationRecord.level = finalObservationRecord.level ?? "DEFAULT";
+    mergedObservationRecord.level = mergedObservationRecord.level ?? "DEFAULT";
+
+    // Search for the first non-null input and output in the observation events and set them on the merged result.
+    // Fallback to the ClickHouse input/output if none are found within the events list.
+    const reversedRawRecords = timeSortedEvents.slice().reverse();
+    mergedObservationRecord.input = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
+        clickhouseObservationRecord?.input,
+    );
+    mergedObservationRecord.output = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
+        clickhouseObservationRecord?.output,
+    );
+
+    const generationUsage = await this.getGenerationUsage({
+      projectId,
+      observationRecord: mergedObservationRecord,
+    });
+    const finalObservationRecord = {
+      ...mergedObservationRecord,
+      ...generationUsage,
+    };
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -429,6 +466,11 @@ export class IngestionService {
       immutableEntityKeys[TableName.Traces],
     );
 
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+    );
+
     return traceRecordInsertSchema.parse(mergedRecord);
   }
 
@@ -451,6 +493,11 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+    );
+
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
@@ -462,15 +509,7 @@ export class IngestionService {
       parsedObservationRecord.end_time = parsedObservationRecord.start_time;
     }
 
-    const generationUsage = await this.getGenerationUsage({
-      projectId,
-      observationRecord: parsedObservationRecord,
-    });
-
-    return {
-      ...parsedObservationRecord,
-      ...generationUsage,
-    };
+    return parsedObservationRecord;
   }
 
   private mergeRecords<T extends InsertRecord>(
@@ -871,7 +910,7 @@ export class IngestionService {
     traceEventList: TraceEventType[];
     projectId: string;
     entityId: string;
-  }): TraceRecordInsertType[] {
+  }) {
     const { traceEventList, projectId, entityId } = params;
 
     return traceEventList.map((trace) => {
@@ -900,8 +939,10 @@ export class IngestionService {
         public: trace.body.public ?? false,
         bookmarked: false,
         tags: trace.body.tags ?? [],
-        input: this.stringify(trace.body.input),
-        output: this.stringify(trace.body.output), // convert even json to string
+        // We skip the processing here as stringifying is an expensive operation on large objects.
+        // Instead, we only take the last truthy value and apply it on the merge step.
+        // input: this.stringify(trace.body.input),
+        // output: this.stringify(trace.body.output), // convert even json to string
         session_id: trace.body.sessionId,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -1032,8 +1073,10 @@ export class IngestionService {
               ? JSON.stringify(obs.body.modelParameters)
               : undefined
             : undefined,
-        input: this.stringify(obs.body.input),
-        output: this.stringify(obs.body.output),
+        // We skip the processing here as stringifying is an expensive operation on large objects.
+        // Instead, we only take the last truthy value and apply it on the merge step.
+        // input: this.stringify(obs.body.input),
+        // output: this.stringify(obs.body.output),
         provided_usage_details,
         provided_cost_details,
         usage_details: provided_usage_details,

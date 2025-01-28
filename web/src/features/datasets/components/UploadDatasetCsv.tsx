@@ -15,7 +15,7 @@ import {
   parseCsvClient,
 } from "@/src/features/datasets/lib/csvHelpers";
 
-export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1; // 1MB
+export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;
 
 const FileSchema = z.object({
@@ -46,7 +46,7 @@ export const UploadDatasetCsv = ({
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 1MB");
+      showErrorToast("File too large", "Maximum file size is 10MB");
       event.target.value = "";
       return;
     }
@@ -57,6 +57,13 @@ export const UploadDatasetCsv = ({
         isPreview: true,
         collectSamples: true,
       });
+
+      if (preview.columns.length < 3) {
+        showErrorToast("Invalid CSV", "CSV must have at least 3 columns");
+        event.target.value = "";
+        return;
+      }
+
       setPreview(preview);
     } catch (error) {
       showErrorToast(

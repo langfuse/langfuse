@@ -23,8 +23,37 @@ import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDa
 import { Progress } from "@/src/components/ui/progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-const CHUNK_SIZE = 200;
+const MIN_CHUNK_SIZE = 50;
 const DELAY_BETWEEN_CHUNKS = 100; // milliseconds
+const MAX_PAYLOAD_SIZE = 1 * 1024 * 1024; // 1MB in bytes
+
+function getOptimalChunkSize(items: any[], startSize: number): number {
+  const getPayloadSize = (size: number) =>
+    new TextEncoder().encode(
+      JSON.stringify({
+        projectId: "test",
+        datasetId: "test",
+        items: items.slice(0, size),
+      }),
+    ).length;
+
+  // Binary search for largest chunk size under 1MB
+  let low = MIN_CHUNK_SIZE;
+  let high = startSize;
+  let best = MIN_CHUNK_SIZE;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (getPayloadSize(mid) <= MAX_PAYLOAD_SIZE) {
+      best = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return best;
+}
 
 const CardIdSchema = z.enum(["input", "expected", "metadata", "unmapped"]);
 type CardId = z.infer<typeof CardIdSchema>;
@@ -190,7 +219,7 @@ export function PreviewCsvImport({
     capture("dataset_item:upload_csv_form_submit");
     if (!csvFile) return;
     if (csvFile.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 1MB");
+      showErrorToast("File too large", "Maximum file size is 10MB");
       return;
     }
 
@@ -241,7 +270,8 @@ export function PreviewCsvImport({
         },
       });
 
-      const chunks = chunkArray(items, CHUNK_SIZE);
+      const optimalChunkSize = getOptimalChunkSize(items, MIN_CHUNK_SIZE);
+      const chunks = chunkArray(items, optimalChunkSize);
 
       for (const [index, chunk] of chunks.entries()) {
         await mutCreateManyDatasetItems.mutateAsync({

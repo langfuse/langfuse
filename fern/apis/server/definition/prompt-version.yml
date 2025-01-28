@@ -9,9 +9,9 @@ service:
     update:
       docs: Update labels for a specific prompt version
       method: PATCH
-      path: /prompts/{promptName}/version/{version}
+      path: /prompts/{name}/versions/{version}
       path-parameters:
-        promptName:
+        name:
           type: string
           docs: The name of the prompt
         version:

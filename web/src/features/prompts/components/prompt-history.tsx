@@ -61,12 +61,22 @@ const PromptHistoryTraceNode = (props: {
         {badges}
       </div>
       <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
-        <div>
+        <div className="min-w-0">
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground">
               {prompt.createdAt.toLocaleString()}
             </span>
           </div>
+          {prompt.commitMessage && (
+            <div className="flex flex-1 flex-nowrap gap-2">
+              <span
+                className="min-w-0 max-w-full truncate text-xs text-muted-foreground"
+                title={prompt.commitMessage}
+              >
+                {prompt.commitMessage}
+              </span>
+            </div>
+          )}
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground">
               by {prompt.creator || prompt.createdBy}

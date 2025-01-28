@@ -484,6 +484,7 @@ export default function SignIn({
                           <Link
                             href="/auth/reset-password"
                             className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                            tabIndex={-1}
                             title="What is this?"
                           >
                             (forgot password?)
