@@ -90,6 +90,9 @@ types:
       tags:
         type: optional<list<string>>
         docs: List of tags to apply to all versions of this prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
 
   CreateTextPromptRequest:
     properties:
@@ -102,6 +105,10 @@ types:
       tags:
         type: optional<list<string>>
         docs: List of tags to apply to all versions of this prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
+
   Prompt:
     union:
       chat: ChatPrompt
@@ -118,6 +125,9 @@ types:
       tags:
         type: list<string>
         docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
 
   ChatMessage:
     properties:

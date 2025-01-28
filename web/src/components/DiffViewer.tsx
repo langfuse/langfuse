@@ -17,6 +17,8 @@ type DiffViewerProps = {
   newString: string;
   oldLabel?: string;
   newLabel?: string;
+  oldSubLabel?: string;
+  newSubLabel?: string;
   className?: string;
 };
 
@@ -37,6 +39,8 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   newString,
   oldLabel = "Original Version",
   newLabel = "New Version",
+  oldSubLabel,
+  newSubLabel,
   className,
 }) => {
   const [diffLines, setDiffLines] = useState<{
@@ -168,11 +172,27 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       <Card>
         <CardContent className="p-0">
           <div className="grid grid-cols-2">
-            <div className="border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
+            <div className="flex flex-row gap-1 border-b border-r bg-muted px-4 py-2 text-xs font-semibold">
               {oldLabel}
+              {oldSubLabel && (
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={oldSubLabel}
+                >
+                  {oldSubLabel}
+                </div>
+              )}
             </div>
-            <div className="border-b bg-muted px-4 py-2 text-xs font-semibold">
+            <div className="flex flex-row gap-1 border-b bg-muted px-4 py-2 text-xs font-semibold">
               {newLabel}
+              {newSubLabel && (
+                <div
+                  className="truncate text-xs text-muted-foreground"
+                  title={newSubLabel}
+                >
+                  {newSubLabel}
+                </div>
+              )}
             </div>
           </div>
           <div>

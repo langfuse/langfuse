@@ -423,6 +423,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         prompt: chatMessages,
         type: "chat",
         labels: ["production"],
+        commitMessage: "chore: setup initial prompt",
       });
 
       expect(response.status).toBe(201);
@@ -442,6 +443,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.labels).toEqual(["production", "latest"]);
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
+      expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
     });
 
     it("should fail if chat prompt has string prompt", async () => {
