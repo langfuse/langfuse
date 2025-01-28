@@ -22,7 +22,7 @@ export const PromptLabelSchema = z
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
   );
 
-const LegacyCreateTextPromptSchema = z.object({
+const BaseCreateTextPromptSchema = z.object({
   name: z.string(),
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Text).optional(),
@@ -31,11 +31,13 @@ const LegacyCreateTextPromptSchema = z.object({
   tags: z.array(z.string()).nullish(),
 });
 
-export const CreateTextPromptSchema = LegacyCreateTextPromptSchema.extend({
+const LegacyCreateTextPromptSchema = BaseCreateTextPromptSchema;
+
+export const CreateTextPromptSchema = BaseCreateTextPromptSchema.extend({
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
-const LegacyCreateChatPromptSchema = z.object({
+const BaseCreateChatPromptSchema = z.object({
   name: z.string(),
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
@@ -44,7 +46,9 @@ const LegacyCreateChatPromptSchema = z.object({
   tags: z.array(z.string()).nullish(),
 });
 
-export const CreateChatPromptSchema = LegacyCreateChatPromptSchema.extend({
+const LegacyCreateChatPromptSchema = BaseCreateChatPromptSchema;
+
+export const CreateChatPromptSchema = BaseCreateChatPromptSchema.extend({
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
@@ -93,7 +97,7 @@ export const GetPromptByNameSchema = z.object({
   label: z.string().optional(),
 });
 
-export const LegacyTextPromptSchema = z.object({
+const BaseTextPromptSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -108,7 +112,9 @@ export const LegacyTextPromptSchema = z.object({
   config: jsonSchema,
 });
 
-export const TextPromptSchema = LegacyTextPromptSchema.extend({
+const LegacyTextPromptSchema = BaseTextPromptSchema;
+
+export const TextPromptSchema = BaseTextPromptSchema.extend({
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
@@ -117,7 +123,7 @@ export type TextPromptType =
     ? z.infer<typeof TextPromptSchema>
     : never;
 
-export const LegacyChatPromptSchema = z.object({
+export const BaseChatPromptSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -132,7 +138,9 @@ export const LegacyChatPromptSchema = z.object({
   config: jsonSchema,
 });
 
-export const ChatPromptSchema = LegacyChatPromptSchema.extend({
+const LegacyChatPromptSchema = BaseChatPromptSchema;
+
+export const ChatPromptSchema = BaseChatPromptSchema.extend({
   commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
