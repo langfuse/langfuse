@@ -271,9 +271,6 @@ export class IngestionService {
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
         clickhouseTraceRecord?.output,
     );
-    finalTraceRecord.metadata = convertRecordValuesToString(
-      finalTraceRecord.metadata,
-    );
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
@@ -378,29 +375,35 @@ export class IngestionService {
       prompt,
     });
 
-    const finalObservationRecord = await this.mergeObservationRecords({
+    const mergedObservationRecord = await this.mergeObservationRecords({
       projectId,
       observationRecords,
       clickhouseObservationRecord,
     });
-    finalObservationRecord.created_at =
+    mergedObservationRecord.created_at =
       clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
-    finalObservationRecord.level = finalObservationRecord.level ?? "DEFAULT";
+    mergedObservationRecord.level = mergedObservationRecord.level ?? "DEFAULT";
 
     // Search for the first non-null input and output in the trace events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
-    finalObservationRecord.input = this.stringify(
+    mergedObservationRecord.input = this.stringify(
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
         clickhouseObservationRecord?.input,
     );
-    finalObservationRecord.output = this.stringify(
+    mergedObservationRecord.output = this.stringify(
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
         clickhouseObservationRecord?.output,
     );
-    finalObservationRecord.metadata = convertRecordValuesToString(
-      finalObservationRecord.metadata,
-    );
+
+    const generationUsage = await this.getGenerationUsage({
+      projectId,
+      observationRecord: mergedObservationRecord,
+    });
+    const finalObservationRecord = {
+      ...mergedObservationRecord,
+      ...generationUsage,
+    };
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -463,6 +466,11 @@ export class IngestionService {
       immutableEntityKeys[TableName.Traces],
     );
 
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+    );
+
     return traceRecordInsertSchema.parse(mergedRecord);
   }
 
@@ -485,6 +493,11 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
+    );
+
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
 
@@ -496,15 +509,7 @@ export class IngestionService {
       parsedObservationRecord.end_time = parsedObservationRecord.start_time;
     }
 
-    const generationUsage = await this.getGenerationUsage({
-      projectId,
-      observationRecord: parsedObservationRecord,
-    });
-
-    return {
-      ...parsedObservationRecord,
-      ...generationUsage,
-    };
+    return parsedObservationRecord;
   }
 
   private mergeRecords<T extends InsertRecord>(
