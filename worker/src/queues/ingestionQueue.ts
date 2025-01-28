@@ -19,6 +19,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { chunk } from "lodash";
 
 let s3StorageServiceClient: StorageService;
 
@@ -118,15 +119,28 @@ export const ingestionQueueProcessorBuilder = (
           .map((fileRef) => fileRef.createdAt)
           .sort()
           .shift() ?? new Date();
-      const events: IngestionEventType[] = (
-        await Promise.all(
-          eventFiles.map(async (fileRef) => {
-            const file = await s3Client.download(fileRef.file);
-            const parsedFile = JSON.parse(file);
-            return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
-          }),
-        )
-      ).flat();
+
+      const S3_CONCURRENT_READS = 50;
+      const events: IngestionEventType[] = [];
+
+      // Process files in batches
+      // If a user has 5k events, this will likely take 100 seconds.
+      const downloadAndParseFile = async (fileRef: { file: string }) => {
+        const file = await s3Client.download(fileRef.file);
+        const parsedFile = JSON.parse(file);
+        return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
+      };
+
+      const allEvents = await Promise.all(
+        chunk(eventFiles, S3_CONCURRENT_READS).map(async (batch) => {
+          const batchEvents = await Promise.all(
+            batch.map(downloadAndParseFile),
+          );
+          return batchEvents.flat();
+        }),
+      );
+
+      events.push(...allEvents.flat());
 
       if (events.length === 0) {
         logger.warn(
