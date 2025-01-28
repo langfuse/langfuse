@@ -52,9 +52,8 @@ export default withMiddlewares({
       const events: IngestionEventType[] = resourceSpans.flatMap(
         convertOtelSpanToIngestionEvent,
       );
-      await processEventBatch(events, auth);
-
-      return res.status(202);
+      const result = await processEventBatch(events, auth);
+      return res.status(207).json(result);
     },
   }),
 });

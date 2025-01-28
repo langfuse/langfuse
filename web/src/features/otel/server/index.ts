@@ -22,7 +22,7 @@ export const convertOtelSpanToIngestionEvent = (
 ): IngestionEventType[] => {
   const resourceAttributes = resourceSpan?.resource?.attributes.reduce(
     (acc: any, attr: any) => {
-      acc[attr.key] = attr.value;
+      acc[attr.key] = JSON.stringify(attr.value);
       return acc;
     },
     {},
@@ -33,7 +33,7 @@ export const convertOtelSpanToIngestionEvent = (
   for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
     for (const span of scopeSpan?.spans ?? []) {
       const attributes = span.attributes.reduce((acc: any, attr: any) => {
-        acc[attr.key] = attr.value;
+        acc[attr.key] = JSON.stringify(attr.value);
         return acc;
       }, {});
 
