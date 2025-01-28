@@ -1,6 +1,8 @@
 import { JsonNested } from "@langfuse/shared";
 import { mergeWith, merge } from "lodash";
 
+// Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
+// It's easier to pretend here and let JavaScript do its magic.
 export const convertJsonSchemaToRecord = (
   jsonSchema: JsonNested,
 ): Record<string, string> => {
@@ -18,7 +20,7 @@ export const convertJsonSchemaToRecord = (
     return record;
   }
 
-  return record;
+  return jsonSchema as Record<string, string>;
 };
 
 export const convertRecordValuesToString = (

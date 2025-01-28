@@ -261,15 +261,15 @@ export class IngestionService {
       clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
 
     // Search for the first non-null input and output in the trace events and set them on the merged result.
-    const combinedTraceRecords = [
-      clickhouseTraceRecord,
-      ...traceRecords,
-    ].reverse();
+    // Fallback to the ClickHouse input/output if none are found within the events list.
+    const reversedRawRecords = timeSortedEvents.reverse();
     finalTraceRecord.input = this.stringify(
-      combinedTraceRecords.find((record) => record?.input),
+      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
+        clickhouseTraceRecord?.input,
     );
     finalTraceRecord.output = this.stringify(
-      combinedTraceRecords.find((record) => record?.output),
+      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
+        clickhouseTraceRecord?.output,
     );
     finalTraceRecord.metadata = convertRecordValuesToString(
       finalTraceRecord.metadata,
@@ -388,15 +388,15 @@ export class IngestionService {
     finalObservationRecord.level = finalObservationRecord.level ?? "DEFAULT";
 
     // Search for the first non-null input and output in the trace events and set them on the merged result.
-    const combinedObservationRecords = [
-      clickhouseObservationRecord,
-      ...observationRecords,
-    ].reverse();
+    // Fallback to the ClickHouse input/output if none are found within the events list.
+    const reversedRawRecords = timeSortedEvents.reverse();
     finalObservationRecord.input = this.stringify(
-      combinedObservationRecords.find((record) => record?.input),
+      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
+        clickhouseObservationRecord?.input,
     );
     finalObservationRecord.output = this.stringify(
-      combinedObservationRecords.find((record) => record?.output),
+      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
+        clickhouseObservationRecord?.output,
     );
     finalObservationRecord.metadata = convertRecordValuesToString(
       finalObservationRecord.metadata,
