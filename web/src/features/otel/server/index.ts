@@ -2,6 +2,15 @@ import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ObservationLevel } from "@prisma/client";
 
+const convertNanoTimestampToISO = (timestamp: {
+  high: number;
+  low: number;
+}) => {
+  return new Date(
+    (timestamp.high * Math.pow(2, 32) + timestamp.low) / 1e6,
+  ).toISOString();
+};
+
 /**
  * Accepts an OpenTelemetry resourceSpan from a ExportTraceServiceRequest and
  * returns a list of Langfuse events.
@@ -31,10 +40,8 @@ export const convertOtelSpanToIngestionEvent = (
       if (!span?.parentSpanId) {
         // Create a trace for any root span
         const trace = {
-          id: Buffer.from(span.traceId.data).toString("hex"),
-          timestamp: new Date(
-            span.startTimeUnixNano.high * 1e9 + span.startTimeUnixNano.low,
-          ).toISOString(),
+          id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
+          timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
           metadata: {
             resourceAttributes,
           },
@@ -49,18 +56,18 @@ export const convertOtelSpanToIngestionEvent = (
 
       const observation = {
         // Required fields that must be available
-        id: Buffer.from(span.spanId.data).toString("hex"),
-        traceId: Buffer.from(span.traceId.data).toString("hex"),
+        id: Buffer.from(span.spanId?.data ?? span.spanId).toString("hex"),
+        traceId: Buffer.from(span.traceId?.data ?? span.traceId).toString(
+          "hex",
+        ),
         parentObservationId: span?.parentSpanId
-          ? Buffer.from(span.parentSpanId.data).toString("hex")
+          ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
+              "hex",
+            )
           : null,
         name: span.name,
-        startTime: new Date(
-          span.startTimeUnixNano.high * 1e9 + span.startTimeUnixNano.low,
-        ).toISOString(),
-        endTime: new Date(
-          span.endTimeUnixNano.high * 1e9 + span.endTimeUnixNano.low,
-        ).toISOString(),
+        startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
+        endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
 
         // Additional fields
         metadata: {
