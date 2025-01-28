@@ -178,8 +178,6 @@ export const groupTracesByTime = async (
     },
   });
 
-  console.log("hahaha", query, orderByParams, result);
-
   return result.map((row) => ({
     timestamp: new Date(row.timestamp),
     countTraceId: Number(row.count),

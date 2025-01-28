@@ -136,7 +136,6 @@ export function fillMissingValuesAndTransform(
       values: chartDataArray,
     });
   });
-  console.log("inputMap", labelsToAdd, inputMap, result);
   return result;
 }
 

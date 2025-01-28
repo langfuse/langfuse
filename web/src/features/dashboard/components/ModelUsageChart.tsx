@@ -177,8 +177,6 @@ export const ModelUsageChart = ({
         )
       : [];
 
-  console.log("unitsByType", unitsByType);
-
   const unitsByModel =
     usageData && allModels.length > 0
       ? fillMissingValuesAndTransform(
@@ -275,7 +273,6 @@ export const ModelUsageChart = ({
     },
   ];
 
-  console.log("data", data, queryResult.isLoading, selectedModels.length);
   return (
     <DashboardCard
       className={className}
