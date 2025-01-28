@@ -134,7 +134,6 @@ export const ingestionQueueProcessorBuilder = (
       const allEvents = [];
       const batches = chunk(eventFiles, S3_CONCURRENT_READS);
       for (const batch of batches) {
-        console.log(`Downloading batch of ${batch.length}`);
         const batchEvents = await Promise.all(batch.map(downloadAndParseFile));
         allEvents.push(...batchEvents.flat());
       }
