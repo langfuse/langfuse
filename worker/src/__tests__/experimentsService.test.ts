@@ -155,13 +155,14 @@ describe("create experiment jobs", () => {
     };
 
     await expect(createExperimentJob({ event: payload })).rejects.toThrow(
-      /Langfuse in-app experiments can only be run with available model and prompt configurations/,
+      /Langfuse in-app experiments can only be run with prompt and model configurations in metadata./,
     );
 
     const runItems = await kyselyPrisma.$kysely
       .selectFrom("dataset_run_items")
       .selectAll()
       .where("project_id", "=", projectId)
+      .where("dataset_run_id", "=", runId)
       .execute();
 
     expect(runItems.length).toBe(0);
@@ -344,15 +345,19 @@ describe("create experiment job calls with langfuse server side tracing", async 
     vi.spyOn(kyselyPrisma.$kysely, "selectFrom").mockImplementation(
       (table) =>
         ({
-          selectAll: () => ({
-            where: () => ({
-              where: () => ({
-                executeTakeFirstOrThrow: () =>
-                  // Return different mock data based on the table being queried
-                  table === "dataset_runs"
-                    ? mockDatasetRunResponse
-                    : mockPromptResponse,
-              }),
+          selectAll: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnThis(), // This allows for infinite where chaining
+            executeTakeFirst: vi.fn().mockImplementation(() => {
+              // Different responses based on table
+              if (table === "dataset_run_items") {
+                return Promise.resolve(null); // For the 3-where query
+              }
+              if (table === "dataset_runs") {
+                return Promise.resolve(mockDatasetRunResponse);
+              }
+              if (table === "prompts") {
+                return Promise.resolve(mockPromptResponse);
+              }
             }),
           }),
         }) as any,
@@ -395,7 +400,6 @@ describe("create experiment job calls with langfuse server side tracing", async 
 
     // Verify callLLM was called with correct trace parameters
     expect(callLLM).toHaveBeenCalledWith(
-      expect.any(String),
       expect.any(Object),
       expect.any(Array),
       expect.any(Object),

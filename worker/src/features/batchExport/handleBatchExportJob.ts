@@ -6,7 +6,6 @@ import {
   BatchExportStatus,
   exportOptions,
   FilterCondition,
-  Prisma,
   Score,
   TimeFilter,
 } from "@langfuse/shared";

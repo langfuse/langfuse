@@ -116,6 +116,7 @@ const DataRegionInfo = () => (
         href="#"
         className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
         title="What is this?"
+        tabIndex={-1}
       >
         (what is this?)
       </a>

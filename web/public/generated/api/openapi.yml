@@ -737,7 +737,7 @@ paths:
         - Ingestion
       parameters: []
       responses:
-        '200':
+        '207':
           description: ''
           content:
             application/json:
@@ -1426,14 +1426,14 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/v2/prompts/{promptName}/version/{version}:
+  /api/public/v2/prompts/{name}/versions/{version}:
     patch:
       description: Update labels for a specific prompt version
       operationId: promptVersion_update
       tags:
         - PromptVersion
       parameters:
-        - name: promptName
+        - name: name
           in: path
           description: The name of the prompt
           required: true
