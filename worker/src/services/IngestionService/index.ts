@@ -271,6 +271,9 @@ export class IngestionService {
     finalTraceRecord.output = this.stringify(
       combinedTraceRecords.find((record) => record?.output),
     );
+    finalTraceRecord.metadata = convertRecordValuesToString(
+      finalTraceRecord.metadata,
+    );
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
@@ -394,6 +397,9 @@ export class IngestionService {
     );
     finalObservationRecord.output = this.stringify(
       combinedObservationRecords.find((record) => record?.output),
+    );
+    finalObservationRecord.metadata = convertRecordValuesToString(
+      finalObservationRecord.metadata,
     );
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
@@ -519,7 +525,6 @@ export class IngestionService {
       result = overwriteObject(result, record, immutableEntityKeys);
     }
 
-    result.metadata = convertRecordValuesToString(result.metadata);
     result.event_ts = new Date().getTime();
 
     return result;
