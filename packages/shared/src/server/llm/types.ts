@@ -18,7 +18,7 @@ export enum LLMAdapter {
   OpenAI = "openai",
   Azure = "azure",
   Bedrock = "bedrock",
-  VertexAI = "vertex-ai",
+  VertexAI = "google-vertex-ai",
 }
 
 export enum ChatMessageRole {
