@@ -1,11 +1,13 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  type IngestionEventType,
+  logger,
+  processEventBatch,
+} from "@langfuse/shared/src/server";
 import { z } from "zod";
-
-// TODO: For some reason this import does not work within Next.js
-// The same setup works within a bare express setup so it must be something around Next.js imports.
-const root = require("./otlp-proto/generated/root") as any;
+import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
 
 export const config = {
   api: {
@@ -18,23 +20,41 @@ export default withMiddlewares({
     name: "OTel Traces",
     querySchema: z.any(),
     responseSchema: z.any(),
-    fn: async ({ req }) => {
-      const body: Buffer = await new Promise((resolve, reject) => {
-        let data: any[] = [];
-        req.on("data", (chunk) => data.push(chunk));
-        req.on("end", () => resolve(Buffer.concat(data)));
-        req.on("error", reject);
-      });
+    fn: async ({ req, res, auth }) => {
+      let body: Buffer;
+      try {
+        body = await new Promise((resolve, reject) => {
+          let data: any[] = [];
+          req.on("data", (chunk) => data.push(chunk));
+          req.on("end", () => resolve(Buffer.concat(data)));
+          req.on("error", reject);
+        });
+      } catch (e) {
+        logger.error(`Failed to read request body`, e);
+        return res.status(400).json({ error: "Failed to read request body" });
+      }
 
-      const parsed =
-        root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
-          body,
-        );
-      logger.info(`Received OTel Trace`, {
-        headers: req.headers,
-        trace: parsed,
-      });
-      return {};
+      let resourceSpans: any;
+      try {
+        const parsed =
+          $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
+            body,
+          );
+        resourceSpans =
+          $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
+            parsed,
+          ).resourceSpans;
+      } catch (e) {
+        logger.error(`Failed to parse OTel Trace`, e);
+        return res.status(400).json({ error: "Failed to parse OTel Trace" });
+      }
+
+      const events: IngestionEventType[] = resourceSpans.flatMap(
+        convertOtelSpanToIngestionEvent,
+      );
+      await processEventBatch(events, auth);
+
+      return res.status(202);
     },
   }),
 });
