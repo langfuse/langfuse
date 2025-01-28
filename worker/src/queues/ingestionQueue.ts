@@ -131,14 +131,13 @@ export const ingestionQueueProcessorBuilder = (
         return Array.isArray(parsedFile) ? parsedFile : [parsedFile];
       };
 
-      const allEvents = await Promise.all(
-        chunk(eventFiles, S3_CONCURRENT_READS).map(async (batch) => {
-          const batchEvents = await Promise.all(
-            batch.map(downloadAndParseFile),
-          );
-          return batchEvents.flat();
-        }),
-      );
+      const allEvents = [];
+      const batches = chunk(eventFiles, S3_CONCURRENT_READS);
+      for (const batch of batches) {
+        console.log(`Downloading batch of ${batch.length}`);
+        const batchEvents = await Promise.all(batch.map(downloadAndParseFile));
+        allEvents.push(...batchEvents.flat());
+      }
 
       events.push(...allEvents.flat());
 
