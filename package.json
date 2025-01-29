@@ -88,7 +88,8 @@
       "katex": "^0.16.21"
     },
     "patchedDependencies": {
-      "next-auth@4.24.11": "patches/next-auth@4.24.11.patch"
+      "next-auth@4.24.11": "patches/next-auth@4.24.11.patch",
+      "openid-client": "patches/openid-client.patch"
     }
   }
 }
