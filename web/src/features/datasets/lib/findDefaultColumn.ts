@@ -5,7 +5,7 @@ export function findDefaultColumn(
   title: string,
   index: number,
 ): string | undefined {
-  if (columns.length < index) {
+  if (columns.length <= index) {
     return undefined;
   }
 
