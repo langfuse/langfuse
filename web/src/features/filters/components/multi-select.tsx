@@ -5,13 +5,13 @@ import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+  InputCommandSeparator,
 } from "@/src/components/ui/command";
 import {
   Popover,
@@ -137,18 +137,18 @@ export function MultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
-        <Command>
-          <CommandInput placeholder={title} />
-          <CommandList>
+        <InputCommand>
+          <InputCommandInput placeholder={title} />
+          <InputCommandList>
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
             {!isCustomSelectEnabled && (
-              <CommandEmpty>No results found.</CommandEmpty>
+              <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
-            <CommandGroup>
+            <InputCommandGroup>
               {options.map((option) => {
                 const isSelected = selectedValues.has(option.value);
                 return (
-                  <CommandItem
+                  <InputCommandItem
                     key={option.value}
                     onSelect={() => {
                       if (isSelected) {
@@ -178,14 +178,14 @@ export function MultiSelect({
                         {option.count}
                       </span>
                     ) : null}
-                  </CommandItem>
+                  </InputCommandItem>
                 );
               })}
-            </CommandGroup>
+            </InputCommandGroup>
             {isCustomSelectEnabled && (
-              <CommandGroup forceMount={true}>
-                <CommandSeparator />
-                <CommandItem
+              <InputCommandGroup forceMount={true}>
+                <InputCommandSeparator />
+                <InputCommandItem
                   key="freeTextField"
                   onSelect={() => {
                     const freeTextInput = getFreeTextInput(
@@ -238,24 +238,24 @@ export function MultiSelect({
                     placeholder="Enter custom value"
                     className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
                   />
-                </CommandItem>
-              </CommandGroup>
+                </InputCommandItem>
+              </InputCommandGroup>
             )}
             {selectedValues.size > 0 && (
               <>
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
+                <InputCommandSeparator />
+                <InputCommandGroup>
+                  <InputCommandItem
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >
                     Clear filters
-                  </CommandItem>
-                </CommandGroup>
+                  </InputCommandItem>
+                </InputCommandGroup>
               </>
             )}
-          </CommandList>
-        </Command>
+          </InputCommandList>
+        </InputCommand>
       </PopoverContent>
     </Popover>
   );

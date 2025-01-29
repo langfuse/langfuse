@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Button } from "@/src/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+  InputCommandSeparator,
 } from "@/src/components/ui/command";
 import {
   Popover,
@@ -281,11 +281,11 @@ export const ModelUsageChart = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-0">
-              <Command>
-                <CommandInput placeholder="Search models..." />
-                <CommandEmpty>No model found.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem onSelect={handleSelectAll}>
+              <InputCommand>
+                <InputCommandInput placeholder="Search models..." />
+                <InputCommandEmpty>No model found.</InputCommandEmpty>
+                <InputCommandGroup>
+                  <InputCommandItem onSelect={handleSelectAll}>
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
@@ -295,11 +295,11 @@ export const ModelUsageChart = ({
                     <span>
                       <p className="font-semibold">Select All</p>
                     </span>
-                  </CommandItem>
-                  <CommandSeparator className="my-1" />
-                  <CommandList>
+                  </InputCommandItem>
+                  <InputCommandSeparator className="my-1" />
+                  <InputCommandList>
                     {allModels.map((model) => (
-                      <CommandItem
+                      <InputCommandItem
                         key={model}
                         onSelect={() => {
                           setSelectedModels((prev) =>
@@ -318,11 +318,11 @@ export const ModelUsageChart = ({
                           )}
                         />
                         {!model || model === "" ? <i>none</i> : model}
-                      </CommandItem>
+                      </InputCommandItem>
                     ))}
-                  </CommandList>
-                </CommandGroup>
-              </Command>
+                  </InputCommandList>
+                </InputCommandGroup>
+              </InputCommand>
             </PopoverContent>
           </Popover>
         </div>

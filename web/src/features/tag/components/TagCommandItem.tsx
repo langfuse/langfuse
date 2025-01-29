@@ -1,4 +1,4 @@
-import { CommandItem } from "@/src/components/ui/command";
+import { InputCommandItem } from "@/src/components/ui/command";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -17,7 +17,7 @@ const TagCommandItem = ({
 }: TagCommandItemProps) => {
   const capture = usePostHogClientCapture();
   return (
-    <CommandItem
+    <InputCommandItem
       key={value}
       onSelect={() => {
         setSelectedTags([...selectedTags, value]);
@@ -36,7 +36,7 @@ const TagCommandItem = ({
       <Button variant="secondary" size="xs">
         {value}
       </Button>
-    </CommandItem>
+    </InputCommandItem>
   );
 };
 
