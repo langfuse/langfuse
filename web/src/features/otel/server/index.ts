@@ -20,22 +20,21 @@ const convertNanoTimestampToISO = (timestamp: {
 export const convertOtelSpanToIngestionEvent = (
   resourceSpan: any,
 ): IngestionEventType[] => {
-  const resourceAttributes = resourceSpan?.resource?.attributes.reduce(
-    (acc: any, attr: any) => {
+  const resourceAttributes =
+    resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
       acc[attr.key] = JSON.stringify(attr.value);
       return acc;
-    },
-    {},
-  );
+    }, {}) ?? {};
 
   const events: IngestionEventType[] = [];
 
   for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
     for (const span of scopeSpan?.spans ?? []) {
-      const attributes = span.attributes.reduce((acc: any, attr: any) => {
-        acc[attr.key] = JSON.stringify(attr.value);
-        return acc;
-      }, {});
+      const attributes =
+        span?.attributes?.reduce((acc: any, attr: any) => {
+          acc[attr.key] = JSON.stringify(attr.value);
+          return acc;
+        }, {}) ?? {};
 
       if (!span?.parentSpanId) {
         // Create a trace for any root span
@@ -76,11 +75,13 @@ export const convertOtelSpanToIngestionEvent = (
           scope: scopeSpan?.scope,
         },
         level:
-          span.status?.code === 1
-            ? ObservationLevel.DEFAULT
-            : ObservationLevel.ERROR,
+          span.status?.code === 2
+            ? ObservationLevel.ERROR
+            : ObservationLevel.DEFAULT,
 
         // Input and Output
+        // TODO: Those events usually have timestamps associated with them.
+        // Do we want to track them as well or is it sufficient to know they occurred within the span?
         input: span?.events?.find(
           (event: Record<string, unknown>) =>
             event.name === "gen_ai.content.prompt",
