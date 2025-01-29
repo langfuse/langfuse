@@ -70,7 +70,6 @@ export const createAuthedAPIRoute = <
       {
         query: req.query,
         body: req.body,
-        headers: req.headers,
       },
     );
 
