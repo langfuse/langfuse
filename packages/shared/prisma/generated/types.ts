@@ -4,13 +4,14 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   : ColumnType<T, T | undefined, T>;
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
-export const ProjectRole = {
+export const Role = {
     OWNER: "OWNER",
     ADMIN: "ADMIN",
     MEMBER: "MEMBER",
-    VIEWER: "VIEWER"
+    VIEWER: "VIEWER",
+    NONE: "NONE"
 } as const;
-export type ProjectRole = (typeof ProjectRole)[keyof typeof ProjectRole];
+export type Role = (typeof Role)[keyof typeof Role];
 export const ObservationType = {
     SPAN: "SPAN",
     EVENT: "EVENT",
@@ -32,25 +33,32 @@ export const ScoreSource = {
 export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const ScoreDataType = {
     CATEGORICAL: "CATEGORICAL",
-    NUMERIC: "NUMERIC"
+    NUMERIC: "NUMERIC",
+    BOOLEAN: "BOOLEAN"
 } as const;
 export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
-export const PricingUnit = {
-    PER_1000_TOKENS: "PER_1000_TOKENS",
-    PER_1000_CHARS: "PER_1000_CHARS"
+export const AnnotationQueueStatus = {
+    PENDING: "PENDING",
+    COMPLETED: "COMPLETED"
 } as const;
-export type PricingUnit = (typeof PricingUnit)[keyof typeof PricingUnit];
-export const TokenType = {
-    PROMPT: "PROMPT",
-    COMPLETION: "COMPLETION",
-    TOTAL: "TOTAL"
+export type AnnotationQueueStatus = (typeof AnnotationQueueStatus)[keyof typeof AnnotationQueueStatus];
+export const AnnotationQueueObjectType = {
+    TRACE: "TRACE",
+    OBSERVATION: "OBSERVATION"
 } as const;
-export type TokenType = (typeof TokenType)[keyof typeof TokenType];
+export type AnnotationQueueObjectType = (typeof AnnotationQueueObjectType)[keyof typeof AnnotationQueueObjectType];
 export const DatasetStatus = {
     ACTIVE: "ACTIVE",
     ARCHIVED: "ARCHIVED"
 } as const;
 export type DatasetStatus = (typeof DatasetStatus)[keyof typeof DatasetStatus];
+export const CommentObjectType = {
+    TRACE: "TRACE",
+    OBSERVATION: "OBSERVATION",
+    SESSION: "SESSION",
+    PROMPT: "PROMPT"
+} as const;
+export type CommentObjectType = (typeof CommentObjectType)[keyof typeof CommentObjectType];
 export const JobType = {
     EVAL: "EVAL"
 } as const;
@@ -82,6 +90,31 @@ export type Account = {
     scope: string | null;
     id_token: string | null;
     session_state: string | null;
+    refresh_token_expires_in: number | null;
+    created_at: number | null;
+};
+export type AnnotationQueue = {
+    id: string;
+    name: string;
+    description: string | null;
+    score_config_ids: Generated<string[]>;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type AnnotationQueueItem = {
+    id: string;
+    queue_id: string;
+    object_id: string;
+    object_type: AnnotationQueueObjectType;
+    status: Generated<AnnotationQueueStatus>;
+    locked_at: Timestamp | null;
+    locked_by_user_id: string | null;
+    annotator_user_id: string | null;
+    completed_at: Timestamp | null;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
 };
 export type ApiKey = {
     id: string;
@@ -100,13 +133,63 @@ export type AuditLog = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     user_id: string;
-    project_id: string;
-    user_project_role: ProjectRole;
+    org_id: string;
+    user_org_role: string;
+    project_id: string | null;
+    user_project_role: string | null;
     resource_type: string;
     resource_id: string;
     action: string;
     before: string | null;
     after: string | null;
+};
+export type BackgroundMigration = {
+    id: string;
+    name: string;
+    script: string;
+    args: unknown;
+    state: Generated<unknown>;
+    finished_at: Timestamp | null;
+    failed_at: Timestamp | null;
+    failed_reason: string | null;
+    worker_id: string | null;
+    locked_at: Timestamp | null;
+};
+export type BatchExport = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    user_id: string;
+    finished_at: Timestamp | null;
+    expires_at: Timestamp | null;
+    name: string;
+    status: string;
+    query: unknown;
+    format: string;
+    url: string | null;
+    log: string | null;
+};
+export type BillingMeterBackup = {
+    stripe_customer_id: string;
+    meter_id: string;
+    start_time: Timestamp;
+    end_time: Timestamp;
+    aggregated_value: number;
+    event_name: string;
+    org_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
+export type Comment = {
+    id: string;
+    project_id: string;
+    object_type: CommentObjectType;
+    object_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    content: string;
+    author_user_id: string | null;
 };
 export type CronJobs = {
     name: string;
@@ -116,15 +199,16 @@ export type CronJobs = {
 };
 export type Dataset = {
     id: string;
+    project_id: string;
     name: string;
     description: string | null;
     metadata: unknown | null;
-    project_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
 export type DatasetItem = {
     id: string;
+    project_id: string;
     status: Generated<DatasetStatus>;
     input: unknown | null;
     expected_output: unknown | null;
@@ -137,6 +221,7 @@ export type DatasetItem = {
 };
 export type DatasetRunItems = {
     id: string;
+    project_id: string;
     dataset_run_id: string;
     dataset_item_id: string;
     trace_id: string;
@@ -146,6 +231,7 @@ export type DatasetRunItems = {
 };
 export type DatasetRuns = {
     id: string;
+    project_id: string;
     name: string;
     description: string | null;
     metadata: unknown | null;
@@ -162,6 +248,7 @@ export type EvalTemplate = {
     version: number;
     prompt: string;
     model: string;
+    provider: string;
     model_params: unknown;
     vars: Generated<string[]>;
     output_schema: unknown;
@@ -202,6 +289,8 @@ export type JobExecution = {
     end_time: Timestamp | null;
     error: string | null;
     job_input_trace_id: string | null;
+    job_input_observation_id: string | null;
+    job_input_dataset_item_id: string | null;
     job_output_score_id: string | null;
 };
 export type LlmApiKeys = {
@@ -209,16 +298,39 @@ export type LlmApiKeys = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     provider: string;
+    adapter: string;
     display_secret_key: string;
     secret_key: string;
+    base_url: string | null;
+    custom_models: Generated<string[]>;
+    with_default_models: Generated<boolean>;
+    extra_headers: string | null;
+    extra_header_keys: Generated<string[]>;
+    config: unknown | null;
     project_id: string;
+};
+export type Media = {
+    id: string;
+    sha_256_hash: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    uploaded_at: Timestamp | null;
+    upload_http_status: number | null;
+    upload_http_error: string | null;
+    bucket_path: string;
+    bucket_name: string;
+    content_type: string;
+    content_length: string;
 };
 export type MembershipInvitation = {
     id: string;
     email: string;
-    role: ProjectRole;
-    project_id: string;
-    sender_id: string | null;
+    org_id: string;
+    org_role: Role;
+    project_id: string | null;
+    project_role: Role | null;
+    invited_by_user_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -233,7 +345,7 @@ export type Model = {
     input_price: string | null;
     output_price: string | null;
     total_price: string | null;
-    unit: string;
+    unit: string | null;
     tokenizer_id: string | null;
     tokenizer_config: unknown | null;
 };
@@ -254,6 +366,7 @@ export type Observation = {
     updated_at: Generated<Timestamp>;
     model: string | null;
     internal_model: string | null;
+    internal_model_id: string | null;
     modelParameters: unknown | null;
     input: unknown | null;
     output: unknown | null;
@@ -264,15 +377,28 @@ export type Observation = {
     input_cost: string | null;
     output_cost: string | null;
     total_cost: string | null;
+    calculated_input_cost: string | null;
+    calculated_output_cost: string | null;
+    calculated_total_cost: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
+};
+export type ObservationMedia = {
+    id: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    media_id: string;
+    trace_id: string;
+    observation_id: string;
+    field: string;
 };
 export type ObservationView = {
     id: string;
     trace_id: string | null;
     project_id: string;
     type: ObservationType;
-    start_time: Generated<Timestamp>;
+    start_time: Timestamp;
     end_time: Timestamp | null;
     name: string | null;
     metadata: unknown | null;
@@ -280,7 +406,8 @@ export type ObservationView = {
     level: Generated<ObservationLevel>;
     status_message: string | null;
     version: string | null;
-    created_at: Generated<Timestamp>;
+    created_at: Timestamp;
+    updated_at: Timestamp;
     model: string | null;
     modelParameters: unknown | null;
     input: unknown | null;
@@ -291,6 +418,8 @@ export type ObservationView = {
     unit: string | null;
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
+    prompt_name: string | null;
+    prompt_version: number | null;
     model_id: string | null;
     input_price: string | null;
     output_price: string | null;
@@ -301,6 +430,21 @@ export type ObservationView = {
     latency: number | null;
     time_to_first_token: number | null;
 };
+export type Organization = {
+    id: string;
+    name: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    cloud_config: unknown | null;
+};
+export type OrganizationMembership = {
+    id: string;
+    org_id: string;
+    user_id: string;
+    role: Role;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type PosthogIntegration = {
     project_id: string;
     encrypted_posthog_api_key: string;
@@ -309,25 +453,28 @@ export type PosthogIntegration = {
     enabled: boolean;
     created_at: Generated<Timestamp>;
 };
-export type Pricing = {
-    id: string;
-    model_name: string;
-    pricing_unit: Generated<PricingUnit>;
-    price: string;
-    currency: Generated<string>;
-    token_type: TokenType;
-};
-export type Project = {
+export type Price = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    model_id: string;
+    usage_type: string;
+    price: string;
+};
+export type Project = {
+    id: string;
+    org_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    deleted_at: Timestamp | null;
     name: string;
-    cloud_config: unknown | null;
+    retention_days: number | null;
 };
 export type ProjectMembership = {
+    org_membership_id: string;
     project_id: string;
     user_id: string;
-    role: ProjectRole;
+    role: Role;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
@@ -345,13 +492,21 @@ export type Prompt = {
     config: Generated<unknown>;
     tags: Generated<string[]>;
     labels: Generated<string[]>;
+    commit_message: string | null;
+};
+export type QueueBackUp = {
+    id: string;
+    project_id: string | null;
+    queue_name: string;
+    content: unknown;
+    created_at: Generated<Timestamp>;
 };
 export type Score = {
     id: string;
     timestamp: Generated<Timestamp>;
     project_id: string;
     name: string;
-    value: number;
+    value: number | null;
     source: ScoreSource;
     author_user_id: string | null;
     comment: string | null;
@@ -359,6 +514,7 @@ export type Score = {
     observation_id: string | null;
     config_id: string | null;
     string_value: string | null;
+    queue_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
     data_type: Generated<ScoreDataType>;
@@ -408,6 +564,15 @@ export type Trace = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
+export type TraceMedia = {
+    id: string;
+    project_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    media_id: string;
+    trace_id: string;
+    field: string;
+};
 export type TraceSession = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -432,6 +597,8 @@ export type TraceView = {
     input: unknown | null;
     output: unknown | null;
     session_id: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
     duration: number | null;
 };
 export type User = {
@@ -453,8 +620,14 @@ export type VerificationToken = {
 };
 export type DB = {
     Account: Account;
+    annotation_queue_items: AnnotationQueueItem;
+    annotation_queues: AnnotationQueue;
     api_keys: ApiKey;
     audit_logs: AuditLog;
+    background_migrations: BackgroundMigration;
+    batch_exports: BatchExport;
+    billing_meter_backups: BillingMeterBackup;
+    comments: Comment;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
     dataset_run_items: DatasetRunItems;
@@ -465,19 +638,25 @@ export type DB = {
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
+    media: Media;
     membership_invitations: MembershipInvitation;
     models: Model;
+    observation_media: ObservationMedia;
     observations: Observation;
     observations_view: ObservationView;
+    organization_memberships: OrganizationMembership;
+    organizations: Organization;
     posthog_integrations: PosthogIntegration;
-    pricings: Pricing;
+    prices: Price;
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
+    queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
     scores: Score;
     Session: Session;
     sso_configs: SsoConfig;
+    trace_media: TraceMedia;
     trace_sessions: TraceSession;
     traces: Trace;
     traces_view: TraceView;

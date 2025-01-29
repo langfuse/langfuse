@@ -1,7 +1,8 @@
 import { type z } from "zod";
-import { singleFilter } from "./interfaces/filters";
+import { singleFilter, timeFilter } from "./interfaces/filters";
 
 // to be sent to the server
+export type TimeFilter = z.infer<typeof timeFilter>;
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
 
@@ -22,6 +23,7 @@ export type WipFilterState = WipFilterCondition[];
 export type FilterOption = {
   value: string;
   count?: number;
+  displayValue?: string; // FIX: Temporary workaround: Used to display a different value than the actual value since multiSelect doesn't support key-value pairs
 };
 
 export type TableName =
@@ -30,4 +32,5 @@ export type TableName =
   | "sessions"
   | "scores"
   | "prompts"
-  | "dashboard";
+  | "dashboard"
+  | "users";

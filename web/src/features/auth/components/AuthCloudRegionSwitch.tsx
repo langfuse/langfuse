@@ -10,6 +10,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -59,8 +60,8 @@ export function CloudRegionSwitch({
   );
 
   return (
-    <div>
-      <div className="mb-6 flex w-full flex-col gap-3">
+    <div className="-mb-10 mt-8 rounded-lg bg-card px-6 py-6 text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
+      <div className="flex w-full flex-col gap-2">
         <div>
           <span className="text-sm font-medium leading-none">
             Data Region
@@ -113,8 +114,9 @@ const DataRegionInfo = () => (
     <DialogTrigger asChild>
       <a
         href="#"
-        className="hover:text-hover-primary-accent ml-1 text-xs text-primary-accent"
+        className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
         title="What is this?"
+        tabIndex={-1}
       >
         (what is this?)
       </a>
@@ -123,11 +125,11 @@ const DataRegionInfo = () => (
       <DialogHeader>
         <DialogTitle>Data Regions</DialogTitle>
       </DialogHeader>
-      <div className="flex flex-col gap-2">
+      <DialogDescription className="flex flex-col gap-2">
         <p>Langfuse Cloud is available in two data regions:</p>
         <ul className="list-disc pl-5">
-          <li>US: Northern California (us-west-1)</li>
-          <li>EU: Frankfurt, Germany (eu-central-1)</li>
+          <li>US: Oregon (AWS us-west-2)</li>
+          <li>EU: Ireland (AWS eu-west-1)</li>
         </ul>
         <p>
           Regions are strictly separated, and no data is shared across regions.
@@ -150,7 +152,7 @@ const DataRegionInfo = () => (
           </a>
           .
         </p>
-      </div>
+      </DialogDescription>
     </DialogContent>
   </Dialog>
 );

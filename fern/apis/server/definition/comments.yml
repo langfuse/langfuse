@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      docs: Create a comment. Comments may be attached to different object types (trace, observation, session, prompt).
+      method: POST
+      path: /comments
+      request: CreateCommentRequest
+      response: CreateCommentResponse
+    get:
+      docs: Get all comments
+      method: GET
+      path: /comments
+      request:
+        name: GetCommentsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: Page number, starts at 1.
+          limit:
+            type: optional<integer>
+            docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit
+          objectType:
+            type: optional<string>
+            docs: Filter comments by object type (trace, observation, session, prompt).
+          objectId:
+            type: optional<string>
+            docs: Filter comments by object id. If objectType is not provided, an error will be thrown.
+          authorUserId:
+            type: optional<string>
+            docs: Filter comments by author user id.
+      response: GetCommentsResponse
+    get-by-id:
+      docs: Get a comment by id
+      method: GET
+      path: /comments/{commentId}
+      path-parameters:
+        commentId:
+          type: string
+          docs: The unique langfuse identifier of a comment
+      response: commons.Comment
+types:
+  CreateCommentRequest:
+    properties:
+      projectId:
+        type: string
+        docs: The id of the project to attach the comment to.
+      objectType:
+        type: string
+        docs: The type of the object to attach the comment to (trace, observation, session, prompt).
+      objectId:
+        type: string
+        docs: The id of the object to attach the comment to. If this does not reference a valid existing object, an error will be thrown.
+      content:
+        type: string
+        docs: The content of the comment. May include markdown. Currently limited to 3000 characters.
+      authorUserId:
+        type: optional<string>
+        docs: The id of the user who created the comment.
+  CreateCommentResponse:
+    properties:
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
+  GetCommentsResponse:
+    properties:
+      data: list<commons.Comment>
+      meta: pagination.MetaResponse

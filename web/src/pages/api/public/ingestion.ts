@@ -1,40 +1,24 @@
-import {
-  type AuthHeaderVerificationResult,
-  verifyAuthHeaderAndReturnScope,
-} from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
-  type ingestionApiSchema,
-  eventTypes,
-  ingestionEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
-import { type ApiAccessScope } from "@/src/features/public-api/server/types";
-import { persistEventMiddleware } from "@/src/server/api/services/event-service";
-import { backOff } from "exponential-backoff";
-import { ResourceNotFoundError } from "@/src/utils/exceptions";
-import {
-  SdkLogProcessor,
-  type EventProcessor,
-  TraceProcessor,
-} from "../../../server/api/services/EventProcessor";
-import { ObservationProcessor } from "../../../server/api/services/EventProcessor";
-import { ScoreProcessor } from "../../../server/api/services/EventProcessor";
-import { isNotNullOrUndefined } from "@/src/utils/types";
+  traceException,
+  redis,
+  logger,
+  getCurrentSpan,
+} from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
-import { jsonSchema } from "@/src/utils/zod";
-import * as Sentry from "@sentry/nextjs";
+import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { env } from "@/src/env.mjs";
 import {
-  ValidationError,
   MethodNotAllowedError,
   BaseError,
-  ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
+import { instrumentSync, processEventBatch } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export const config = {
   api: {
@@ -44,12 +28,22 @@ export const config = {
   },
 };
 
-type BatchResult = {
-  result: unknown;
-  id: string;
-  type: string;
-};
-
+/**
+ * This handler performs multiple actions to ingest data. It is compatible with the new async workflow, but also
+ * supports the old synchronous workflow which processes events in the web container.
+ * Overall, the processing of each incoming request happens in three stages
+ * 1. Validation
+ *   - Check that the user has permissions
+ *   - Check whether rate-limits are breached
+ *   - Check that the request is well-formed
+ * 2. Async Processing
+ *   - Upload each event to S3 for long-term storage and as an event cache
+ *   - Add the event batch to the queue for async processing
+ *   - Fallback to sync processing on errors
+ * 3. Sync Processing
+ * The last two stages live in a processEventBatch function which is reused for the POST scores endpoint and for
+ * legacy event types.
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -57,81 +51,76 @@ export default async function handler(
   try {
     await runMiddleware(req, res, cors);
 
+    // add context of api call to the span
+    const currentSpan = getCurrentSpan();
+
+    // get x-langfuse-xxx headers and add them to the span
+    Object.keys(req.headers).forEach((header) => {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
+        currentSpan?.setAttributes({
+          [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
+            req.headers[header],
+        });
+      }
+    });
+
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await verifyAuthHeaderAndReturnScope(
-      req.headers.authorization,
-    );
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
 
-    if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
+    }
+
+    try {
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "ingestion",
+      );
+
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+    } catch (e) {
+      // If rate-limiter returns an error, we log it and continue processing.
+      // This allows us to fail open instead of reject requests.
+      logger.error("Error while rate limiting", e);
+    }
 
     const batchType = z.object({
       batch: z.array(z.unknown()),
       metadata: jsonSchema.nullish(),
     });
 
-    const parsedSchema = batchType.safeParse(req.body);
-
-    Sentry.metrics.increment(
-      "ingestion_event",
-      parsedSchema.success ? parsedSchema.data.batch.length : 0,
+    const parsedSchema = instrumentSync(
+      { name: "ingestion-zod-parse-unknown-batch-event" },
+      () => batchType.safeParse(req.body),
     );
 
     if (!parsedSchema.success) {
-      console.log("Invalid request data", parsedSchema.error);
+      logger.info("Invalid request data", parsedSchema.error);
       return res.status(400).json({
         message: "Invalid request data",
         errors: parsedSchema.error.issues.map((issue) => issue.message),
       });
     }
 
-    const validationErrors: { id: string; error: unknown }[] = [];
-
-    const batch: (z.infer<typeof ingestionEvent> | undefined)[] =
-      parsedSchema.data.batch.map((event) => {
-        const parsed = ingestionEvent.safeParse(event);
-        if (!parsed.success) {
-          validationErrors.push({
-            id:
-              typeof event === "object" && event && "id" in event
-                ? typeof event.id === "string"
-                  ? event.id
-                  : "unknown"
-                : "unknown",
-            error: new ValidationError(parsed.error.message),
-          });
-          return undefined;
-        } else {
-          return parsed.data;
-        }
-      });
-    const filteredBatch: z.infer<typeof ingestionEvent>[] =
-      batch.filter(isNotNullOrUndefined);
-
     await telemetry();
 
-    const sortedBatch = sortBatch(filteredBatch);
-    const result = await handleBatch(
-      sortedBatch,
-      parsedSchema.data.metadata,
-      req,
-      authCheck,
-    );
-
-    // send out REST requests to worker for all trace types
-    await sendToWorkerIfEnvironmentConfigured(
-      result.results,
-      authCheck.scope.projectId,
-    );
-
-    handleBatchResult(
-      [...validationErrors, ...result.errors],
-      result.results,
-      res,
-    );
+    const result = await processEventBatch(parsedSchema.data.batch, authCheck);
+    return res.status(207).json(result);
   } catch (error: unknown) {
-    console.error("error handling ingestion event", error);
+    if (!(error instanceof UnauthorizedError)) {
+      logger.error("error_handling_ingestion_event", error);
+      traceException(error);
+    }
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({
@@ -145,8 +134,9 @@ export default async function handler(
         error: "Internal Server Error",
       });
     }
+
     if (error instanceof z.ZodError) {
-      console.log(`Zod exception`, error.errors);
+      logger.error(`Zod exception`, error.errors);
       return res.status(400).json({
         message: "Invalid request data",
         error: error.errors,
@@ -161,319 +151,3 @@ export default async function handler(
     });
   }
 }
-
-const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
-  // keep the order of events as they are. Order events in a way that types containing updates come last
-  // Filter out OBSERVATION_UPDATE events
-  const updates = batch.filter(
-    (event) => event.type === eventTypes.OBSERVATION_UPDATE,
-  );
-
-  // Keep all other events in their original order
-  const others = batch.filter(
-    (event) => event.type !== eventTypes.OBSERVATION_UPDATE,
-  );
-
-  // Return the array with non-update events first, followed by update events
-  return [...others, ...updates];
-};
-
-export const handleBatch = async (
-  events: z.infer<typeof ingestionApiSchema>["batch"],
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
-  req: NextApiRequest,
-  authCheck: AuthHeaderVerificationResult,
-) => {
-  console.log(`handling ingestion ${events.length} events`);
-
-  if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
-
-  const results: BatchResult[] = []; // Array to store the results
-
-  const errors: {
-    error: unknown;
-    id: string;
-    type: string;
-  }[] = []; // Array to store the errors
-
-  for (const singleEvent of events) {
-    try {
-      const result = await retry(async () => {
-        return await handleSingleEvent(
-          singleEvent,
-          metadata,
-          req,
-          authCheck.scope,
-        );
-      });
-      results.push({
-        result: result,
-        id: singleEvent.id,
-        type: singleEvent.type,
-      }); // Push each result into the array
-    } catch (error) {
-      // Handle or log the error if `handleSingleEvent` fails
-      console.error("Error handling event:", error);
-      // Decide how to handle the error: rethrow, continue, or push an error object to results
-      // For example, push an error object:
-      errors.push({ error: error, id: singleEvent.id, type: singleEvent.type });
-    }
-  }
-
-  return { results, errors };
-};
-
-async function retry<T>(request: () => Promise<T>): Promise<T> {
-  return await backOff(request, {
-    numOfAttempts: 3,
-    retry: (e: Error, attemptNumber: number) => {
-      if (e instanceof UnauthorizedError || e instanceof ForbiddenError) {
-        console.log("not retrying auth error");
-        return false;
-      }
-      console.log(`retrying processing events ${attemptNumber}`);
-      return true;
-    },
-  });
-}
-export const getBadRequestError = (errors: Array<unknown>): ValidationError[] =>
-  errors.filter(
-    (error): error is ValidationError => error instanceof ValidationError,
-  );
-
-export const getResourceNotFoundError = (
-  errors: Array<unknown>,
-): ResourceNotFoundError[] =>
-  errors.filter(
-    (error): error is ResourceNotFoundError =>
-      error instanceof ResourceNotFoundError,
-  );
-
-export const hasBadRequestError = (errors: Array<unknown>) =>
-  errors.some((error) => error instanceof ValidationError);
-
-const handleSingleEvent = async (
-  event: z.infer<typeof ingestionEvent>,
-  metadata: z.infer<typeof ingestionApiSchema>["metadata"],
-  req: NextApiRequest,
-  apiScope: ApiAccessScope,
-) => {
-  const { body } = event;
-  let restEvent = body;
-  if ("input" in body) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { input, ...rest } = body;
-    restEvent = rest;
-  }
-  if ("output" in restEvent) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { output, ...rest } = restEvent;
-    restEvent = rest;
-  }
-  console.log(
-    `handling single event ${event.id} ${JSON.stringify({ body: restEvent })}`,
-  );
-
-  const cleanedEvent = ingestionEvent.parse(cleanEvent(event));
-
-  const { type } = cleanedEvent;
-
-  await persistEventMiddleware(
-    prisma,
-    apiScope.projectId,
-    req,
-    cleanedEvent,
-    metadata,
-  );
-
-  let processor: EventProcessor;
-  switch (type) {
-    case eventTypes.TRACE_CREATE:
-      processor = new TraceProcessor(cleanedEvent);
-      break;
-    case eventTypes.OBSERVATION_CREATE:
-    case eventTypes.OBSERVATION_UPDATE:
-    case eventTypes.EVENT_CREATE:
-    case eventTypes.SPAN_CREATE:
-    case eventTypes.SPAN_UPDATE:
-    case eventTypes.GENERATION_CREATE:
-    case eventTypes.GENERATION_UPDATE:
-      processor = new ObservationProcessor(cleanedEvent);
-      break;
-    case eventTypes.SCORE_CREATE: {
-      processor = new ScoreProcessor(cleanedEvent);
-      break;
-    }
-    case eventTypes.SDK_LOG:
-      processor = new SdkLogProcessor(cleanedEvent);
-  }
-
-  // Deny access to non-score events if the access level is not "all"
-  // This is an additional safeguard to auth checks in EventProcessor
-  if (apiScope.accessLevel !== "all" && type !== eventTypes.SCORE_CREATE) {
-    throw new ForbiddenError("Access denied. Event type not allowed.");
-  }
-
-  return await processor.process(apiScope);
-};
-
-export const handleBatchResult = (
-  errors: Array<{ id: string; error: unknown }>,
-  results: Array<{ id: string; result: unknown }>,
-  res: NextApiResponse,
-) => {
-  const returnedErrors: {
-    id: string;
-    status: number;
-    message?: string;
-    error?: string;
-  }[] = [];
-
-  const successes: {
-    id: string;
-    status: number;
-  }[] = [];
-
-  errors.forEach((error) => {
-    if (error.error instanceof ValidationError) {
-      returnedErrors.push({
-        id: error.id,
-        status: 400,
-        message: "Invalid request data",
-        error: error.error.message,
-      });
-    } else if (error.error instanceof UnauthorizedError) {
-      returnedErrors.push({
-        id: error.id,
-        status: 401,
-        message: "Authentication error",
-        error: error.error.message,
-      });
-    } else if (error.error instanceof ResourceNotFoundError) {
-      returnedErrors.push({
-        id: error.id,
-        status: 404,
-        message: "Resource not found",
-        error: error.error.message,
-      });
-    } else {
-      if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-        Sentry.captureException(error.error);
-      }
-      returnedErrors.push({
-        id: error.id,
-        status: 500,
-        error: "Internal Server Error",
-      });
-    }
-  });
-
-  if (returnedErrors.length > 0) {
-    console.log("Error processing events", returnedErrors);
-  }
-
-  results.forEach((result) => {
-    successes.push({
-      id: result.id,
-      status: 201,
-    });
-  });
-
-  return res.status(207).send({ errors: returnedErrors, successes });
-};
-
-export const handleBatchResultLegacy = (
-  errors: Array<{ id: string; error: unknown }>,
-  results: Array<{ id: string; result: unknown }>,
-  res: NextApiResponse,
-) => {
-  const unknownErrors = errors.map((error) => error.error);
-
-  const badRequestErrors = getBadRequestError(unknownErrors);
-  if (badRequestErrors.length > 0) {
-    console.log("Bad request errors", badRequestErrors);
-    return res.status(400).json({
-      message: "Invalid request data",
-      errors: badRequestErrors.map((error) => error.message),
-    });
-  }
-
-  const ResourceNotFoundError = getResourceNotFoundError(unknownErrors);
-  if (ResourceNotFoundError.length > 0) {
-    return res.status(404).json({
-      message: "Resource not found",
-      errors: ResourceNotFoundError.map((error) => error.message),
-    });
-  }
-
-  if (errors.length > 0) {
-    console.log("Error processing events", unknownErrors);
-    return res.status(500).json({
-      errors: ["Internal Server Error"],
-    });
-  }
-  return res.status(200).send(results.length > 0 ? results[0]?.result : {});
-};
-
-// cleans NULL characters from the event
-export function cleanEvent(obj: unknown): unknown {
-  if (typeof obj === "string") {
-    return obj.replace(/\u0000/g, "");
-  } else if (typeof obj === "object" && obj !== null) {
-    if (Array.isArray(obj)) {
-      return obj.map(cleanEvent);
-    } else {
-      // Here we assert that obj is a Record<string, unknown>
-      const objAsRecord = obj as Record<string, unknown>;
-      const newObj: Record<string, unknown> = {};
-      for (const key in objAsRecord) {
-        newObj[key] = cleanEvent(objAsRecord[key]);
-      }
-      return newObj;
-    }
-  } else {
-    return obj;
-  }
-}
-
-export const sendToWorkerIfEnvironmentConfigured = async (
-  batchResults: BatchResult[],
-  projectId: string,
-): Promise<void> => {
-  try {
-    if (
-      env.LANGFUSE_WORKER_HOST &&
-      env.LANGFUSE_WORKER_PASSWORD &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-    ) {
-      const traceEvents = batchResults
-        .filter((result) => result.type === eventTypes.TRACE_CREATE) // we only have create, no update.
-        .map((result) =>
-          result.result &&
-          typeof result.result === "object" &&
-          "id" in result.result
-            ? // ingestion API only gets traces for one projectId
-              { traceId: result.result.id, projectId: projectId }
-            : null,
-        )
-        .filter(isNotNullOrUndefined);
-
-      if (traceEvents.length > 0) {
-        await fetch(`${env.LANGFUSE_WORKER_HOST}/api/events`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              "Basic " +
-              Buffer.from(
-                "admin" + ":" + env.LANGFUSE_WORKER_PASSWORD,
-              ).toString("base64"),
-          },
-          body: JSON.stringify(traceEvents),
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error sending events to worker", error);
-  }
-};

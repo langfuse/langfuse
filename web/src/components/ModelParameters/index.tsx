@@ -3,38 +3,45 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
 import { Slider } from "@/src/components/ui/slider";
 import { Switch } from "@/src/components/ui/switch";
+import { CreateLLMApiKeyDialog } from "@/src/features/public-api/components/CreateLLMApiKeyDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { cn } from "@/src/utils/tailwind";
 import {
-  ModelProvider,
-  supportedModels,
+  type LLMAdapter,
+  type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
+import { FormDescription } from "@/src/components/ui/form";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
-  availableModels?: UIModelParams[];
+  availableProviders: string[];
+  availableModels: string[];
   updateModelParamValue: <Key extends keyof UIModelParams>(
     key: Key,
     value: UIModelParams[Key]["value"],
   ) => void;
   setModelParamEnabled?: (key: keyof UIModelParams, enabled: boolean) => void;
   formDisabled?: boolean;
+  modelParamsDescription?: string;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParams,
+  availableProviders,
   availableModels,
   updateModelParamValue,
   setModelParamEnabled,
   formDisabled = false,
+  modelParamsDescription,
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -43,76 +50,86 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   return (
     <div className="flex flex-col space-y-4">
       <p className="font-semibold">Model</p>
-      <div className="space-y-4">
-        <ModelParamsSelect
-          title="Provider"
-          modelParamsKey="provider"
-          disabled={formDisabled}
-          value={modelParams.provider.value}
-          options={
-            availableModels
-              ? [...new Set(availableModels.map((m) => m.provider.value))]
-              : Object.values(ModelProvider)
-          }
-          updateModelParam={updateModelParamValue}
-        />
-        <ModelParamsSelect
-          title="Model name"
-          modelParamsKey="model"
-          disabled={formDisabled}
-          value={modelParams.model.value}
-          options={Object.values(
-            availableModels
-              ? availableModels
-                  .filter(
-                    (m) => m.provider.value === modelParams.provider.value,
-                  )
-                  .map((m) => m.model.value)
-              : supportedModels[modelParams.provider.value],
-          )}
-          updateModelParam={updateModelParamValue}
-        />
-        <ModelParamsSlider
-          title="Temperature"
-          modelParamsKey="temperature"
-          formDisabled={formDisabled}
-          enabled={modelParams.temperature.enabled}
-          setModelParamEnabled={setModelParamEnabled}
-          value={modelParams.temperature.value}
-          min={0}
-          max={modelParams.maxTemperature.value}
-          step={0.01}
-          tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
-          updateModelParam={updateModelParamValue}
-        />
-        <ModelParamsSlider
-          title="Output token limit"
-          modelParamsKey="max_tokens"
-          formDisabled={formDisabled}
-          enabled={modelParams.max_tokens.enabled}
-          setModelParamEnabled={setModelParamEnabled}
-          value={modelParams.max_tokens.value}
-          min={1}
-          max={4096}
-          step={1}
-          tooltip="The maximum number of tokens that can be generated in the chat completion."
-          updateModelParam={updateModelParamValue}
-        />
-        <ModelParamsSlider
-          title="Top P"
-          modelParamsKey="top_p"
-          formDisabled={formDisabled}
-          enabled={modelParams.top_p.enabled}
-          setModelParamEnabled={setModelParamEnabled}
-          value={modelParams.top_p.value}
-          min={0}
-          max={1}
-          step={0.01}
-          tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
-          updateModelParam={updateModelParamValue}
-        />
-        <LLMApiKeyComponent {...{ projectId, modelParams }} />
-      </div>
+      {availableProviders.length === 0 ? (
+        <>
+          <p className="text-xs">No LLM API key set in project. </p>
+          <CreateLLMApiKeyDialog />
+        </>
+      ) : (
+        <div className="space-y-4">
+          <ModelParamsSelect
+            title="Provider"
+            modelParamsKey="provider"
+            disabled={formDisabled}
+            value={modelParams.provider.value}
+            options={availableProviders}
+            updateModelParam={updateModelParamValue}
+          />
+          <ModelParamsSelect
+            title="Model name"
+            modelParamsKey="model"
+            disabled={formDisabled}
+            value={modelParams.model.value}
+            options={availableModels}
+            updateModelParam={updateModelParamValue}
+            modelParamsDescription={modelParamsDescription}
+          />
+          {modelParams.model.value?.startsWith("o1-") ? (
+            <p className="text-sm text-dark-yellow">
+              For {modelParams.model.value}, the system message and the
+              temperature, max_tokens and top_p setting are not supported while
+              it is in beta.{" "}
+              <a
+                href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                More info ↗
+              </a>
+            </p>
+          ) : null}
+          <ModelParamsSlider
+            title="Temperature"
+            modelParamsKey="temperature"
+            formDisabled={formDisabled}
+            enabled={modelParams.temperature.enabled}
+            setModelParamEnabled={setModelParamEnabled}
+            value={modelParams.temperature.value}
+            min={0}
+            max={modelParams.maxTemperature.value}
+            step={0.01}
+            tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
+            updateModelParam={updateModelParamValue}
+          />
+          <ModelParamsSlider
+            title="Output token limit"
+            modelParamsKey="max_tokens"
+            formDisabled={formDisabled}
+            enabled={modelParams.max_tokens.enabled}
+            setModelParamEnabled={setModelParamEnabled}
+            value={modelParams.max_tokens.value}
+            min={1}
+            max={16384}
+            step={1}
+            tooltip="The maximum number of tokens that can be generated in the chat completion."
+            updateModelParam={updateModelParamValue}
+          />
+          <ModelParamsSlider
+            title="Top P"
+            modelParamsKey="top_p"
+            formDisabled={formDisabled}
+            enabled={modelParams.top_p.enabled}
+            setModelParamEnabled={setModelParamEnabled}
+            value={modelParams.top_p.value}
+            min={0}
+            max={1}
+            step={0.01}
+            tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
+            updateModelParam={updateModelParamValue}
+          />
+          <LLMApiKeyComponent {...{ projectId, modelParams }} />
+        </div>
+      )}
     </div>
   );
 };
@@ -124,6 +141,7 @@ type ModelParamsSelectProps = {
   options: string[];
   updateModelParam: ModelParamsContext["updateModelParamValue"];
   disabled?: boolean;
+  modelParamsDescription?: string;
 };
 const ModelParamsSelect = ({
   title,
@@ -132,6 +150,7 @@ const ModelParamsSelect = ({
   options,
   updateModelParam,
   disabled,
+  modelParamsDescription,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
@@ -148,7 +167,7 @@ const ModelParamsSelect = ({
         onValueChange={(value) =>
           updateModelParam(
             modelParamsKey,
-            value as (typeof supportedModels)[ModelProvider][number],
+            value as (typeof supportedModels)[LLMAdapter][number],
           )
         }
         value={value}
@@ -162,8 +181,13 @@ const ModelParamsSelect = ({
               {option}
             </SelectItem>
           ))}
+          <SelectSeparator />
+          <CreateLLMApiKeyDialog />
         </SelectContent>
       </Select>
+      {modelParamsDescription ? (
+        <FormDescription>{modelParamsDescription}</FormDescription>
+      ) : undefined}
     </div>
   );
 };

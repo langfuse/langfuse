@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/ingestion-metrics",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}

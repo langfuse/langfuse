@@ -1,4 +1,6 @@
 "use client";
+import { type OrderByState } from "@langfuse/shared";
+import React, { useState, useMemo } from "react";
 
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -16,10 +18,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { type OrderByState } from "@/src/features/orderBy/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
+  type ColumnOrderState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -30,13 +32,12 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { useState } from "react";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
-    pageCount: number;
+    totalCount: number | null; // null if loading
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
@@ -45,11 +46,17 @@ interface DataTableProps<TData, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  columnOrder?: ColumnOrderState;
+  onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
   className?: string;
+  paginationClassName?: string;
+  isBorderless?: boolean;
+  shouldRenderGroupHeaders?: boolean;
+  onRowClick?: (row: TData) => void;
 }
 
 export interface AsyncTableData<T> {
@@ -57,6 +64,31 @@ export interface AsyncTableData<T> {
   isError: boolean;
   data?: T;
   error?: string;
+}
+
+function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
+  return array.reduce<string[]>((acc, key) => {
+    if (toInsert.has(key)) {
+      acc.push(...toInsert.get(key)!);
+    } else {
+      acc.push(key);
+    }
+
+    return acc;
+  }, []);
+}
+
+function isValidCssVariableName({
+  name,
+  includesHyphens = true,
+}: {
+  name: string;
+  includesHyphens?: boolean;
+}) {
+  const regex = includesHyphens
+    ? /^--(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/
+    : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
+  return regex.test(name);
 }
 
 export function DataTable<TData extends object, TValue>({
@@ -67,23 +99,49 @@ export function DataTable<TData extends object, TValue>({
   setRowSelection,
   columnVisibility,
   onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
   help,
   orderBy,
   setOrderBy,
   rowHeight,
+  className,
+  paginationClassName,
+  isBorderless = false,
+  shouldRenderGroupHeaders = false,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
 
+  const flattedColumnsByGroup = useMemo(() => {
+    const flatColumnsByGroup = new Map<string, string[]>();
+
+    columns.forEach((col) => {
+      if (col.columns && Boolean(col.columns.length)) {
+        const children = col.columns.map((child) => child.accessorKey);
+        flatColumnsByGroup.set(col.accessorKey, children);
+      }
+    });
+    return flatColumnsByGroup;
+  }, [columns]);
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
     onColumnFiltersChange: setColumnFilters,
+    onColumnOrderChange: onColumnOrderChange,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
-    pageCount: pagination?.pageCount ?? 0,
+    pageCount:
+      pagination?.totalCount === null ||
+      pagination?.state.pageSize === undefined
+        ? -1
+        : Math.ceil(
+            Number(pagination?.totalCount) / pagination?.state.pageSize,
+          ),
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: onColumnVisibilityChange,
@@ -98,33 +156,88 @@ export function DataTable<TData extends object, TValue>({
       columnFilters,
       pagination: pagination?.state,
       columnVisibility,
+      columnOrder: columnOrder
+        ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
+        : undefined,
       rowSelection,
     },
     manualFiltering: true,
+    defaultColumn: {
+      minSize: 20,
+      size: 150,
+      maxSize: Number.MAX_SAFE_INTEGER,
+    },
+    columnResizeMode: "onChange",
   });
+
+  // memo column sizes for performance
+  // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
+  const columnSizeVars = useMemo(() => {
+    const headers = table.getFlatHeaders();
+    const colSizes: { [key: string]: number } = {};
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i]!;
+      colSizes[`--header-${header.id}-size`] = header.getSize();
+      colSizes[`--col-${header.column.id}-size`] = header.column.getSize();
+    }
+    return colSizes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getState().columnSizingInfo,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getState().columnSizing,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    table.getFlatHeaders(),
+    columnVisibility,
+  ]);
+
+  const tableHeaders = shouldRenderGroupHeaders
+    ? table.getHeaderGroups()
+    : [table.getHeaderGroups().slice(-1)[0]];
 
   return (
     <>
-      <div className="flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto">
-        <div className="w-full overflow-auto rounded-md border">
+      <div
+        className={cn(
+          "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
+          className,
+        )}
+      >
+        <div
+          className={cn(
+            "w-full overflow-auto",
+            isBorderless ? "" : "rounded-md border",
+          )}
+          style={{ ...columnSizeVars }}
+        >
           <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
+            <TableHeader className="sticky top-0 z-10">
+              {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column
                       .columnDef as LangfuseColumnDef<ModelTableRow>;
                     const sortingEnabled = columnDef.enableSorting;
+                    // if the header id does not translate to a valid css variable name, default to 150px as width
+                    // may only happen for dynamic columns, as column names are user defined
+                    const width = isValidCssVariableName({
+                      name: header.id,
+                      includesHyphens: false,
+                    })
+                      ? `calc(var(--header-${header.id}-size) * 1px)`
+                      : 150;
+
                     return header.column.getIsVisible() ? (
                       <TableHead
                         key={header.id}
                         className={cn(
-                          sortingEnabled ? "cursor-pointer" : null,
-                          "whitespace-nowrap p-2",
+                          "group p-1 first:pl-2",
+                          sortingEnabled && "cursor-pointer",
                         )}
-                        title={sortingEnabled ? "Sort by this column" : ""}
+                        style={{ width }}
                         onClick={(event) => {
-                          event.preventDefault(); // Add this line
+                          event.preventDefault();
 
                           if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
@@ -160,28 +273,40 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <>
-                            <div className="select-none">
+                          <div className="flex select-none items-center">
+                            <span className="truncate">
                               {flexRender(
                                 header.column.columnDef.header,
                                 header.getContext(),
                               )}
+                            </span>
+                            {columnDef.headerTooltip && (
+                              <DocPopup
+                                description={
+                                  columnDef.headerTooltip.description
+                                }
+                                href={columnDef.headerTooltip.href}
+                              />
+                            )}
+                            {orderBy?.column === columnDef.id
+                              ? renderOrderingIndicator(orderBy)
+                              : null}
 
-                              {columnDef.headerTooltip && (
-                                <DocPopup
-                                  description={
-                                    columnDef.headerTooltip.description
-                                  }
-                                  href={columnDef.headerTooltip.href}
-                                  size="xs"
-                                />
+                            <div
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onDoubleClick={() => header.column.resetSize()}
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                "absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none bg-secondary opacity-0 group-hover:opacity-100",
+                                header.column.getIsResizing() &&
+                                  "bg-primary-accent opacity-100",
                               )}
-
-                              {orderBy?.column === columnDef.id
-                                ? renderOrderingIndicator(orderBy)
-                                : null}
-                            </div>
-                          </>
+                            />
+                          </div>
                         )}
                       </TableHead>
                     ) : null;
@@ -189,62 +314,39 @@ export function DataTable<TData extends object, TValue>({
                 </TableRow>
               ))}
             </TableHeader>
-            <TableBody>
-              {data.isLoading || !data.data ? (
-                <TableRow className="h-svh">
-                  <TableCell
-                    colSpan={columns.length}
-                    className="content-start border-b text-center"
-                  >
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ) : table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className="overflow-hidden whitespace-nowrap border-b px-2 py-1 text-xs first:pl-2"
-                      >
-                        <div className={cn("flex items-center", rowheighttw)}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </div>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
-                  >
-                    <div>
-                      No results.{" "}
-                      {help && (
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          size="sm"
-                        />
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+            {table.getState().columnSizingInfo.isResizingColumn ? (
+              <MemoizedTableBody
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+                onRowClick={onRowClick}
+              />
+            ) : (
+              <TableBodyComponent
+                table={table}
+                rowheighttw={rowheighttw}
+                columns={columns}
+                data={data}
+                help={help}
+                onRowClick={onRowClick}
+              />
+            )}
           </Table>
         </div>
         <div className="grow"></div>
       </div>
       {pagination !== undefined ? (
-        <div className="bg:background sticky bottom-0 z-10 flex w-full justify-end font-medium">
+        <div
+          className={cn(
+            "sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium",
+            paginationClassName,
+          )}
+        >
           <DataTablePagination
             table={table}
+            isLoading={data.isLoading}
             paginationOptions={pagination.options}
           />
         </div>
@@ -254,7 +356,89 @@ export function DataTable<TData extends object, TValue>({
 }
 
 function renderOrderingIndicator(orderBy?: OrderByState) {
-  if (!orderBy) return;
+  if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
-  else return <span className="ml-1">▼</span>;
+  else
+    return (
+      <span className="ml-1" title="Sort by this column">
+        ▼
+      </span>
+    );
 }
+
+interface TableBodyComponentProps<TData> {
+  table: ReturnType<typeof useReactTable<TData>>;
+  rowheighttw?: string;
+  columns: LangfuseColumnDef<TData, any>[];
+  data: AsyncTableData<TData[]>;
+  help?: { description: string; href: string };
+  onRowClick?: (row: TData) => void;
+}
+
+function TableBodyComponent<TData>({
+  table,
+  rowheighttw,
+  columns,
+  data,
+  help,
+  onRowClick,
+}: TableBodyComponentProps<TData>) {
+  return (
+    <TableBody>
+      {data.isLoading || !data.data ? (
+        <TableRow className="h-svh">
+          <TableCell
+            colSpan={columns.length}
+            className="content-start border-b text-center"
+          >
+            Loading...
+          </TableCell>
+        </TableRow>
+      ) : table.getRowModel().rows.length ? (
+        table.getRowModel().rows.map((row) => (
+          <TableRow
+            key={row.id}
+            onClick={() => onRowClick?.(row.original)}
+            className={
+              onRowClick ? "cursor-pointer hover:bg-accent" : undefined
+            }
+          >
+            {row.getVisibleCells().map((cell) => (
+              <TableCell
+                key={cell.id}
+                className={cn(
+                  "overflow-hidden border-b p-1 text-xs first:pl-2",
+                  rowheighttw === "s" && "whitespace-nowrap",
+                )}
+                style={{
+                  width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                }}
+              >
+                <div className={cn("flex items-center", rowheighttw)}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
+              </TableCell>
+            ))}
+          </TableRow>
+        ))
+      ) : (
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={columns.length} className="relative h-24">
+            <div className="pointer-events-none fixed left-[50%] flex -translate-y-1/2 items-center justify-center">
+              No results.{" "}
+              {help && (
+                <DocPopup description={help.description} href={help.href} />
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </TableBody>
+  );
+}
+
+// memo tables for performance, should only re-render when data changes
+// https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
+const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
+  return prev.table.options.data === next.table.options.data;
+}) as typeof TableBodyComponent;

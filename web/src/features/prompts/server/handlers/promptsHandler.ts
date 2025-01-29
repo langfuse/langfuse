@@ -6,13 +6,23 @@ import {
   CreatePromptSchema,
   GetPromptsMetaSchema,
 } from "@/src/features/prompts/server/utils/validation";
-import { withMiddlewares } from "@/src/server/utils/withMiddlewares";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-
+import { redis } from "@langfuse/shared/src/server";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
+
+  const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+    authCheck.scope,
+    "prompts",
+  );
+
+  if (rateLimitCheck?.isRateLimited()) {
+    return rateLimitCheck.sendRestResponseIfLimited(res);
+  }
 
   const input = GetPromptsMetaSchema.parse(req.query);
   const promptsMetadata = await getPromptsMeta({
@@ -28,6 +38,15 @@ const postPromptsHandler = async (
   res: NextApiResponse,
 ) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
+
+  const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+    authCheck.scope,
+    "prompts",
+  );
+
+  if (rateLimitCheck?.isRateLimited()) {
+    return rateLimitCheck.sendRestResponseIfLimited(res);
+  }
 
   const input = CreatePromptSchema.parse(req.body);
   const createdPrompt = await createPrompt({

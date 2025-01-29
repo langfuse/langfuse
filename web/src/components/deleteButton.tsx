@@ -7,19 +7,22 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { TrashIcon } from "lucide-react";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { type Scope } from "@/src/features/rbac/constants/roleAccessRights";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 
 interface DeleteButtonProps {
   itemId: string;
   projectId: string;
   isTableAction?: boolean;
-  scope: Scope;
+  scope: ProjectScope;
   invalidateFunc: () => void;
   type: "trace" | "dataset";
   redirectUrl?: string;
+  deleteConfirmation?: string;
 }
 
 export function DeleteButton({
@@ -30,12 +33,14 @@ export function DeleteButton({
   invalidateFunc,
   type,
   redirectUrl,
+  deleteConfirmation,
 }: DeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
   const capture = usePostHogClientCapture();
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
 
-  const hasAccess = useHasAccess({ projectId, scope: scope });
+  const hasAccess = useHasProjectAccess({ projectId, scope: scope });
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);
@@ -53,16 +58,13 @@ export function DeleteButton({
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover key={itemId}>
       <PopoverTrigger asChild>
         <Button
           variant={isTableAction ? "ghost" : "outline"}
           size={isTableAction ? "xs" : "icon"}
+          disabled={!hasAccess}
           onClick={() =>
             type === "trace"
               ? capture("trace:delete_form_open", {
@@ -82,6 +84,18 @@ export function DeleteButton({
           This action cannot be undone and removes all the data associated with
           this {type}.
         </p>
+        {deleteConfirmation && (
+          <div className="mb-4 grid w-full gap-1.5">
+            <Label htmlFor="delete-confirmation">
+              Type &quot;{deleteConfirmation}&quot; to confirm
+            </Label>
+            <Input
+              id="delete-confirmation"
+              value={deleteConfirmationInput}
+              onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+            />
+          </div>
+        )}
         <div className="flex justify-end space-x-4">
           {type === "trace" ? (
             <Button
@@ -89,6 +103,13 @@ export function DeleteButton({
               variant="destructive"
               loading={traceMutation.isLoading || isDeleted}
               onClick={() => {
+                if (
+                  deleteConfirmation &&
+                  deleteConfirmationInput !== deleteConfirmation
+                ) {
+                  alert("Please type the correct confirmation");
+                  return;
+                }
                 void traceMutation.mutateAsync({
                   traceIds: [itemId],
                   projectId,
@@ -106,6 +127,13 @@ export function DeleteButton({
               variant="destructive"
               loading={datasetMutation.isLoading || isDeleted}
               onClick={() => {
+                if (
+                  deleteConfirmation &&
+                  deleteConfirmationInput !== deleteConfirmation
+                ) {
+                  alert("Please type the correct confirmation");
+                  return;
+                }
                 void datasetMutation.mutateAsync({
                   projectId,
                   datasetId: itemId,

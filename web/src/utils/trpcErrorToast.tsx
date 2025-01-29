@@ -1,7 +1,14 @@
 import { TRPCClientError } from "@trpc/client";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
-const errorTitleMap: Record<string, string> = {
+// Catch network level errors, e.g. by proxy rate-limiting
+
+const httpStatusOverride: Record<number, keyof typeof errorTitleMap> = {
+  429: "TOO_MANY_REQUESTS",
+  524: "TIMEOUT",
+};
+
+const errorTitleMap = {
   BAD_REQUEST: "Bad Request",
   UNAUTHORIZED: "Unauthorized",
   FORBIDDEN: "Forbidden",
@@ -15,20 +22,56 @@ const errorTitleMap: Record<string, string> = {
   TOO_MANY_REQUESTS: "Too Many Requests",
   CLIENT_CLOSED_REQUEST: "Client Closed Request",
   INTERNAL_SERVER_ERROR: "Internal Server Error",
+} as const;
+
+const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {
+  const httpStatus: number =
+    typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
+
+  if (httpStatus in httpStatusOverride) {
+    return {
+      errorTitle: errorTitleMap[httpStatusOverride[httpStatus]],
+      httpStatus,
+    };
+  }
+
+  const errorTitle =
+    error.data?.code in errorTitleMap
+      ? errorTitleMap[error.data?.code as keyof typeof errorTitleMap]
+      : "Unexpected Error";
+
+  return { errorTitle, httpStatus };
+};
+
+const getErrorDescription = (httpStatus: number) => {
+  switch (httpStatus) {
+    case 429:
+      return "Rate limit hit. Please try again later.";
+    case 524:
+      return "Request took too long to process. Please try again later.";
+    default:
+      return "Internal error";
+  }
 };
 
 export const trpcErrorToast = (error: unknown) => {
   if (error instanceof TRPCClientError) {
-    const path = error.data?.path;
-    const cause = error.data?.cause;
-    const description = error.message;
-    const errorTitle = errorTitleMap[error.data?.code] || "Unexpected Error";
+    const { errorTitle, httpStatus } = getErrorTitleAndHttpCode(error);
 
-    showErrorToast(errorTitle, description, cause, path);
+    const path = error.data?.path;
+    const description = getErrorDescription(httpStatus);
+
+    showErrorToast(
+      errorTitle,
+      description,
+      httpStatus >= 500 && httpStatus < 600 ? "ERROR" : "WARNING",
+      path,
+    );
   } else {
     showErrorToast(
       "Unexpected Error",
-      "An unexpected error occurred. Please try again.",
+      "An unexpected error occurred.",
+      "ERROR",
     );
   }
 };

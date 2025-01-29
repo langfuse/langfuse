@@ -5,16 +5,36 @@ types:
       id:
         type: string
         docs: The unique identifier of a trace
-      timestamp: datetime
-      name: optional<string>
-      input: optional<unknown>
-      output: optional<unknown>
-      sessionId: optional<string>
-      release: optional<string>
-      version: optional<string>
-      userId: optional<string>
-      metadata: optional<unknown>
-      tags: optional<list<string>>
+      timestamp:
+        type: datetime
+        docs: The timestamp when the trace was created
+      name:
+        type: optional<string>
+        docs: The name of the trace
+      input:
+        type: optional<unknown>
+        docs: The input data of the trace. Can be any JSON.
+      output:
+        type: optional<unknown>
+        docs: The output data of the trace. Can be any JSON.
+      sessionId:
+        type: optional<string>
+        docs: The session identifier associated with the trace
+      release:
+        type: optional<string>
+        docs: The release version of the application when the trace was created
+      version:
+        type: optional<string>
+        docs: The version of the trace
+      userId:
+        type: optional<string>
+        docs: The user identifier associated with the trace
+      metadata:
+        type: optional<unknown>
+        docs: The metadata associated with the trace. Can be any JSON.
+      tags:
+        type: optional<list<string>>
+        docs: The tags associated with the trace. Can be an array of strings or null.
       public:
         type: optional<boolean>
         docs: Public traces are accessible via url without login
@@ -42,11 +62,18 @@ types:
       htmlPath:
         type: string
         docs: Path of trace in Langfuse UI
+      latency:
+        type: double
+        docs: Latency of trace in seconds
       totalCost:
         type: double
         docs: Cost of trace in USD
-      observations: list<ObservationsView>
-      scores: list<Score>
+      observations:
+        type: list<ObservationsView>
+        docs: List of observations
+      scores:
+        type: list<Score>
+        docs: List of scores
   Session:
     properties:
       id: string
@@ -58,39 +85,106 @@ types:
       traces: list<Trace>
   Observation:
     properties:
-      id: string
-      traceId: optional<string>
-      type: string
-      name: optional<string>
-      startTime: datetime
-      endTime: optional<datetime>
-      completionStartTime: optional<datetime>
-      model: optional<string>
-      modelParameters: optional<map<string, MapValue>>
-      input: optional<unknown>
-      version: optional<string>
-      metadata: optional<unknown>
-      output: optional<unknown>
-      usage: optional<Usage>
-      level: ObservationLevel
-      statusMessage: optional<string>
-      parentObservationId: optional<string>
-      promptId: optional<string>
+      id:
+        type: string
+        docs: The unique identifier of the observation
+      traceId:
+        type: optional<string>
+        docs: The trace ID associated with the observation
+      type:
+        type: string
+        docs: The type of the observation
+      name:
+        type: optional<string>
+        docs: The name of the observation
+      startTime:
+        type: datetime
+        docs: The start time of the observation
+      endTime:
+        type: optional<datetime>
+        docs: The end time of the observation.
+      completionStartTime:
+        type: optional<datetime>
+        docs: The completion start time of the observation
+      model:
+        type: optional<string>
+        docs: The model used for the observation
+      modelParameters:
+        type: optional<map<string, MapValue>>
+        docs: The parameters of the model used for the observation
+      input:
+        type: optional<unknown>
+        docs: The input data of the observation
+      version:
+        type: optional<string>
+        docs: The version of the observation
+      metadata:
+        type: optional<unknown>
+        docs: Additional metadata of the observation
+      output:
+        type: optional<unknown>
+        docs: The output data of the observation
+      usage:
+        type: optional<Usage>
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The usage data of the observation
+      level:
+        type: ObservationLevel
+        docs: The level of the observation
+      statusMessage:
+        type: optional<string>
+        docs: The status message of the observation
+      parentObservationId:
+        type: optional<string>
+        docs: The parent observation ID
+      promptId:
+        type: optional<string>
+        docs: The prompt ID associated with the observation
+      usageDetails:
+        type: optional<map<string, integer>>
+        docs: The usage details of the observation. Key is the name of the usage metric, value is the number of units consumed. The total key is the sum of all (non-total) usage metrics or the total value ingested.
+      costDetails:
+        type: optional<map<string, double>>
+        docs: The cost details of the observation. Key is the name of the cost metric, value is the cost in USD. The total key is the sum of all (non-total) cost metrics or the total value ingested.
 
   ObservationsView:
     extends: Observation
     properties:
-      modelId: optional<string>
-      inputPrice: optional<double>
-      outputPrice: optional<double>
-      totalPrice: optional<double>
-      calculatedInputCost: optional<double>
-      calculatedOutputCost: optional<double>
-      calculatedTotalCost: optional<double>
-      latency: optional<double>
+      promptName:
+        type: optional<string>
+        docs: The name of the prompt associated with the observation
+      promptVersion:
+        type: optional<integer>
+        docs: The version of the prompt associated with the observation
+      modelId:
+        type: optional<string>
+        docs: The unique identifier of the model
+      inputPrice:
+        type: optional<double>
+        docs: The price of the input in USD
+      outputPrice:
+        type: optional<double>
+        docs: The price of the output in USD.
+      totalPrice:
+        type: optional<double>
+        docs: The total price in USD.
+      calculatedInputCost:
+        type: optional<double>
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the input in USD
+      calculatedOutputCost:
+        type: optional<double>
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the output in USD
+      calculatedTotalCost:
+        type: optional<double>
+        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated total cost in USD
+      latency:
+        type: optional<double>
+        docs: The latency in seconds.
+      timeToFirstToken:
+        type: optional<double>
+        docs: The time to the first token in seconds
 
   Usage:
-    docs: Standard interface for usage and cost
+    docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost
     properties:
       input:
         docs: Number of input units (e.g. tokens)
@@ -111,18 +205,106 @@ types:
       totalCost:
         docs: USD total cost, defaults to input+output
         type: optional<double>
-
-  Score:
+  ScoreConfig:
+    docs: Configuration for a score
+    properties:
+      id: string
+      name: string
+      createdAt: datetime
+      updatedAt: datetime
+      projectId: string
+      dataType: ScoreDataType
+      isArchived:
+        type: boolean
+        docs: Whether the score config is archived. Defaults to false
+      minValue:
+        type: optional<double>
+        docs: Sets minimum value for numerical scores. If not set, the minimum value defaults to -∞
+      maxValue:
+        type: optional<double>
+        docs: Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞
+      categories:
+        type: optional<list<ConfigCategory>>
+        docs: Configures custom categories for categorical scores
+      description: optional<string>
+  ConfigCategory:
+    properties:
+      value: double
+      label: string
+  BaseScore:
     properties:
       id: string
       traceId: string
       name: string
-      value: double
       source: ScoreSource
       observationId: optional<string>
       timestamp: datetime
+      createdAt: datetime
+      updatedAt: datetime
+      authorUserId: optional<string>
       comment: optional<string>
-  DatasetCore:
+      configId:
+        type: optional<string>
+        docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
+      queueId:
+        type: optional<string>
+        docs: Reference an annotation queue on a score. Populated if the score was initially created in an annotation queue.
+  NumericScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score
+  BooleanScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score. Equals 1 for "True" and 0 for "False"
+      stringValue:
+        type: string
+        docs: The string representation of the score value. Is inferred from the numeric value and equals "True" or "False"
+  CategoricalScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: optional<double>
+        docs: Only defined if a config is linked. Represents the numeric category mapping of the stringValue
+      stringValue:
+        type: string
+        docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  Score:
+    discriminant: "dataType"
+    union:
+      NUMERIC:
+        type: NumericScore
+        docs: "Score with NUMERIC data type"
+      CATEGORICAL:
+        type: CategoricalScore
+        docs: "Score with CATEGORICAL data type"
+      BOOLEAN:
+        type: BooleanScore
+        docs: "Score with BOOLEAN data type"
+
+  CreateScoreValue:
+    discriminated: false
+    union:
+      - double
+      - string
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+
+  Comment:
+    properties:
+      id: string
+      projectId: string
+      createdAt: datetime
+      updatedAt: datetime
+      objectType: CommentObjectType
+      objectId: string
+      content: string
+      authorUserId: optional<string>
+
+  Dataset:
     properties:
       id: string
       name: string
@@ -131,21 +313,6 @@ types:
       projectId: string
       createdAt: datetime
       updatedAt: datetime
-  DatasetWithReferences: # GET datasets
-    extends: DatasetCore
-    properties:
-      items:
-        type: list<string>
-        docs: list of dataset item ids
-      runs:
-        type: list<string>
-        docs: list of dataset run names
-  Dataset: # GET datasets/[name]
-    docs: Dataset including all items
-    extends: DatasetCore
-    properties:
-      items: list<DatasetItem>
-      runs: list<string>
   DatasetItem:
     properties:
       id: string
@@ -171,15 +338,67 @@ types:
       updatedAt: datetime
   DatasetRun:
     properties:
-      id: string
-      name: string
-      description: optional<string>
-      metadata: optional<unknown>
-      datasetId: string
-      datasetName: string
-      createdAt: datetime
-      updatedAt: datetime
+      id:
+        type: string
+        docs: Unique identifier of the dataset run
+      name:
+        type: string
+        docs: Name of the dataset run
+      description:
+        type: optional<string>
+        docs: Description of the run
+      metadata:
+        type: optional<unknown>
+        docs: Metadata of the dataset run
+      datasetId:
+        type: string
+        docs: Id of the associated dataset
+      datasetName:
+        type: string
+        docs: Name of the associated dataset
+      createdAt:
+        type: datetime
+        docs: The date and time when the dataset run was created
+      updatedAt:
+        type: datetime
+        docs: The date and time when the dataset run was last updated
+  DatasetRunWithItems:
+    extends: DatasetRun
+    properties:
       datasetRunItems: list<DatasetRunItem>
+  Model:
+    docs: Model definition used for transforming usage into USD cost and/or tokenization.
+    properties:
+      id: string
+      modelName:
+        docs: "Name of the model definition. If multiple with the same name exist, they are applied in the following order: (1) custom over built-in, (2) newest according to startTime where model.startTime<observation.startTime"
+        type: string
+      matchPattern:
+        docs: "Regex pattern which matches this model definition to generation.model. Useful in case of fine-tuned models. If you want to exact match, use `(?i)^modelname$`"
+        type: string
+      startDate:
+        docs: Apply only to generations which are newer than this ISO date.
+        type: optional<datetime>
+      unit:
+        docs: Unit used by this model.
+        type: optional<ModelUsageUnit>
+      inputPrice:
+        docs: Price (USD) per input unit
+        type: optional<double>
+      outputPrice:
+        docs: Price (USD) per output unit
+        type: optional<double>
+      totalPrice:
+        docs: Price (USD) per total unit. Cannot be set if input or output price is set.
+        type: optional<double>
+      tokenizerId:
+        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        type: optional<string>
+      tokenizerConfig:
+        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        type: optional<unknown>
+      isLangfuseManaged:
+        type: boolean
 
   # Utilities
   ModelUsageUnit:
@@ -190,6 +409,7 @@ types:
       - MILLISECONDS
       - SECONDS
       - IMAGES
+      - REQUESTS
   ObservationLevel:
     enum:
       - DEBUG
@@ -203,6 +423,12 @@ types:
       - optional<integer>
       - optional<boolean>
       - optional<list<string>>
+  CommentObjectType:
+    enum:
+      - TRACE
+      - OBSERVATION
+      - SESSION
+      - PROMPT
   DatasetStatus:
     enum:
       - ACTIVE
@@ -212,6 +438,11 @@ types:
       - ANNOTATION
       - API
       - EVAL
+  ScoreDataType:
+    enum:
+      - NUMERIC
+      - BOOLEAN
+      - CATEGORICAL
 
 errors:
   Error:

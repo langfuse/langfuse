@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      method: POST
+      docs: Create a model
+      path: /models
+      request: CreateModelRequest
+      response: commons.Model
+    list:
+      method: GET
+      docs: Get all models
+      path: /models
+      request:
+        name: GetModelsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedModels
+    get:
+      method: GET
+      docs: Get a model
+      path: /models/{id}
+      path-parameters:
+        id: string
+      response: commons.Model
+    delete:
+      method: DELETE
+      docs: Delete a model. Cannot delete models managed by Langfuse. You can create your own definition with the same modelName to override the definition though.
+      path: /models/{id}
+      path-parameters:
+        id: string
+
+types:
+  PaginatedModels:
+    properties:
+      data: list<commons.Model>
+      meta: pagination.MetaResponse
+  CreateModelRequest:
+    properties:
+      modelName:
+        docs: "Name of the model definition. If multiple with the same name exist, they are applied in the following order: (1) custom over built-in, (2) newest according to startTime where model.startTime<observation.startTime"
+        type: string
+      matchPattern:
+        docs: "Regex pattern which matches this model definition to generation.model. Useful in case of fine-tuned models. If you want to exact match, use `(?i)^modelname$`"
+        type: string
+      startDate:
+        docs: Apply only to generations which are newer than this ISO date.
+        type: optional<datetime>
+      unit:
+        docs: Unit used by this model.
+        type: optional<commons.ModelUsageUnit>
+      inputPrice:
+        docs: Price (USD) per input unit
+        type: optional<double>
+      outputPrice:
+        docs: Price (USD) per output unit
+        type: optional<double>
+      totalPrice:
+        docs: Price (USD) per total units. Cannot be set if input or output price is set.
+        type: optional<double>
+      tokenizerId:
+        docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
+        type: optional<string>
+      tokenizerConfig:
+        docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
+        type: optional<unknown>

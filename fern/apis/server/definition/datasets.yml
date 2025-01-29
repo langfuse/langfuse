@@ -9,42 +9,66 @@ service:
     list:
       method: GET
       docs: Get all datasets
-      path: /datasets
+      path: /v2/datasets
       request:
         name: GetDatasetsRequest
         query-parameters:
-          page: optional<integer>
-          limit: optional<integer>
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
       response: PaginatedDatasets
     get:
       method: GET
-      docs: Get a dataset and its items
-      path: /datasets/{datasetName}
+      docs: Get a dataset
+      path: /v2/datasets/{datasetName}
       path-parameters:
         datasetName: string
       response: commons.Dataset
     create:
       method: POST
       docs: Create a dataset
-      path: /datasets
+      path: /v2/datasets
       request: CreateDatasetRequest
       response: commons.Dataset
-    getRuns:
+    getRun:
       method: GET
       docs: Get a dataset run and its items
       path: /datasets/{datasetName}/runs/{runName}
       path-parameters:
         datasetName: string
         runName: string
-      response: commons.DatasetRun
+      response: commons.DatasetRunWithItems
+    getRuns:
+      method: GET
+      docs: Get dataset runs
+      path: /datasets/{datasetName}/runs
+      path-parameters:
+        datasetName: string
+      request:
+        name: GetDatasetRunsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedDatasetRuns
 
 types:
   PaginatedDatasets:
     properties:
-      data: list<commons.DatasetWithReferences>
+      data: list<commons.Dataset>
       meta: pagination.MetaResponse
   CreateDatasetRequest:
     properties:
       name: string
       description: optional<string>
       metadata: optional<unknown>
+  PaginatedDatasetRuns:
+    properties:
+      data: list<commons.DatasetRun>
+      meta: pagination.MetaResponse

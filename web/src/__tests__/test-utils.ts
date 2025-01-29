@@ -1,11 +1,21 @@
-import { getDisplaySecretKey, hashSecretKey } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
-import { hash } from "bcryptjs";
+import {
+  clickhouseClient,
+  createBasicAuthHeader,
+} from "@langfuse/shared/src/server";
+import { type z } from "zod";
 
 export const pruneDatabase = async () => {
+  if (!env.DATABASE_URL.includes("localhost:5432")) {
+    throw new Error("You cannot prune database unless running on localhost.");
+  }
+
   await prisma.score.deleteMany();
+  await prisma.scoreConfig.deleteMany();
   await prisma.observation.deleteMany();
   await prisma.trace.deleteMany();
+  await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
@@ -13,17 +23,23 @@ export const pruneDatabase = async () => {
   await prisma.events.deleteMany();
   await prisma.model.deleteMany();
   await prisma.llmApiKeys.deleteMany();
-};
+  await prisma.comment.deleteMany();
+  await prisma.media.deleteMany();
 
-export function createBasicAuthHeader(
-  username: string,
-  password: string,
-): string {
-  const base64Credentials = Buffer.from(`${username}:${password}`).toString(
-    "base64",
-  );
-  return `Basic ${base64Credentials}`;
-}
+  if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
+    throw new Error("You cannot prune clickhouse unless running on localhost.");
+  }
+
+  await clickhouseClient().command({
+    query: "TRUNCATE TABLE IF EXISTS observations",
+  });
+  await clickhouseClient().command({
+    query: "TRUNCATE TABLE IF EXISTS scores",
+  });
+  await clickhouseClient().command({
+    query: "TRUNCATE TABLE IF EXISTS traces",
+  });
+};
 
 export type IngestionAPIResponse = {
   errors: ErrorIngestion[];
@@ -66,37 +82,47 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   return { body: responseBody, status: response.status };
 }
 
-export const setupUserAndProject = async () => {
-  const user = await prisma.user.create({
-    data: {
-      id: "user-1",
-      name: "Demo User",
-      email: "demo@langfuse.com",
-      password: await hash("password", 12),
-    },
-  });
+export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
+  responseZodSchema: T,
+  method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
+  url: string,
+  body?: unknown,
+  auth?: string,
+): Promise<{ body: z.infer<T>; status: number }> {
+  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  if (status !== 200) {
+    throw new Error(
+      `API call did not return 200, returned status ${status}, body ${JSON.stringify(resBody)}`,
+    );
+  }
+  const typeCheckResult = responseZodSchema.safeParse(resBody);
+  if (!typeCheckResult.success) {
+    console.error(typeCheckResult.error);
+    throw new Error(
+      `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${typeCheckResult.error}`,
+    );
+  }
+  return { body: resBody, status };
+}
 
-  const project = await prisma.project.create({
-    data: {
-      id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      name: "llm-app",
-      apiKeys: {
-        create: [
-          {
-            note: "seeded key",
-            hashedSecretKey: await hashSecretKey("sk-lf-1234567890"),
-            displaySecretKey: getDisplaySecretKey("sk-lf-1234567890"),
-            publicKey: "pk-lf-1234567890",
-          },
-        ],
-      },
-      projectMembers: {
-        create: {
-          role: "OWNER",
-          userId: user.id,
-        },
-      },
-    },
-  });
-  return { user, project };
-};
+export async function makeZodVerifiedAPICallSilent<T extends z.ZodTypeAny>(
+  responseZodSchema: T,
+  method: "POST" | "GET" | "PUT" | "DELETE" | "PATCH",
+  url: string,
+  body?: unknown,
+  auth?: string,
+): Promise<{ body: z.infer<T>; status: number }> {
+  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+
+  if (status === 200) {
+    const typeCheckResult = responseZodSchema.safeParse(resBody);
+    if (!typeCheckResult.success) {
+      console.error(typeCheckResult.error);
+      throw new Error(
+        `API call (${method} ${url}) did not return valid response, returned status ${status}, body ${JSON.stringify(resBody)}, error ${typeCheckResult.error}`,
+      );
+    }
+  }
+
+  return { body: resBody, status };
+}

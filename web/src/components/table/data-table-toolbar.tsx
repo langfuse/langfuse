@@ -5,7 +5,10 @@ import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-tab
 import { type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
-import { type VisibilityState } from "@tanstack/react-table";
+import {
+  type ColumnOrderState,
+  type VisibilityState,
+} from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   DataTableRowHeightSwitch,
@@ -13,6 +16,11 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { Search } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { TableDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import {
+  type TableDateRange,
+  type TableDateRangeOptions,
+} from "@/src/utils/date-range-utils";
 
 interface SearchConfig {
   placeholder: string;
@@ -26,11 +34,21 @@ interface DataTableToolbarProps<TData, TValue> {
   searchConfig?: SearchConfig;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
-  setFilterState?: Dispatch<SetStateAction<FilterState>>;
+  setFilterState?:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
   columnVisibility?: VisibilityState;
   setColumnVisibility?: Dispatch<SetStateAction<VisibilityState>>;
+  columnOrder?: ColumnOrderState;
+  setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight?: RowHeight;
   setRowHeight?: Dispatch<SetStateAction<RowHeight>>;
+  columnsWithCustomSelect?: string[];
+  selectedOption?: TableDateRangeOptions;
+  setDateRangeAndOption?: (
+    option: TableDateRangeOptions,
+    date?: TableDateRange,
+  ) => void;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -42,8 +60,13 @@ export function DataTableToolbar<TData, TValue>({
   setFilterState,
   columnVisibility,
   setColumnVisibility,
+  columnOrder,
+  setColumnOrder,
   rowHeight,
   setRowHeight,
+  columnsWithCustomSelect,
+  selectedOption,
+  setDateRangeAndOption,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -65,7 +88,7 @@ export function DataTableToolbar<TData, TValue>({
                 searchConfig.updateQuery(searchString);
               }
             }}
-            className="h-10 w-[150px] rounded-r-none @6xl:w-[250px]"
+            className="w-[150px] rounded-r-none @6xl:w-[250px]"
           />
           <Button
             variant="outline"
@@ -84,6 +107,13 @@ export function DataTableToolbar<TData, TValue>({
           columns={filterColumnDefinition}
           filterState={filterState}
           onChange={setFilterState}
+          columnsWithCustomSelect={columnsWithCustomSelect}
+        />
+      )}
+      {selectedOption && setDateRangeAndOption && (
+        <TableDateRangeDropdown
+          selectedOption={selectedOption}
+          setDateRangeAndOption={setDateRangeAndOption}
         />
       )}
       <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
@@ -92,6 +122,8 @@ export function DataTableToolbar<TData, TValue>({
             columns={columns}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibility}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
           />
         )}
         {!!rowHeight && !!setRowHeight && (

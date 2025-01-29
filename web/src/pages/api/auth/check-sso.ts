@@ -4,7 +4,7 @@
  * If no custom SSO provider is configured or EE is not available, this API will return a 404 response.
  */
 
-import { getSsoAuthProviderIdForDomain } from "@langfuse/ee/sso";
+import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 

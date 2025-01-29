@@ -1,9 +1,11 @@
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { numberFormatter } from "@/src/utils/numbers";
 import { type Observation } from "@langfuse/shared";
 
-export const TraceAggUsageBadge = (props: {
+export const AggUsageBadge = (props: {
   observations: ObservationReturnType[];
+  rightIcon?: React.ReactNode;
 }) => {
   const usage = {
     promptTokens: props.observations
@@ -16,7 +18,7 @@ export const TraceAggUsageBadge = (props: {
       .map((o) => o.totalTokens)
       .reduce((a, b) => a + b, 0),
   };
-  return <TokenUsageBadge {...usage} />;
+  return <TokenUsageBadge {...usage} rightIcon={props.rightIcon} />;
 };
 
 export const TokenUsageBadge = (
@@ -25,12 +27,13 @@ export const TokenUsageBadge = (
         observation: Observation;
       }
     | {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
+        promptTokens: number | bigint;
+        completionTokens: number | bigint;
+        totalTokens: number | bigint;
       }
   ) & {
     inline?: boolean;
+    rightIcon?: React.ReactNode;
   },
 ) => {
   const usage =
@@ -49,16 +52,22 @@ export const TokenUsageBadge = (
   )
     return <></>;
 
+  const content = `${numberFormatter(usage.promptTokens, 0)} → ${numberFormatter(usage.completionTokens, 0)} (∑ ${numberFormatter(usage.totalTokens, 0)})`;
+
   if (props.inline)
     return (
-      <span>
-        {usage.promptTokens} → {usage.completionTokens} (∑ {usage.totalTokens})
+      <span className="flex items-center gap-1">
+        {content}
+        {props.rightIcon}
       </span>
     );
 
   return (
     <Badge variant="outline">
-      {usage.promptTokens} → {usage.completionTokens} (∑ {usage.totalTokens})
+      <span className="flex items-center gap-1">
+        {content}
+        {props.rightIcon}
+      </span>
     </Badge>
   );
 };

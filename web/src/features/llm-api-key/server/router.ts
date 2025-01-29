@@ -1,41 +1,37 @@
 import { z } from "zod";
-
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { env } from "@/src/env.mjs";
-import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
+import {
+  type ChatMessage,
+  LLMApiKeySchema,
+  ChatMessageRole,
+  supportedModels,
+  GCPServiceAccountKeySchema,
+} from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+import {
+  fetchLLMCompletion,
+  LLMAdapter,
+  logger,
+} from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
-  return "..." + secretKey.slice(-4);
+  return secretKey.endsWith('"}')
+    ? "..." + secretKey.slice(-6, -2)
+    : "..." + secretKey.slice(-4);
 }
-
-export const LlmApiKey = z
-  .object({
-    id: z.string(),
-    projectId: z.string(),
-    provider: z.string(),
-    createdAt: z.date(),
-    updatedAt: z.date(),
-    displaySecretKey: z.string(),
-  })
-  // strict mode to prevent extra keys. Thorws error otherwise
-  // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
-  .strict();
 
 export const llmApiKeyRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
-        if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-          throw new Error("Evals available in cloud only");
-        }
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "llmApiKeys:create",
@@ -45,8 +41,19 @@ export const llmApiKeyRouter = createTRPCRouter({
           data: {
             projectId: input.projectId,
             secretKey: encrypt(input.secretKey),
+            extraHeaders: input.extraHeaders
+              ? encrypt(JSON.stringify(input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: input.extraHeaders
+              ? Object.keys(input.extraHeaders)
+              : undefined,
+            adapter: input.adapter,
             displaySecretKey: getDisplaySecretKey(input.secretKey),
             provider: input.provider,
+            baseURL: input.baseURL,
+            withDefaultModels: input.withDefaultModels,
+            customModels: input.customModels,
+            config: input.config,
           },
         });
 
@@ -57,7 +64,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -69,10 +76,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:delete",
@@ -99,32 +103,40 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined) {
-        throw new Error("Evals available in cloud only");
-      }
-
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
 
-      const apiKeys = z.array(LlmApiKey).parse(
-        await ctx.prisma.llmApiKeys.findMany({
-          // we must not return the secret key via the API, hence not selected
-          select: {
-            id: true,
-            createdAt: true,
-            updatedAt: true,
-            provider: true,
-            displaySecretKey: true,
-            projectId: true,
-          },
-          where: {
-            projectId: input.projectId,
-          },
-        }),
-      );
+      const apiKeys = z
+        .array(
+          LLMApiKeySchema.extend({
+            secretKey: z.undefined(),
+            extraHeaders: z.undefined(),
+          }),
+        )
+        .parse(
+          await ctx.prisma.llmApiKeys.findMany({
+            // we must not return the secret key AND extra headers via the API, hence not selected
+            select: {
+              id: true,
+              createdAt: true,
+              updatedAt: true,
+              provider: true,
+              displaySecretKey: true,
+              projectId: true,
+              adapter: true,
+              baseURL: true,
+              customModels: true,
+              withDefaultModels: true,
+              extraHeaderKeys: true,
+            },
+            where: {
+              projectId: input.projectId,
+            },
+          }),
+        );
 
       const count = await ctx.prisma.llmApiKeys.count({
         where: {
@@ -136,5 +148,54 @@ export const llmApiKeyRouter = createTRPCRouter({
         data: apiKeys, // does not contain the secret key
         totalCount: count,
       };
+    }),
+
+  test: protectedProjectProcedure
+    .input(CreateLlmApiKey)
+    .mutation(async ({ input }) => {
+      try {
+        const model = input.customModels?.length
+          ? input.customModels[0]
+          : supportedModels[input.adapter][0];
+
+        if (!model) throw Error("No model found");
+
+        if (input.adapter === LLMAdapter.VertexAI) {
+          const parsed = GCPServiceAccountKeySchema.safeParse(
+            JSON.parse(input.secretKey),
+          );
+          if (!parsed.success)
+            throw Error("Invalid GCP service account JSON key");
+        }
+
+        const testMessages: ChatMessage[] = [
+          { role: ChatMessageRole.System, content: "You are a bot" },
+          { role: ChatMessageRole.User, content: "How are you?" },
+        ];
+
+        await fetchLLMCompletion({
+          modelParams: {
+            adapter: input.adapter,
+            provider: input.provider,
+            model,
+          },
+          baseURL: input.baseURL,
+          apiKey: input.secretKey,
+          extraHeaders: input.extraHeaders,
+          messages: testMessages,
+          streaming: false,
+          maxRetries: 1,
+          config: input.config,
+        });
+
+        return { success: true };
+      } catch (err) {
+        logger.error(err);
+
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        };
+      }
     }),
 });

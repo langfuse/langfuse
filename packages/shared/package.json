@@ -6,7 +6,7 @@
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
   "engines": {
-    "node": ">=20"
+    "node": "20"
   },
   "exports": {
     ".": {
@@ -17,9 +17,13 @@
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },
-    "./src/server/auth": {
-      "import": "./dist/src/server/auth.js",
-      "require": "./dist/src/server/auth.js"
+    "./src/server": {
+      "import": "./dist/src/server/index.js",
+      "require": "./dist/src/server/index.js"
+    },
+    "./src/server/auth/apiKeys": {
+      "import": "./dist/src/server/auth/apiKeys.js",
+      "require": "./dist/src/server/auth/apiKeys.js"
     },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
@@ -29,7 +33,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 110",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
@@ -38,45 +42,88 @@
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
-    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load"
+    "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
+    "ch:up": "bash clickhouse/scripts/up.sh",
+    "ch:down": "bash clickhouse/scripts/down.sh",
+    "ch:drop": "bash clickhouse/scripts/drop.sh",
+    "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed",
+    "ch:seed": "dotenv -e ../../.env -- tsx clickhouse/scripts/seed.ts",
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/load-seed.ts"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.1.21",
-    "@langchain/core": "^0.1.61",
-    "@langchain/openai": "^0.0.33",
-    "@prisma/client": "^5.13.0",
+    "@anthropic-ai/tokenizer": "^0.0.4",
+    "@aws-sdk/client-cloudwatch": "^3.675.0",
+    "@aws-sdk/client-s3": "^3.675.0",
+    "@aws-sdk/lib-storage": "^3.675.0",
+    "@aws-sdk/s3-request-presigner": "^3.679.0",
+    "@azure/storage-blob": "^12.26.0",
+    "@clickhouse/client": "^1.4.0",
+    "@langchain/anthropic": "^0.3.8",
+    "@langchain/aws": "^0.1.2",
+    "@langchain/core": "^0.3.18",
+    "@langchain/google-vertexai": "^0.1.3",
+    "@langchain/openai": "^0.3.14",
+    "@opentelemetry/api": ">=1.0.0 <1.10.0",
+    "@prisma/client": "^5.22.0",
+    "@react-email/components": "^0.0.19",
+    "@react-email/render": "^0.0.15",
     "@types/bcryptjs": "^2.4.6",
+    "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
-    "kysely": "^0.27.3",
-    "langchain": "^0.1.36",
+    "bullmq": "^5.34.10",
+    "dd-trace": "^5.23.1",
+    "decimal.js": "^10.4.3",
+    "exponential-backoff": "^3.1.1",
+    "https-proxy-agent": "^7.0.6",
+    "ioredis": "^5.4.1",
+    "kysely": "^0.27.4",
+    "langchain": "^0.3.6",
+    "langfuse-langchain": "3.30.3",
+    "lodash": "^4.17.21",
+    "next-auth": "^4.24.11",
+    "nodemailer": "^6.9.15",
     "prisma-extension-kysely": "^2.1.0",
-    "zod": "^3.22.4",
-    "zod-to-json-schema": "^3.22.5"
+    "uuid": "^9.0.1",
+    "winston": "^3.15.0",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
-    "@types/lodash": "^4.17.4",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/lodash": "^4.17.10",
     "@types/node": "^20.11.29",
-    "@types/pg": "^8.11.6",
+    "@types/nodemailer": "^6.4.16",
+    "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/parser": "^7.7.0",
+    "@typescript-eslint/parser": "^7.12.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-prettier": "^5.1.3",
-    "kysely-codegen": "^0.11.0",
-    "nodemon": "^3.0.3",
-    "prettier": "^3.2.5",
-    "prisma": "^5.13.0",
+    "kysely-codegen": "^0.16.8",
+    "nodemon": "^3.1.7",
+    "prettier": "^3.3.3",
+    "prisma": "^5.22.0",
     "prisma-erd-generator": "^1.11.2",
     "prisma-kysely": "^1.8.0",
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
+    "tsx": "^4.19.1",
     "typescript": "^5.4.5",
-    "vitest": "^1.5.3"
+    "vitest": "^2.1.2"
+  },
+  "peerDependencies": {
+    "@types/react": "~18.2.79",
+    "react": "~18.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "jsonpath-plus": "10.0.7",
+      "nanoid": "^3.3.8"
+    }
   }
 }

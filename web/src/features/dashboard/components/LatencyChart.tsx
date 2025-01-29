@@ -1,8 +1,4 @@
 import { api } from "@/src/utils/api";
-import {
-  dateTimeAggregationSettings,
-  type DateTimeAggregationOption,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@langfuse/shared";
 import {
   getAllModels,
@@ -13,8 +9,12 @@ import {
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { numberFormatter } from "@/src/utils/numbers";
-import { NoData } from "@/src/features/dashboard/components/NoData";
+import { latencyFormatter } from "@/src/utils/numbers";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export const GenerationLatencyChart = ({
   className,
@@ -25,7 +25,7 @@ export const GenerationLatencyChart = ({
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
 }) => {
   const latencies = api.dashboard.chart.useQuery(
     {
@@ -52,10 +52,11 @@ export const GenerationLatencyChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dateTimeAggregationSettings[agg].date_trunc,
+          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
         },
         { type: "string", column: "model" },
       ],
+      queryName: "model-latencies-over-time",
     },
     {
       trpc: {
@@ -72,7 +73,10 @@ export const GenerationLatencyChart = ({
     return latencies.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
           extractTimeSeriesData(latencies.data, "startTime", [
-            { labelColumn: "model", valueColumn: valueColumn },
+            {
+              uniqueIdentifierColumns: [{ accessor: "model" }],
+              valueColumn: valueColumn,
+            },
           ]),
           allModels,
         )
@@ -115,15 +119,15 @@ export const GenerationLatencyChart = ({
             tabTitle: item.tabTitle,
             content: (
               <>
-                {!isEmptyTimeSeries(item.data) ? (
+                {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
                     agg={agg}
                     data={item.data}
                     connectNulls={true}
-                    valueFormatter={numberFormatter}
+                    valueFormatter={latencyFormatter}
                   />
                 ) : (
-                  <NoData noDataText="No data" />
+                  <NoDataOrLoading isLoading={latencies.isLoading} />
                 )}
               </>
             ),

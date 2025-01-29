@@ -4,80 +4,60 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { type ScoreSimplified } from "@/src/server/api/routers/generations/getAllQuery";
-import { cn } from "@/src/utils/tailwind";
-import { MessageCircle } from "lucide-react";
+import { MessageCircleMore } from "lucide-react";
 
-export const GroupedScoreBadges = ({
+import { type APIScore, type LastUserScore } from "@langfuse/shared";
+
+export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
   scores,
-  variant = "badge",
 }: {
-  scores: ScoreSimplified[];
-  variant?: "badge" | "headings";
+  scores: T[];
 }) => {
-  const groupedScores = scores.reduce<Record<string, ScoreSimplified[]>>(
-    (acc, score) => {
-      if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-        acc[score.name] = [score];
-      } else {
-        (acc[score.name] as ScoreSimplified[]).push(score);
-      }
-      return acc;
-    },
-    {},
-  );
+  const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
+    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
+      acc[score.name] = [score];
+    } else {
+      acc[score.name].push(score);
+    }
+    return acc;
+  }, {});
 
-  const ScoresOfGroup = (props: {
-    scores: ScoreSimplified[];
-    className?: string;
-  }) => (
-    <div className={cn("text-xs", props.className)}>
-      {props.scores.map((s, i) => (
-        <span key={i} className="group/score ml-1 first:ml-0">
-          {s.value.toFixed(2)}
-          {s.comment && (
-            <HoverCard>
-              <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
-                <MessageCircle size={12} />
-              </HoverCardTrigger>
-              <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
-                <p>{s.comment}</p>
-              </HoverCardContent>
-            </HoverCard>
-          )}
-          <span className="group-last/score:hidden">,</span>
-        </span>
-      ))}
-    </div>
-  );
-
-  if (variant === "headings")
-    return (
-      <div className="flex items-center gap-3">
-        {Object.entries(groupedScores)
-          .sort(([a], [b]) => (a < b ? -1 : 1))
-          .map(([name, scores]) => (
-            <div key={name}>
-              <div className="text-xs text-muted-foreground">{name}</div>
-              <ScoresOfGroup scores={scores} />
+  return (
+    <>
+      {Object.entries(groupedScores)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([name, scores]) => (
+          <Badge
+            variant="outline"
+            key={name}
+            className="grid grid-cols-[1fr,auto] gap-1 font-normal"
+          >
+            <p className="truncate" title={name}>
+              {name}:
+            </p>
+            <div className="flex items-center gap-1 text-nowrap">
+              {scores.map((s, i) => (
+                <span
+                  key={i}
+                  className="group/score ml-1 rounded-sm first:ml-0"
+                >
+                  {s.stringValue ?? s.value?.toFixed(2) ?? ""}
+                  {s.comment && (
+                    <HoverCard>
+                      <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
+                        <MessageCircleMore size={12} />
+                      </HoverCardTrigger>
+                      <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
+                        <p>{s.comment}</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                  <span className="group-last/score:hidden">,</span>
+                </span>
+              ))}
             </div>
-          ))}
-      </div>
-    );
-  else
-    return (
-      <>
-        {Object.entries(groupedScores)
-          .sort(([a], [b]) => (a < b ? -1 : 1))
-          .map(([name, scores]) => (
-            <Badge
-              variant="outline"
-              key={name}
-              className="break-all font-normal"
-            >
-              {name}: <ScoresOfGroup scores={scores} className="ml-2" />
-            </Badge>
-          ))}
-      </>
-    );
+          </Badge>
+        ))}
+    </>
+  );
 };

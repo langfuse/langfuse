@@ -11,7 +11,7 @@ service:
       method: POST
       path: /scores
       request: CreateScoreRequest
-      response: commons.Score
+      response: CreateScoreResponse
     get:
       docs: Get a list of scores
       method: GET
@@ -25,13 +25,20 @@ service:
           limit:
             type: optional<integer>
             docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
-          userId: optional<string>
-          name: optional<string>
+          userId:
+            type: optional<string>
+            docs: Retrieve only scores with this userId associated to the trace.
+          name:
+            type: optional<string>
+            docs: Retrieve only scores with this name.
           fromTimestamp:
             type: optional<datetime>
-            docs: Retrieve only scores newer than this datetime (ISO 8601).
+            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
           source:
-            type: commons.ScoreSource
+            type: optional<commons.ScoreSource>
             docs: Retrieve only scores from a specific source.
           operator:
             type: optional<string>
@@ -39,7 +46,23 @@ service:
           value:
             type: optional<double>
             docs: Retrieve only scores with <operator> value.
-      response: Scores
+          scoreIds:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to limit the results to.
+          configId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific configId.
+          queueId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific annotation queueId.
+          dataType:
+            type: optional<commons.ScoreDataType>
+            docs: Retrieve only scores with a specific dataType.
+          traceTags:
+            type: optional<string>
+            allow-multiple: true
+            docs: Only scores linked to traces that include all of these tags will be returned.
+      response: GetScoresResponse
     get-by-id:
       docs: Get a score
       method: GET
@@ -63,10 +86,91 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value:
+        type: commons.CreateScoreValue
+        docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
-  Scores:
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: The data type of the score. When passing a configId this field is inferred. Otherwise, this field must be passed or will default to numeric.
+      configId:
+        type: optional<string>
+        docs: Reference a score config on a score. The unique langfuse identifier of a score config. When passing this field, the dataType and stringValue fields are automatically populated.
+    examples:
+      - value:
+          name: "novelty"
+          value: 0.9
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "consistency"
+          value: 1.2
+          dataType: "NUMERIC"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "toxicity"
+          value: "not toxic"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "correctness"
+          value: "partially correct"
+          dataType: "CATEGORICAL"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          dataType: "BOOLEAN"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "helpfulness"
+          value: 1
+          dataType: "BOOLEAN"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+  CreateScoreResponse:
     properties:
-      data: list<commons.Score>
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
+  GetScoresResponseTraceData:
+    properties:
+      userId:
+        type: optional<string>
+        docs: The user ID associated with the trace referenced by score
+      tags:
+        type: optional<list<string>>
+        docs: A list of tags associated with the trace referenced by score
+
+  GetScoresResponseDataNumeric:
+    extends: commons.NumericScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseDataCategorical:
+    extends: commons.CategoricalScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseDataBoolean:
+    extends: commons.BooleanScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseData:
+    discriminant: dataType
+    union:
+      NUMERIC: GetScoresResponseDataNumeric
+      CATEGORICAL: GetScoresResponseDataCategorical
+      BOOLEAN: GetScoresResponseDataBoolean
+
+  GetScoresResponse:
+    properties:
+      data: list<GetScoresResponseData>
       meta: pagination.MetaResponse

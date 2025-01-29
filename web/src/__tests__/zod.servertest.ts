@@ -1,4 +1,4 @@
-import { paginationZod } from "@/src/utils/zod";
+import { paginationZod, parseJsonPrioritised } from "@langfuse/shared";
 import { ZodError } from "zod";
 
 // Create test cases
@@ -23,4 +23,33 @@ describe("Pagination Zod Schema", () => {
     expect(() => paginationZod.page.parse("abc")).toThrowError(ZodError);
     expect(() => paginationZod.limit.parse("abc")).toThrowError(ZodError);
   });
+});
+
+describe("parseJsonPrioritised", () => {
+  it.each([
+    ["test", "test"], // Raw string
+    ['{"hello": "world"}', { hello: "world" }], // Simple object
+    ["[1, 2, 3]", [1, 2, 3]], // Array
+    ['{"nested": {"key": "value"}}', { nested: { key: "value" } }], // Nested object
+    ["[]", []], // Empty array
+    ["{}", {}], // Empty object
+    ['"simple string"', "simple string"], // Quoted string
+    ["42", 42], // Number
+    ["true", true], // Boolean true
+    ["false", false], // Boolean false
+    ["null", null], // Null
+    ["", ""], // Empty string
+    ["invalid{json}", "invalid{json}"], // Invalid JSON string
+    ['{"hello": "world"', '{"hello": "world"'], // Invalid JSON string
+    ['[null, 123, "abc"]', [null, 123, "abc"]], // Mixed array
+    [
+      '{"array": [1, 2], "nested": {"key": "value"}}',
+      { array: [1, 2], nested: { key: "value" } },
+    ], // Complex object
+  ])(
+    "should parse input correctly  (%s, %s)",
+    (input: string, expectedOutput: any) => {
+      expect(parseJsonPrioritised(input)).toEqual(expectedOutput);
+    },
+  );
 });

@@ -1,166 +1,87 @@
-import { type NextApiRequest, type NextApiResponse } from "next";
-import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
-import { v4 as uuidv4 } from "uuid";
-import { ResourceNotFoundError } from "../../../utils/exceptions";
 import {
-  LegacyGenerationPatchSchema,
-  LegacyGenerationsCreateSchema,
+  PostGenerationsV1Body,
+  PostGenerationsV1Response,
+  PatchGenerationsV1Body,
+  PatchGenerationsV1Response,
+} from "@/src/features/public-api/types/generations";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import {
   eventTypes,
-  ingestionBatchEvent,
-} from "@/src/features/public-api/server/ingestion-api-schema";
-import {
-  handleBatch,
-  handleBatchResultLegacy,
-} from "@/src/pages/api/public/ingestion";
-import { z } from "zod";
-import { isPrismaException } from "@/src/utils/exceptions";
+  logger,
+  processEventBatch,
+} from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  await runMiddleware(req, res, cors);
-
-  if (req.method === "POST") {
-    try {
-      // CHECK AUTH
-      const authCheck = await verifyAuthHeaderAndReturnScope(
-        req.headers.authorization,
-      );
-      if (!authCheck.validKey)
-        return res.status(401).json({
-          message: authCheck.error,
-        });
-      // END CHECK AUTH
-      console.log(
-        "trying to create observation for generation, project ",
-        authCheck.scope.projectId,
-        ", body:",
-        JSON.stringify(req.body, null, 2),
-      );
-
-      const convertToObservation = (
-        generation: z.infer<typeof LegacyGenerationsCreateSchema>,
-      ) => {
-        return {
-          ...generation,
-          type: "GENERATION",
-          input: generation.prompt,
-          output: generation.completion,
-        };
-      };
-
+export default withMiddlewares({
+  POST: createAuthedAPIRoute({
+    name: "Create Generation (Legacy)",
+    bodySchema: PostGenerationsV1Body,
+    responseSchema: PostGenerationsV1Response,
+    rateLimitResource: "legacy-ingestion",
+    fn: async ({ body, auth, res }) => {
+      const { prompt, completion, ...rest } = body;
       const event = {
-        id: uuidv4(),
+        id: v4(),
         type: eventTypes.OBSERVATION_CREATE,
         timestamp: new Date().toISOString(),
-        body: convertToObservation(
-          LegacyGenerationsCreateSchema.parse(req.body),
-        ),
-      };
-
-      const result = await handleBatch(
-        ingestionBatchEvent.parse([event]),
-        {},
-        req,
-        authCheck,
-      );
-
-      handleBatchResultLegacy(result.errors, result.results, res);
-    } catch (error: unknown) {
-      console.error(error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          message: "Invalid request data",
-          error: error.errors,
-        });
-      }
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
-      }
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({
-        message: "Invalid request data",
-        error: errorMessage,
-      });
-    }
-  } else if (req.method === "PATCH") {
-    try {
-      // CHECK AUTH
-      const authCheck = await verifyAuthHeaderAndReturnScope(
-        req.headers.authorization,
-      );
-      if (!authCheck.validKey)
-        return res.status(401).json({
-          message: authCheck.error,
-        });
-      // END CHECK AUTH
-      console.log(
-        "trying to update observation for generation, project ",
-        authCheck.scope.projectId,
-        ", body:",
-        JSON.stringify(req.body, null, 2),
-      );
-
-      const convertToObservation = (
-        generation: z.infer<typeof LegacyGenerationPatchSchema>,
-      ) => {
-        return {
-          ...generation,
-          id: generation.generationId,
+        body: {
+          ...rest,
           type: "GENERATION",
-          input: generation.prompt,
-          output: generation.completion,
-        };
+          input: prompt,
+          output: completion,
+        },
       };
-
+      if (!event.body.id) {
+        event.body.id = v4();
+      }
+      const result = await processEventBatch([event], auth);
+      if (result.errors.length > 0) {
+        const error = result.errors[0];
+        res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
+        return { id: "" }; // dummy return
+      }
+      if (result.successes.length !== 1) {
+        logger.error("Failed to create generation", { result });
+        throw new Error("Failed to create generation");
+      }
+      return { id: event.body.id };
+    },
+  }),
+  PATCH: createAuthedAPIRoute({
+    name: "Patch Generation (Legacy)",
+    bodySchema: PatchGenerationsV1Body,
+    responseSchema: PatchGenerationsV1Response,
+    rateLimitResource: "legacy-ingestion",
+    fn: async ({ body, auth, res }) => {
+      const { generationId, prompt, completion, ...rest } = body;
       const event = {
-        id: uuidv4(),
+        id: v4(),
         type: eventTypes.OBSERVATION_UPDATE,
         timestamp: new Date().toISOString(),
-        body: convertToObservation(LegacyGenerationPatchSchema.parse(req.body)),
+        body: {
+          ...rest,
+          id: generationId,
+          type: "GENERATION",
+          input: prompt,
+          output: completion,
+        },
       };
-
-      const result = await handleBatch(
-        ingestionBatchEvent.parse([event]),
-        {},
-        req,
-        authCheck,
-      );
-
-      handleBatchResultLegacy(result.errors, result.results, res);
-    } catch (error: unknown) {
-      console.error(error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          message: "Invalid request data",
-          error: error.errors,
-        });
+      const result = await processEventBatch([event], auth);
+      if (result.errors.length > 0) {
+        const error = result.errors[0];
+        res
+          .status(error.status)
+          .json({ message: error.error ?? error.message });
+        return { id: "" }; // dummy return
       }
-      if (isPrismaException(error)) {
-        return res.status(500).json({
-          error: "Internal Server Error",
-        });
+      if (result.successes.length !== 1) {
+        logger.error("Failed to update generation", { result });
+        throw new Error("Failed to update generation");
       }
-
-      if (error instanceof ResourceNotFoundError) {
-        return res.status(404).json({
-          message: "Observation not found",
-        });
-      }
-
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({
-        message: "Invalid request data",
-        error: errorMessage,
-      });
-    }
-  } else {
-    return res.status(405).json({ message: "Method not allowed" });
-  }
-}
+      return { id: event.body.id };
+    },
+  }),
+});

@@ -1,11 +1,11 @@
 import z from "zod";
-import { ModelProvider, UIModelParams } from "../..";
 
 export const langfuseObjects = [
   "trace",
   "span",
   "generation",
   "event",
+  "dataset_item",
 ] as const;
 
 // variable mapping stored in the db for eval templates
@@ -22,7 +22,7 @@ export const variableMapping = z
     (value) => value.langfuseObject === "trace" || value.objectName !== null,
     {
       message: "objectName is required for langfuseObjects other than trace",
-    }
+    },
   );
 
 export const variableMappingList = z.array(variableMapping);
@@ -45,7 +45,7 @@ const observationCols = [
   { name: "Output", id: "output", internal: 'o."output"' },
 ];
 
-export const availableEvalVariables = [
+export const availableTraceEvalVariables = [
   {
     id: "trace",
     display: "Trace",
@@ -77,38 +77,27 @@ export const availableEvalVariables = [
   },
 ];
 
-export const evalLLMModels: UIModelParams[] = [
+export const availableDatasetEvalVariables = [
   {
-    provider: { value: ModelProvider.OpenAI, enabled: true },
-    model: { value: "gpt-3.5-turbo", enabled: true },
-    temperature: { value: 1, enabled: true },
-    maxTemperature: { value: 2, enabled: true },
-    max_tokens: { value: 256, enabled: true },
-    top_p: { value: 1, enabled: true },
+    id: "dataset_item",
+    display: "Dataset item",
+    availableColumns: [
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: 'd."metadata"',
+      },
+      { name: "Input", id: "input", internal: 'd."input"' },
+      {
+        name: "Expected output",
+        id: "expected_output",
+        internal: 'd."expected_output"',
+      },
+    ],
   },
-  {
-    provider: { value: ModelProvider.OpenAI, enabled: true },
-    model: { value: "gpt-4-turbo-preview", enabled: true },
-    temperature: { value: 1, enabled: true },
-    maxTemperature: { value: 2, enabled: true },
-    max_tokens: { value: 256, enabled: true },
-    top_p: { value: 1, enabled: true },
-  },
-  {
-    provider: { value: ModelProvider.OpenAI, enabled: true },
-    model: { value: "gpt-4o", enabled: true },
-    temperature: { value: 1, enabled: true },
-    maxTemperature: { value: 2, enabled: true },
-    max_tokens: { value: 256, enabled: true },
-    top_p: { value: 1, enabled: true },
-  },
-] as const;
-
-export const EvalModelNames = z.enum([
-  "gpt-3.5-turbo",
-  "gpt-4-turbo-preview",
-  "gpt-4o",
-]);
+  ...availableTraceEvalVariables,
+];
 
 export const OutputSchema = z.object({
   reasoning: z.string(),
@@ -117,6 +106,7 @@ export const OutputSchema = z.object({
 
 export enum EvalTargetObject {
   Trace = "trace",
+  Dataset = "dataset",
 }
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;

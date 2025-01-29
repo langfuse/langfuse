@@ -1,19 +1,104 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
-import { deepParseJson } from "@/src/utils/json";
+import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
+import {
+  ChatMlArraySchema,
+  type ChatMlMessageSchema,
+  OpenAIContentSchema,
+  type OpenAIOutputAudioType,
+} from "@/src/components/schemas/ChatMlSchema";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+
+const isSupportedMarkdownFormat = (
+  content: unknown,
+  contentValidation: z.SafeParseReturnType<
+    string,
+    z.infer<typeof OpenAIContentSchema>
+  >,
+): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
+
+// MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
+// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+export function MarkdownOrJsonView({
+  content,
+  title,
+  className,
+  customCodeHeaderClassName,
+  audio,
+  media,
+}: {
+  content?: unknown;
+  title?: string;
+  className?: string;
+  customCodeHeaderClassName?: string;
+  audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
+}) {
+  const stringOrValidatedMarkdown = useMemo(
+    () => StringOrMarkdownSchema.safeParse(content),
+    [content],
+  );
+  const validatedOpenAIContent = useMemo(
+    () => OpenAIContentSchema.safeParse(content),
+    [content],
+  );
+
+  const { isMarkdownEnabled } = useMarkdownContext();
+  const canEnableMarkdown = isSupportedMarkdownFormat(
+    content,
+    validatedOpenAIContent,
+  );
+
+  return (
+    <>
+      {isMarkdownEnabled && canEnableMarkdown ? (
+        <MarkdownView
+          markdown={stringOrValidatedMarkdown.data ?? content}
+          title={title}
+          className={className}
+          customCodeHeaderClassName={customCodeHeaderClassName}
+          audio={audio}
+          media={media}
+        />
+      ) : (
+        <JSONView
+          json={content ?? (audio ? { audio } : null)}
+          canEnableMarkdown={canEnableMarkdown}
+          title={title}
+          className={className}
+          media={media}
+        />
+      )}
+    </>
+  );
+}
 
 export const IOPreview: React.FC<{
-  input?: unknown;
-  output?: unknown;
+  input?: Prisma.JsonValue;
+  output?: Prisma.JsonValue;
   isLoading?: boolean;
   hideIfNull?: boolean;
-}> = ({ isLoading = false, hideIfNull = false, ...props }) => {
+  media?: MediaReturnType[];
+  hideOutput?: boolean;
+  hideInput?: boolean;
+}> = ({
+  isLoading = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  media,
+  ...props
+}) => {
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
@@ -29,7 +114,7 @@ export const IOPreview: React.FC<{
     outLegacyCompletionSchema.safeParse(output);
   const outputClean = outLegacyCompletionSchemaParsed.success
     ? outLegacyCompletionSchemaParsed.data
-    : props.output ?? null;
+    : (props.output ?? null);
 
   // ChatML format
   let inChatMlArray = ChatMlArraySchema.safeParse(input);
@@ -59,60 +144,107 @@ export const IOPreview: React.FC<{
     Array.isArray(output) ? output : [output],
   );
 
-  // Pretty view available
-  const isPrettyViewAvailable = inChatMlArray.success;
+  const inMarkdown = StringOrMarkdownSchema.safeParse(input);
+  const outMarkdown = StringOrMarkdownSchema.safeParse(output);
+
+  const isPrettyViewAvailable =
+    inChatMlArray.success || inMarkdown.success || outMarkdown.success;
+
+  // If there are additional input fields beyond the messages, render them
+  const additionalInput =
+    typeof input === "object" && input !== null && !Array.isArray(input)
+      ? Object.fromEntries(
+          Object.entries(input as object).filter(([key]) => key !== "messages"),
+        )
+      : undefined;
 
   // default I/O
   return (
     <>
       {isPrettyViewAvailable ? (
-        <Tabs
-          value={currentView}
-          onValueChange={(v) => {
-            setCurrentView(v as "pretty" | "json"),
-              capture("trace_detail:io_mode_switch", { view: v });
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-row justify-between">
+          <Tabs
+            value={currentView}
+            onValueChange={(v) => {
+              setCurrentView(v as "pretty" | "json"),
+                capture("trace_detail:io_mode_switch", { view: v });
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       ) : null}
       {isPrettyViewAvailable && currentView === "pretty" ? (
-        <OpenAiMessageView
-          messages={[
-            ...inChatMlArray.data,
-            ...(outChatMlArray.success
-              ? outChatMlArray.data.map((m) => ({
-                  ...m,
-                  role: m.role ?? "assistant",
-                }))
-              : [
-                  ChatMlMessageSchema.parse({
-                    role: "assistant",
-                    content: outputClean ? JSON.stringify(outputClean) : null,
-                  }),
-                ]),
-          ]}
-        />
+        <>
+          {inChatMlArray.success ? (
+            <OpenAiMessageView
+              messages={[
+                ...inChatMlArray.data,
+                ...(outChatMlArray.success
+                  ? outChatMlArray.data.map((m) => ({
+                      ...m,
+                      role: m.role ?? "assistant",
+                    }))
+                  : [
+                      {
+                        role: "assistant",
+                        ...(typeof outputClean === "string"
+                          ? { content: outputClean }
+                          : { json: outputClean }),
+                      } as ChatMlMessageSchema,
+                    ]),
+              ]}
+              shouldRenderMarkdown
+              additionalInput={
+                Object.keys(additionalInput ?? {}).length > 0
+                  ? additionalInput
+                  : undefined
+              }
+              media={media ?? []}
+            />
+          ) : (
+            <>
+              {!(hideIfNull && !input) && !hideInput ? (
+                <MarkdownOrJsonView
+                  title="Input"
+                  content={input}
+                  media={media?.filter((m) => m.field === "input") ?? []}
+                />
+              ) : null}
+              {!(hideIfNull && !output) && !hideOutput ? (
+                <MarkdownOrJsonView
+                  title="Output"
+                  content={output}
+                  className="bg-accent-light-green dark:border-accent-dark-green"
+                  customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
+                  media={media?.filter((m) => m.field === "output") ?? []}
+                />
+              ) : null}
+            </>
+          )}
+        </>
       ) : null}
       {currentView === "json" || !isPrettyViewAvailable ? (
         <>
-          {!(hideIfNull && !input) ? (
+          {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
               title="Input"
               json={input ?? null}
               isLoading={isLoading}
               className="flex-1"
+              media={media?.filter((m) => m.field === "input") ?? []}
             />
           ) : null}
-          {!(hideIfNull && !output) ? (
+          {!(hideIfNull && !output) && !hideOutput ? (
             <JSONView
               title="Output"
               json={outputClean}
               isLoading={isLoading}
               className="flex-1 bg-accent-light-green dark:border-accent-dark-green"
+              media={media?.filter((m) => m.field === "output") ?? []}
             />
           ) : null}
         </>
@@ -121,49 +253,25 @@ export const IOPreview: React.FC<{
   );
 };
 
-const ChatMlMessageSchema = z
-  .object({
-    role: z
-      .enum(["system", "user", "assistant", "function", "tool"])
-      .optional(),
-    name: z.string().optional(),
-    content: z
-      .union([z.record(z.any()), z.string(), z.array(z.any())])
-      .nullish(),
-    additional_kwargs: z.record(z.any()).optional(),
-  })
-  .passthrough()
-  .refine((value) => value.content !== null || value.role !== undefined)
-  .transform(({ additional_kwargs, ...other }) => ({
-    ...other,
-    ...additional_kwargs,
-  }))
-  .transform(({ role, name, content, ...other }) => ({
-    role,
-    name,
-    content,
-    json: Object.keys(other).length === 0 ? undefined : other,
-  }));
-export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
-
 export const OpenAiMessageView: React.FC<{
-  title?: string;
   messages: z.infer<typeof ChatMlArraySchema>;
-}> = ({ title, messages }) => {
+  title?: string;
+  shouldRenderMarkdown?: boolean;
+  collapseLongHistory?: boolean;
+  media?: MediaReturnType[];
+  additionalInput?: Record<string, unknown>;
+}> = ({
+  title,
+  messages,
+  shouldRenderMarkdown = false,
+  media,
+  collapseLongHistory = true,
+  additionalInput,
+}) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
-    messages.length > COLLAPSE_THRESHOLD ? true : null,
+    collapseLongHistory && messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
-
-  const transformedMessages = messages;
-  // const transformedMessages = messages.map(
-  //   ({ role, name, content, ...rest }) => ({
-  //     role,
-  //     name,
-  //     content,
-  //     json: rest,
-  //   }),
-  // );
 
   return (
     <div className="rounded-md border">
@@ -171,7 +279,7 @@ export const OpenAiMessageView: React.FC<{
         <div className="border-b px-3 py-1 text-xs font-medium">{title}</div>
       )}
       <div className="flex flex-col gap-2 p-3">
-        {transformedMessages
+        {messages
           .filter(
             (_, i) =>
               // show all if not collapsed or null; show first and last n if collapsed
@@ -182,24 +290,45 @@ export const OpenAiMessageView: React.FC<{
           .map((message, index) => (
             <Fragment key={index}>
               <div>
-                {!!message.content && (
-                  <JSONView
-                    title={message.name ?? message.role}
-                    json={message.content}
-                    className={cn(
-                      "bg-muted",
-                      message.role === "system" && "bg-primary-foreground",
-                      message.role === "assistant" &&
-                        "bg-accent-light-green dark:border-accent-dark-green",
-                      message.role === "user" && "bg-background",
-                      !!message.json && "rounded-b-none",
-                    )}
-                  />
-                )}
+                {(!!message.content || !!message.audio) &&
+                  (shouldRenderMarkdown ? (
+                    <MarkdownOrJsonView
+                      title={message.name ?? message.role}
+                      content={message.content}
+                      className={cn(
+                        "bg-muted",
+                        message.role === "system" && "bg-primary-foreground",
+                        message.role === "assistant" &&
+                          "bg-accent-light-green dark:border-accent-dark-green",
+                        message.role === "user" && "bg-background",
+                        !!message.json && "rounded-b-none",
+                      )}
+                      customCodeHeaderClassName={cn(
+                        message.role === "assistant" &&
+                          "bg-muted-green dark:bg-secondary",
+                      )}
+                      audio={message.audio}
+                    />
+                  ) : (
+                    <JSONView
+                      title={message.name ?? message.role}
+                      json={message.content}
+                      className={cn(
+                        "bg-muted",
+                        message.role === "system" && "bg-primary-foreground",
+                        message.role === "assistant" &&
+                          "bg-accent-light-green dark:border-accent-dark-green",
+                        message.role === "user" && "bg-background",
+                        !!message.json && "rounded-b-none",
+                      )}
+                    />
+                  ))}
                 {!!message.json && (
                   <JSONView
                     title={
-                      message.content ? undefined : message.name ?? message.role
+                      message.content
+                        ? undefined
+                        : (message.name ?? message.role)
                     }
                     json={message.json}
                     className={cn(
@@ -207,7 +336,7 @@ export const OpenAiMessageView: React.FC<{
                       message.role === "system" && "bg-primary-foreground",
                       message.role === "assistant" &&
                         "bg-accent-light-green dark:border-accent-dark-green",
-                      message.role === "user" && "bg-foreground",
+                      message.role === "user" && "bg-background",
                       !!message.content && "rounded-t-none border-t-0",
                     )}
                   />
@@ -227,6 +356,27 @@ export const OpenAiMessageView: React.FC<{
             </Fragment>
           ))}
       </div>
+      {additionalInput && (
+        <div className="p-3 pt-1">
+          <JSONView title="Additional Input" json={additionalInput} />
+        </div>
+      )}
+      {media && media.length > 0 && (
+        <>
+          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+            Media
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 pt-1">
+            {media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -74,9 +74,7 @@ export const GenerationOutput = () => {
           <p className="flex-1 text-xs font-semibold">Output</p>
           {copyButton}
         </div>
-        <pre
-          className={`whitespace-break-spaces break-words ${isJson ? "text-xs" : ""}`}
-        >
+        <pre className="whitespace-break-spaces break-words text-xs">
           {isJson ? outputJson : output}
         </pre>
       </div>

@@ -7,24 +7,24 @@ import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 
-// todo: add json linting
-
 export function JsonEditor({
   defaultValue,
   onChange,
   editable = true,
   lineWrapping = true,
   className,
+  onBlur,
 }: {
   defaultValue: string;
   onChange?: (value: string) => void;
   editable?: boolean;
+  onBlur?: () => void;
   lineWrapping?: boolean;
   className?: string;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
-  
+
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!defaultValue && defaultValue !== "",
@@ -47,7 +47,8 @@ export function JsonEditor({
         if (onChange) onChange(c);
         setLinterEnabled(c !== "");
       }}
-      className={cn("overflow-hidden rounded-md border", className)}
+      onBlur={onBlur}
+      className={cn("overflow-hidden rounded-md border text-xs", className)}
       editable={editable}
     />
   );

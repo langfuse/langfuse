@@ -1,10 +1,20 @@
 import { toast } from "sonner";
 import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
 
+const toastErrorStyleProps = {
+  border: "1px solid hsl(var(--destructive))",
+  backgroundColor: "hsl(var(--destructive))",
+};
+
+const toastWarningStyleProps = {
+  border: "1px solid hsl(var(--light-yellow))",
+  backgroundColor: "hsl(var(--light-yellow))",
+};
+
 export const showErrorToast = (
   error: string,
   description: string,
-  cause?: string,
+  type: "WARNING" | "ERROR" = "ERROR",
   path?: string,
 ) => {
   toast.custom(
@@ -12,7 +22,7 @@ export const showErrorToast = (
       <ErrorNotification
         error={error}
         description={description}
-        cause={cause}
+        type={type}
         path={path}
         dismissToast={toast.dismiss}
         toast={t}
@@ -22,9 +32,8 @@ export const showErrorToast = (
       duration: Infinity,
       style: {
         padding: "1rem",
-        border: "1px solid hsl(var(--destructive))",
         borderRadius: "0.5rem",
-        backgroundColor: "hsl(var(--destructive))",
+        ...(type === "ERROR" ? toastErrorStyleProps : toastWarningStyleProps),
       },
     },
   );

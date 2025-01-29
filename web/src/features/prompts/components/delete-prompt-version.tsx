@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useState } from "react";
 import {
   Popover,
@@ -26,7 +26,7 @@ export function DeletePromptVersion({
   const utils = api.useUtils();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasAccess({ projectId, scope: "prompts:CUD" });
+  const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const mutDeletePromptVersion = api.prompts.deleteVersion.useMutation({
     onSuccess: () => {
@@ -46,10 +46,6 @@ export function DeletePromptVersion({
     },
   });
 
-  if (!hasAccess) {
-    return null;
-  }
-
   return (
     <Popover
       key={promptVersionId}
@@ -62,8 +58,17 @@ export function DeletePromptVersion({
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" type="button" size="icon">
-          <Trash2 className="h-5 w-5" />
+        <Button
+          variant="outline"
+          type="button"
+          size="icon"
+          className="h-7 w-7 px-0"
+          disabled={!hasAccess}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <Trash className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent>

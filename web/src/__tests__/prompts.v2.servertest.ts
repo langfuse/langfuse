@@ -13,6 +13,10 @@ import {
 import { nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
+import {
+  createOrgProjectAndApiKey,
+  getObservationById,
+} from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -23,11 +27,13 @@ type CreatePromptInDBParams = {
   prompt: string;
   labels: string[];
   version: number;
-  config: Record<string, object | number | string>;
+  config: any;
   projectId: string;
   createdBy: string;
   type?: PromptType;
   tags?: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 const createPromptInDB = async (params: CreatePromptInDBParams) => {
   return await prisma.prompt.create({
@@ -44,6 +50,8 @@ const createPromptInDB = async (params: CreatePromptInDBParams) => {
       createdBy: params.createdBy,
       type: params.type,
       tags: params.tags,
+      createdAt: params.createdAt,
+      updatedAt: params.updatedAt,
     },
   });
 };
@@ -75,7 +83,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       const projectId = uuidv4();
       const response = await makeAPICall(
         "GET",
-        `/api/public/v2/prompts`,
+        baseURI,
         undefined,
         `Bearer ${projectId}`,
       );
@@ -391,11 +399,10 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(response.status).toBe(207);
 
-      const dbGeneration = await prisma.observation.findUnique({
-        where: {
-          id: generationId,
-        },
-      });
+      // Delay to allow for async processing
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const dbGeneration = await getObservationById(generationId, projectId);
 
       expect(dbGeneration?.id).toBe(generationId);
       expect(dbGeneration?.promptId).toBe(promptId);
@@ -416,6 +423,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         prompt: chatMessages,
         type: "chat",
         labels: ["production"],
+        commitMessage: "chore: setup initial prompt",
       });
 
       expect(response.status).toBe(201);
@@ -435,6 +443,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(validatedPrompt.labels).toEqual(["production", "latest"]);
       expect(validatedPrompt.createdBy).toBe("API");
       expect(validatedPrompt.config).toEqual({});
+      expect(validatedPrompt.commitMessage).toBe("chore: setup initial prompt");
     });
 
     it("should fail if chat prompt has string prompt", async () => {
@@ -533,7 +542,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       expect(postResponse2.status).toBe(400);
       // @ts-expect-error
-      expect(postResponse2.body.error).toBe("ValidationError");
+      expect(postResponse2.body.error).toBe("InvalidRequestError");
 
       // Check if the prompt is still the chat prompt
       const getResponse1 = await makeAPICall(
@@ -680,6 +689,71 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(fetchedPrompt.body.createdBy).toBe("API");
       expect(fetchedPrompt.body.config).toEqual({});
     });
+
+    it("should update tags across versions", async () => {
+      const promptName = "prompt-name" + nanoid();
+
+      const createPromptVersion = async (tags?: string[]) => {
+        await makeAPICall("POST", baseURI, {
+          name: promptName,
+          prompt: "This is a test prompt",
+          type: PromptType.Text,
+          ...(tags !== undefined && { tags: tags }),
+        });
+      };
+
+      const fetchPromptVersion = async (version: number) => {
+        const fetchedPrompt = await makeAPICall(
+          "GET",
+          `${baseURI}/${promptName}?version=${version}`,
+          undefined,
+        );
+        expect(fetchedPrompt.status).toBe(200);
+        if (!isPrompt(fetchedPrompt.body)) {
+          throw new Error("Expected body to be a prompt");
+        }
+        return fetchedPrompt.body;
+      };
+
+      // Create version 1 with ["tag"]
+      await createPromptVersion(["tag"]);
+      let fetchedPrompt1 = await fetchPromptVersion(1);
+      expect(fetchedPrompt1.tags).toEqual(["tag"]);
+      expect(fetchedPrompt1.version).toBe(1);
+
+      // Create version 2 with no tags provided (should use tags from version 1)
+      await createPromptVersion();
+      let fetchedPrompt2 = await fetchPromptVersion(2);
+      expect(fetchedPrompt2.tags).toEqual(["tag"]);
+      expect(fetchedPrompt2.version).toBe(2);
+
+      // Create version 3 with ["tag1", "tag2", "tag3"] (should update tags across versions)
+      await createPromptVersion(["tag1", "tag2", "tag3"]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      let fetchedPrompt3 = await fetchPromptVersion(3);
+      expect(fetchedPrompt1.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(fetchedPrompt3.version).toBe(3);
+
+      // remove tags
+      await createPromptVersion([]);
+      fetchedPrompt1 = await fetchPromptVersion(1);
+      fetchedPrompt2 = await fetchPromptVersion(2);
+      fetchedPrompt3 = await fetchPromptVersion(3);
+      let fetchedPrompt4 = await fetchPromptVersion(4);
+      expect(fetchedPrompt1.tags).toEqual([]);
+      expect(fetchedPrompt1.version).toBe(1);
+      expect(fetchedPrompt2.tags).toEqual([]);
+      expect(fetchedPrompt2.version).toBe(2);
+      expect(fetchedPrompt3.tags).toEqual([]);
+      expect(fetchedPrompt3.version).toBe(3);
+      expect(fetchedPrompt4.tags).toEqual([]);
+      expect(fetchedPrompt4.version).toBe(4);
+    });
   });
 
   describe("when fetching a prompt list", () => {
@@ -704,19 +778,26 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       });
 
       const otherProjectId = "239ad00f-562f-411d-af14-831c75ddd875";
+      await prisma.organization.upsert({
+        where: { id: "other-org" },
+        create: { id: "other-org", name: "other-org" },
+        update: {},
+      });
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: { orgId: "other-org", userId: "user-test" },
+        },
+        create: { userId: "user-test", orgId: "other-org", role: "OWNER" },
+        update: { role: "OWNER" },
+      });
       await prisma.project.upsert({
         where: { id: otherProjectId },
         create: {
           id: otherProjectId,
           name: "demo-app",
-          projectMembers: {
-            create: {
-              role: "OWNER",
-              userId: "user-test",
-            },
-          },
+          orgId: "other-org",
         },
-        update: {},
+        update: { name: "demo-app", orgId: "other-org" },
       });
 
       await createPromptInDB({
@@ -768,20 +849,23 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       // Validate prompt-1 meta
       expect(promptMeta1.name).toBe("prompt-1");
       expect(promptMeta1.versions).toEqual([1, 2, 4]);
-      expect(promptMeta1.labels).toEqual(["production"]);
+      expect(promptMeta1.labels).toEqual(["production", "version2"]);
       expect(promptMeta1.tags).toEqual([]);
+      expect(promptMeta1.lastUpdatedAt).toBeDefined();
 
       // Validate prompt-2 meta
       expect(promptMeta2.name).toBe("prompt-2");
       expect(promptMeta2.versions).toEqual([1, 2, 3]);
       expect(promptMeta2.labels).toEqual(["dev", "production", "staging"]);
       expect(promptMeta2.tags).toEqual([]);
+      expect(promptMeta2.lastUpdatedAt).toBeDefined();
 
       // Validate prompt-3 meta
       expect(promptMeta3.name).toBe("prompt-3");
       expect(promptMeta3.versions).toEqual([1]);
       expect(promptMeta3.labels).toEqual(["production"]);
       expect(promptMeta3.tags).toEqual(["tag-1"]);
+      expect(promptMeta3.lastUpdatedAt).toBeDefined();
 
       // Validate pagination
       expect(body.meta.page).toBe(1);
@@ -805,7 +889,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data).toHaveLength(1);
       expect(body.data[0].name).toBe("prompt-1");
       expect(body.data[0].versions).toEqual([1, 2, 4]);
-      expect(body.data[0].labels).toEqual(["production"]);
+      expect(body.data[0].labels).toEqual(["production", "version2"]);
       expect(body.data[0].tags).toEqual([]);
 
       // Validate pagination
@@ -926,6 +1010,257 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     expect(body.meta.totalPages).toBe(3);
     expect(body.meta.totalItems).toBe(3);
   });
+
+  it("should fetch lastConfig correctly for a prompt with multiple versions", async () => {
+    // no filters
+    const response = await makeAPICall("GET", `${baseURI}`);
+    expect(response.status).toBe(200);
+    const body = response.body as unknown as PromptsMetaResponse;
+
+    expect(body.data).toHaveLength(3);
+    expect(body.data.some((promptMeta) => promptMeta.name === "prompt-1")).toBe(
+      true,
+    );
+    expect(body.data.some((promptMeta) => promptMeta.name === "prompt-2")).toBe(
+      true,
+    );
+    expect(body.data.some((promptMeta) => promptMeta.name === "prompt-3")).toBe(
+      true,
+    );
+    const prompt1 = body.data.find(
+      (promptMeta) => promptMeta.name === "prompt-1",
+    );
+    expect(prompt1).toBeDefined();
+    expect(prompt1?.lastConfig).toEqual({ version: 4 });
+
+    const prompt2 = body.data.find(
+      (promptMeta) => promptMeta.name === "prompt-2",
+    );
+    expect(prompt2).toBeDefined();
+    expect(prompt2?.lastConfig).toEqual({});
+
+    // validate with label filter
+    const response2 = await makeAPICall("GET", `${baseURI}?label=version2`);
+    expect(response2.status).toBe(200);
+    const body2 = response2.body as unknown as PromptsMetaResponse;
+
+    expect(body2.data).toHaveLength(1);
+    expect(body2.data[0].name).toBe("prompt-1");
+    expect(body2.data[0].lastConfig).toEqual({ version: 2 });
+
+    // validate with version filter
+    const response3 = await makeAPICall("GET", `${baseURI}?version=1`);
+    expect(response3.status).toBe(200);
+    const body3 = response3.body as unknown as PromptsMetaResponse;
+
+    expect(body3.data).toHaveLength(3);
+    const prompt1v1 = body3.data.find(
+      (promptMeta) => promptMeta.name === "prompt-1",
+    );
+    expect(prompt1v1?.lastConfig).toEqual({ version: 1 });
+  });
+
+  it("should respect the fromUpdatedAt and toUpdatedAt filters on GET /prompts", async () => {
+    // to and from
+    const from = new Date("2024-01-02T00:00:00.000Z");
+    const to = new Date("2024-01-04T00:00:00.000Z");
+    const response = await makeAPICall(
+      "GET",
+      `${baseURI}?fromUpdatedAt=${from.toISOString()}&toUpdatedAt=${to.toISOString()}`,
+    );
+    expect(response.status).toBe(200);
+    const body = response.body as unknown as PromptsMetaResponse;
+
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].name).toBe("prompt-1");
+    expect(body.data[0].lastUpdatedAt).toBe("2024-01-02T00:00:00.000Z");
+    expect(body.data[0].versions.length).toBe(1);
+
+    expect(body.meta.totalItems).toBe(1);
+
+    // only from
+    const response2 = await makeAPICall(
+      "GET",
+      `${baseURI}?fromUpdatedAt=${from.toISOString()}`,
+    );
+    expect(response2.status).toBe(200);
+    const body2 = response2.body as unknown as PromptsMetaResponse;
+
+    expect(body2.data).toHaveLength(1);
+    expect(body2.data[0].name).toBe("prompt-1");
+    expect(body2.data[0].lastUpdatedAt).toBe("2024-01-04T00:00:00.000Z");
+    expect(body2.data[0].versions.length).toBe(2);
+
+    expect(body2.meta.totalItems).toBe(1);
+
+    // only to
+    const response3 = await makeAPICall(
+      "GET",
+      `${baseURI}?toUpdatedAt=${to.toISOString()}`,
+    );
+    expect(response3.status).toBe(200);
+    const body3 = response3.body as unknown as PromptsMetaResponse;
+
+    expect(body3.data).toHaveLength(3);
+    expect(body3.data[0].name).toBe("prompt-1");
+    expect(body3.data[0].lastUpdatedAt).toBe("2024-01-02T00:00:00.000Z");
+    expect(body3.data[0].versions.length).toBe(2);
+
+    expect(body3.data[1].name).toBe("prompt-2");
+    expect(body3.data[1].lastUpdatedAt).toBe("2000-03-01T00:00:00.000Z");
+    expect(body3.data[1].versions.length).toBe(3);
+
+    expect(body3.data[2].name).toBe("prompt-3");
+    expect(body3.data[2].lastUpdatedAt).toBe("2000-01-01T00:00:00.000Z");
+    expect(body3.data[2].versions.length).toBe(1);
+
+    expect(body3.meta.totalItems).toBe(3);
+  });
+});
+
+describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
+  it("should update the labels of a prompt", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    const originalPrompt = await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/versions/1`,
+      {
+        newLabels: ["new-label"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: {
+        id: originalPrompt.id,
+      },
+    });
+    expect(updatedPrompt?.labels).toContain("production");
+    expect(updatedPrompt?.labels).toContain("new-label");
+    expect(updatedPrompt?.labels).toHaveLength(2);
+  });
+
+  it("should remove label from previous version when adding to new version", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    // Create version 1 with "production" label
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Create version 2 initially without the label
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 2,
+        labels: [],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Add "production" label to version 2
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/versions/2`,
+      {
+        newLabels: ["production"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+    const responseBody = response.body as unknown as Prompt;
+    expect(responseBody.labels).toEqual(["production"]);
+
+    // Check version 2 got the label
+    const promptV2 = await prisma.prompt.findFirst({
+      where: {
+        projectId: newProjectId,
+        name: "prompt-1",
+        version: 2,
+      },
+    });
+    expect(promptV2?.labels).toEqual(["production"]);
+
+    // Check version 1 had the label removed
+    const promptV1 = await prisma.prompt.findFirst({
+      where: {
+        projectId: newProjectId,
+        name: "prompt-1",
+        version: 1,
+      },
+    });
+    expect(promptV1?.labels).toEqual([]);
+  });
+
+  it("trying to set 'latest' label results in 400 error", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+    // Create initial prompt version
+    await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: [],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Try to set "latest" label
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/versions/1`,
+      {
+        newLabels: ["latest"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("updating non existing prompt results in 404", async () => {
+    const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+    // Try to update non-existing prompt
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/non-existing-prompt/versions/1`,
+      {
+        newLabels: ["production"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(404);
+  });
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
@@ -964,17 +1299,19 @@ const mockPrompts = [
     prompt: "prompt-1",
     createdBy: "user-test",
     projectId,
-    config: {},
+    config: { version: 1 },
     version: 1,
+    updatedAt: new Date("2024-01-01T00:00:00.000Z"),
   },
   {
     name: "prompt-1",
-    labels: ["production"],
+    labels: ["production", "version2"],
     prompt: "prompt-1",
     createdBy: "user-test",
     projectId,
-    config: {},
+    config: { version: 2 },
     version: 2,
+    updatedAt: new Date("2024-01-02T00:00:00.000Z"),
   },
   {
     name: "prompt-1",
@@ -982,8 +1319,9 @@ const mockPrompts = [
     prompt: "prompt-1",
     createdBy: "user-test",
     projectId,
-    config: {},
+    config: { version: 4 },
     version: 4,
+    updatedAt: new Date("2024-01-04T00:00:00.000Z"),
   },
 
   // Prompt with different labels
@@ -995,6 +1333,7 @@ const mockPrompts = [
     projectId,
     config: {},
     version: 1,
+    updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },
   {
     name: "prompt-2",
@@ -1004,6 +1343,7 @@ const mockPrompts = [
     projectId,
     config: {},
     version: 2,
+    updatedAt: new Date("2000-03-01T00:00:00.000Z"),
   },
   {
     name: "prompt-2",
@@ -1013,6 +1353,7 @@ const mockPrompts = [
     projectId,
     config: {},
     version: 3,
+    updatedAt: new Date("2000-02-01T00:00:00.000Z"),
   },
 
   // Prompt with different labels
@@ -1025,6 +1366,7 @@ const mockPrompts = [
     config: {},
     tags: ["tag-1"],
     version: 1,
+    updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },
 
   // Prompt in different project
@@ -1036,5 +1378,6 @@ const mockPrompts = [
     projectId: "239ad00f-562f-411d-af14-831c75ddd875",
     config: {},
     version: 1,
+    updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },
 ];

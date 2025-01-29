@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  prompts: ./prompts.yml
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public/v2
+  endpoints:
+    update:
+      docs: Update labels for a specific prompt version
+      method: PATCH
+      path: /prompts/{name}/versions/{version}
+      path-parameters:
+        name:
+          type: string
+          docs: The name of the prompt
+        version:
+          type: integer
+          docs: Version of the prompt to update
+      request:
+        name: UpdatePromptRequest
+        body:
+          properties:
+            newLabels:
+              type: list<string>
+              docs: New labels for the prompt version. Labels are unique across versions. The "latest" label is reserved and managed by Langfuse.
+      response: prompts.Prompt

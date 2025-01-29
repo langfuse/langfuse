@@ -1,16 +1,16 @@
 import Link from "next/link";
 
 import { Label } from "@/src/components/ui/label";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
-import { supportedModels, type UIModelParams } from "@langfuse/shared";
+import { type UIModelParams } from "@langfuse/shared";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
 }) => {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: p.projectId,
     scope: "llmApiKeys:read",
   });
@@ -39,11 +39,7 @@ export const LLMApiKeyComponent = (p: {
     );
   }
 
-  const model = p.modelParams.model.value;
-  const modelProvider = Object.entries(supportedModels).find((providerData) =>
-    (providerData[1] as any as string[]).includes(model),
-  )?.[0];
-
+  const modelProvider = p.modelParams.provider.value;
   const apiKey = apiKeys.data?.data.find((k) => k.provider === modelProvider);
 
   return (
@@ -51,9 +47,11 @@ export const LLMApiKeyComponent = (p: {
       <Label className="text-xs font-semibold">API key</Label>
       <div>
         {apiKey ? (
-          <span className="mr-2 rounded-sm bg-input p-1 text-xs">
-            {apiKey.displaySecretKey}
-          </span>
+          <Link href={`/project/${p.projectId}/settings/api-keys`}>
+            <span className="mr-2 rounded-sm bg-input p-1 text-xs">
+              {apiKey.displaySecretKey}
+            </span>
+          </Link>
         ) : undefined}
       </div>
       {/* Custom form message to include a link to the already existing prompt */}
@@ -62,7 +60,7 @@ export const LLMApiKeyComponent = (p: {
           {`No LLM API key found for provider ${modelProvider}.`}
 
           <Link
-            href={`/project/${p.projectId}/settings`}
+            href={`/project/${p.projectId}/settings/api-keys`}
             className="flex flex-row"
           >
             Create a new LLM API key here. <ArrowTopRightIcon />

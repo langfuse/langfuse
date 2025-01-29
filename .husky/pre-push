@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Get the current branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+# Define the protected branch
+protected_branch="main"
+
+# Check if the current branch is the protected branch
+if [ "$current_branch" = "$protected_branch" ]; then
+    echo "🚨 You are about to push to the $protected_branch branch. Are you sure? (y/n)"
+    read -r answer < /dev/tty
+    if [ "$answer" != "${answer#[Yy]}" ]; then
+        exit 0 # Push will proceed
+    else
+        echo "Push to $protected_branch branch has been canceled."
+        exit 1 # Push will be blocked
+    fi
+fi
+
+# If not the protected branch, proceed with the push
+exit 0

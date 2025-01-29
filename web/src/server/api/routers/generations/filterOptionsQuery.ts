@@ -1,110 +1,144 @@
 import { z } from "zod";
 
-import { type ObservationOptions } from "@langfuse/shared";
+import {
+  timeFilter,
+  tracesTableUiColumnDefinitions,
+  type ObservationOptions,
+} from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { Prisma } from "@langfuse/shared/src/db";
+import {
+  getObservationsGroupedByModel,
+  getObservationsGroupedByModelId,
+  getObservationsGroupedByName,
+  getObservationsGroupedByPromptName,
+  getScoresGroupedByName,
+  getTracesGroupedByName,
+  getTracesGroupedByTags,
+} from "@langfuse/shared/src/server";
 
 export const filterOptionsQuery = protectedProjectProcedure
-  .input(z.object({ projectId: z.string() }))
-  .query(async ({ input, ctx }) => {
-    const queryFilter = {
-      projectId: input.projectId,
-      type: "GENERATION",
-    } as const;
+  .input(
+    z.object({
+      projectId: z.string(),
+      startTimeFilter: timeFilter.optional(),
+    }),
+  )
+  .query(async ({ input }) => {
+    const { startTimeFilter } = input;
 
-    const scores = await ctx.prisma.score.groupBy({
-      where: {
+    const getClickhouseTraceName = async (): Promise<
+      Array<{ traceName: string }>
+    > => {
+      const traces = await getTracesGroupedByName(
+        input.projectId,
+        tracesTableUiColumnDefinitions,
+        startTimeFilter
+          ? [
+              {
+                column: "Timestamp",
+                operator: startTimeFilter.operator,
+                value: startTimeFilter.value,
+                type: "datetime",
+              },
+            ]
+          : [],
+      );
+      return traces.map((i) => ({ traceName: i.name }));
+    };
+
+    const getClickhouseTraceTags = async (): Promise<
+      Array<{ tag: string }>
+    > => {
+      const traces = await getTracesGroupedByTags({
         projectId: input.projectId,
-      },
-      take: 1000,
-      orderBy: {
-        name: "desc",
-      },
-      by: ["name"],
-    });
+        filter: startTimeFilter
+          ? [
+              {
+                column: "Timestamp",
+                operator: startTimeFilter.operator,
+                value: startTimeFilter.value,
+                type: "datetime",
+              },
+            ]
+          : [],
+      });
+      return traces.map((i) => ({ tag: i.value }));
+    };
 
-    const model = await ctx.prisma.observation.groupBy({
-      by: ["model"],
-      where: queryFilter,
-      _count: { _all: true },
-      take: 1000,
-      orderBy: {
-        model: "desc",
-      },
-    });
-    const name = await ctx.prisma.observation.groupBy({
-      by: ["name"],
-      where: queryFilter,
-      _count: { _all: true },
-      take: 1000,
-      orderBy: {
-        name: "desc",
-      },
-    });
-    const promptNames = await ctx.prisma.$queryRaw<
-      Array<{
-        promptName: string | null;
-        count: number;
-      }>
-    >(Prisma.sql`
-        SELECT
-          p.name "promptName",
-          count(*)::int AS count
-        FROM prompts p
-        JOIN observations o ON o.prompt_id = p.id
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND o.prompt_id IS NOT NULL
-          AND p.project_id = ${input.projectId}
-        GROUP BY 1
-        LIMIT 1000;
-      `);
-    const traceName = await ctx.prisma.$queryRaw<
-      Array<{
-        traceName: string | null;
-        count: number;
-      }>
-    >(Prisma.sql`
-        SELECT
-          t.name "traceName",
-          count(*)::int AS count
-        FROM traces t
-        JOIN observations o ON o.trace_id = t.id
-        WHERE o.type = 'GENERATION'
-          AND o.project_id = ${input.projectId}
-          AND t.project_id = ${input.projectId}
-        GROUP BY 1
-        LIMIT 1000;
-      `);
+    const [scores, model, name, promptNames, traceNames, tags, modelId] =
+      await Promise.all([
+        //scores
+        getScoresGroupedByName(
+          input.projectId,
+          startTimeFilter
+            ? [
+                {
+                  column: "Timestamp",
+                  operator: startTimeFilter.operator,
+                  value: startTimeFilter.value,
+                  type: "datetime",
+                },
+              ]
+            : [],
+        ),
+        //model
+        getObservationsGroupedByModel(
+          input.projectId,
+          startTimeFilter ? [startTimeFilter] : [],
+        ),
+        //name
+        getObservationsGroupedByName(
+          input.projectId,
+          startTimeFilter ? [startTimeFilter] : [],
+        ),
+        //prompt name
+        getObservationsGroupedByPromptName(
+          input.projectId,
+          startTimeFilter ? [startTimeFilter] : [],
+        ),
+        //trace name
+        getClickhouseTraceName(),
+        // trace tags
+        getClickhouseTraceTags(),
+        // modelId
+        getObservationsGroupedByModelId(
+          input.projectId,
+          startTimeFilter ? [startTimeFilter] : [],
+        ),
+      ]);
 
     // typecheck filter options, needs to include all columns with options
     const res: ObservationOptions = {
       model: model
         .filter((i) => i.model !== null)
-
+        .map((i) => ({ value: i.model as string })),
+      modelId: modelId
+        .filter((i) => i.modelId !== null)
         .map((i) => ({
-          value: i.model as string,
-          count: i._count._all,
+          value: i.modelId as string,
         })),
       name: name
         .filter((i) => i.name !== null)
-        .map((i) => ({
-          value: i.name as string,
-          count: i._count._all,
-        })),
-      traceName: traceName
+        .map((i) => ({ value: i.name as string })),
+      traceName: traceNames
         .filter((i) => i.traceName !== null)
         .map((i) => ({
           value: i.traceName as string,
-          count: i.count,
         })),
       scores_avg: scores.map((score) => score.name),
       promptName: promptNames
         .filter((i) => i.promptName !== null)
         .map((i) => ({
           value: i.promptName as string,
-          count: i.count,
         })),
+      tags: tags
+        .filter((i) => i.tag !== null)
+        .map((i) => ({
+          value: i.tag as string,
+        })),
+      type: ["GENERATION", "SPAN", "EVENT"].map((i) => ({
+        value: i,
+      })),
     };
 
     return res;

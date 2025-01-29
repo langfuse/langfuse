@@ -11,21 +11,22 @@ import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import useCommandEnter from "@/src/ee/features/playground/page/hooks/useCommandEnter";
+import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
+  extractVariables,
   type ChatMessageWithId,
-  ModelProvider,
   type PromptVariable,
   type UIModelParams,
 } from "@langfuse/shared";
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
+import { env } from "@/src/env.mjs";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -68,9 +69,14 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     createEmptyMessage(ChatMessageRole.System),
     createEmptyMessage(ChatMessageRole.User),
   ]);
-  const [modelParams, setModelParams] = useState<UIModelParams>(
-    getDefaultModelParams(ModelProvider.OpenAI),
-  );
+  const {
+    modelParams,
+    setModelParams,
+    availableProviders,
+    availableModels,
+    updateModelParamValue,
+    setModelParamEnabled,
+  } = useModelParams();
 
   // Load state from cache
   useEffect(() => {
@@ -97,11 +103,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
     if (cachedPromptVariables) {
       setPromptVariables(cachedPromptVariables);
     }
-  }, [playgroundCache]);
-
-  useEffect(() => {
-    setModelParams(getDefaultModelParams(modelParams.provider.value));
-  }, [modelParams.provider.value]);
+  }, [playgroundCache, setModelParams]);
 
   const updatePromptVariables = useCallback(() => {
     const messageContents = messages.map((m) => m.content).join("\n");
@@ -169,6 +171,10 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
           finalMessages.map((m) => m.content).join("\n"),
         );
 
+        if (!modelParams.provider.value || !modelParams.model.value) {
+          throw new Error("Please select a model");
+        }
+
         if (leftOverVariables.length > 0) {
           throw Error("Error replacing variables. Please check your inputs.");
         }
@@ -210,24 +216,6 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updateModelParamValue: PlaygroundContextType["updateModelParamValue"] =
-    (key, value) => {
-      setModelParams((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], value },
-      }));
-    };
-
-  const setModelParamEnabled: PlaygroundContextType["setModelParamEnabled"] = (
-    key,
-    enabled,
-  ) => {
-    setModelParams((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], enabled },
-    }));
-  };
-
   const updatePromptVariableValue = (variable: string, value: string) => {
     setPromptVariables((prev) =>
       prev.map((v) => (v.name === variable ? { ...v, value } : v)),
@@ -247,6 +235,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
         messages,
         addMessage,
+        setMessages,
         updateMessage,
         deleteMessage,
 
@@ -258,6 +247,9 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         outputJson,
         handleSubmit,
         isStreaming,
+
+        availableProviders,
+        availableModels,
       }}
     >
       {children}
@@ -280,11 +272,14 @@ async function* getChatCompletionStream(
     messages,
     modelParams: getFinalModelParams(modelParams),
   });
-  const result = await fetch("/api/chatCompletion", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
+  const result = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    },
+  );
 
   if (!result.ok) {
     const errorData = await result.json();
@@ -328,50 +323,20 @@ function getFinalMessages(
   }
 
   // Dynamically replace variables in the prompt
-  const finalMessages = messages.map((m) => {
-    let content = m.content;
-    for (const variable of promptVariables) {
-      content = content.replace(
-        new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
-        variable.value,
-      );
-    }
+  const finalMessages = messages
+    .filter((m) => m.content.length > 0)
+    .map((m) => {
+      let content = m.content;
+      for (const variable of promptVariables) {
+        content = content.replace(
+          new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
+          variable.value,
+        );
+      }
 
-    return { ...m, content };
-  });
+      return { ...m, content };
+    });
   return finalMessages;
-}
-
-function getDefaultModelParams(provider: ModelProvider): UIModelParams {
-  switch (provider) {
-    // Docs: https://platform.openai.com/docs/api-reference/chat/create
-    case ModelProvider.OpenAI:
-      return {
-        provider: {
-          value: provider,
-          enabled: true,
-        },
-        model: { value: "gpt-3.5-turbo", enabled: true },
-        temperature: { value: 1, enabled: true },
-        maxTemperature: { value: 2, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
-      };
-
-    // Docs: https://docs.anthropic.com/claude/reference/messages_post
-    case ModelProvider.Anthropic:
-      return {
-        provider: {
-          value: provider,
-          enabled: true,
-        },
-        model: { value: "claude-3-opus-20240229", enabled: true },
-        temperature: { value: 0, enabled: true },
-        maxTemperature: { value: 1, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
-      };
-  }
 }
 
 function getOutputJson(

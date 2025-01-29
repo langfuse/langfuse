@@ -16,7 +16,7 @@ service:
           docs: The unique langfuse identifier of a trace
       response: commons.TraceWithFullDetails
     list:
-      docs: Get list of traces.
+      docs: Get list of traces
       method: GET
       path: /traces
       request:
@@ -30,9 +30,13 @@ service:
             docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId: optional<string>
           name: optional<string>
+          sessionId: optional<string>
           fromTimestamp:
             type: optional<datetime>
-            docs: Retrieve only traces newer than this datetime (ISO 8601).
+            docs: Optional filter to only include traces with a trace.timestamp on or after a certain datetime (ISO 8601)
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include traces with a trace.timestamp before a certain datetime (ISO 8601)
           orderBy:
             type: optional<string>
             docs: "Format of the string [field].[asc/desc]. Fields: id, timestamp, name, userId, release, version, public, bookmarked, sessionId. Example: timestamp.asc"
@@ -40,6 +44,12 @@ service:
             type: optional<string>
             allow-multiple: true
             docs: Only traces that include all of these tags will be returned.
+          version:
+            type: optional<string>
+            docs: Optional filter to only include traces with a certain version.
+          release:
+            type: optional<string>
+            docs: Optional filter to only include traces with a certain release.
       response: Traces
 
 types:

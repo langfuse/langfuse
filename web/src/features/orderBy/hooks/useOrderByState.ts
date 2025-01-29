@@ -1,4 +1,4 @@
-import { type OrderByState } from "@/src/features/orderBy/types";
+import { type OrderByState } from "@langfuse/shared";
 import { ObjectParam, useQueryParam, withDefault } from "use-query-params";
 
 type OrderByQueryParamState =

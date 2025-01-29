@@ -7,28 +7,58 @@ service:
   base-path: /api/public
   endpoints:
     batch:
-      docs: Batched ingestion for Langfuse Tracing
+      docs: |
+        Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.
+
+        Notes:
+        - Introduction to data model: https://langfuse.com/docs/tracing-data-model
+        - Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.
+        - The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.
       method: POST
       path: /ingestion
       request:
         name: IngestionRequest
         body:
           properties:
-            batch: list<IngestionEvent>
-      response: IngestionResponse # will be reportet as 200 response, but endpoint returns 207
+            batch:
+              type: list<IngestionEvent>
+              docs: "Batch of tracing events to be ingested. Discriminated by attribute `type`."
+            metadata:
+              type: optional<unknown>
+              docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
+      response:
+        type: IngestionResponse
+        status-code: 207
 
 types:
   IngestionEvent:
     discriminant: "type"
     union:
-      trace-create: TraceEvent
-      score-create: ScoreEvent
-      event-create: CreateEventEvent
-      generation-create: CreateGenerationEvent
-      generation-update: UpdateGenerationEvent
-      span-create: CreateSpanEvent
-      span-update: UpdateSpanEvent
-      sdk-log: SDKLogEvent
+      trace-create:
+        type: TraceEvent
+        docs: Creates a new trace. Upserts on id for updates if trace with id exists.
+      score-create:
+        type: ScoreEvent
+        docs: Creates a new score. Upserts on id for updates if score with id exists.
+      span-create:
+        type: CreateSpanEvent
+        docs: Creates a new span.
+      span-update:
+        type: UpdateSpanEvent
+        docs: Updates span based on id.
+      generation-create:
+        type: CreateGenerationEvent
+        docs: Creates a new generation.
+      generation-update:
+        type: UpdateGenerationEvent
+        docs: Updates a generation based on id.
+      event-create:
+        type: CreateEventEvent
+        docs: Creates an event.
+
+      sdk-log:
+        type: SDKLogEvent
+        docs: Langfuse SDKs only, used for debugging purposes.
 
       # both are legacy
       observation-create:
@@ -97,6 +127,8 @@ types:
       model: optional<string>
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
+      usageDetails: optional<UsageDetails>
+      costDetails: optional<map<string, double>>
       promptName: optional<string>
       promptVersion: optional<integer>
 
@@ -108,6 +140,8 @@ types:
       modelParameters: optional<map<string, commons.MapValue>>
       usage: optional<IngestionUsage>
       promptName: optional<string>
+      usageDetails: optional<UsageDetails>
+      costDetails: optional<map<string, double>>
       promptVersion: optional<integer>
 
   ObservationBody:
@@ -156,15 +190,66 @@ types:
       id: optional<string>
       traceId: string
       name: string
-      value: double
+      value:
+        type: commons.CreateScoreValue
+        docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)
       observationId: optional<string>
       comment: optional<string>
+      dataType:
+        type: optional<commons.ScoreDataType>
+        docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
+      configId:
+        type: optional<string>
+        docs: Reference a score config on a score. When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
+    examples:
+      - value:
+          name: "novelty"
+          value: 0.9
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "consistency"
+          value: 1.2
+          dataType: "NUMERIC"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "toxicity"
+          value: "not toxic"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "correctness"
+          value: "partially correct"
+          dataType: "CATEGORICAL"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "hallucination"
+          value: 0
+          dataType: "BOOLEAN"
+          traceId: "cdef-1234-5678-90ab"
+      - value:
+          name: "helpfulness"
+          value: 1
+          dataType: "BOOLEAN"
+          configId: "1234-5678-90ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
 
   BaseEvent:
     properties:
-      id: string
-      timestamp: string
-      metadata: unknown
+      id:
+        type: string
+        docs: UUID v4 that identifies the event
+      timestamp:
+        type: string
+        docs: "Datetime (ISO 8601) of event creation in client. Should be as close to actual event creation in client as possible, this timestamp will be used for ordering of events in future release. Resolution: milliseconds (required), microseconds (optimal)."
+      metadata:
+        type: optional<unknown>
+        docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
 
   TraceEvent:
     extends: BaseEvent
@@ -232,3 +317,17 @@ types:
     properties:
       successes: list<IngestionSuccess>
       errors: list<IngestionError>
+
+  OpenAIUsageSchema:
+    properties:
+      prompt_tokens: integer
+      completion_tokens: integer
+      total_tokens: integer
+      prompt_tokens_details: optional<map<string, integer>>
+      completion_tokens_details: optional<map<string, integer>>
+
+  UsageDetails:
+    discriminated: false
+    union:
+      - map<string, integer>
+      - OpenAIUsageSchema

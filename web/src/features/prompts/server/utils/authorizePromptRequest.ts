@@ -1,11 +1,14 @@
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { type NextApiRequest } from "next";
 import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { redis } from "@langfuse/shared/src/server";
 
 export async function authorizePromptRequestOrThrow(req: NextApiRequest) {
-  const authCheck = await verifyAuthHeaderAndReturnScope(
-    req.headers.authorization,
-  );
+  const authCheck = await new ApiAuthService(
+    prisma,
+    redis,
+  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
   if (authCheck.scope.accessLevel !== "all")
     throw new ForbiddenError(

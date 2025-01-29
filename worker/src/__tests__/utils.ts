@@ -1,7 +1,12 @@
 import { prisma } from "@langfuse/shared/src/db";
-import logger from "../logger";
 
+import { env } from "../env";
+import { logger } from "@langfuse/shared/src/server";
 export const pruneDatabase = async () => {
+  if (!env.DATABASE_URL.includes("localhost:5432")) {
+    throw new Error("You cannot prune database unless running on localhost.");
+  }
+
   logger.info("Pruning database");
   await prisma.score.deleteMany();
   await prisma.observation.deleteMany();
@@ -16,4 +21,5 @@ export const pruneDatabase = async () => {
   await prisma.jobConfiguration.deleteMany();
   await prisma.evalTemplate.deleteMany();
   await prisma.llmApiKeys.deleteMany();
+  await prisma.price.deleteMany();
 };

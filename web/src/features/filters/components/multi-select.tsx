@@ -20,6 +20,17 @@ import {
 } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import { type FilterOption } from "@langfuse/shared";
+import { Input } from "@/src/components/ui/input";
+import { useRef, useState } from "react";
+
+const getFreeTextInput = (
+  isCustomSelectEnabled: boolean,
+  values: string[],
+  optionValues: Set<string>,
+): string | undefined =>
+  isCustomSelectEnabled
+    ? Array.from(values.values()).find((value) => !optionValues.has(value))
+    : undefined;
 
 export function MultiSelect({
   title,
@@ -28,6 +39,7 @@ export function MultiSelect({
   options,
   className,
   disabled,
+  isCustomSelectEnabled = false,
 }: {
   title?: string;
   values: string[];
@@ -35,8 +47,48 @@ export function MultiSelect({
   options: FilterOption[] | readonly FilterOption[];
   className?: string;
   disabled?: boolean;
+  isCustomSelectEnabled?: boolean;
 }) {
   const selectedValues = new Set(values);
+  const optionValues = new Set(options.map((option) => option.value));
+  const freeTextInput = getFreeTextInput(
+    isCustomSelectEnabled,
+    values,
+    optionValues,
+  );
+  const [freeText, setFreeText] = useState(freeTextInput || "");
+
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const handleDebouncedChange = (value: string) => {
+    const freeTextInput = getFreeTextInput(
+      isCustomSelectEnabled,
+      values,
+      optionValues,
+    );
+
+    if (!!freeTextInput) {
+      selectedValues.delete(freeTextInput);
+      selectedValues.add(value);
+      selectedValues.delete("");
+      const filterValues = Array.from(selectedValues);
+      onValueChange(filterValues.length ? filterValues : []);
+    }
+  };
+
+  function getSelectedOptions() {
+    const selectedOptions = options.filter(({ value }) =>
+      selectedValues.has(value),
+    );
+
+    const hasCustomOption =
+      !!freeText &&
+      !!getFreeTextInput(isCustomSelectEnabled, values, optionValues);
+    const customOption: FilterOption[] = hasCustomOption
+      ? [{ value: freeText }]
+      : [];
+
+    return [...selectedOptions, ...customOption];
+  }
 
   return (
     <Popover>
@@ -44,7 +96,7 @@ export function MultiSelect({
         <Button
           variant="outline"
           className={cn(
-            "flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "flex h-8 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
@@ -69,17 +121,15 @@ export function MultiSelect({
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
-                  options
-                    .filter((option) => selectedValues.has(option.value))
-                    .map((option) => (
-                      <Badge
-                        variant="secondary"
-                        key={option.value}
-                        className="rounded-sm px-1 font-normal"
-                      >
-                        {option.value}
-                      </Badge>
-                    ))
+                  getSelectedOptions().map((option) => (
+                    <Badge
+                      variant="secondary"
+                      key={option.value}
+                      className="rounded-sm px-1 font-normal"
+                    >
+                      {option.displayValue ?? option.value}
+                    </Badge>
+                  ))
                 )}
               </div>
             </>
@@ -90,7 +140,10 @@ export function MultiSelect({
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
+            {/* if isCustomSelectEnabled we always show custom select hence never empty */}
+            {!isCustomSelectEnabled && (
+              <CommandEmpty>No results found.</CommandEmpty>
+            )}
             <CommandGroup>
               {options.map((option) => {
                 const isSelected = selectedValues.has(option.value);
@@ -104,7 +157,6 @@ export function MultiSelect({
                         selectedValues.add(option.value);
                       }
                       const filterValues = Array.from(selectedValues);
-
                       onValueChange(filterValues.length ? filterValues : []);
                     }}
                   >
@@ -118,7 +170,9 @@ export function MultiSelect({
                     >
                       <Check className={cn("h-4 w-4")} />
                     </div>
-                    <span className="overflow-x-scroll">{option.value}</span>
+                    <span className="overflow-x-scroll">
+                      {option.displayValue ?? option.value}
+                    </span>
                     {option.count !== undefined ? (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
                         {option.count}
@@ -128,6 +182,65 @@ export function MultiSelect({
                 );
               })}
             </CommandGroup>
+            {isCustomSelectEnabled && (
+              <CommandGroup forceMount={true}>
+                <CommandSeparator />
+                <CommandItem
+                  key="freeTextField"
+                  onSelect={() => {
+                    const freeTextInput = getFreeTextInput(
+                      isCustomSelectEnabled,
+                      values,
+                      optionValues,
+                    );
+
+                    if (!!freeTextInput) {
+                      selectedValues.delete(freeTextInput);
+                    } else {
+                      selectedValues.add(freeText);
+                    }
+                    selectedValues.delete("");
+                    const filterValues = Array.from(selectedValues);
+                    onValueChange(filterValues.length ? filterValues : []);
+                  }}
+                >
+                  <div
+                    className={cn(
+                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                      getFreeTextInput(
+                        isCustomSelectEnabled,
+                        values,
+                        optionValues,
+                      ) ||
+                        (optionValues.has(freeText) &&
+                          selectedValues.has(freeText))
+                        ? "bg-primary text-primary-foreground"
+                        : "opacity-50 [&_svg]:invisible",
+                    )}
+                  >
+                    <Check className="h-4 w-4" />
+                  </div>
+                  <Input
+                    type="text"
+                    value={freeText}
+                    onChange={(e) => {
+                      setFreeText(e.target.value);
+                      if (debounceTimeout.current) {
+                        clearTimeout(debounceTimeout.current);
+                      }
+                      debounceTimeout.current = setTimeout(() => {
+                        handleDebouncedChange(e.target.value);
+                      }, 500);
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    placeholder="Enter custom value"
+                    className="h-6 w-full rounded-none border-b-2 border-l-0 border-r-0 border-t-0 border-dotted p-0 text-sm"
+                  />
+                </CommandItem>
+              </CommandGroup>
+            )}
             {selectedValues.size > 0 && (
               <>
                 <CommandSeparator />

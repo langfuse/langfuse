@@ -1,15 +1,16 @@
-import { Button } from "@/src/components/ui/button";
-import { LockIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ActionButton } from "@/src/components/ActionButton";
 
 export const NewDatasetItemButton = (props: {
   projectId: string;
@@ -17,7 +18,7 @@ export const NewDatasetItemButton = (props: {
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
@@ -25,22 +26,20 @@ export const NewDatasetItemButton = (props: {
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
+        <ActionButton
           variant="secondary"
           className={props.className}
-          disabled={!hasAccess}
+          hasAccess={hasAccess}
           onClick={() => capture("dataset_item:new_form_open")}
+          icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
         >
-          {hasAccess ? (
-            <PlusIcon className="-ml-0.5 mr-1.5" aria-hidden="true" />
-          ) : (
-            <LockIcon className="-ml-0.5 mr-1.5 h-3 w-3" aria-hidden="true" />
-          )}
           New item
-        </Button>
+        </ActionButton>
       </DialogTrigger>
       <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none items-start">
-        <DialogHeader>Create new dataset item</DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Create new dataset item</DialogTitle>
+        </DialogHeader>
         <NewDatasetItemForm
           projectId={props.projectId}
           datasetId={props.datasetId}

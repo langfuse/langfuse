@@ -11,29 +11,18 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { type DateRange } from "react-day-picker";
-import { addMinutes, format } from "date-fns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { format } from "date-fns";
 import { useEffect, useState } from "react";
-import {
-  type DateTimeAggregationOption,
-  dateTimeAggregationSettings,
-  dateTimeAggregationOptions,
-} from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { useMediaQuery } from "react-responsive";
-import { type DashboardDateRange } from "@/src/pages/project/[projectId]";
-import { isValidOption } from "@/src/utils/types";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
-
-export const DEFAULT_DATE_RANGE_SELECTION = "Date range" as const;
-export type AvailableDateRangeSelections =
-  | typeof DEFAULT_DATE_RANGE_SELECTION
-  | DateTimeAggregationOption;
+import { TimePicker } from "@/src/components/ui/time-picker";
+import { DashboardDateRangeDropdown } from "@/src/components/date-range-dropdowns";
+import {
+  DASHBOARD_AGGREGATION_PLACEHOLDER,
+  type DashboardDateRangeOptions,
+  type DashboardDateRange,
+} from "@/src/utils/date-range-utils";
+import { combineDateAndTime } from "@/src/components/ui/time-picker-utils";
 
 export function DatePicker({
   date,
@@ -41,12 +30,14 @@ export function DatePicker({
   clearable = false,
   className,
   disabled,
+  includeTimePicker,
 }: {
   date?: Date | undefined;
   onChange: (date: Date | undefined) => void;
   clearable?: boolean;
   className?: string;
   disabled?: boolean;
+  includeTimePicker?: boolean;
 }) {
   return (
     <div className="flex flex-row gap-2 align-middle">
@@ -62,7 +53,11 @@ export function DatePicker({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date ? format(date, "PPP") : <span>Pick a date</span>}
+            {date ? (
+              format(date, includeTimePicker ? "PPP pp" : "PPP")
+            ) : (
+              <span>Pick a date</span>
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
@@ -72,6 +67,9 @@ export function DatePicker({
             onSelect={(d) => onChange(d)}
             initialFocus
           />
+          {includeTimePicker && (
+            <TimePicker date={date} setDate={(d) => onChange(d)} />
+          )}
         </PopoverContent>
       </Popover>
       {date && clearable && (
@@ -91,9 +89,10 @@ export function DatePicker({
 export type DatePickerWithRangeProps = {
   dateRange?: DashboardDateRange;
   className?: string;
-  selectedOption: AvailableDateRangeSelections;
+  selectedOption: DashboardDateRangeOptions;
+  disabled?: React.ComponentProps<typeof Calendar>["disabled"];
   setDateRangeAndOption: (
-    option: AvailableDateRangeSelections,
+    option: DashboardDateRangeOptions,
     date?: DashboardDateRange,
   ) => void;
 };
@@ -103,6 +102,7 @@ export function DatePickerWithRange({
   dateRange,
   selectedOption,
   setDateRangeAndOption,
+  disabled,
 }: DatePickerWithRangeProps) {
   const [internalDateRange, setInternalDateRange] = useState<
     DateRange | undefined
@@ -112,18 +112,35 @@ export function DatePickerWithRange({
     setInternalDateRange(dateRange);
   }, [dateRange]);
 
-  const onDropDownSelection = (value: string) => {
-    if (isValidOption(value)) {
-      const setting = dateTimeAggregationSettings[value];
-      const fromDate = addMinutes(new Date(), -1 * setting.minutes);
+  const setNewDateRange = (
+    internalDateRange: DateRange | undefined,
+    newFromDate: Date | undefined,
+    newToDate: Date | undefined,
+  ): DateRange | undefined => {
+    return internalDateRange
+      ? {
+          from: newFromDate ?? internalDateRange.from,
+          to: newToDate ?? internalDateRange.to,
+        }
+      : undefined;
+  };
 
-      setDateRangeAndOption(value, {
-        from: fromDate,
-        to: new Date(),
-      });
-      setInternalDateRange({ from: fromDate, to: new Date() });
-    } else {
-      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, undefined);
+  const updateDashboardDateRange = (
+    newRange: DateRange | undefined,
+    setDateRangeAndOption: (
+      option: DashboardDateRangeOptions,
+      date?: DashboardDateRange,
+    ) => void,
+  ) => {
+    if (newRange && newRange.from && newRange.to) {
+      const dashboardDateRange: DashboardDateRange = {
+        from: newRange.from,
+        to: newRange.to,
+      };
+      setDateRangeAndOption(
+        DASHBOARD_AGGREGATION_PLACEHOLDER,
+        dashboardDateRange,
+      );
     }
   };
 
@@ -136,13 +153,29 @@ export function DatePickerWithRange({
       : undefined;
 
     setInternalDateRange(newRange);
-    if (newRange && newRange.from && newRange.to) {
-      const dashboardDateRange: DashboardDateRange = {
-        from: newRange.from,
-        to: newRange.to,
-      };
-      setDateRangeAndOption(DEFAULT_DATE_RANGE_SELECTION, dashboardDateRange);
-    }
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
+  const onStartTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.from, date);
+    const newRange = setNewDateRange(
+      internalDateRange,
+      newDateTime,
+      internalDateRange?.to,
+    );
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
+  };
+
+  const onEndTimeSelection = (date: Date | undefined) => {
+    const newDateTime = combineDateAndTime(internalDateRange?.to, date);
+    const newRange = setNewDateRange(
+      internalDateRange,
+      internalDateRange?.from,
+      newDateTime,
+    );
+    setInternalDateRange(newRange);
+    updateDashboardDateRange(newRange, setDateRangeAndOption);
   };
 
   const isSmallScreen = useMediaQuery({ query: "(max-width: 640px)" });
@@ -183,28 +216,55 @@ export function DatePickerWithRange({
             defaultMonth={internalDateRange?.from}
             selected={internalDateRange}
             onSelect={onCalendarSelection}
-            numberOfMonths={isSmallScreen ? 1 : 2} // TODO: make this configurable to screen size
+            numberOfMonths={isSmallScreen ? 1 : 2}
+            disabled={disabled}
           />
+          {!isSmallScreen && (
+            <div className="flex flex-row border-t-2 py-1.5">
+              <div className="px-3">
+                <p className="px-1 text-sm font-medium">Start time</p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+              <div className="px-3">
+                <p className="px-1 text-sm font-medium">End time</p>
+                <TimePicker
+                  date={internalDateRange?.to}
+                  setDate={onEndTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+            </div>
+          )}
+          {isSmallScreen && (
+            <div className="flex flex-col gap-2 border-t-2 py-1.5">
+              <div className="px-3">
+                <p className="px-1 text-sm font-medium">Start</p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+              <div className="px-3">
+                <p className="px-1 text-sm font-medium">End</p>
+                <TimePicker
+                  date={internalDateRange?.to}
+                  setDate={onEndTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
-      <Select value={selectedOption} onValueChange={onDropDownSelection}>
-        <SelectTrigger className="w-[120px]  hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-          <SelectValue placeholder="Select" />
-        </SelectTrigger>
-        <SelectContent position="popper" defaultValue={60}>
-          <SelectItem
-            key={DEFAULT_DATE_RANGE_SELECTION}
-            value={DEFAULT_DATE_RANGE_SELECTION}
-          >
-            {DEFAULT_DATE_RANGE_SELECTION}
-          </SelectItem>
-          {dateTimeAggregationOptions.toReversed().map((item) => (
-            <SelectItem key={item} value={item}>
-              {item}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <DashboardDateRangeDropdown
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
+      />
     </div>
   );
 }

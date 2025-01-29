@@ -1,8 +1,9 @@
-import { AlertTriangle, Check } from "lucide-react";
-
-import { VERSION } from "@/src/constants";
-import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
+import Link from "next/link";
+import { VersionLabel } from "./VersionLabel";
+import { env } from "@/src/env.mjs";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { PlusIcon } from "lucide-react";
 
 export const LangfuseIcon = ({
   size = 32,
@@ -13,7 +14,7 @@ export const LangfuseIcon = ({
 }) => (
   // eslint-disable-next-line @next/next/no-img-element
   <img
-    src="/icon.svg"
+    src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
     width={size}
     height={size}
     alt="Langfuse Icon"
@@ -21,66 +22,80 @@ export const LangfuseIcon = ({
   />
 );
 
-export const LangfuseLogo = ({
-  className,
-  size = "sm",
-  version = false,
-  showEnvLabel = false,
-}: {
-  size?: "sm" | "xl";
-  className?: string;
-  version?: boolean;
-  showEnvLabel?: boolean;
-}) => (
-  <div
-    className={cn("flex flex-wrap gap-4 lg:flex-col lg:items-start", className)}
-  >
-    {/* Environment Labeling for Langfuse Maintainers */}
-    {showEnvLabel && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && (
-      <div
-        className={cn(
-          "flex items-center gap-2 self-stretch rounded-md px-1 py-1 text-xs ring-1 sm:px-3 sm:py-2 lg:-mx-2",
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-            ? "bg-light-blue text-dark-blue ring-dark-blue"
-            : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV"
-              ? "bg-light-green text-dark-green ring-dark-green"
-              : "bg-light-red text-dark-red ring-dark-red",
-        )}
-      >
-        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ? (
-          <Check size={16} className="hidden sm:block" />
-        ) : (
-          <AlertTriangle size={16} className="hidden sm:block" />
-        )}
-        <span className="whitespace-nowrap">
-          {["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-            ? `PROD-${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
-            : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
-        </span>
+const LangfuseLogotypeOrCustomized = ({ size }: { size: "sm" | "xl" }) => {
+  const uiCustomization = useUiCustomization();
+
+  if (uiCustomization?.logoLightModeHref && uiCustomization?.logoDarkModeHref) {
+    // logo is a url, maximum aspect ratio of 1:3 needs to be supported according to docs
+    return (
+      <div className="flex items-center gap-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={uiCustomization.logoLightModeHref}
+          alt="Langfuse Logo"
+          className={cn(
+            "group-data-[collapsible=icon]:hidden dark:hidden",
+            size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
+          )}
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={uiCustomization.logoDarkModeHref}
+          alt="Langfuse Logo"
+          className={cn(
+            "hidden group-data-[collapsible=icon]:hidden dark:block",
+            size === "sm" ? "max-h-4 max-w-14" : "max-h-5 max-w-16",
+          )}
+        />
+        <PlusIcon
+          size={size === "sm" ? 8 : 12}
+          className="group-data-[collapsible=icon]:hidden"
+        />
+        <LangfuseIcon size={size === "sm" ? 16 : 20} />
       </div>
-    )}
-    {/* Langfuse Logo */}
+    );
+  }
+
+  return (
     <div className="flex items-center">
       <LangfuseIcon size={size === "sm" ? 16 : 20} />
       <span
         className={cn(
-          "ml-2 font-mono font-semibold",
+          "ml-2 font-mono font-semibold leading-none group-data-[collapsible=icon]:hidden",
           size === "sm" ? "text-sm" : "text-xl",
         )}
       >
         Langfuse
       </span>
-      {version && (
-        <a
-          href="https://github.com/langfuse/langfuse/releases"
-          target="_blank"
-          rel="noopener"
-          title="View releases on GitHub"
-          className="ml-2 text-xs text-muted-foreground"
-        >
-          {VERSION}
-        </a>
-      )}
     </div>
-  </div>
-);
+  );
+};
+
+export const LangfuseLogo = ({
+  className,
+  size = "sm",
+  version = false,
+}: {
+  size?: "sm" | "xl";
+  className?: string;
+  version?: boolean;
+}) => {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap gap-4 lg:flex-col lg:items-start",
+        className,
+      )}
+    >
+      {/* Langfuse Logo */}
+      <div className="flex items-center">
+        <Link href="/" className="flex items-center">
+          <LangfuseLogotypeOrCustomized size={size} />
+        </Link>
+        {version && (
+          <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
+        )}
+      </div>
+    </div>
+  );
+};
