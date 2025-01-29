@@ -4,7 +4,11 @@ export function findDefaultColumn(
   columns: { name: string }[],
   title: string,
   index: number,
-): string {
+): string | undefined {
+  if (columns.length <= index) {
+    return undefined;
+  }
+
   const columnMappings: Record<string, string[]> = {
     Input: ["input", "prompt", "question", "query", "instruction"],
     Expected: [

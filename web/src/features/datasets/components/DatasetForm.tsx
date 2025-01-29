@@ -17,6 +17,7 @@ import { JsonEditor } from "@/src/components/json-editor";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
+import { useRouter } from "next/router";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -96,6 +97,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
   });
 
   const utils = api.useUtils();
+  const router = useRouter();
   const createMutation = api.datasets.createDataset.useMutation();
   const renameMutation = api.datasets.updateDataset.useMutation();
   const deleteMutation = api.datasets.deleteDataset.useMutation();
@@ -117,9 +119,8 @@ export const DatasetForm = (props: DatasetFormProps) => {
           void utils.datasets.invalidate();
           props.onFormSuccess?.();
           form.reset();
-          window.open(
+          router.push(
             `/project/${props.projectId}/datasets/${dataset.id}/items`,
-            "_blank",
           );
         })
         .catch((error: Error) => {

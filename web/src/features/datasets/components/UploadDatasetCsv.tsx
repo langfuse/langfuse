@@ -58,8 +58,8 @@ export const UploadDatasetCsv = ({
         collectSamples: true,
       });
 
-      if (preview.columns.length < 3) {
-        showErrorToast("Invalid CSV", "CSV must have at least 3 columns");
+      if (!Boolean(preview.columns.length)) {
+        showErrorToast("Invalid CSV", "CSV must have at least 1 column");
         event.target.value = "";
         return;
       }
