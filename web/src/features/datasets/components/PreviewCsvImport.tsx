@@ -146,29 +146,33 @@ export function PreviewCsvImport({
         selectedExpectedColumn.size === 0 &&
         selectedMetadataColumn.size === 0
       ) {
-        const defaultInput = new Set([
-          findDefaultColumn(preview.columns, "Input", 0),
-        ]);
-        const defaultExpected = new Set([
-          findDefaultColumn(preview.columns, "Expected", 1),
-        ]);
-        const defaultMetadata = new Set([
-          findDefaultColumn(preview.columns, "Metadata", 2),
-        ]);
+        const defaultInput = findDefaultColumn(preview.columns, "Input", 0);
+        const defaultExpected = findDefaultColumn(
+          preview.columns,
+          "Expected",
+          1,
+        );
+        const defaultMetadata = findDefaultColumn(
+          preview.columns,
+          "Metadata",
+          2,
+        );
 
         // Set default columns based on names
-        setSelectedInputColumn(defaultInput);
-        setSelectedExpectedColumn(defaultExpected);
-        setSelectedMetadataColumn(defaultMetadata);
+        defaultInput && setSelectedInputColumn(new Set([defaultInput]));
+        defaultExpected &&
+          setSelectedExpectedColumn(new Set([defaultExpected]));
+        defaultMetadata &&
+          setSelectedMetadataColumn(new Set([defaultMetadata]));
 
         // Update excluded columns based on current selections
         const newExcluded = new Set(
           preview.columns
             .filter(
               (col) =>
-                !defaultInput.has(col.name) &&
-                !defaultExpected.has(col.name) &&
-                !defaultMetadata.has(col.name),
+                defaultInput !== col.name &&
+                defaultExpected !== col.name &&
+                defaultMetadata !== col.name,
             )
             .map((col) => col.name),
         );
@@ -438,7 +442,11 @@ export function PreviewCsvImport({
             Cancel
           </Button>
           <Button
-            disabled={selectedInputColumn.size === 0}
+            disabled={
+              selectedInputColumn.size === 0 &&
+              selectedExpectedColumn.size === 0 &&
+              selectedMetadataColumn.size === 0
+            }
             onClick={handleImport}
           >
             Import
