@@ -11,6 +11,66 @@ const convertNanoTimestampToISO = (timestamp: {
   ).toISOString();
 };
 
+const convertValueToPlainJavascript = (value: Record<string, any>): any => {
+  if (value.stringValue !== undefined) {
+    return value.stringValue;
+  }
+  if (value.doubleValue !== undefined) {
+    return value.doubleValue;
+  }
+  if (value.boolValue !== undefined) {
+    return value.boolValue;
+  }
+  if (value.arrayValue && value.arrayValue.values !== undefined) {
+    return value.arrayValue.values.map(convertValueToPlainJavascript);
+  }
+  if (value.intValue && value.intValue.high === 0) {
+    return value.intValue.low;
+  }
+  if (value.intValue && value.intValue.high !== 0) {
+    return value; // We keep the `long` format here as is to handle INTs with more than 32 bits.
+  }
+  return JSON.stringify(value);
+};
+
+const extractInputAndOutput = (
+  events: any[],
+  attributes: Record<string, unknown>,
+): { input: any; output: any } => {
+  // Openlit uses events property
+  let input = events.find(
+    (event: Record<string, unknown>) => event.name === "gen_ai.content.prompt",
+  )?.attributes;
+  let output = events.find(
+    (event: Record<string, unknown>) =>
+      event.name === "gen_ai.content.completion",
+  )?.attributes;
+  if (input || output) {
+    return { input, output };
+  }
+
+  // TraceLoop uses attributes property
+  const inputAttributes = Object.keys(attributes).filter((key) =>
+    key.startsWith("gen_ai.prompt"),
+  );
+  const outputAttributes = Object.keys(attributes).filter((key) =>
+    key.startsWith("gen_ai.completion"),
+  );
+  if (inputAttributes.length > 0 || outputAttributes.length > 0) {
+    input = inputAttributes.reduce((acc: any, key) => {
+      acc[key] = attributes[key];
+      return acc;
+    }, {});
+    output = outputAttributes.reduce((acc: any, key) => {
+      acc[key] = attributes[key];
+      return acc;
+    }, {});
+    return { input, output };
+  }
+
+  return { input: null, output: null };
+};
+
 /**
  * Accepts an OpenTelemetry resourceSpan from a ExportTraceServiceRequest and
  * returns a list of Langfuse events.
@@ -22,7 +82,7 @@ export const convertOtelSpanToIngestionEvent = (
 ): IngestionEventType[] => {
   const resourceAttributes =
     resourceSpan?.resource?.attributes?.reduce((acc: any, attr: any) => {
-      acc[attr.key] = JSON.stringify(attr.value);
+      acc[attr.key] = convertValueToPlainJavascript(attr.value);
       return acc;
     }, {}) ?? {};
 
@@ -32,7 +92,7 @@ export const convertOtelSpanToIngestionEvent = (
     for (const span of scopeSpan?.spans ?? []) {
       const attributes =
         span?.attributes?.reduce((acc: any, attr: any) => {
-          acc[attr.key] = JSON.stringify(attr.value);
+          acc[attr.key] = convertValueToPlainJavascript(attr.value);
           return acc;
         }, {}) ?? {};
 
@@ -80,16 +140,7 @@ export const convertOtelSpanToIngestionEvent = (
             : ObservationLevel.DEFAULT,
 
         // Input and Output
-        // TODO: Those events usually have timestamps associated with them.
-        // Do we want to track them as well or is it sufficient to know they occurred within the span?
-        input: span?.events?.find(
-          (event: Record<string, unknown>) =>
-            event.name === "gen_ai.content.prompt",
-        )?.attributes,
-        output: span?.events?.find(
-          (event: Record<string, unknown>) =>
-            event.name === "gen_ai.content.completion",
-        )?.attributes,
+        ...extractInputAndOutput(span?.events ?? [], attributes),
       };
 
       // If the span has any gen_ai attributes, we consider it a generation
