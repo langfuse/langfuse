@@ -38,6 +38,13 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 
+type ModelUsageReturnType = {
+  startTime: string;
+  units: Record<string, number>;
+  cost: Record<string, number>;
+  model: string;
+};
+
 export const ModelUsageChart = ({
   className,
   projectId,
@@ -122,6 +129,14 @@ export const ModelUsageChart = ({
     }
   }, [allModels, firstAllModelUpdate]);
 
+  const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
+
+  const allUsageUnits = [
+    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
+  ];
+
+  const dates = typedData.flatMap((r) => new Date(r.startTime));
+
   const usageTypeMap = new Map<
     string,
     {
@@ -131,20 +146,59 @@ export const ModelUsageChart = ({
       model: string;
     }[]
   >();
-  queryResult.data?.forEach((row) => {
-    for (const [key, value] of Object.entries(row.units ?? {})) {
-      usageTypeMap.set(key, [
-        ...(usageTypeMap.get(key) ?? []),
-        {
-          ...row,
-          units: value,
-          cost: Number(row.cost?.[key as keyof typeof row.cost]),
-          usageType: key,
-          model: row.model as string,
-        },
-      ]);
-    }
+
+  console.log(dates, allModels, allUsageUnits);
+
+  dates?.forEach((d) => {
+    allModels.forEach((m) => {
+      allUsageUnits.forEach((uu) => {
+        const existingEntry = typedData.find(
+          (td) =>
+            new Date(td.startTime).getTime() === d.getTime() && td.model === m,
+        );
+
+        if (!existingEntry) {
+          const newEntry = {
+            startTime: d.toString(),
+            model: m,
+            units: { [uu]: 0 },
+            cost: { [uu]: 0 },
+          };
+          typedData.push(newEntry);
+
+          // Add the new entry to usageTypeMap
+          usageTypeMap.set(uu, [
+            ...(usageTypeMap.get(uu) ?? []),
+            {
+              ...newEntry,
+              units: 0,
+              cost: 0,
+              usageType: uu,
+            },
+          ]);
+        }
+      });
+    });
   });
+
+  // queryResult.data?.forEach((row) => {
+  //   console.log(`row: `, row);
+  //   for (const [key, value] of Object.entries(row.units ?? {})) {
+  //     console.log(key, value);
+  //     usageTypeMap.set(key, [
+  //       ...(usageTypeMap.get(key) ?? []),
+  //       {
+  //         ...row,
+  //         units: value,
+  //         cost: Number(row.cost?.[key as keyof typeof row.cost]) || 0,
+  //         usageType: key,
+  //         model: row.model as string,
+  //       },
+  //     ]);
+  //   }
+  // });
+
+  console.log(JSON.stringify(usageTypeMap));
 
   const usageData = Array.from(usageTypeMap.values()).flat();
   const currentModels = [
