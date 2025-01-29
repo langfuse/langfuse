@@ -11,12 +11,12 @@ export default function Playground() {
       <div className="h-full basis-3/4 overflow-auto">
         <Messages {...playgroundContext} />
       </div>
-      <div className="h-full basis-1/4 pr-2">
-        <div className="flex h-full flex-col">
-          <div className="basis-[55%] ">
+      <div className="max-h-full min-h-0 basis-1/4 pr-2">
+        <div className="grid h-full grid-rows-[minmax(20dvh,max-content),minmax(20dvh,auto)] overflow-auto">
+          <div className="mb-4 max-h-[80dvh] min-h-[20dvh] overflow-y-auto">
             <ModelParameters {...playgroundContext} />
           </div>
-          <div className="mt-4 basis-[45%] overflow-auto">
+          <div className="min-h-[20dvh]">
             <Variables />
           </div>
         </div>

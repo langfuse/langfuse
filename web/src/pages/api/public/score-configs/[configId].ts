@@ -1,12 +1,13 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetScoreConfigQuery,
   GetScoreConfigResponse,
-} from "@/src/features/public-api/types/score-configs";
-import * as Sentry from "@sentry/node";
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { traceException } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -29,7 +30,7 @@ export default withMiddlewares({
 
       const parsedConfig = GetScoreConfigResponse.safeParse(config);
       if (!parsedConfig.success) {
-        Sentry.captureException(parsedConfig.error);
+        traceException(parsedConfig.error);
         throw new InternalServerError("Requested score config is corrupted");
       }
 

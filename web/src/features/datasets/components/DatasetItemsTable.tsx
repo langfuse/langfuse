@@ -10,19 +10,23 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-
 import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
+import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
+import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 
 type RowData = {
   id: string;
@@ -49,6 +53,8 @@ export function DatasetItemsTable({
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -58,6 +64,8 @@ export function DatasetItemsTable({
     "datasetItems",
     "s",
   );
+
+  const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
@@ -70,7 +78,7 @@ export function DatasetItemsTable({
     if (items.isSuccess) {
       setDetailPageList(
         "datasetItems",
-        items.data.datasetItems.map((t) => t.id),
+        items.data.datasetItems.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,13 +93,14 @@ export function DatasetItemsTable({
       accessorKey: "id",
       header: "Item id",
       id: "id",
+      size: 90,
+      isPinned: true,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
           <TableLink
             path={`/project/${projectId}/datasets/${datasetId}/items/${id}`}
             value={id}
-            truncateAt={7}
           />
         );
       },
@@ -104,18 +113,19 @@ export function DatasetItemsTable({
           "Link to the source trace based on which this item was added",
       },
       id: "source",
+      size: 90,
       cell: ({ row }) => {
         const source: RowData["source"] = row.getValue("source");
         if (!source) return null;
         return source.observationId ? (
           <TableLink
-            path={`/project/${projectId}/traces/${source.traceId}?observation=${source.observationId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}?observation=${encodeURIComponent(source.observationId)}`}
             value={source.observationId}
             icon={<ListTree className="h-4 w-4" />}
           />
         ) : (
           <TableLink
-            path={`/project/${projectId}/traces/${source.traceId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}`}
             value={source.traceId}
             icon={<ListTree className="h-4 w-4" />}
           />
@@ -126,20 +136,15 @@ export function DatasetItemsTable({
       accessorKey: "status",
       header: "Status",
       id: "status",
+      size: 80,
       cell: ({ row }) => {
         const status: DatasetStatus = row.getValue("status");
         return (
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                "h-2 w-2 rounded-full",
-                status === DatasetStatus.ACTIVE
-                  ? "bg-dark-green"
-                  : "bg-dark-yellow",
-              )}
-            />
-            <span>{status}</span>
-          </div>
+          <StatusBadge
+            className="capitalize"
+            type={status.toLowerCase()}
+            isLive={false}
+          />
         );
       },
     },
@@ -147,12 +152,14 @@ export function DatasetItemsTable({
       accessorKey: "createdAt",
       header: "Created At",
       id: "createdAt",
+      size: 150,
       enableHiding: true,
     },
     {
       accessorKey: "input",
       header: "Input",
       id: "input",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const input = row.getValue("input") as RowData["input"];
@@ -165,6 +172,7 @@ export function DatasetItemsTable({
       accessorKey: "expectedOutput",
       header: "Expected Output",
       id: "expectedOutput",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const expectedOutput = row.getValue(
@@ -183,6 +191,7 @@ export function DatasetItemsTable({
       accessorKey: "metadata",
       header: "Metadata",
       id: "metadata",
+      size: 200,
       enableHiding: true,
       cell: ({ row }) => {
         const metadata = row.getValue("metadata") as RowData["metadata"];
@@ -195,6 +204,7 @@ export function DatasetItemsTable({
       id: "actions",
       accessorKey: "actions",
       header: "Actions",
+      size: 70,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         const status: DatasetStatus = row.getValue("status");
@@ -209,6 +219,7 @@ export function DatasetItemsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
+                disabled={!hasAccess}
                 onClick={() => {
                   capture("dataset_item:archive_toggle", {
                     status:
@@ -261,12 +272,48 @@ export function DatasetItemsTable({
     columns,
   );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+    "datasetItemsColumnOrder",
+    columns,
+  );
+
+  if (items.data?.totalDatasetItems === 0 && hasAccess) {
+    return (
+      <>
+        <DataTableToolbar
+          columns={columns}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          actionButtons={menuItems}
+        />
+        {preview ? (
+          <PreviewCsvImport
+            preview={preview}
+            csvFile={csvFile}
+            projectId={projectId}
+            datasetId={datasetId}
+            setCsvFile={setCsvFile}
+            setPreview={setPreview}
+          />
+        ) : (
+          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={menuItems}
@@ -291,14 +338,14 @@ export function DatasetItemsTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(
-            (items.data?.totalDatasetItems ?? 0) / paginationState.pageSize,
-          ),
+          totalCount: items.data?.totalDatasetItems ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

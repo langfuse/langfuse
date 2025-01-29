@@ -36,9 +36,9 @@
     --primary-accent: 243 75.4% 58.6%;
     --hover-primary-accent: 239 83.5% 66.7%;
 
-    --muted-green: 141 84.2% 92.5%;
-    --muted-orange: 34 100% 91.8%;
-    --muted-blue: 214 94.6% 92.7%;
+    --muted-green: 190, 80%, 90%;
+    --muted-magenta: 350, 70%, 95%;
+    --muted-blue: 215, 70%, 85%;
     --muted-gray: 210 50% 91.1%;
 
     --accent-light-green: 138 76.5% 96.7%;
@@ -59,6 +59,14 @@
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
     --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
@@ -94,9 +102,9 @@
     --primary-accent: 246 55% 70%;
     --muted-primary-accent: 239 83.5% 66.7%;
 
-    --muted-blue: 226 60.7% 30.2%;
-    --muted-green: 143 64.2% 24.1%;
-    --muted-orange: 23 79.1% 33.7%;
+    --muted-blue: 220, 70%, 25%;
+    --muted-green: 190, 70%, 25%;
+    --muted-magenta: 325, 70%, 25%;
     --muted-gray: 210 50% 25%;
 
     --light-red: 0 62.8% 30.6%;
@@ -118,6 +126,15 @@
     --accent-dark-blue: 224 50% 90%;
 
     --radius: 0.5rem;
+
+    --sidebar-background: 222.2 84% 4.4%;
+    --sidebar-foreground: 210 40% 86%;
+    --sidebar-primary: 210 40% 81%;
+    --sidebar-primary-foreground: 222.2 47.4% 10.2%;
+    --sidebar-accent: 217.2 32.6% 16.5%;
+    --sidebar-accent-foreground: 210 40% 86%;
+    --sidebar-border: 217.2 32.6% 26.5%;
+    --sidebar-ring: 224.3 76.3% 46%;
   }
 }
 
@@ -135,9 +152,8 @@
 
   html,
   body,
-  body > div:first-child,
   div#__next,
-  div#__next > div {
+  div#__next>div {
     height: 100%;
   }
 }
@@ -148,6 +164,7 @@
     -webkit-appearance: none;
     margin: 0;
   }
+
   input[type="number"].appearance-none {
     -moz-appearance: textfield;
     appearance: none;

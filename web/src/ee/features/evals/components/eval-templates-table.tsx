@@ -1,9 +1,11 @@
 import { DataTable } from "@/src/components/table/data-table";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type EvalsTemplateRow = {
@@ -15,8 +17,10 @@ export type EvalsTemplateRow = {
 
 export default function EvalsTemplateTable({
   projectId,
+  menuItems,
 }: {
   projectId: string;
+  menuItems?: ReactNode;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -28,7 +32,7 @@ export default function EvalsTemplateTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
-  const totalCount = templates.data?.totalCount ?? 0;
+  const totalCount = templates.data?.totalCount ?? null;
 
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
@@ -48,7 +52,6 @@ export default function EvalsTemplateTable({
           <TableLink
             path={`/project/${projectId}/evals/templates/${encodeURIComponent(id)}`}
             value={name}
-            truncateAt={50}
           />
         ) : undefined;
       },
@@ -87,30 +90,35 @@ export default function EvalsTemplateTable({
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={
-        templates.isLoading
-          ? { isLoading: true, isError: false }
-          : templates.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: templates.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: templates.data.templates.map((t) => convertToTableRow(t)),
-              }
-      }
-      pagination={{
-        pageCount: Math.ceil(totalCount / paginationState.pageSize),
-        onChange: setPaginationState,
-        state: paginationState,
-      }}
-      columnVisibility={columnVisibility}
-      onColumnVisibilityChange={setColumnVisibility}
-    />
+    <>
+      <DataTableToolbar columns={columns} actionButtons={menuItems} />
+      <DataTable
+        columns={columns}
+        data={
+          templates.isLoading
+            ? { isLoading: true, isError: false }
+            : templates.isError
+              ? {
+                  isLoading: false,
+                  isError: true,
+                  error: templates.error.message,
+                }
+              : {
+                  isLoading: false,
+                  isError: false,
+                  data: templates.data.templates.map((t) =>
+                    convertToTableRow(t),
+                  ),
+                }
+        }
+        pagination={{
+          totalCount,
+          onChange: setPaginationState,
+          state: paginationState,
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+      />
+    </>
   );
 }

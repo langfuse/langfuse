@@ -1,14 +1,4 @@
-import { type z } from "zod";
-import lodash from "lodash";
-import { jsonSchema } from "./zod";
-
-export const parseJson = (input: string) => {
-  try {
-    return JSON.parse(input) as unknown;
-  } catch {
-    return input;
-  }
-};
+import { JsonNested } from "./zod";
 
 /**
  * Deeply parses a JSON string or object for nested stringified JSON
@@ -18,6 +8,7 @@ export const parseJson = (input: string) => {
 export function deepParseJson(json: unknown): unknown {
   if (typeof json === "string") {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsed = JSON.parse(json);
       if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
       return deepParseJson(parsed); // Recursively parse parsed value
@@ -47,12 +38,12 @@ export function deepParseJson(json: unknown): unknown {
   return json;
 }
 
-export const mergeJson = (
-  json1?: z.infer<typeof jsonSchema>,
-  json2?: z.infer<typeof jsonSchema>,
-) => {
-  if (json1 === undefined) {
-    return json2;
+export const parseJsonPrioritised = (
+  json: string,
+): JsonNested | string | undefined => {
+  try {
+    return JSON.parse(json);
+  } catch (error) {
+    return json;
   }
-  return lodash.merge(json1, json2);
 };

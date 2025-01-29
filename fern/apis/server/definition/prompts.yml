@@ -41,11 +41,17 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)
 
       response: PromptMetaListResponse
 
     create:
-      docs: Create a prompt
+      docs: Create a new version for the prompt with the given `name`
       method: POST
       path: /prompts
       request: CreatePromptRequest
@@ -63,6 +69,10 @@ types:
       versions: list<integer>
       labels: list<string>
       tags: list<string>
+      lastUpdatedAt: datetime
+      lastConfig:
+        type: unknown
+        docs: Config object of the most recent prompt version that matches the filters (if any are provided)
 
   CreatePromptRequest:
     union:
@@ -80,6 +90,9 @@ types:
       tags:
         type: optional<list<string>>
         docs: List of tags to apply to all versions of this prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
 
   CreateTextPromptRequest:
     properties:
@@ -92,6 +105,9 @@ types:
       tags:
         type: optional<list<string>>
         docs: List of tags to apply to all versions of this prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
 
   Prompt:
     union:
@@ -109,6 +125,9 @@ types:
       tags:
         type: list<string>
         docs: List of tags. Used to filter via UI and API. The same across versions of a prompt.
+      commitMessage:
+        type: optional<string>
+        docs: Commit message for this prompt version.
 
   ChatMessage:
     properties:

@@ -1,5 +1,5 @@
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
-import { verifyAuthHeaderAndReturnScope } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
@@ -15,9 +15,18 @@ import {
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
+  type Prompt,
 } from "@langfuse/shared";
+import {
+  PromptService,
+  redis,
+  recordIncrement,
+  traceException,
+  logger,
+} from "@langfuse/shared/src/server";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
-import * as Sentry from "@sentry/node";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { telemetry } from "@/src/features/telemetry";
 
 export default async function handler(
   req: NextApiRequest,
@@ -27,30 +36,54 @@ export default async function handler(
 
   try {
     // Authentication and authorization
-    const authCheck = await verifyAuthHeaderAndReturnScope(
-      req.headers.authorization,
-    );
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+
     if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
     if (authCheck.scope.accessLevel !== "all")
       throw new ForbiddenError(
         `Access denied - need to use basic auth with secret key to ${req.method} prompts`,
       );
 
+    await telemetry();
+
     // Handle GET requests
     if (req.method === "GET") {
       const searchParams = GetPromptSchema.parse(req.query);
-      const prompt = await prisma.prompt.findFirst({
-        where: {
-          projectId: authCheck.scope.projectId,
-          name: searchParams.name,
-          version: searchParams.version ?? undefined, // if no version is given, we take the latest active prompt
-          labels: !searchParams.version
-            ? {
-                has: PRODUCTION_LABEL,
-              }
-            : undefined, // if no prompt is active, there will be no prompt available
-        },
-      });
+      const projectId = authCheck.scope.projectId;
+      const promptName = searchParams.name;
+      const version = searchParams.version ?? undefined;
+
+      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+        authCheck.scope,
+        "prompts",
+      );
+
+      if (rateLimitCheck?.isRateLimited()) {
+        return rateLimitCheck.sendRestResponseIfLimited(res);
+      }
+
+      const promptService = new PromptService(prisma, redis, recordIncrement);
+
+      let prompt: Prompt | null = null;
+
+      if (version) {
+        prompt = await promptService.getPrompt({
+          projectId,
+          promptName,
+          version,
+          label: undefined,
+        });
+      } else {
+        prompt = await promptService.getPrompt({
+          projectId,
+          promptName,
+          label: PRODUCTION_LABEL,
+          version: undefined,
+        });
+      }
 
       if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
 
@@ -82,9 +115,8 @@ export default async function handler(
 
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
-    console.error(error);
-
-    Sentry.captureException(error);
+    logger.error(error);
+    traceException(error);
 
     if (error instanceof BaseError) {
       return res.status(error.httpCode).json({

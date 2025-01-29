@@ -4,6 +4,7 @@ import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAut
 import {
   GetDatasetItemV1Query,
   GetDatasetItemV1Response,
+  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -15,11 +16,11 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
-      const datasetItem = await prisma.datasetItem.findFirst({
+      const datasetItem = await prisma.datasetItem.findUnique({
         where: {
-          id: datasetItemId,
-          dataset: {
+          id_projectId: {
             projectId: auth.scope.projectId,
+            id: datasetItemId,
           },
         },
         include: {
@@ -35,10 +36,11 @@ export default withMiddlewares({
       }
 
       const { dataset, ...datasetItemBody } = datasetItem;
-      return {
+
+      return transformDbDatasetItemToAPIDatasetItem({
         ...datasetItemBody,
         datasetName: dataset.name,
-      };
+      });
     },
   }),
 });

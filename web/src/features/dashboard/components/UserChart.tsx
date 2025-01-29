@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -8,14 +7,13 @@ import { BarList } from "@tremor/react";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import {
   createTracesTimeFilter,
   totalCostDashboardFormatted,
 } from "@/src/features/dashboard/lib/dashboard-utils";
-
 import { env } from "@/src/env.mjs";
+import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 type BarChartDataPoint = {
   name: string;
@@ -30,7 +28,7 @@ export const UserChart = ({
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const user = api.dashboard.chart.useQuery(
@@ -62,6 +60,7 @@ export const UserChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
+      queryName: "observations-usage-by-users",
     },
     {
       trpc: {
@@ -85,6 +84,7 @@ export const UserChart = ({
         },
       ],
       orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
+      queryName: "traces-grouped-by-user",
     },
     {
       trpc: {
@@ -183,12 +183,11 @@ export const UserChart = ({
                     />
                   </>
                 ) : (
-                  <NoData noDataText="No data">
-                    <DocPopup
-                      description="Consumption per user is tracked by passing their ids on traces."
-                      href="https://langfuse.com/docs/tracing-features/users"
-                    />
-                  </NoData>
+                  <NoDataOrLoading
+                    isLoading={user.isLoading}
+                    description="Consumption per user is tracked by passing their ids on traces."
+                    href="https://langfuse.com/docs/tracing-features/users"
+                  />
                 )}
               </>
             ),

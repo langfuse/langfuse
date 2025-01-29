@@ -31,7 +31,7 @@ export const traceId = {
   internal: 't."id"',
 } as const;
 export const traceVersion = {
-  name: "version",
+  name: "Version",
   id: "version",
   type: "string",
   internal: 't."version"',
@@ -41,6 +41,12 @@ export const traceTimestamp = {
   id: "timestamp",
   type: "string",
   internal: 't."timestamp"',
+} as const;
+const scoreTimestamp = {
+  name: "scoreTimestamp",
+  id: "scoreTimestamp",
+  type: "string",
+  internal: 's."timestamp"',
 } as const;
 export const scoreName = {
   name: "scoreName",
@@ -56,7 +62,7 @@ export const duration = {
     'EXTRACT(EPOCH FROM o."end_time") - EXTRACT(EPOCH FROM o."start_time")',
 } as const;
 export const release = {
-  name: "release",
+  name: "Release",
   id: "release",
   type: "string",
   internal: 't."release"',
@@ -73,11 +79,29 @@ export const observationsProjectId = {
   type: "string",
   internal: 'o."project_id"',
 } as const;
-export const scoreId = {
+const scoreId = {
   name: "scoreId",
   id: "scoreId",
   type: "string",
   internal: 's."id"',
+} as const;
+const scoreSource = {
+  name: "scoreSource",
+  id: "scoreSource",
+  type: "string",
+  internal: 's."source"::text',
+} as const;
+const scoreDataType = {
+  name: "scoreDataType",
+  id: "scoreDataType",
+  type: "string",
+  internal: 's."data_type"::text',
+} as const;
+const scoreStringValue = {
+  name: "stringValue",
+  id: "stringValue",
+  type: "string",
+  internal: 's."string_value"',
 } as const;
 export const traceName = {
   name: "Trace Name",
@@ -98,7 +122,7 @@ export const model = {
   internal: 'o."model"',
 } as const;
 export const traceUser = {
-  name: "user",
+  name: "User",
   id: "user",
   type: "string",
   internal: 't."user_id"',
@@ -134,6 +158,8 @@ const tracesObservationsColumns: ColumnDefinition[] = [
   traceName,
   observationName,
   traceTags,
+  release,
+  traceVersion,
 ];
 
 const tracesColumns = [
@@ -201,19 +227,18 @@ export const tableDefinitions: TableDefinitions = {
     ],
   },
   traces_scores: {
-    table: ` traces t JOIN scores s ON t.id = s.trace_id AND s.data_type != 'CATEGORICAL' AND t.project_id = s.project_id`,
+    table: ` traces t JOIN scores s ON t.id = s.trace_id AND t.project_id = s.project_id`,
     columns: [
       tracesProjectId,
       { name: "value", id: "value", type: "number", internal: 's."value"' },
-      {
-        name: "scoreName",
-        id: "scoreName",
-        type: "number",
-        internal: 's."name"',
-      },
+      scoreSource,
+      scoreDataType,
+      scoreStringValue,
       scoreId,
       traceVersion,
+      scoreTimestamp,
       traceTimestamp,
+      release,
       scoreName,
       traceUser,
       tracesProjectId,
@@ -246,6 +271,19 @@ export const tableDefinitions: TableDefinitions = {
       tracesProjectId,
       observationsProjectId,
       traceTags,
+    ],
+  },
+
+  // definition required only for internal mapping of dataset eval filters
+  dataset_items: {
+    table: ` dataset_items di`,
+    columns: [
+      {
+        name: "Dataset",
+        id: "datasetId",
+        type: "string",
+        internal: 'di."dataset_id"',
+      },
     ],
   },
 };

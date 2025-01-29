@@ -16,7 +16,7 @@ import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useSession } from "next-auth/react";
-import { ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
@@ -25,16 +25,13 @@ import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 
 const resetPasswordSchema = z
   .object({
     email: z.string().email(),
-    password: z.string().min(8, {
-      message: "Password must be at least 8 characters long",
-    }),
-    confirmPassword: z.string().min(8, {
-      message: "Password must be at least 8 characters long",
-    }),
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -122,9 +119,19 @@ export function ResetPasswordPage({
           <h2 className="mt-4 text-center text-2xl font-bold leading-9 tracking-tight text-primary">
             Reset your password
           </h2>
+          {session.status !== "authenticated" && (
+            <div className="mt-2 flex justify-center">
+              <Button asChild variant="ghost">
+                <Link href="/auth/sign-in">
+                  <ArrowLeft className="mr-2 h-3 w-3" />
+                  Back to sign in
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        <div className="mt-10 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
           <div className="space-y-6">
             <Form {...form}>
               <form
@@ -230,7 +237,7 @@ export function ResetPasswordPage({
           <div className="mx-auto mt-10 max-w-lg text-center text-xs text-muted-foreground">
             You will only receive an email if an account with this email exists
             and you have signed up with email and password. If you used an
-            authentication provider like Google, Okta, or GitHub, please{" "}
+            authentication provider like Google, Gitlab, Okta, or GitHub, please{" "}
             <Link href="/auth/sign-in" className="underline">
               sign in
             </Link>

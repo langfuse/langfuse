@@ -1,9 +1,9 @@
 import { isPrismaException } from "@/src/utils/exceptions";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
+import { type ZodError } from "zod";
 import { BaseError, MethodNotAllowedError } from "@langfuse/shared";
-import * as Sentry from "@sentry/node";
+import { logger, traceException } from "@langfuse/shared/src/server";
 
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
@@ -39,11 +39,11 @@ export function withMiddlewares(handlers: Handlers) {
 
       return await finalHandlers[method](req, res);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
 
       if (error instanceof BaseError) {
         if (error.httpCode >= 500 && error.httpCode < 600) {
-          Sentry.captureException(error);
+          traceException(error);
         }
         return res.status(error.httpCode).json({
           message: error.message,
@@ -52,21 +52,22 @@ export function withMiddlewares(handlers: Handlers) {
       }
 
       if (isPrismaException(error)) {
-        Sentry.captureException(error);
+        traceException(error);
         return res.status(500).json({
           message: "Internal Server Error",
           error: "An unknown error occurred",
         });
       }
 
-      if (error instanceof z.ZodError) {
+      // Instanceof check fails here as shared package zod has different instances
+      if (isZodError(error)) {
         return res.status(400).json({
           message: "Invalid request data",
           error: error.errors,
         });
       }
 
-      Sentry.captureException(error);
+      traceException(error);
       return res.status(500).json({
         message: "Internal Server Error",
         error:
@@ -74,4 +75,8 @@ export function withMiddlewares(handlers: Handlers) {
       });
     }
   };
+}
+
+export function isZodError(error: any): error is ZodError {
+  return error instanceof Object && error.constructor.name === "ZodError";
 }

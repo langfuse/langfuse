@@ -1,6 +1,11 @@
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -60,21 +65,36 @@ export default function Dataset() {
             )}
             <DetailPageNav
               currentId={itemId}
-              path={(id) =>
-                `/project/${projectId}/datasets/${datasetId}/items/${id}`
+              path={(entry) =>
+                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
               }
               listKey="datasetItems"
             />
           </>
         }
       />
-      <EditDatasetItem projectId={projectId} datasetItem={item.data ?? null} />
-      <Header title="Runs" level="h3" />
-      <DatasetRunItemsTable
-        projectId={projectId}
-        datasetItemId={itemId}
-        datasetId={datasetId}
-      />
+
+      <ResizablePanelGroup direction="vertical">
+        <ResizablePanel
+          minSize={10}
+          defaultSize={50}
+          className="!overflow-y-auto"
+        >
+          <EditDatasetItem
+            projectId={projectId}
+            datasetItem={item.data ?? null}
+          />
+        </ResizablePanel>
+        <ResizableHandle withHandle className="bg-border" />
+        <ResizablePanel minSize={10} className="flex flex-col space-y-4">
+          <Header title="Runs" level="h3" />
+          <DatasetRunItemsTable
+            projectId={projectId}
+            datasetItemId={itemId}
+            datasetId={datasetId}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </FullScreenPage>
   );
 }

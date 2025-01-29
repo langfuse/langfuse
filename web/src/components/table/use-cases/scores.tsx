@@ -7,19 +7,26 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { isNumericDataType } from "@/src/features/manual-scoring/lib/helpers";
+import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   type ScoreOptions,
   scoresTableColsWithOptions,
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
-import { isPresent } from "@/src/utils/typeChecks";
+
 import type { RouterOutput, RouterInput } from "@/src/utils/types";
-import type { FilterState, ScoreDataType } from "@langfuse/shared";
+import {
+  isPresent,
+  type FilterState,
+  type ScoreDataType,
+} from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import TagList from "@/src/features/tag/components/TagList";
+import { cn } from "@/src/utils/tailwind";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 export type ScoresTableRow = {
   id: string;
@@ -30,6 +37,7 @@ export type ScoresTableRow = {
   dataType: ScoreDataType;
   value: string;
   author: {
+    userId?: string;
     image?: string;
     name?: string;
   };
@@ -38,6 +46,7 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
+  traceTags?: string[];
 };
 
 export type ScoreFilterInput = Omit<
@@ -68,7 +77,7 @@ export default function ScoresTable({
   observationId,
   omittedFilter = [],
   hiddenColumns = [],
-  tableColumnVisibilityName = "scoresColumnVisibility",
+  localStorageSuffix = "",
 }: {
   projectId: string;
   userId?: string;
@@ -76,7 +85,7 @@ export default function ScoresTable({
   observationId?: string;
   omittedFilter?: string[];
   hiddenColumns?: string[];
-  tableColumnVisibilityName?: string;
+  localStorageSuffix?: string;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -84,20 +93,28 @@ export default function ScoresTable({
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(projectId);
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "Timestamp",
-        type: "datetime",
-        operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "scores",
+    projectId,
   );
 
-  const filterState = createFilterState(userFilterState, [
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const combinedFilter = userFilterState.concat(dateRangeFilter);
+  const filterState = createFilterState(combinedFilter, [
     ...(userId ? [{ key: "User ID", value: userId }] : []),
     ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
     ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
@@ -108,18 +125,32 @@ export default function ScoresTable({
     order: "DESC",
   });
 
-  const scores = api.scores.all.useQuery({
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
+  const getCountPayload = {
     projectId,
     filter: filterState,
+    page: 0,
+    limit: 1,
+    orderBy: null,
+  };
+
+  const getAllPayload = {
+    ...getCountPayload,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
     orderBy: orderByState,
-  });
-  const totalCount = scores.data?.totalCount ?? 0;
+  };
+
+  const scores = api.scores.all.useQuery(getAllPayload);
+  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
+  const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
   const filterOptions = api.scores.filterOptions.useQuery(
     {
       projectId,
+      timestampFilter:
+        dateRangeFilter[0]?.type === "datetime"
+          ? dateRangeFilter[0]
+          : undefined,
     },
     {
       trpc: {
@@ -127,6 +158,10 @@ export default function ScoresTable({
           skipBatch: true,
         },
       },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
 
@@ -135,14 +170,15 @@ export default function ScoresTable({
       accessorKey: "traceId",
       id: "traceId",
       enableColumnFilter: true,
-      header: "Trace ID",
+      header: "Trace",
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("traceId");
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/traces/${value}`}
+              path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
               value={value}
             />
           </>
@@ -152,8 +188,9 @@ export default function ScoresTable({
     {
       accessorKey: "observationId",
       id: "observationId",
-      header: "Observation ID",
+      header: "Observation",
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const observationId = row.getValue(
           "observationId",
@@ -161,7 +198,7 @@ export default function ScoresTable({
         const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
         return traceId && observationId ? (
           <TableLink
-            path={`/project/${projectId}/traces/${traceId}?observation=${observationId}`}
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
           />
         ) : undefined;
@@ -173,6 +210,7 @@ export default function ScoresTable({
       id: "traceName",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
         const filter = encodeURIComponent(
@@ -182,14 +220,13 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
             value={value}
-            truncateAt={40}
           />
         ) : undefined;
       },
     },
     {
       accessorKey: "userId",
-      header: "Trace User ID",
+      header: "User",
       id: "userId",
       headerTooltip: {
         description: "The user ID associated with the trace.",
@@ -197,14 +234,14 @@ export default function ScoresTable({
       },
       enableHiding: true,
       enableSorting: true,
+      size: 100,
       cell: ({ row }) => {
         const value = row.getValue("userId");
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/users/${value}`}
+              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -216,6 +253,7 @@ export default function ScoresTable({
       id: "timestamp",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
     },
     {
       accessorKey: "source",
@@ -223,6 +261,7 @@ export default function ScoresTable({
       id: "source",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
     },
     {
       accessorKey: "name",
@@ -230,6 +269,7 @@ export default function ScoresTable({
       id: "name",
       enableHiding: true,
       enableSorting: true,
+      size: 150,
     },
     {
       accessorKey: "dataType",
@@ -237,6 +277,7 @@ export default function ScoresTable({
       id: "dataType",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
     },
     {
       accessorKey: "value",
@@ -244,14 +285,29 @@ export default function ScoresTable({
       id: "value",
       enableHiding: true,
       enableSorting: true,
+      size: 100,
+    },
+    {
+      accessorKey: "comment",
+      header: "Comment",
+      id: "comment",
+      enableHiding: true,
+      size: 400,
+      cell: ({ row }) => {
+        const value = row.getValue("comment") as ScoresTableRow["comment"];
+        return (
+          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        );
+      },
     },
     {
       accessorKey: "author",
       id: "author",
       header: "Author",
       enableHiding: true,
+      size: 150,
       cell: ({ row }) => {
-        const { name, image } = row.getValue(
+        const { userId, name, image } = row.getValue(
           "author",
         ) as ScoresTableRow["author"];
         return (
@@ -262,7 +318,7 @@ export default function ScoresTable({
                 alt={name ?? "User Avatar"}
               />
             </Avatar>
-            <span>{name}</span>
+            <span>{name ?? userId}</span>
           </div>
         );
       },
@@ -276,29 +332,40 @@ export default function ScoresTable({
         href: "https://langfuse.com/docs/scores/model-based-evals",
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting: false,
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("jobConfigurationId");
         return typeof value === "string" ? (
           <>
             <TableLink
-              path={`/project/${projectId}/evals/configs/${value}`}
+              path={`/project/${projectId}/evals/${value}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
       },
     },
     {
-      accessorKey: "comment",
-      header: "Comment",
-      id: "comment",
+      accessorKey: "traceTags",
+      id: "traceTags",
+      header: "Trace Tags",
+      size: 250,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
+        const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} viewOnly />
+            </div>
+          )
         );
       },
     },
@@ -309,7 +376,15 @@ export default function ScoresTable({
   );
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<ScoresTableRow>(tableColumnVisibilityName, columns);
+    useColumnVisibility<ScoresTableRow>(
+      "scoresColumnVisibility" + localStorageSuffix,
+      columns,
+    );
+
+  const [columnOrder, setColumnOrder] = useColumnOrder<ScoresTableRow>(
+    `scoresColumnOrder${localStorageSuffix}`,
+    columns,
+  );
 
   const convertToTableRow = (
     score: RouterOutput["scores"]["all"]["scores"][0],
@@ -325,8 +400,9 @@ export default function ScoresTable({
           ? score.value % 1 === 0
             ? String(score.value)
             : score.value.toFixed(4)
-          : score.stringValue ?? "",
+          : (score.stringValue ?? ""),
       author: {
+        userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
         name: score.authorUserName ?? undefined,
       },
@@ -336,6 +412,7 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
+      traceTags: score.traceTags ?? undefined,
     };
   };
 
@@ -353,11 +430,15 @@ export default function ScoresTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(filterOptions.data)}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
       />
       <DataTable
         columns={columns}
@@ -377,7 +458,7 @@ export default function ScoresTable({
                 }
         }
         pagination={{
-          pageCount: Math.ceil(totalCount / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}
@@ -385,6 +466,8 @@ export default function ScoresTable({
         setOrderBy={setOrderByState}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

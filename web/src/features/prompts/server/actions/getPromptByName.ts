@@ -1,9 +1,10 @@
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import { InvalidRequestError, type Prompt } from "@langfuse/shared";
 import {
-  LangfuseNotFoundError,
-  InvalidRequestError,
-  type Prompt,
-} from "@langfuse/shared";
+  PromptService,
+  redis,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 type GetPromptByNameParams = {
@@ -17,90 +18,31 @@ export const getPromptByName = async (
   params: GetPromptByNameParams,
 ): Promise<Prompt | null> => {
   const { promptName, projectId, version, label } = params;
+  const promptService = new PromptService(prisma, redis, recordIncrement);
 
   if (version && label)
     throw new InvalidRequestError("Cannot specify both version and label");
 
-  if (version) return getPromptByVersion({ projectId, promptName, version });
+  if (version)
+    return promptService.getPrompt({
+      projectId,
+      promptName,
+      version,
+      label: undefined,
+    });
 
-  if (label) return getPromptByLabel({ projectId, promptName, label });
+  if (label)
+    return promptService.getPrompt({
+      projectId,
+      promptName,
+      label,
+      version: undefined,
+    });
 
-  return getProductionPrompt(params);
-};
-
-const getProductionPrompt = async ({
-  promptName,
-  projectId,
-}: {
-  promptName: string;
-  projectId: string;
-}): Promise<Prompt> => {
-  const productionPrompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: promptName,
-      labels: {
-        has: PRODUCTION_LABEL,
-      },
-    },
+  return promptService.getPrompt({
+    projectId,
+    promptName,
+    label: PRODUCTION_LABEL,
+    version: undefined,
   });
-
-  if (!productionPrompt)
-    throw new LangfuseNotFoundError(
-      `No production-labeled prompt found with name '${promptName}' in project ${projectId}`,
-    );
-
-  return productionPrompt;
-};
-
-const getPromptByVersion = async ({
-  promptName,
-  projectId,
-  version,
-}: {
-  promptName: string;
-  projectId: string;
-  version: number;
-}): Promise<Prompt> => {
-  const prompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: promptName,
-      version: version,
-    },
-  });
-
-  if (!prompt)
-    throw new LangfuseNotFoundError(
-      `No prompt found with name '${promptName}' in project ${projectId} with version ${version}`,
-    );
-
-  return prompt;
-};
-
-const getPromptByLabel = async ({
-  promptName,
-  projectId,
-  label,
-}: {
-  promptName: string;
-  projectId: string;
-  label: string;
-}): Promise<Prompt> => {
-  const prompt = await prisma.prompt.findFirst({
-    where: {
-      projectId: projectId,
-      name: promptName,
-      labels: {
-        has: label,
-      },
-    },
-  });
-
-  if (!prompt)
-    throw new LangfuseNotFoundError(
-      `No prompt found with name '${promptName}' in project ${projectId} with label ${label}`,
-    );
-
-  return prompt;
 };

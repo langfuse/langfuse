@@ -6,13 +6,26 @@
 import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import Link from "next/link";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-export default function TemplatesPage() {
+export default function LogPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalJobExecution:read",
+  });
+
+  if (!hasReadAccess) {
+    return null;
+  }
+
   return (
-    <div className="h-[calc(100vh-6rem)] overflow-hidden lg:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Eval Log"
         help={{
@@ -20,7 +33,24 @@ export default function TemplatesPage() {
           href: "https://langfuse.com/docs/scores/model-based-evals",
         }}
       />
-      <EvalLogTable projectId={projectId} />
-    </div>
+      <EvalLogTable
+        projectId={projectId}
+        menuItems={
+          <Tabs value="log">
+            <TabsList>
+              <TabsTrigger value="evaluators" asChild>
+                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
+              </TabsTrigger>
+              <TabsTrigger value="templates" asChild>
+                <Link href={`/project/${projectId}/evals/templates`}>
+                  Templates
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="log">Log</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
+    </FullScreenPage>
   );
 }

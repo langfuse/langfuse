@@ -40,6 +40,129 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Comments",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Create",
+          "request": {
+            "description": "Create a comment. Comments may be attached to different object types (trace, observation, session, prompt).",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/comments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"projectId\": \"example\",\n    \"objectType\": \"example\",\n    \"objectId\": \"example\",\n    \"content\": \"example\",\n    \"authorUserId\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get all comments",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/comments?page=&limit=&objectType=&objectId=&authorUserId=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page number, starts at 1."
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit"
+                },
+                {
+                  "key": "objectType",
+                  "value": "",
+                  "description": "Filter comments by object type (trace, observation, session, prompt)."
+                },
+                {
+                  "key": "objectId",
+                  "value": "",
+                  "description": "Filter comments by object id. If objectType is not provided, an error will be thrown."
+                },
+                {
+                  "key": "authorUserId",
+                  "value": "",
+                  "description": "Filter comments by author user id."
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get By Id",
+          "request": {
+            "description": "Get a comment by id",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/comments/:commentId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "comments",
+                ":commentId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "commentId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a comment"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Dataset Items",
       "item": [
         {
@@ -435,7 +558,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nNotes:\n\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -455,6 +578,118 @@
             "body": {
               "mode": "raw",
               "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"example\",\n                \"timestamp\": \"1994-11-05T13:15:30Z\",\n                \"name\": \"example\",\n                \"userId\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"tags\": [\n                    \"example\"\n                ],\n                \"public\": true\n            },\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"metadata\": \"UNKNOWN\"\n        }\n    ],\n    \"metadata\": \"UNKNOWN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Media",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get",
+          "request": {
+            "description": "Get a media record",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/media/:mediaId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media",
+                ":mediaId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "mediaId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a media record"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Patch",
+          "request": {
+            "description": "Patch a media record",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/media/:mediaId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media",
+                ":mediaId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "mediaId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of a media record"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"uploadedAt\": \"1994-11-05T13:15:30Z\",\n    \"uploadHttpStatus\": 0,\n    \"uploadHttpError\": \"example\",\n    \"uploadTimeMs\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Upload Url",
+          "request": {
+            "description": "Get a presigned upload URL for a media record",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/media",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "media"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"traceId\": \"example\",\n    \"observationId\": \"example\",\n    \"contentType\": \"image/png\",\n    \"contentLength\": 0,\n    \"sha256Hash\": \"example\",\n    \"field\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -516,12 +751,12 @@
                 {
                   "key": "fromTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces on or after a certain datetime (ISO 8601)"
+                  "description": "Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)"
                 },
                 {
                   "key": "toTimestamp",
                   "value": "",
-                  "description": "Optional filter to only include traces before a certain datetime (ISO 8601)"
+                  "description": "Optional filter to only include traces and observations before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
@@ -563,7 +798,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"modelName\": \"example\",\n    \"matchPattern\": \"example\",\n    \"startDate\": \"1994-11-05T13:15:30Z\",\n    \"unit\": \"CHARACTERS\",\n    \"inputPrice\": 0,\n    \"outputPrice\": 0,\n    \"totalPrice\": 0,\n    \"tokenizerId\": \"example\",\n    \"tokenizerConfig\": \"UNKNOWN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -718,7 +953,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=&version=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -772,6 +1007,11 @@
                   "key": "toStartTime",
                   "value": "",
                   "description": "Retrieve only observations with a start_time before this datetime (ISO 8601)."
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional filter to only include observations with a certain version."
                 }
               ],
               "variable": []
@@ -812,6 +1052,61 @@
             "method": "GET",
             "auth": null,
             "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Prompt Version",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update labels for a specific prompt version",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:name/versions/:version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts",
+                ":name",
+                "versions",
+                ":version"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": "The name of the prompt"
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Version of the prompt to update"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"newLabels\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }
@@ -872,7 +1167,7 @@
           "request": {
             "description": "Get a list of prompt names with versions and labels",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=",
+              "raw": "{{baseUrl}}/api/public/v2/prompts?name=&label=&tag=&page=&limit=&fromUpdatedAt=&toUpdatedAt=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -907,6 +1202,16 @@
                   "key": "limit",
                   "value": "",
                   "description": "limit of items per page"
+                },
+                {
+                  "key": "fromUpdatedAt",
+                  "value": "",
+                  "description": "Optional filter to only include prompt versions created/updated on or after a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "toUpdatedAt",
+                  "value": "",
+                  "description": "Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)"
                 }
               ],
               "variable": []
@@ -922,7 +1227,7 @@
           "_type": "endpoint",
           "name": "Create",
           "request": {
-            "description": "Create a prompt",
+            "description": "Create a new version for the prompt with the given `name`",
             "url": {
               "raw": "{{baseUrl}}/api/public/v2/prompts",
               "host": [
@@ -942,7 +1247,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ],\n    \"tags\": [\n        \"example\"\n    ]\n}",
+              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ],\n    \"tags\": [\n        \"example\"\n    ],\n    \"commitMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1106,7 +1411,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&dataType=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1172,9 +1477,19 @@
                   "description": "Retrieve only scores with a specific configId."
                 },
                 {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "Retrieve only scores with a specific annotation queueId."
+                },
+                {
                   "key": "dataType",
                   "value": "",
                   "description": "Retrieve only scores with a specific dataType."
+                },
+                {
+                  "key": "traceTags",
+                  "value": "",
+                  "description": "Only scores linked to traces that include all of these tags will be returned."
                 }
               ],
               "variable": []
@@ -1261,7 +1576,7 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get sessions.",
+            "description": "Get sessions",
             "url": {
               "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=",
               "host": [
@@ -1378,9 +1693,9 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get list of traces.",
+            "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1434,6 +1749,16 @@
                   "key": "tags",
                   "value": "",
                   "description": "Only traces that include all of these tags will be returned."
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional filter to only include traces with a certain version."
+                },
+                {
+                  "key": "release",
+                  "value": "",
+                  "description": "Optional filter to only include traces with a certain release."
                 }
               ],
               "variable": []

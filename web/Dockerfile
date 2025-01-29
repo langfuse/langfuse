@@ -5,11 +5,11 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:20-alpine3.20 AS alpine
 RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^1.13.3 --global
+RUN npm install turbo@^1.13.4 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@8.15.5 --activate
+RUN corepack prepare pnpm@9.5.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
 
@@ -33,14 +33,43 @@ ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 
 # pass public variables in build step
-ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-ARG NEXT_PUBLIC_DEMO_PROJECT_ID
-ARG NEXT_PUBLIC_SIGN_UP_DISABLED
-ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
-ARG NEXT_PUBLIC_POSTHOG_KEY
-ARG NEXT_PUBLIC_POSTHOG_HOST
 ARG NEXT_PUBLIC_CRISP_WEBSITE_ID
-ARG LANFUSE_WEB_MIGRATION_DISABLED
+
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ARG NEXT_PUBLIC_DEMO_ORG_ID
+ENV NEXT_PUBLIC_DEMO_ORG_ID=$NEXT_PUBLIC_DEMO_ORG_ID
+ARG NEXT_PUBLIC_DEMO_PROJECT_ID
+ENV NEXT_PUBLIC_DEMO_PROJECT_ID=$NEXT_PUBLIC_DEMO_PROJECT_ID
+ARG NEXT_PUBLIC_SIGN_UP_DISABLED
+ENV NEXT_PUBLIC_SIGN_UP_DISABLED=$NEXT_PUBLIC_SIGN_UP_DISABLED
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
+ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
+ARG NEXT_PUBLIC_POSTHOG_KEY
+ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_HOST
+ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
+ARG NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE
+ENV NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=$NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE
+ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=$NEXT_PUBLIC_SENTRY_ENVIRONMENT
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+
+# Sentry already needs to be set on build time to upload sourcemaps
+# This must not be set for OSS releases as we would share our Sentry secret.
+ARG SENTRY_AUTH_TOKEN
+ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
+ARG SENTRY_ORG
+ENV SENTRY_ORG=$SENTRY_ORG
+ARG SENTRY_PROJECT
+ENV SENTRY_PROJECT=$SENTRY_PROJECT
+
+# Accept build id as NEXT_PUBLIC_BUILD_ID
+ARG NEXT_PUBLIC_BUILD_ID
+ENV NEXT_PUBLIC_BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
@@ -53,13 +82,21 @@ RUN rm -f ./web/src/middleware.ts
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NEXT_MANUAL_SIG_HANDLE true
+# set the CI flag to true to get CI specific logs
+ENV CI true
 
-RUN turbo run build --filter=web
+RUN NODE_OPTIONS='--max-old-space-size=4096' turbo run build --filter=web...
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
 WORKDIR /app
+
+ARG NEXT_PUBLIC_BUILD_ID
+ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
 # Uncomment the following line in case you want to disable telemetry during runtime.
@@ -69,12 +106,16 @@ ENV DOCKER_BUILD 0
 # Set NEXT_MANUAL_SIG_HANDLE for runtime
 ENV NEXT_MANUAL_SIG_HANDLE true
 
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init tzdata
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma
+RUN npm install -g --no-package-lock --no-save prisma@5.22.0
+
+RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
+    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
+    mv migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
@@ -86,6 +127,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/.next/static ./web/.next/stat
 COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/clickhouse ./packages/shared/clickhouse
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
@@ -100,4 +142,4 @@ ENV PORT 3000
 ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command
-CMD ["node", "./web/server.js"]
+CMD ["node", "./web/server.js", "--keepAliveTimeout", "110000"]

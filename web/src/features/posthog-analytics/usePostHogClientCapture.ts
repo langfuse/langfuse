@@ -57,9 +57,17 @@ const events = {
     "apply_labels",
     "version_delete_open",
     "version_delete_submit",
+    "duplicate_button_click",
+    "duplicate_form_submit",
   ],
   session_detail: ["publish_button_click"],
-  eval_config: ["delete", "new_form_submit", "new_form_open"],
+  eval_config: [
+    "new_form_submit",
+    "new_form_open",
+    "activate",
+    "deactivate",
+    "update",
+  ],
   eval_templates: [
     "view_version",
     "new_form_open",
@@ -86,6 +94,7 @@ const events = {
     "update_form_submit",
     "delete_form_submit",
   ],
+  organizations: ["new_form_submit", "new_form_open"],
   projects: ["new_form_submit", "new_form_open"],
   dataset_item: [
     "archive_toggle",
@@ -93,6 +102,21 @@ const events = {
     "new_form_submit",
     "new_from_trace_form_submit",
     "new_from_trace_form_open",
+    "upload_csv_button_click",
+    "upload_csv_form_submit",
+  ],
+  dataset_run: [
+    "delete_form_open",
+    "delete_form_submit",
+    "new_form_open",
+    "new_form_submit",
+    "view_prompt_experiment_docs",
+    "view_custom_experiment_docs",
+    "compare_view_click",
+    "charts_view_added",
+    "charts_view_removed",
+    "compare_run_added",
+    "compare_run_removed",
   ],
   notification: ["click_link", "dismiss_notification"],
   tag: [
@@ -101,11 +125,12 @@ const events = {
     "modal_open",
     "create_new_button_click",
   ],
-  onboarding: ["code_example_tab_switch"],
+  onboarding: ["code_example_tab_switch", "tracing_check_active"],
   user_settings: ["theme_changed"],
   project_settings: [
     "project_delete",
     "rename_form_submit",
+    "retention_form_submit",
     "project_transfer",
     "api_key_delete",
     "api_key_create",
@@ -116,8 +141,17 @@ const events = {
     "delete_membership",
     "pricing_dialog_opened",
   ],
+  organization_settings: [
+    "rename_form_submit",
+    "send_membership_invitation",
+    "delete_membership_invitation",
+    "delete_membership",
+    "pricing_dialog_opened",
+    "delete_organization",
+  ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
+  support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

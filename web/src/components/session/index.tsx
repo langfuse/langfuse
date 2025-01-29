@@ -13,8 +13,12 @@ import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AnnotateDrawer } from "@/src/features/manual-scoring/components/AnnotateDrawer";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { Button } from "@/src/components/ui/button";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { useSession } from "next-auth/react";
+import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -24,6 +28,7 @@ export const SessionPage: React.FC<{
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const { setDetailPageList } = useDetailPageLists();
+  const userSession = useSession();
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const session = api.sessions.byId.useQuery(
     {
@@ -32,7 +37,11 @@ export const SessionPage: React.FC<{
     },
     {
       retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
         return failureCount < 3;
       },
     },
@@ -41,17 +50,51 @@ export const SessionPage: React.FC<{
     if (session.isSuccess) {
       setDetailPageList(
         "traces",
-        session.data.traces.map((t) => t.id),
+        session.data.traces.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isSuccess, session.data]);
 
+  const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
+    string[]
+  >("emptySelectedConfigIds", []);
+
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId,
+      objectId: sessionId,
+      objectType: "SESSION",
+    },
+    { enabled: session.isSuccess && userSession.status === "authenticated" },
+  );
+
+  const traceCommentCounts =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId,
+      },
+      { enabled: session.isSuccess && userSession.status === "authenticated" },
+    );
+
   if (session.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this session." />;
 
+  if (session.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Session not found"
+        message="The session is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+
   return (
-    <div className="flex flex-col overflow-hidden xl:container">
+    <ScrollScreenPage>
       <Header
         title="Session"
         breadcrumb={[
@@ -77,10 +120,18 @@ export const SessionPage: React.FC<{
           <DetailPageNav
             key="nav"
             currentId={encodeURIComponent(sessionId)}
-            path={(id) =>
-              `/project/${projectId}/sessions/${encodeURIComponent(id)}`
+            path={(entry) =>
+              `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
             }
             listKey="sessions"
+          />,
+          <CommentDrawerButton
+            key="comment"
+            variant="outline"
+            projectId={projectId}
+            objectId={sessionId}
+            objectType="SESSION"
+            count={sessionCommentCounts.data?.get(sessionId)}
           />,
         ]}
       />
@@ -92,13 +143,13 @@ export const SessionPage: React.FC<{
               userId ?? "",
             )}`}
           >
-            <Badge>User ID: {userId}</Badge>
+            <Badge className="max-w-[300px] truncate">User ID: {userId}</Badge>
           </Link>
         ))}
         <Badge variant="outline">Traces: {session.data?.traces.length}</Badge>
         {session.data && (
           <Badge variant="outline">
-            Total cost: {usdFormatter(session.data.totalCost, 2, 2)}
+            Total cost: {usdFormatter(session.data.totalCost, 2)}
           </Badge>
         )}
       </div>
@@ -108,7 +159,9 @@ export const SessionPage: React.FC<{
             className="group grid gap-3 border-border p-2 shadow-none hover:border-ring md:grid-cols-3"
             key={trace.id}
           >
-            <SessionIO traceId={trace.id} />
+            <div className="col-span-2 overflow-hidden">
+              <SessionIO traceId={trace.id} projectId={projectId} />
+            </div>
             <div className="-mt-1 p-1 opacity-50 transition-opacity group-hover:opacity-100">
               <Link
                 href={`/project/${projectId}/traces/${trace.id}`}
@@ -125,15 +178,26 @@ export const SessionPage: React.FC<{
               <div className="mb-1 flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>
-              <AnnotateDrawer
-                projectId={projectId}
-                traceId={trace.id}
-                scores={trace.scores}
-                variant="badge"
-                type="session"
-                source="SessionDetail"
-                key={"annotation-drawer" + trace.id}
-              />
+              <div className="flex items-center gap-1">
+                <AnnotateDrawer
+                  projectId={projectId}
+                  traceId={trace.id}
+                  scores={trace.scores}
+                  emptySelectedConfigIds={emptySelectedConfigIds}
+                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                  variant="badge"
+                  type="session"
+                  source="SessionDetail"
+                  key={"annotation-drawer" + trace.id}
+                />
+                <CommentDrawerButton
+                  projectId={projectId}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={traceCommentCounts.data?.get(trace.id)}
+                  className="h-6 rounded-full text-xs"
+                />
+              </div>
             </div>
           </Card>
         ))}
@@ -147,13 +211,19 @@ export const SessionPage: React.FC<{
           </Button>
         )}
       </div>
-    </div>
+    </ScrollScreenPage>
   );
 };
 
-const SessionIO = ({ traceId }: { traceId: string }) => {
+const SessionIO = ({
+  traceId,
+  projectId,
+}: {
+  traceId: string;
+  projectId: string;
+}) => {
   const trace = api.traces.byId.useQuery(
-    { traceId: traceId },
+    { traceId, projectId },
     {
       enabled: typeof traceId === "string",
       trpc: {
@@ -161,11 +231,11 @@ const SessionIO = ({ traceId }: { traceId: string }) => {
           skipBatch: true,
         },
       },
-      refetchOnMount: false, // prevents refetching loops
+      refetchOnMount: false,
     },
   );
   return (
-    <div className="col-span-2 flex flex-col gap-2 p-0">
+    <div className="flex w-full flex-col gap-2 overflow-hidden p-0">
       {!trace.data ? (
         <JsonSkeleton
           className="h-full w-full overflow-hidden px-2 py-1"

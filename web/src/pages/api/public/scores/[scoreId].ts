@@ -1,14 +1,19 @@
-import { prisma } from "@langfuse/shared/src/db";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
-import * as Sentry from "@sentry/node";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
   GetScoreQuery,
   GetScoreResponse,
-} from "@/src/features/public-api/types/scores";
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
+import {
+  deleteScore,
+  getScoreById,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -16,14 +21,7 @@ export default withMiddlewares({
     querySchema: GetScoreQuery,
     responseSchema: GetScoreResponse,
     fn: async ({ query, auth }) => {
-      const { scoreId } = query;
-
-      const score = await prisma.score.findUnique({
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
+      const score = await getScoreById(auth.scope.projectId, query.scoreId);
 
       if (!score) {
         throw new LangfuseNotFoundError("Score not found");
@@ -32,7 +30,8 @@ export default withMiddlewares({
       const parsedScore = GetScoreResponse.safeParse(score);
 
       if (!parsedScore.success) {
-        Sentry.captureException(parsedScore.error);
+        traceException(parsedScore.error);
+        logger.error(`Incorrect score return type ${parsedScore.error}`);
         throw new InternalServerError("Requested score is corrupted");
       }
 
@@ -45,30 +44,7 @@ export default withMiddlewares({
     responseSchema: DeleteScoreResponse,
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
-
-      const score = await prisma.score.findUnique({
-        select: {
-          id: true,
-        },
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
-
-      if (!score) {
-        throw new LangfuseNotFoundError(
-          "Score not found within authorized project",
-        );
-      }
-
-      await prisma.score.delete({
-        where: {
-          id: scoreId,
-          projectId: auth.scope.projectId,
-        },
-      });
-
+      await deleteScore(auth.scope.projectId, scoreId);
       return { message: "Score deleted successfully" };
     },
   }),

@@ -7,8 +7,14 @@ import {
   GetDatasetItemsV1Response,
   PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
+  transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  type DatasetItem,
+  LangfuseNotFoundError,
+  Prisma,
+} from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -39,35 +45,59 @@ export default withMiddlewares({
 
       const itemId = id ?? uuidv4();
 
-      const item = await prisma.datasetItem.upsert({
-        where: {
-          id: itemId,
-          datasetId: dataset.id,
-        },
-        create: {
-          id: itemId,
-          input: input ?? undefined,
-          expectedOutput: expectedOutput ?? undefined,
-          datasetId: dataset.id,
-          metadata: metadata ?? undefined,
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-          status: status ?? undefined,
-        },
-        update: {
-          input: input ?? undefined,
-          expectedOutput: expectedOutput ?? undefined,
-          metadata: metadata ?? undefined,
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-          status: status ?? undefined,
-        },
-      });
+      let item: DatasetItem;
+      try {
+        item = await prisma.datasetItem.upsert({
+          where: {
+            datasetId: dataset.id,
+            id_projectId: {
+              projectId: auth.scope.projectId,
+              id: itemId,
+            },
+          },
+          create: {
+            id: itemId,
+            input: input ?? undefined,
+            expectedOutput: expectedOutput ?? undefined,
+            datasetId: dataset.id,
+            metadata: metadata ?? undefined,
+            sourceTraceId: sourceTraceId ?? undefined,
+            sourceObservationId: sourceObservationId ?? undefined,
+            status: status ?? undefined,
+            projectId: auth.scope.projectId,
+          },
+          update: {
+            input: input ?? undefined,
+            expectedOutput: expectedOutput ?? undefined,
+            metadata: metadata ?? undefined,
+            sourceTraceId: sourceTraceId ?? undefined,
+            sourceObservationId: sourceObservationId ?? undefined,
+            status: status ?? undefined,
+          },
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === "P2025"
+        ) {
+          // this case happens when a dataset item was created for a different dataset.
+          // In the database, the uniqueness constraint is on (id, projectId) only.
+          // When this constraint is violated, the database will upsert based on (id, projectId, datasetId).
+          // If this record does not exist, the database will throw an error.
+          logger.warn(
+            `Failed to upsert dataset item. Dataset item ${itemId} in project ${auth.scope.projectId} already exists for a different dataset than ${dataset.id}`,
+          );
+          throw new LangfuseNotFoundError(
+            `The dataset item with id ${itemId} was not found in the dataset ${dataset.name}`,
+          );
+        }
+        throw e;
+      }
 
-      return {
+      return transformDbDatasetItemToAPIDatasetItem({
         ...item,
         datasetName: dataset.name,
-      };
+      });
     },
   }),
   GET: createAuthedAPIRoute({
@@ -95,6 +125,7 @@ export default withMiddlewares({
       const items = (
         await prisma.datasetItem.findMany({
           where: {
+            projectId: auth.scope.projectId,
             dataset: {
               projectId: auth.scope.projectId,
               ...(datasetId ? { id: datasetId } : {}),
@@ -132,7 +163,7 @@ export default withMiddlewares({
       });
 
       return {
-        data: items,
+        data: items.map(transformDbDatasetItemToAPIDatasetItem),
         meta: {
           page,
           limit,

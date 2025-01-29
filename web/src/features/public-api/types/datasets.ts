@@ -1,8 +1,13 @@
 import {
   jsonSchema,
+  publicApiPaginationZod,
   paginationZod,
   paginationMetaResponseZod,
   queryStringZod,
+  type DatasetRuns as DbDatasetRuns,
+  type DatasetItem as DbDatasetItems,
+  type DatasetRunItems as DbDatasetRunItems,
+  removeObjectKeys,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -10,7 +15,7 @@ import { z } from "zod";
  * Objects
  */
 
-const Dataset = z
+const APIDataset = z
   .object({
     id: z.string(),
     projectId: z.string(),
@@ -22,7 +27,7 @@ const Dataset = z
   })
   .strict();
 
-const DatasetRun = z
+const APIDatasetRun = z
   .object({
     datasetName: z.string(),
     id: z.string(),
@@ -35,7 +40,7 @@ const DatasetRun = z
   })
   .strict();
 
-const DatasetRunItem = z
+const APIDatasetRunItem = z
   .object({
     datasetRunName: z.string(),
     id: z.string(),
@@ -48,7 +53,7 @@ const DatasetRunItem = z
   })
   .strict();
 
-const DatasetItem = z
+const APIDatasetItem = z
   .object({
     datasetName: z.string(),
     id: z.string(),
@@ -65,6 +70,25 @@ const DatasetItem = z
   .strict();
 
 /**
+ * Transforms
+ */
+
+export const transformDbDatasetRunToAPIDatasetRun = (
+  dbDatasetRun: DbDatasetRuns & { datasetName: string },
+): z.infer<typeof APIDatasetRun> =>
+  removeObjectKeys(dbDatasetRun, ["projectId"]);
+
+export const transformDbDatasetItemToAPIDatasetItem = (
+  dbDatasetItem: DbDatasetItems & { datasetName: string },
+): z.infer<typeof APIDatasetItem> =>
+  removeObjectKeys(dbDatasetItem, ["projectId"]);
+
+export const transformDbDatasetRunItemToAPIDatasetRunItem = (
+  dbDatasetRunItem: DbDatasetRunItems & { datasetRunName: string },
+): z.infer<typeof APIDatasetRunItem> =>
+  removeObjectKeys(dbDatasetRunItem, ["projectId"]);
+
+/**
  * Endpoints
  */
 
@@ -74,15 +98,15 @@ export const PostDatasetsV2Body = z.object({
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
 });
-export const PostDatasetsV2Response = Dataset.strict();
+export const PostDatasetsV2Response = APIDataset.strict();
 
 // GET /v2/datasets
 export const GetDatasetsV2Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetsV2Response = z
   .object({
-    data: z.array(Dataset),
+    data: z.array(APIDataset),
     meta: paginationMetaResponseZod,
   })
   .strict();
@@ -91,16 +115,16 @@ export const GetDatasetsV2Response = z
 export const GetDatasetV2Query = z.object({
   datasetName: queryStringZod,
 });
-export const GetDatasetV2Response = Dataset.strict();
+export const GetDatasetV2Response = APIDataset.strict();
 
 // GET /datasets/{name}/runs
 export const GetDatasetRunsV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetRunsV1Response = z
   .object({
-    data: z.array(DatasetRun),
+    data: z.array(APIDatasetRun),
     meta: paginationMetaResponseZod,
   })
   .strict();
@@ -110,8 +134,8 @@ export const GetDatasetRunV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1
   runName: queryStringZod,
 });
-export const GetDatasetRunV1Response = DatasetRun.extend({
-  datasetRunItems: z.array(DatasetRunItem),
+export const GetDatasetRunV1Response = APIDatasetRun.extend({
+  datasetRunItems: z.array(APIDatasetRunItem),
 }).strict();
 
 // POST /dataset-items
@@ -125,18 +149,18 @@ export const PostDatasetItemsV1Body = z.object({
   sourceObservationId: z.string().nullish(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).nullish(),
 });
-export const PostDatasetItemsV1Response = DatasetItem.strict();
+export const PostDatasetItemsV1Response = APIDatasetItem.strict();
 
 // GET /dataset-items
 export const GetDatasetItemsV1Query = z.object({
   datasetName: z.string().nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
-  ...paginationZod,
+  ...publicApiPaginationZod,
 });
 export const GetDatasetItemsV1Response = z
   .object({
-    data: z.array(DatasetItem),
+    data: z.array(APIDatasetItem),
     meta: paginationMetaResponseZod,
   })
   .strict();
@@ -145,7 +169,7 @@ export const GetDatasetItemsV1Response = z
 export const GetDatasetItemV1Query = z.object({
   datasetItemId: z.string(),
 });
-export const GetDatasetItemV1Response = DatasetItem.strict();
+export const GetDatasetItemV1Response = APIDatasetItem.strict();
 
 // POST /dataset-run-items
 export const PostDatasetRunItemsV1Body = z
@@ -162,7 +186,7 @@ export const PostDatasetRunItemsV1Body = z
     message: "observationId or traceId must be provided",
     path: ["observationId", "traceId"], // Specify the path of the error
   });
-export const PostDatasetRunItemsV1Response = DatasetRunItem.strict();
+export const PostDatasetRunItemsV1Response = APIDatasetRunItem.strict();
 
 /**
  * Deprecated endpoints replaced with v2, available for backward compatibility
@@ -174,9 +198,9 @@ export const PostDatasetsV1Body = z.object({
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
 });
-export const PostDatasetsV1Response = Dataset.extend({
-  items: z.array(DatasetItem),
-  runs: z.array(DatasetRun),
+export const PostDatasetsV1Response = APIDataset.extend({
+  items: z.array(APIDatasetItem),
+  runs: z.array(APIDatasetRun),
 }).strict();
 
 // GET /datasets
@@ -186,7 +210,7 @@ export const GetDatasetsV1Query = z.object({
 export const GetDatasetsV1Response = z
   .object({
     data: z.array(
-      Dataset.extend({
+      APIDataset.extend({
         items: z.array(z.string()), // dataset item ids
         runs: z.array(z.string()), // dataset run names
       }),
@@ -199,7 +223,7 @@ export const GetDatasetsV1Response = z
 export const GetDatasetV1Query = z.object({
   name: queryStringZod,
 });
-export const GetDatasetV1Response = Dataset.extend({
-  items: z.array(DatasetItem),
+export const GetDatasetV1Response = APIDataset.extend({
+  items: z.array(APIDatasetItem),
   runs: z.array(z.string()), // dataset run names
 }).strict();

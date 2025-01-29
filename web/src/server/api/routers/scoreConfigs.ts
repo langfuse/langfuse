@@ -1,17 +1,19 @@
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { z } from "zod";
+
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { optionalPaginationZod } from "@langfuse/shared";
-
-import { ScoreDataType } from "@langfuse/shared/src/db";
-import { z } from "zod";
 import {
-  filterAndValidateDbScoreConfigList,
   Category,
+  filterAndValidateDbScoreConfigList,
+  optionalPaginationZod,
   validateDbScoreConfig,
-} from "@/src/features/public-api/types/score-configs";
+} from "@langfuse/shared";
+import { ScoreDataType } from "@langfuse/shared/src/db";
+import { traceException } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const ScoreConfigAllInput = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -25,33 +27,34 @@ export const scoreConfigsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(ScoreConfigAllInputPaginated)
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:read",
       });
 
-      const configs = await ctx.prisma.scoreConfig.findMany({
-        where: {
-          projectId: input.projectId,
-        },
-        ...(input.limit !== undefined && input.page !== undefined
-          ? { take: input.limit, skip: input.page * input.limit }
-          : undefined),
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
-      const configsCount = await ctx.prisma.scoreConfig.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const [configs, totalCount] = await Promise.all([
+        ctx.prisma.scoreConfig.findMany({
+          where: {
+            projectId: input.projectId,
+          },
+          ...(input.limit !== undefined && input.page !== undefined
+            ? { take: input.limit, skip: input.page * input.limit }
+            : undefined),
+          orderBy: {
+            createdAt: "desc",
+          },
+        }),
+        ctx.prisma.scoreConfig.count({
+          where: {
+            projectId: input.projectId,
+          },
+        }),
+      ]);
 
       return {
-        configs: filterAndValidateDbScoreConfigList(configs),
-        totalCount: configsCount,
+        configs: filterAndValidateDbScoreConfigList(configs, traceException),
+        totalCount,
       };
     }),
   create: protectedProjectProcedure
@@ -67,7 +70,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:CUD",
@@ -77,6 +80,14 @@ export const scoreConfigsRouter = createTRPCRouter({
         data: {
           ...input,
         },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "scoreConfig",
+        resourceId: config.id,
+        action: "create",
+        after: config,
       });
 
       return validateDbScoreConfig(config);
@@ -90,11 +101,21 @@ export const scoreConfigsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "scoreConfigs:CUD",
       });
+
+      const existingConfig = await ctx.prisma.scoreConfig.findFirst({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+        },
+      });
+      if (!existingConfig) {
+        throw new Error("No score config with this id in this project.");
+      }
 
       const config = await ctx.prisma.scoreConfig.update({
         where: {
@@ -104,6 +125,15 @@ export const scoreConfigsRouter = createTRPCRouter({
         data: {
           isArchived: input.isArchived,
         },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "scoreConfig",
+        resourceId: config.id,
+        action: "update",
+        before: existingConfig,
+        after: config,
       });
 
       return validateDbScoreConfig(config);

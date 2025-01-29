@@ -9,19 +9,19 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { QuickstartExamples } from "@/src/features/public-api/components/QuickstartExamples";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { env } from "@/src/env.mjs";
 
 export function CreateApiKeyButton(props: { projectId: string }) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "apiKeys:create",
+    scope: "apiKeys:CUD",
   });
-
-  const hostname = window.origin;
 
   const mutCreateApiKey = api.apiKeys.create.useMutation({
     onSuccess: () => utils.apiKeys.invalidate(),
@@ -71,29 +71,13 @@ export function CreateApiKeyButton(props: { projectId: string }) {
       >
         <DialogTitle>API Keys</DialogTitle>
         <div className="shrink overflow-x-hidden overflow-y-scroll">
-          <div className="mb-2">
-            <div className="text-md font-semibold">Secret Key</div>
-            <div className="my-2">
-              This key can only be viewed once. You can always generate a new
-              key.
-            </div>
-            <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
-          </div>
-          <div>
-            <div className="text-md mb-2 font-semibold">Public Key</div>
-            <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
-          </div>
-          <div>
-            <div className="text-md mb-2 font-semibold">Host</div>
-            <CodeView content={hostname} />
-          </div>
+          <ApiKeyRender generatedKeys={generatedKeys ?? undefined} />
           {generatedKeys && (
-            <div className="mb-2 max-w-full">
+            <div className="mt-4 max-w-full">
               <div className="text-md my-2 font-semibold">Usage</div>
               <QuickstartExamples
                 secretKey={generatedKeys.secretKey}
                 publicKey={generatedKeys.publicKey}
-                host={hostname}
               />
             </div>
           )}
@@ -102,3 +86,33 @@ export function CreateApiKeyButton(props: { projectId: string }) {
     </Dialog>
   );
 }
+
+export const ApiKeyRender = ({
+  generatedKeys,
+}: {
+  generatedKeys?: { secretKey: string; publicKey: string };
+}) => {
+  const uiCustomization = useUiCustomization();
+  return (
+    <>
+      <div className="mb-4">
+        <div className="text-md font-semibold">Secret Key</div>
+        <div className="my-2 text-sm">
+          This key can only be viewed once. You can always create new keys in
+          the project settings.
+        </div>
+        <CodeView content={generatedKeys?.secretKey ?? "Loading ..."} />
+      </div>
+      <div className="mb-4">
+        <div className="text-md mb-2 font-semibold">Public Key</div>
+        <CodeView content={generatedKeys?.publicKey ?? "Loading ..."} />
+      </div>
+      <div>
+        <div className="text-md mb-2 font-semibold">Host</div>
+        <CodeView
+          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
+        />
+      </div>
+    </>
+  );
+};

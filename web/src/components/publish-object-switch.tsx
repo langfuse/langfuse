@@ -1,6 +1,6 @@
 import { Switch } from "@/src/components/ui/switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { Link, LockIcon } from "lucide-react";
 import { useState } from "react";
@@ -11,7 +11,7 @@ export const PublishTraceSwitch = (props: {
   isPublic: boolean;
 }) => {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "objects:publish",
   });
@@ -44,7 +44,7 @@ export const PublishSessionSwitch = (props: {
   isPublic: boolean;
 }) => {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "objects:publish",
   });
@@ -93,7 +93,7 @@ const Base = (props: {
           "Loading.."
         ) : props.isPublic ? (
           <div
-            className="text-dark-green flex cursor-pointer items-center gap-1"
+            className="flex cursor-pointer items-center gap-1 text-dark-green"
             onClick={() => copyUrl()}
           >
             {isCopied ? "Link copied ..." : "Public"}

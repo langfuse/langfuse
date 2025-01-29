@@ -19,4 +19,6 @@ export function containsAnyMarkdown(...texts: string[]): boolean {
   return texts.some((text) => MARKDOWN_REGEX.test(text));
 }
 
-export const MarkdownSchema = z.string().refine(containsAnyMarkdown);
+const MarkdownSchema = z.string().refine(containsAnyMarkdown);
+
+export const StringOrMarkdownSchema = z.union([z.string(), MarkdownSchema]);

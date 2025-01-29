@@ -1,6 +1,16 @@
+export type UiColumnMapping = {
+  uiTableName: string;
+  uiTableId: string;
+  clickhouseTableName: string;
+  clickhouseSelect: string;
+  clickhouseTypeOverwrite?: string;
+  queryPrefix?: string;
+};
+
 export type OptionsDefinition = {
   value: string;
   count?: number;
+  displayValue?: string; // FIX: Temporary workaround: Used to display a different value than the actual value since multiSelect doesn't support key-value pairs
 };
 
 export type ColumnDefinition =
@@ -9,6 +19,7 @@ export type ColumnDefinition =
       id: string;
       type: "number" | "string" | "datetime" | "boolean";
       internal: string;
+      nullable?: boolean;
     }
   | {
       name: string;
@@ -16,6 +27,7 @@ export type ColumnDefinition =
       type: "stringOptions";
       options: Array<OptionsDefinition>;
       internal: string;
+      nullable?: boolean;
     }
   | {
       name: string;
@@ -23,6 +35,7 @@ export type ColumnDefinition =
       type: "arrayOptions";
       options: Array<OptionsDefinition>;
       internal: string;
+      nullable?: boolean;
     }
   | {
       name: string;
@@ -30,6 +43,7 @@ export type ColumnDefinition =
       type: "stringObject" | "numberObject";
       internal: string;
       keyOptions?: Array<string>;
+      nullable?: boolean;
     };
 
 export const tableNames = [
@@ -43,6 +57,7 @@ export const tableNames = [
   "sessions",
   "prompts",
   "users",
+  "dataset_items",
 ] as const;
 
 export type TableNames = (typeof tableNames)[number];

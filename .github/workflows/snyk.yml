@@ -1,5 +1,17 @@
 name: Snyk Container
-on: push
+on:
+  pull_request:
+    branches:
+      - "**"
+  push:
+    branches:
+      - main
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   snyk:
     runs-on: ubuntu-latest
@@ -8,17 +20,17 @@ jobs:
       - name: Build a Docker image
         run: docker compose -f docker-compose.build.yml up -d
 
-      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-server)
+      - name: Run Snyk to check Docker image for vulnerabilities (langfuse-web)
         continue-on-error: true
         uses: snyk/actions/docker@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-server
+          image: langfuse-langfuse-web
           args: --file=web/Dockerfile
 
       - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
           category: web
@@ -29,11 +41,11 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse-worker
+          image: langfuse-langfuse-worker
           args: --file=worker/Dockerfile
 
       - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
           category: worker

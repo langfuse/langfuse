@@ -1,1 +1,0 @@
-export { getSessionTableSQL } from "./getSessionTableSQL";

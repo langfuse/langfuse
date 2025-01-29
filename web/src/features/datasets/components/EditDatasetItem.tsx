@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { JsonEditor } from "@/src/components/json-editor";
 import { type RouterOutput } from "@/src/utils/types";
 
@@ -73,7 +73,7 @@ export const EditDatasetItem = ({
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "datasets:CUD",
   });
@@ -150,7 +150,7 @@ export const EditDatasetItem = ({
                         field.onChange(v);
                       }}
                       editable={hasAccess}
-                      className="max-h-[600px] overflow-y-auto"
+                      className="max-h-[500px] overflow-y-auto"
                     />
                   </FormControl>
                   <FormMessage />
@@ -171,7 +171,7 @@ export const EditDatasetItem = ({
                         field.onChange(v);
                       }}
                       editable={hasAccess}
-                      className="max-h-[600px] overflow-y-auto"
+                      className="max-h-[500px] overflow-y-auto"
                     />
                   </FormControl>
                   <FormMessage />
@@ -193,7 +193,7 @@ export const EditDatasetItem = ({
                       field.onChange(v);
                     }}
                     editable={hasAccess}
-                    className="max-h-[300px] overflow-y-auto"
+                    className="max-h-[200px] overflow-y-auto"
                   />
                 </FormControl>
                 <FormMessage />

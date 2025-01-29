@@ -5,6 +5,12 @@ export const utcDateOffsetByDays = (days: number) => {
   return date;
 };
 
+export const localtimeDateOffsetByDays = (days: number) => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return date;
+};
 export const utcDate = (localDateTime: Date) =>
   new Date(
     Date.UTC(
@@ -36,4 +42,38 @@ export const formatIntervalSeconds = (seconds: number, scale: number = 2) => {
   if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${seconds.toFixed(scale)}s`;
+};
+
+export const getShortLocalTimezone = () => {
+  return new Date()
+    .toLocaleTimeString("en-us", { timeZoneName: "short" })
+    .split(" ")[2];
+};
+
+export const getTimezoneDetails = () => {
+  const longLocalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const location = longLocalTz.replace(/_/g, " ");
+  const utcDifference = -(new Date().getTimezoneOffset() / 60); // negative because TZ info is the opposite of UTC offset
+  return `${location} (UTC${utcDifference >= 0 ? "+" : ""}${utcDifference})`;
+};
+
+export const getRelativeTimestampFromNow = (timestamp: Date): string => {
+  const diffInMs = new Date().getTime() - timestamp.getTime();
+  const diffInMinutes = diffInMs / (1000 * 60);
+  const diffInHours = diffInMinutes / 60;
+  const diffInDays = diffInHours / 24;
+
+  if (diffInHours < 1) {
+    return `${Math.floor(diffInMinutes)} minutes ago`;
+  } else if (diffInHours < 24) {
+    return `${Math.floor(diffInHours)} hours ago`;
+  } else if (diffInDays < 7) {
+    return `${Math.floor(diffInDays)} days ago`;
+  } else {
+    return timestamp.toLocaleDateString("en-US", {
+      year: "2-digit",
+      month: "numeric",
+      day: "numeric",
+    });
+  }
 };

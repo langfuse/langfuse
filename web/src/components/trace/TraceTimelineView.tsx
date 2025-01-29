@@ -1,7 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { type Trace } from "@langfuse/shared";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import { isPresent, type APIScore, type Trace } from "@langfuse/shared";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
@@ -30,6 +29,8 @@ import {
 import { TracePreview } from "@/src/components/trace/TracePreview";
 import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { api } from "@/src/utils/api";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 800;
@@ -40,7 +41,8 @@ const MIN_LABEL_WIDTH = 250;
 const TREE_INDENTATION = 12; // default in MUI X TreeView
 
 const PREDEFINED_STEP_SIZES = [
-  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10,
+  0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
+  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500,
 ];
 
 const getNestedObservationKeys = (
@@ -74,28 +76,30 @@ function TreeItemInner({
   totalScaleSpan,
   type,
   startOffset = 0,
+  firstTokenTimeOffset,
   name,
   children,
   setBackgroundColor,
   level = 0,
   cardWidth,
 }: {
-  latency: number;
+  latency?: number;
   totalScaleSpan: number;
   type: TreeItemType;
   startOffset?: number;
+  firstTokenTimeOffset?: number;
   name?: string | null;
   children?: React.ReactNode;
   setBackgroundColor: (color: string) => void;
   level?: number;
   cardWidth: number;
 }) {
-  const itemWidth = (latency / totalScaleSpan) * SCALE_WIDTH;
+  const itemWidth = ((latency ?? 0) / totalScaleSpan) * SCALE_WIDTH;
   const itemOffsetLabelWidth = itemWidth + startOffset + LABEL_WIDTH;
   const customLabelWidth = cardWidth - SCALE_WIDTH - CARD_PADDING;
 
   return (
-    <div className="group my-1 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
+    <div className="group my-0.5 grid w-full min-w-fit grid-cols-[1fr,auto] items-center">
       <div
         className="flex flex-row items-center gap-2"
         style={{
@@ -104,7 +108,10 @@ function TreeItemInner({
         }}
       >
         <span
-          className={cn("rounded-sm p-1 text-xs", treeItemColors.get(type))}
+          className={cn(
+            "rounded-sm px-1 py-0.5 text-xs",
+            treeItemColors.get(type),
+          )}
         >
           {type}
         </span>
@@ -133,7 +140,7 @@ function TreeItemInner({
                 <PanelRightOpen className="h-4 w-4"></PanelRightOpen>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-1/2 w-full overflow-hidden md:w-3/5 lg:w-3/5 xl:w-3/5 2xl:w-3/5">
+            <DrawerContent className="overflow-hidden" size="md">
               {children}
             </DrawerContent>
           </Drawer>
@@ -142,31 +149,80 @@ function TreeItemInner({
       <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
         <div className={`relative w-[${SCALE_WIDTH}px]`}>
           <div className="ml-4 mr-4 h-full border-r-2"></div>
-          <div
-            className={cn(
-              "flex h-5 items-center justify-end rounded-sm",
-              itemWidth
-                ? treeItemColors.get(type)
-                : "border border-dashed bg-muted",
-            )}
-            style={{
-              width: `${itemWidth || 10}px`,
-              marginLeft: `${startOffset}px`,
-            }}
-          >
-            <span
+          {firstTokenTimeOffset ? (
+            <div className="flex" style={{ marginLeft: `${startOffset}px` }}>
+              <div
+                className={cn(
+                  "flex h-5 items-center justify-end rounded-l-sm border-r border-gray-400 opacity-60",
+                  itemWidth
+                    ? treeItemColors.get(type)
+                    : "border border-dashed bg-muted",
+                )}
+                style={{
+                  width: `${firstTokenTimeOffset - startOffset}px`,
+                }}
+              >
+                <span
+                  className={cn(
+                    "text text-xs font-light italic text-foreground group-hover:block",
+                    firstTokenTimeOffset - startOffset < 30 ? "-mr-14" : "mr-2",
+                  )}
+                >
+                  First token
+                </span>
+              </div>
+              <div
+                className={cn(
+                  "flex h-5 items-center justify-end rounded-r-sm",
+                  itemWidth
+                    ? treeItemColors.get(type)
+                    : "border border-dashed bg-muted",
+                )}
+                style={{
+                  width: `${itemWidth - (firstTokenTimeOffset - startOffset)}px`,
+                }}
+              >
+                <span
+                  className={cn(
+                    "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                    itemOffsetLabelWidth > SCALE_WIDTH
+                      ? "mr-1"
+                      : isPresent(latency)
+                        ? `-mr-9`
+                        : "-mr-6",
+                  )}
+                >
+                  {isPresent(latency) ? `${latency.toFixed(2)}s` : "n/a"}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div
               className={cn(
-                "hidden justify-end text-xs text-muted-foreground group-hover:block",
-                itemOffsetLabelWidth > SCALE_WIDTH
-                  ? "mr-1"
-                  : !!latency
-                    ? "-mr-9"
-                    : "-mr-6",
+                "flex h-5 items-center justify-end rounded-sm",
+                itemWidth
+                  ? treeItemColors.get(type)
+                  : "border border-dashed bg-muted",
               )}
+              style={{
+                width: `${itemWidth || 10}px`,
+                marginLeft: `${startOffset}px`,
+              }}
             >
-              {!!latency ? `${latency.toFixed(2)}s` : "n/a"}
-            </span>
-          </div>
+              <span
+                className={cn(
+                  "hidden justify-end text-xs text-muted-foreground group-hover:block",
+                  itemOffsetLabelWidth > SCALE_WIDTH
+                    ? "mr-1"
+                    : isPresent(latency)
+                      ? `-mr-9`
+                      : "-mr-6",
+                )}
+              >
+                {isPresent(latency) ? `${latency.toFixed(2)}s` : "n/a"}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -182,6 +238,7 @@ function TraceTreeItem({
   scores,
   observations,
   cardWidth,
+  commentCounts,
 }: {
   observation: NestedObservation;
   level: number;
@@ -191,16 +248,23 @@ function TraceTreeItem({
   scores: APIScore[];
   observations: Array<ObservationReturnType>;
   cardWidth: number;
+  commentCounts?: Map<string, number>;
 }) {
-  const { startTime, endTime } = observation || {};
+  const { startTime, completionStartTime, endTime } = observation || {};
   const [backgroundColor, setBackgroundColor] = useState("");
 
   const latency = endTime
     ? (endTime.getTime() - startTime.getTime()) / 1000
-    : 0;
+    : undefined;
   const startOffset =
     ((startTime.getTime() - traceStartTime.getTime()) / totalScaleSpan / 1000) *
     SCALE_WIDTH;
+  const firstTokenTimeOffset = completionStartTime
+    ? ((completionStartTime.getTime() - traceStartTime.getTime()) /
+        totalScaleSpan /
+        1000) *
+      SCALE_WIDTH
+    : undefined;
 
   return (
     <TreeItem
@@ -217,6 +281,7 @@ function TraceTreeItem({
           type={observation.type}
           name={observation.name}
           startOffset={startOffset}
+          firstTokenTimeOffset={firstTokenTimeOffset}
           totalScaleSpan={totalScaleSpan}
           setBackgroundColor={setBackgroundColor}
           level={level}
@@ -233,6 +298,7 @@ function TraceTreeItem({
                 projectId={projectId}
                 currentObservationId={observation.id}
                 traceId={observation.traceId}
+                commentCounts={commentCounts}
               />
             </div>
           </>
@@ -251,6 +317,7 @@ function TraceTreeItem({
               scores={scores}
               observations={observations}
               cardWidth={cardWidth}
+              commentCounts={commentCounts}
             />
           ))
         : null}
@@ -295,7 +362,7 @@ export function TraceTimelineView({
     };
   }, [parentRef]);
 
-  const nestedObservations = useMemo(
+  const { nestedObservations } = useMemo(
     () => nestObservations(observations),
     [observations],
   );
@@ -304,15 +371,51 @@ export function TraceTimelineView({
     [nestedObservations],
   );
 
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: trace.projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: trace.projectId,
+      objectId: trace.id,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
+
   if (!latency) return null;
 
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
 
   return (
-    <div ref={parentRef} className="w-full">
+    <div ref={parentRef} className="h-full w-full">
       <Card
-        className="flex max-h-[calc(100dvh-24rem)] flex-col overflow-x-auto overflow-y-hidden"
+        className="flex max-h-full flex-col overflow-x-auto overflow-y-hidden"
         style={{ width: cardWidth }}
       >
         <div className="grid w-full grid-cols-[1fr,auto] items-center p-2">
@@ -322,7 +425,7 @@ export function TraceTimelineView({
               minWidth: `${MIN_LABEL_WIDTH}px`,
             }}
           >
-            <h3 className="text-2xl font-semibold tracking-tight">
+            <h3 className="text-xl font-semibold tracking-tight">
               Trace Timeline
             </h3>
             <div className="flex h-full items-center">
@@ -363,7 +466,7 @@ export function TraceTimelineView({
                     className="absolute -right-2 text-xs text-muted-foreground"
                     key={index}
                   >
-                    {step.toFixed(2)}s
+                    {step.toFixed(latency.toString().length >= 8 ? 0 : 2)}s
                   </span>
                 ) : (
                   <div
@@ -415,6 +518,7 @@ export function TraceTimelineView({
                       trace={trace}
                       observations={observations}
                       scores={scores}
+                      commentCounts={traceCommentCounts.data}
                     />
                   </div>
                 </TreeItemInner>
@@ -432,6 +536,7 @@ export function TraceTimelineView({
                       scores={scores}
                       observations={observations}
                       cardWidth={cardWidth}
+                      commentCounts={observationCommentCounts.data}
                     />
                   ))
                 : null}

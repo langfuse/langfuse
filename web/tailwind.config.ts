@@ -24,7 +24,7 @@ module.exports = {
       colors: {
         "primary-accent": "hsl(var(--primary-accent))",
         "hover-primary-accent": "hsl(var(--hover-primary-accent))",
-        "muted-orange": "hsl(var(--muted-orange))",
+        "muted-magenta": "hsl(var(--muted-magenta))",
         "muted-blue": "hsl(var(--muted-blue))",
         "muted-green": "hsl(var(--muted-green))",
         "muted-gray": "hsl(var(--muted-gray))",
@@ -133,15 +133,23 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar-background))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          primary: "hsl(var(--sidebar-primary))",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
+          accent: "hsl(var(--sidebar-accent))",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+          border: "hsl(var(--sidebar-border))",
+          ring: "hsl(var(--sidebar-ring))",
+        },
       },
       boxShadow: {
-        // light
         "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
         "tremor-card":
           "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
         "tremor-dropdown":
           "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-        // dark
         "dark-tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
         "dark-tremor-card":
           "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
@@ -157,19 +165,34 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontSize: {
-        "tremor-label": ["0.75rem", { lineHeight: "1rem" }],
-        "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],
-        "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
-        "tremor-metric": ["1.875rem", { lineHeight: "2.25rem" }],
+        xs: "0.7rem",
+        sm: "0.825rem",
+        base: "0.9rem",
+        lg: "1.1rem",
+        xl: "1.2rem",
+        "2xl": "1.3rem",
+        "3xl": "1.5rem",
+        "tremor-label": ["0.7rem", { lineHeight: "1rem" }],
+        "tremor-default": ["0.825rem", { lineHeight: "1.25rem" }],
+        "tremor-title": ["0.9rem", { lineHeight: "1.75rem" }],
+        "tremor-metric": ["1.5rem", { lineHeight: "2.25rem" }],
       },
       keyframes: {
         "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+          from: {
+            height: "0",
+          },
+          to: {
+            height: "var(--radix-accordion-content-height)",
+          },
         },
         "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
+          from: {
+            height: "var(--radix-accordion-content-height)",
+          },
+          to: {
+            height: "0",
+          },
         },
       },
       animation: {

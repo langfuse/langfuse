@@ -4,17 +4,12 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import {
   LLMAdapter,
-  evalModelsByAdapter,
   supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
 
-export const useModelParams = ({
-  evalModelsOnly,
-}: {
-  evalModelsOnly?: boolean;
-} = {}) => {
+export const useModelParams = () => {
   const [modelParams, setModelParams] = useState<UIModelParams>({
     ...getDefaultAdapterParams(LLMAdapter.OpenAI),
     provider: { value: "", enabled: true },
@@ -31,8 +26,10 @@ export const useModelParams = ({
   );
 
   const availableProviders = useMemo(() => {
-    return availableLLMApiKeys.data?.data.map((key) => key.provider) ?? [];
-  }, [availableLLMApiKeys]);
+    const adapter = availableLLMApiKeys.data?.data ?? [];
+
+    return adapter.map((key) => key.provider) ?? [];
+  }, [availableLLMApiKeys.data?.data]);
 
   const selectedProviderApiKey = availableLLMApiKeys.data?.data.find(
     (key) => key.provider === modelParams.provider.value,
@@ -42,18 +39,13 @@ export const useModelParams = ({
     () =>
       !selectedProviderApiKey
         ? []
-        : evalModelsOnly
+        : selectedProviderApiKey.withDefaultModels
           ? [
-              ...evalModelsByAdapter[selectedProviderApiKey.adapter],
               ...selectedProviderApiKey.customModels,
+              ...supportedModels[selectedProviderApiKey.adapter],
             ]
-          : selectedProviderApiKey.withDefaultModels
-            ? [
-                ...selectedProviderApiKey.customModels,
-                ...supportedModels[selectedProviderApiKey.adapter],
-              ]
-            : selectedProviderApiKey.customModels,
-    [selectedProviderApiKey, evalModelsOnly],
+          : selectedProviderApiKey.customModels,
+    [selectedProviderApiKey],
   );
 
   const updateModelParamValue: ModelParamsContext["updateModelParamValue"] = (
@@ -163,6 +155,30 @@ function getDefaultAdapterParams(
         },
         temperature: { value: 0, enabled: true },
         maxTemperature: { value: 1, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
+      };
+
+    case LLMAdapter.Bedrock:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 0, enabled: true },
+        maxTemperature: { value: 1, enabled: true },
+        max_tokens: { value: 256, enabled: true },
+        top_p: { value: 1, enabled: true },
+      };
+
+    case LLMAdapter.VertexAI:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 1, enabled: true },
+        maxTemperature: { value: 2, enabled: true },
         max_tokens: { value: 256, enabled: true },
         top_p: { value: 1, enabled: true },
       };

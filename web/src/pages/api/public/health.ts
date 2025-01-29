@@ -1,8 +1,13 @@
 import { VERSION } from "@/src/constants";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { telemetry } from "@/src/features/telemetry";
-import { isSigtermReceived } from "@/src/utils/shutdown";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  convertDateToClickhouseDateTime,
+  logger,
+  queryClickhouse,
+  traceException,
+} from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(
@@ -13,49 +18,55 @@ export default async function handler(
     await runMiddleware(req, res, cors);
     await telemetry();
     const failIfNoRecentEvents = req.query.failIfNoRecentEvents === "true";
+    const failIfDatabaseUnavailable =
+      req.query.failIfDatabaseUnavailable === "true";
 
     try {
-      if (isSigtermReceived()) {
-        console.log(
-          "Health check failed: SIGTERM / SIGINT received, shutting down.",
-        );
-        return res.status(500).json({
-          status: "SIGTERM / SIGINT received, shutting down",
-          version: VERSION.replace("v", ""),
-        });
+      if (failIfDatabaseUnavailable) {
+        await prisma.$queryRaw`SELECT 1;`;
       }
-      await prisma.$queryRaw`SELECT 1;`;
+    } catch (e) {
+      logger.error("Couldn't connect to database", e);
+      traceException(e);
+      return res.status(503).json({
+        status: "Database not available",
+        version: VERSION.replace("v", ""),
+      });
+    }
 
+    try {
       if (failIfNoRecentEvents) {
-        const now = Date.now();
-        const trace = await prisma.trace.findFirst({
-          where: {
-            timestamp: {
-              gte: new Date(now - 180000), // 3 minutes ago
-              lte: new Date(now),
-            },
-          },
-          select: {
-            id: true,
-          },
-        });
-        const observation = await prisma.observation.findFirst({
-          where: {
-            startTime: {
-              gte: new Date(now - 180000), // 3 minutes ago
-              lte: new Date(now),
-            },
-          },
-          select: {
-            id: true,
+        const now = new Date();
+        const traces = await queryClickhouse({
+          query: `
+            SELECT id
+            FROM traces
+            WHERE created_at <= {now: DateTime64(3)}
+            AND created_at >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+            LIMIT 1
+          `,
+          params: {
+            now: convertDateToClickhouseDateTime(now),
           },
         });
-        if (!!!trace || !!!observation) {
+        const observations = await queryClickhouse({
+          query: `
+            SELECT id
+            FROM observations
+            WHERE created_at <= {now: DateTime64(3)}
+            AND created_at >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+            LIMIT 1
+          `,
+          params: {
+            now: convertDateToClickhouseDateTime(now),
+          },
+        });
+        if (traces.length === 0 || observations.length === 0) {
           return res.status(503).json({
             status: `No ${
-              !!!trace
+              traces.length === 0
                 ? "traces"
-                : !!!observation
+                : observations.length === 0
                   ? "observations"
                   : "<should not happen>"
             } within the last 3 minutes`,
@@ -64,14 +75,16 @@ export default async function handler(
         }
       }
     } catch (e) {
-      console.log("Health check failed: db not available", e);
+      logger.error("Couldn't fetch recent events", e);
+      traceException(e);
       return res.status(503).json({
-        status: "Database not available",
+        status: "Couldn't fetch recent events",
         version: VERSION.replace("v", ""),
       });
     }
   } catch (e) {
-    console.log("Health check failed: ", e);
+    traceException(e);
+    logger.error("Health check failed", e);
     return res.status(503).json({
       status: "Health check failed",
       version: VERSION.replace("v", ""),

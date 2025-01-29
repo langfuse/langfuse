@@ -6,25 +6,29 @@ import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import { type ScoreDataType, type Prisma } from "@langfuse/shared";
+import {
+  type ScoreDataType,
+  type Prisma,
+  type ConfigCategory,
+} from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/manual-scoring/lib/helpers";
+} from "@/src/features/scores/lib/helpers";
 import { Archive } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { type ConfigCategory } from "@/src/features/public-api/types/score-configs";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -73,7 +77,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     string[]
   >("emptySelectedConfigIds", []);
 
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "scoreConfigs:CUD",
   });
@@ -94,7 +98,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     limit: paginationState.pageSize,
   });
 
-  const totalCount = configs.data?.totalCount ?? 0;
+  const totalCount = configs.data?.totalCount ?? null;
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
     {
@@ -107,6 +111,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "dataType",
       id: "dataType",
       header: "Data Type",
+      size: 80,
       enableHiding: true,
     },
     {
@@ -114,6 +119,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       id: "range",
       header: "Range",
       enableHiding: true,
+      size: 300,
       cell: ({ row }) => {
         const range = getConfigRange(row.original);
 
@@ -153,6 +159,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       accessorKey: "isArchived",
       id: "isArchived",
       header: "Status",
+      size: 80,
       enableHiding: true,
       cell: ({ row }) => {
         const { isArchived } = row.original;
@@ -162,6 +169,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
     {
       accessorKey: "action",
       header: "Action",
+      size: 70,
+      isPinned: true,
       enableHiding: true,
       cell: ({ row }) => {
         const { id: configId, isArchived, name } = row.original;
@@ -224,16 +233,23 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       columns,
     );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<ScoreConfigTableRow>(
+    "scoreConfigsColumnOrder",
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
-      <Card className="mb-4 flex max-h-[calc(100dvh-30rem)] flex-col overflow-hidden">
+      <Card className="mb-4 flex max-h-[60dvh] flex-col overflow-hidden">
         <DataTable
           columns={columns}
           data={
@@ -265,12 +281,14 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                   }
           }
           pagination={{
-            pageCount: Math.ceil(totalCount / paginationState.pageSize),
+            totalCount,
             onChange: setPaginationState,
             state: paginationState,
           }}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
           rowHeight={rowHeight}
           className="gap-2"
           paginationClassName="-mx-2 mb-2"

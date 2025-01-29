@@ -13,8 +13,8 @@ import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FcGoogle } from "react-icons/fc";
-import { FaGithub } from "react-icons/fa";
-import { SiOkta, SiAuth0, SiAmazoncognito } from "react-icons/si";
+import { FaGithub, FaGitlab } from "react-icons/fa";
+import { SiOkta, SiAuth0, SiAmazoncognito, SiKeycloak } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
 import Head from "next/head";
@@ -27,11 +27,12 @@ import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPriv
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
-import { isAnySsoConfigured } from "@langfuse/ee/sso";
+import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { Shield } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { openChat } from "@/src/features/support-chat/chat";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -46,10 +47,13 @@ export type PageProps = {
     credentials: boolean;
     google: boolean;
     github: boolean;
+    githubEnterprise: boolean;
+    gitlab: boolean;
     okta: boolean;
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
+    keycloak: boolean;
     custom:
       | {
           name: string;
@@ -57,6 +61,7 @@ export type PageProps = {
       | false;
     sso: boolean;
   };
+  runningOnHuggingFaceSpaces: boolean;
   signUpDisabled: boolean;
 };
 
@@ -73,6 +78,13 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         github:
           env.AUTH_GITHUB_CLIENT_ID !== undefined &&
           env.AUTH_GITHUB_CLIENT_SECRET !== undefined,
+        githubEnterprise:
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID !== undefined &&
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET !== undefined &&
+          env.AUTH_GITHUB_ENTERPRISE_BASE_URL !== undefined,
+        gitlab:
+          env.AUTH_GITLAB_CLIENT_ID !== undefined &&
+          env.AUTH_GITLAB_CLIENT_SECRET !== undefined,
         okta:
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
@@ -90,6 +102,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_COGNITO_CLIENT_ID !== undefined &&
           env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
           env.AUTH_COGNITO_ISSUER !== undefined,
+        keycloak:
+          env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
+          env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
+          env.AUTH_KEYCLOAK_ISSUER !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -100,9 +116,15 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      runningOnHuggingFaceSpaces: env.NEXTAUTH_URL?.replace(
+        "/api/auth",
+        "",
+      ).endsWith(".hf.space"),
     },
   };
 };
+
+type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
 // Also used in src/pages/auth/sign-up.tsx
 export function SSOButtons({
@@ -113,9 +135,24 @@ export function SSOButtons({
   action?: string;
 }) {
   const capture = usePostHogClientCapture();
+  const [providerSigningIn, setProviderSigningIn] =
+    useState<NextAuthProvider | null>(null);
+
+  const handleSignIn = (provider: NextAuthProvider) => {
+    setProviderSigningIn(provider);
+    capture("sign_in:button_click", { provider });
+    signIn(provider)
+      .then(() => {
+        // do not reset loadingProvider here, as the page will reload
+      })
+      .catch((error) => {
+        console.error(error);
+        setProviderSigningIn(null);
+      });
+  };
 
   return (
-    // any authprovider from props is enanbles
+    // any authprovider from props is enabled
     Object.entries(authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
@@ -126,11 +163,9 @@ export function SSOButtons({
         <div className="flex flex-row flex-wrap items-center justify-center gap-4">
           {authProviders.google && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "google" });
-                void signIn("google");
-              }}
+              onClick={() => handleSignIn("google")}
               variant="secondary"
+              loading={providerSigningIn === "google"}
             >
               <FcGoogle className="mr-3" size={18} />
               Google
@@ -138,25 +173,39 @@ export function SSOButtons({
           )}
           {authProviders.github && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "github" });
-                void signIn("github");
-              }}
+              onClick={() => handleSignIn("github")}
               variant="secondary"
+              loading={providerSigningIn === "github"}
             >
               <FaGithub className="mr-3" size={18} />
               Github
             </Button>
           )}
+          {authProviders.githubEnterprise && (
+            <Button
+              onClick={() => handleSignIn("github-enterprise")}
+              variant="secondary"
+              loading={providerSigningIn === "github-enterprise"}
+            >
+              <FaGithub className="mr-3" size={18} />
+              Github Enterprise
+            </Button>
+          )}
+          {authProviders.gitlab && (
+            <Button
+              onClick={() => handleSignIn("gitlab")}
+              variant="secondary"
+              loading={providerSigningIn === "gitlab"}
+            >
+              <FaGitlab className="mr-3" size={18} />
+              Gitlab
+            </Button>
+          )}
           {authProviders.azureAd && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", {
-                  provider: "azure-ad",
-                });
-                void signIn("azure-ad");
-              }}
+              onClick={() => handleSignIn("azure-ad")}
               variant="secondary"
+              loading={providerSigningIn === "azure-ad"}
             >
               <TbBrandAzure className="mr-3" size={18} />
               Azure AD
@@ -164,11 +213,9 @@ export function SSOButtons({
           )}
           {authProviders.okta && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "okta" });
-                void signIn("okta");
-              }}
+              onClick={() => handleSignIn("okta")}
               variant="secondary"
+              loading={providerSigningIn === "okta"}
             >
               <SiOkta className="mr-3" size={18} />
               Okta
@@ -176,11 +223,9 @@ export function SSOButtons({
           )}
           {authProviders.auth0 && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "auth0" });
-                void signIn("auth0");
-              }}
+              onClick={() => handleSignIn("auth0")}
               variant="secondary"
+              loading={providerSigningIn === "auth0"}
             >
               <SiAuth0 className="mr-3" size={18} />
               Auth0
@@ -188,23 +233,31 @@ export function SSOButtons({
           )}
           {authProviders.cognito && (
             <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "cognito" });
-                void signIn("cognito");
-              }}
+              onClick={() => handleSignIn("cognito")}
               variant="secondary"
+              loading={providerSigningIn === "cognito"}
             >
               <SiAmazoncognito className="mr-3" size={18} />
               Cognito
             </Button>
           )}
-          {authProviders.custom && (
+          {authProviders.keycloak && (
             <Button
               onClick={() => {
-                capture("sign_in:button_click", { provider: "custom" });
-                void signIn("custom");
+                capture("sign_in:button_click", { provider: "keycloak" });
+                void signIn("keycloak");
               }}
               variant="secondary"
+            >
+              <SiKeycloak className="mr-3" size={18} />
+              Keycloak
+            </Button>
+          )}
+          {authProviders.custom && (
+            <Button
+              onClick={() => handleSignIn("custom")}
+              variant="secondary"
+              loading={providerSigningIn === "custom"}
             >
               <TbBrandOauth className="mr-3" size={18} />
               {authProviders.custom.name}
@@ -216,6 +269,33 @@ export function SSOButtons({
   );
 }
 
+/**
+ * Redirect to HuggingFace Spaces auth page (/auth/hf-spaces) if running in an iframe on a HuggingFace host.
+ * The iframe detection needs to happen client-side since window/document objects are not available during SSR.
+ * @param runningOnHuggingFaceSpaces - whether the app is running on a HuggingFace spaces, needs to be checked server-side
+ */
+export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const isInIframe = () => {
+      try {
+        return window.self !== window.top;
+      } catch (e) {
+        return true;
+      }
+    };
+
+    if (
+      runningOnHuggingFaceSpaces &&
+      typeof window !== "undefined" &&
+      isInIframe()
+    ) {
+      void router.push("/auth/hf-spaces");
+    }
+  }, [router, runningOnHuggingFaceSpaces]);
+}
+
 const signInErrors = [
   {
     code: "OAuthAccountNotLinked",
@@ -224,8 +304,13 @@ const signInErrors = [
   },
 ];
 
-export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
+export default function SignIn({
+  authProviders,
+  signUpDisabled,
+  runningOnHuggingFaceSpaces,
+}: PageProps) {
   const router = useRouter();
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =
@@ -319,11 +404,14 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
     }
     // current email domain
     const domain = email.data.split("@")[1]?.toLowerCase();
-    const res = await fetch("/api/auth/check-sso", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ domain }),
-    });
+    const res = await fetch(
+      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/check-sso`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      },
+    );
 
     if (!res.ok) {
       setCredentialsFormError("SSO is not enabled for this domain.");
@@ -348,9 +436,24 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
           </h2>
         </div>
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+          <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
+            If you are experiencing issues signing in, please force refresh this
+            page (CMD + SHIFT + R) or clear your browser cache. We are working
+            on a solution.{" "}
+            <span
+              className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
+              onClick={openChat}
+            >
+              (contact us)
+            </span>
+          </div>
+        )}
+
+        <CloudRegionSwitch />
+
+        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <div className="space-y-6">
-            <CloudRegionSwitch />
             {authProviders.credentials ? (
               <Form {...credentialsForm}>
                 <form
@@ -381,6 +484,7 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                           <Link
                             href="/auth/reset-password"
                             className="ml-1 text-xs text-primary-accent hover:text-hover-primary-accent"
+                            tabIndex={-1}
                             title="What is this?"
                           >
                             (forgot password?)
@@ -407,35 +511,42 @@ export default function SignIn({ authProviders, signUpDisabled }: PageProps) {
                 </form>
               </Form>
             ) : null}
-            <div className="flex flex-row gap-3">
-              <Button
-                className="w-full"
-                loading={credentialsForm.formState.isSubmitting}
-                disabled={
-                  env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                  turnstileToken === undefined
-                }
-                onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
-                data-testid="submit-email-password-sign-in-form"
-              >
-                Sign in
-              </Button>
-              {authProviders.sso && (
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  loading={ssoLoading}
-                  disabled={
-                    env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                    turnstileToken === undefined
-                  }
-                  onClick={handleSsoSignIn}
-                >
-                  <Shield className="mr-3" size={18} />
-                  SSO
-                </Button>
-              )}
-            </div>
+            {(authProviders.credentials || authProviders.sso) && (
+              <div className="flex flex-row gap-3">
+                {authProviders.credentials && (
+                  <Button
+                    className="w-full"
+                    loading={credentialsForm.formState.isSubmitting}
+                    disabled={
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === "" ||
+                      credentialsForm.watch("password") === ""
+                    }
+                    onClick={credentialsForm.handleSubmit(onCredentialsSubmit)}
+                    data-testid="submit-email-password-sign-in-form"
+                  >
+                    Sign in
+                  </Button>
+                )}
+                {authProviders.sso && (
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    loading={ssoLoading}
+                    disabled={
+                      (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+                        turnstileToken === undefined) ||
+                      credentialsForm.watch("email") === ""
+                    }
+                    onClick={handleSsoSignIn}
+                  >
+                    <Shield className="mr-3" size={18} />
+                    SSO
+                  </Button>
+                )}
+              </div>
+            )}
             {credentialsFormError ? (
               <div className="text-center text-sm font-medium text-destructive">
                 {credentialsFormError}

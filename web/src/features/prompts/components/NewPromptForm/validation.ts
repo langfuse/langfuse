@@ -1,14 +1,7 @@
 import { z } from "zod";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
-import { ChatMessageRole } from "@langfuse/shared";
-
-const ChatMessageSchema = z.object({
-  role: z.nativeEnum(ChatMessageRole),
-  content: z.string(),
-});
-
-export const ChatMessageListSchema = z.array(ChatMessageSchema);
-export const TextPromptSchema = z.string().min(1, "Enter a prompt");
+import { ChatMessageListSchema, TextPromptSchema } from "@langfuse/shared";
+import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
 const NewPromptBaseSchema = z.object({
   name: z.string().min(1, "Enter a name"),
@@ -16,6 +9,12 @@ const NewPromptBaseSchema = z.object({
     required_error: "Enter whether the prompt should go live",
   }),
   config: z.string().refine(validateJson, "Config needs to be valid JSON"),
+  commitMessage: z
+    .string()
+    .trim()
+    .min(1)
+    .max(COMMIT_MESSAGE_MAX_LENGTH)
+    .optional(),
 });
 
 const NewChatPromptSchema = NewPromptBaseSchema.extend({
@@ -39,7 +38,7 @@ export const NewPromptFormSchema = z.union([
 ]);
 export type NewPromptFormSchemaType = z.infer<typeof NewPromptFormSchema>;
 
-export const PromptContentSchema = z.union([
+export const PromptVariantSchema = z.union([
   z.object({
     type: z.literal(PromptType.Chat),
     prompt: ChatMessageListSchema,
@@ -49,7 +48,7 @@ export const PromptContentSchema = z.union([
     prompt: z.string(),
   }),
 ]);
-export type PromptContentType = z.infer<typeof PromptContentSchema>;
+export type PromptVariant = z.infer<typeof PromptVariantSchema>;
 
 function validateJson(content: string): boolean {
   try {

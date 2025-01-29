@@ -5,7 +5,15 @@ import { TracePreview } from "./TracePreview";
 
 import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectLabel,
+  SelectGroup,
+} from "@/src/components/ui/select";
+import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -22,26 +30,38 @@ import {
   Award,
   ChevronsDownUp,
   ChevronsUpDown,
+  FilterIcon,
   ListTree,
   Network,
-  Terminal,
+  Percent,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
-import Decimal from "decimal.js";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import { type APIScore, ObservationLevel } from "@langfuse/shared";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import {
+  TabsBar,
+  TabsBarContent,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
   trace: Trace;
   scores: APIScore[];
   projectId: string;
+  viewType?: "detailed" | "focused";
+  isValidObservationId?: boolean;
 }) {
+  const viewType = props.viewType ?? "detailed";
+  const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -53,9 +73,53 @@ export function Trace(props: {
     "scoresOnObservationTree",
     true,
   );
+  const [
+    colorCodeMetricsOnObservationTree,
+    setColorCodeMetricsOnObservationTree,
+  ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
 
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
+  );
+
+  const [minObservationLevel, setMinObservationLevel] =
+    useState<ObservationLevel>(ObservationLevel.DEFAULT);
+
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    props.projectId,
+  );
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectId: props.trace.id,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: isAuthenticatedAndProjectMember,
+    },
   );
 
   const toggleCollapsedObservation = useCallback(
@@ -102,6 +166,7 @@ export function Trace(props: {
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
     setCollapsedObservations([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -114,16 +179,20 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
+            commentCounts={traceCommentCounts.data}
+            viewType={viewType}
           />
-        ) : (
+        ) : isValidObservationId ? (
           <ObservationPreview
             observations={props.observations}
             scores={props.scores}
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
+            commentCounts={observationCommentCounts.data}
+            viewType={viewType}
           />
-        )}
+        ) : null}
       </div>
       <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
         <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
@@ -135,7 +204,7 @@ export function Trace(props: {
               });
               setScoresOnObservationTree(e);
             }}
-            size="sm"
+            size="xs"
             title="Show scores"
           >
             <Award className="h-4 w-4" />
@@ -148,7 +217,7 @@ export function Trace(props: {
               });
               setMetricsOnObservationTree(e);
             }}
-            size="sm"
+            size="xs"
             title="Show metrics"
           >
             {metricsOnObservationTree ? (
@@ -157,6 +226,44 @@ export function Trace(props: {
               <ChevronsUpDown className="h-4 w-4" />
             )}
           </Toggle>
+          <Toggle
+            pressed={colorCodeMetricsOnObservationTree}
+            onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
+            size="xs"
+            title="Color code metrics (>50% yellow, >75% red)"
+          >
+            <Percent className="h-4 w-4" />
+          </Toggle>
+          <Select
+            onValueChange={(v: ObservationLevel) => setMinObservationLevel(v)}
+            value={minObservationLevel}
+          >
+            <SelectTrigger
+              hideDownIcon
+              className="focus:ring-none h-auto w-auto border-none px-0 py-0 text-sm focus:outline-none focus:ring-0 focus:ring-offset-0"
+            >
+              <Toggle
+                pressed={colorCodeMetricsOnObservationTree}
+                onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
+                size="xs"
+                title="Color code metrics (>50% yellow, >75% red)"
+              >
+                <FilterIcon className="h-4 w-4" />
+              </Toggle>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel className="py-1 text-sm font-semibold">
+                  Min. Level
+                </SelectLabel>
+                {Object.values(ObservationLevel).map((level) => (
+                  <SelectItem value={level} key={level}>
+                    {level}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         <ObservationTree
@@ -171,6 +278,11 @@ export function Trace(props: {
           setCurrentObservationId={setCurrentObservationId}
           showMetrics={metricsOnObservationTree}
           showScores={scoresOnObservationTree}
+          colorCodeMetrics={colorCodeMetricsOnObservationTree}
+          observationCommentCounts={observationCommentCounts.data}
+          traceCommentCounts={traceCommentCounts.data}
+          minLevel={minObservationLevel}
+          setMinLevel={setMinObservationLevel}
           className="flex w-full flex-col overflow-y-auto"
         />
       </div>
@@ -178,15 +290,32 @@ export function Trace(props: {
   );
 }
 
-export function TracePage({ traceId }: { traceId: string }) {
+export function TracePage({
+  traceId,
+  timestamp,
+}: {
+  traceId: string;
+  timestamp?: Date;
+}) {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
-  const trace = api.traces.byId.useQuery(
-    { traceId },
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    router.query.projectId as string,
+  );
+  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+    {
+      traceId,
+      timestamp,
+      projectId: router.query.projectId as string,
+    },
     {
       retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
         return failureCount < 3;
       },
     },
@@ -202,25 +331,50 @@ export function TracePage({ traceId }: { traceId: string }) {
           skipBatch: true,
         },
       },
-      enabled: !!trace.data?.projectId && trace.isSuccess,
+      enabled:
+        !!trace.data?.projectId &&
+        trace.isSuccess &&
+        isAuthenticatedAndProjectMember,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     },
   );
 
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
 
-  const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
+  const totalCost = calculateDisplayTotalCost({
+    allObservations: trace.data?.observations ?? [],
+  });
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
     withDefault(StringParam, "details"),
   );
 
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
+
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
+
+  if (trace.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Trace not found"
+        message="The trace is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+
   if (!trace.data) return <div>loading...</div>;
+
   return (
-    <div className="flex flex-col overflow-hidden 2xl:container md:h-[calc(100vh-2rem)]">
+    <FullScreenPage>
       <Header
         title="Trace Detail"
         breadcrumb={[
@@ -244,7 +398,7 @@ export function TracePage({ traceId }: { traceId: string }) {
             />
             <DetailPageNav
               currentId={traceId}
-              path={(id) => {
+              path={(entry) => {
                 const { view, display, projectId } = router.query;
                 const queryParams = new URLSearchParams({
                   ...(typeof view === "string" ? { view } : {}),
@@ -253,18 +407,27 @@ export function TracePage({ traceId }: { traceId: string }) {
                 const queryParamString = Boolean(queryParams.size)
                   ? `?${queryParams.toString()}`
                   : "";
-                return `/project/${projectId as string}/traces/${id}${queryParamString}`;
+
+                const timestamp =
+                  entry.params && entry.params.timestamp
+                    ? encodeURIComponent(entry.params.timestamp)
+                    : undefined;
+
+                return `/project/${projectId as string}/traces/${entry.id}${queryParamString}${timestamp ? `?timestamp=${timestamp}` : ""}`;
               }}
               listKey="traces"
             />
-            <DeleteButton
-              itemId={traceId}
-              projectId={trace.data.projectId}
-              scope="traces:delete"
-              invalidateFunc={() => void utils.traces.all.invalidate()}
-              type="trace"
-              redirectUrl={`/project/${router.query.projectId as string}/traces`}
-            />
+            {hasTraceDeletionEntitlement && (
+              <DeleteButton
+                itemId={traceId}
+                projectId={trace.data.projectId}
+                scope="traces:delete"
+                invalidateFunc={() => void utils.traces.all.invalidate()}
+                type="trace"
+                redirectUrl={`/project/${router.query.projectId as string}/traces`}
+                deleteConfirmation={trace.data.name ?? ""}
+              />
+            )}
           </>
         }
       />
@@ -287,53 +450,45 @@ export function TracePage({ traceId }: { traceId: string }) {
             <Badge>User ID: {trace.data.userId}</Badge>
           </Link>
         ) : null}
-        <TraceAggUsageBadge observations={trace.data.observations} />
+        <AggUsageBadge observations={trace.data.observations} />
         {totalCost ? (
-          <Badge variant="outline">
-            Total cost: {usdFormatter(totalCost.toNumber())}
-          </Badge>
+          <Badge variant="outline">{usdFormatter(totalCost.toNumber())}</Badge>
         ) : undefined}
       </div>
-      <div className="mt-4 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
-        <div className="flex flex-row items-center gap-3 p-2.5">
-          Tags
+      <div className="mt-3 rounded-lg border bg-card font-semibold text-card-foreground">
+        <div className="flex flex-row items-center gap-3 px-3 py-1">
+          <span className="text-sm">Tags</span>
           <TagTraceDetailsPopover
             tags={trace.data.tags}
             availableTags={allTags}
             traceId={trace.data.id}
             projectId={trace.data.projectId}
             className="flex-wrap"
+            key={trace.data.id}
           />
         </div>
       </div>
-      <Tabs
+      <TabsBar
         value={selectedTab}
         onValueChange={(tab) => {
           setSelectedTab(tab);
           capture("trace_detail:display_mode_switch", { view: tab });
         }}
-        className="mt-2 flex w-full justify-end border-b bg-transparent"
       >
-        <TabsList className="bg-transparent py-0">
-          <TabsTrigger
-            value="details"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
+        <TabsBarList className="mt-2 w-full justify-end">
+          <TabsBarTrigger value="details">
             <Network className="mr-1 h-4 w-4"></Network>
             Tree
-          </TabsTrigger>
-          <TabsTrigger
-            value="timeline"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
+          </TabsBarTrigger>
+          <TabsBarTrigger value="timeline">
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
-            <Badge className="pointer-events-none ml-2 px-1.5">Beta</Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-      {selectedTab === "details" && (
-        <div className="mt-5 flex-1 overflow-hidden">
+          </TabsBarTrigger>
+        </TabsBarList>
+        <TabsBarContent
+          value="details"
+          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
+        >
           <Trace
             key={trace.data.id}
             trace={trace.data}
@@ -341,26 +496,11 @@ export function TracePage({ traceId }: { traceId: string }) {
             projectId={trace.data.projectId}
             observations={trace.data.observations}
           />
-        </div>
-      )}
-      {selectedTab === "timeline" && (
-        <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
-          <Alert>
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>New Trace Timeline (beta)</AlertTitle>
-            <AlertDescription>
-              We value your feedback! Share your thoughts on{" "}
-              <a
-                href="https://github.com/orgs/langfuse/discussions/2195"
-                target="_blank"
-                className="underline"
-                rel="noopener noreferrer"
-              >
-                GitHub discussions
-              </a>
-              .
-            </AlertDescription>
-          </Alert>
+        </TabsBarContent>
+        <TabsBarContent
+          value="timeline"
+          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
+        >
           <TraceTimelineView
             key={trace.data.id}
             trace={trace.data}
@@ -368,47 +508,8 @@ export function TracePage({ traceId }: { traceId: string }) {
             observations={trace.data.observations}
             projectId={trace.data.projectId}
           />
-        </div>
-      )}
-    </div>
+        </TabsBarContent>
+      </TabsBar>
+    </FullScreenPage>
   );
 }
-
-export const calculateDisplayTotalCost = (
-  observations: ObservationReturnType[],
-) => {
-  return observations.reduce(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      // if we don't have any calculated costs, we can't do anything
-      if (
-        !curr.calculatedTotalCost &&
-        !curr.calculatedInputCost &&
-        !curr.calculatedOutputCost
-      )
-        return prev;
-
-      // if we have either input or output cost, but not total cost, we can use that
-      if (
-        !curr.calculatedTotalCost &&
-        (curr.calculatedInputCost || curr.calculatedOutputCost)
-      ) {
-        return prev
-          ? prev.plus(
-              curr.calculatedInputCost ??
-                new Decimal(0).plus(
-                  curr.calculatedOutputCost ?? new Decimal(0),
-                ),
-            )
-          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
-      }
-
-      if (!curr.calculatedTotalCost) return prev;
-
-      // if we have total cost, we can use that
-      return prev
-        ? prev.plus(curr.calculatedTotalCost)
-        : curr.calculatedTotalCost;
-    },
-    undefined,
-  );
-};

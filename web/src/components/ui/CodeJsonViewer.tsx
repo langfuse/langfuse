@@ -9,25 +9,31 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 
 export function JSONView(props: {
-  isMarkdown?: boolean;
-  setIsMarkdown?: (isMarkdown: boolean) => void;
-  containsMarkdown?: boolean;
+  canEnableMarkdown?: boolean;
   json?: unknown;
   title?: string;
   className?: string;
   isLoading?: boolean;
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
+  media?: MediaReturnType[];
 }) {
   // some users ingest stringified json nested in json, parse it
   const [isCopied, setIsCopied] = useState(false);
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
+  const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
 
-  const handleMarkdownSelection = props.setIsMarkdown ?? (() => {});
+  const collapseStringsAfterLength =
+    props.collapseStringsAfterLength === null
+      ? 100_000_000 // if null, show all (100M chars)
+      : (props.collapseStringsAfterLength ?? 500);
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -48,24 +54,19 @@ export function JSONView(props: {
         >
           {props.title}
           <div className="flex items-center gap-1">
-            {!!props.setIsMarkdown && props.containsMarkdown && (
+            {props.canEnableMarkdown && (
               <Button
-                title={
-                  props.isMarkdown ? "Disable Markdown" : "Enable Markdown"
-                }
+                title="Enable Markdown"
                 variant="ghost"
                 type="button"
-                size="xs"
+                size="icon-xs"
                 onClick={() => {
-                  handleMarkdownSelection(!props.isMarkdown);
+                  setIsMarkdownEnabled(true);
                   capture("trace_detail:io_pretty_format_toggle_group", {
-                    renderMarkdown: props.isMarkdown,
+                    renderMarkdown: true,
                   });
                 }}
-                className={cn(
-                  "hover:bg-border",
-                  !props.isMarkdown && "opacity-50",
-                )}
+                className="opacity-50 hover:bg-border"
               >
                 <BsMarkdown className="h-4 w-4 text-foreground" />
               </Button>
@@ -73,10 +74,10 @@ export function JSONView(props: {
             <Button
               title="Copy to clipboard"
               variant="ghost"
-              size="xs"
+              size="icon-xs"
               type="button"
               onClick={handleCopy}
-              className="hover:bg-border"
+              className="-mr-2 hover:bg-border"
             >
               {isCopied ? (
                 <Check className="h-3 w-3" />
@@ -101,10 +102,14 @@ export function JSONView(props: {
             theme="github"
             dark={resolvedTheme === "dark"}
             collapseObjectsAfterLength={20}
-            collapseStringsAfterLength={
-              props.collapseStringsAfterLength === null
-                ? 100_000_000 // if null, show all (100M chars)
-                : props.collapseStringsAfterLength ?? 500
+            collapseStringsAfterLength={collapseStringsAfterLength}
+            collapseStringMode="word"
+            customizeCollapseStringUI={(fullSTring, truncated) =>
+              truncated ? (
+                <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+              ) : (
+                ""
+              )
             }
             displaySize={"collapsed"}
             matchesURL={true}
@@ -113,6 +118,22 @@ export function JSONView(props: {
           />
         )}
       </div>
+      {props.media && props.media.length > 0 && (
+        <>
+          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+            Media
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 pt-1">
+            {props.media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -136,7 +157,7 @@ export function CodeView(props: {
   const handleShowAll = () => setCollapsed(!isCollapsed);
 
   return (
-    <div className={cn("max-w-full rounded-md border ", props.className)}>
+    <div className={cn("max-w-full rounded-md border", props.className)}>
       {props.title ? (
         <div className="border-b px-3 py-1 text-xs font-medium">
           {props.title}
@@ -162,7 +183,12 @@ export function CodeView(props: {
               )}
             </Button>
           ) : undefined}
-          <Button variant="secondary" size="xs" onClick={handleCopy}>
+          <Button
+            variant="secondary"
+            size="icon-xs"
+            onClick={handleCopy}
+            className=""
+          >
             {isCopied ? (
               <Check className="h-3 w-3" />
             ) : (
@@ -189,11 +215,11 @@ export const IOTableCell = ({
   return (
     <>
       {isLoading ? (
-        <JsonSkeleton className="h-full w-[400px] overflow-hidden px-2 py-1" />
+        <JsonSkeleton className="h-full w-full overflow-hidden px-2 py-1" />
       ) : singleLine ? (
         <div
           className={cn(
-            "h-full w-[400px] self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
+            "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
             className,
           )}
         >
@@ -203,7 +229,7 @@ export const IOTableCell = ({
         <JSONView
           json={stringifyJsonNode(data)}
           className={cn(
-            "h-full w-[400px] self-stretch overflow-y-auto rounded-sm ",
+            "h-full w-full self-stretch overflow-y-auto rounded-sm",
             className,
           )}
           codeClassName="py-1 px-2"

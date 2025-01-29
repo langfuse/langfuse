@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { Filter, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Filter, Plus, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -28,6 +28,14 @@ import {
 import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/src/components/ui/command";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -38,7 +46,9 @@ export function PopoverFilterBuilder({
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
-  onChange: Dispatch<SetStateAction<FilterState>>;
+  onChange:
+    | Dispatch<SetStateAction<FilterState>>
+    | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
 }) {
   const capture = usePostHogClientCapture();
@@ -98,7 +108,10 @@ export function PopoverFilterBuilder({
             <Filter className="h-4 w-4" />
             <span className="hidden @6xl:ml-2 @6xl:inline">Filter</span>
             {filterState.length > 0 && filterState.length < 3 ? (
-              <InlineFilterState filterState={filterState} />
+              <InlineFilterState
+                filterState={filterState}
+                className="hidden @6xl:block"
+              />
             ) : null}
             {filterState.length > 0 && (
               <span
@@ -140,14 +153,19 @@ export function PopoverFilterBuilder({
 
 export function InlineFilterState({
   filterState,
+  className,
 }: {
   filterState: FilterState;
+  className?: string;
 }) {
   return filterState.map((filter, i) => {
     return (
       <span
         key={i}
-        className="ml-2 hidden whitespace-nowrap rounded-md bg-input px-2 py-1 text-xs @6xl:block"
+        className={cn(
+          "ml-2 whitespace-nowrap rounded-md bg-input px-2 py-1 text-xs",
+          className,
+        )}
       >
         {filter.column}
         {filter.type === "stringObject" || filter.type === "numberObject"
@@ -155,7 +173,7 @@ export function InlineFilterState({
           : ""}{" "}
         {filter.operator}{" "}
         {filter.type === "datetime"
-          ? new Date(filter.value).toLocaleDateString()
+          ? new Date(filter.value).toLocaleString()
           : filter.type === "stringOptions" || filter.type === "arrayOptions"
             ? filter.value.length > 2
               ? `${filter.value.length} selected`
@@ -208,6 +226,14 @@ export function InlineFilterBuilder({
     </div>
   );
 }
+
+const getOperator = (
+  type: NonNullable<WipFilterCondition["type"]>,
+): WipFilterCondition["operator"] => {
+  return filterOperators[type]?.length > 0
+    ? filterOperators[type][0]
+    : undefined;
+};
 
 function FilterBuilderForm({
   columns,
@@ -264,39 +290,68 @@ function FilterBuilderForm({
                 <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
                 <td className="flex gap-2 p-1">
                   {/* selector of the column to be filtered */}
-                  <Select
-                    value={column ? column.id : ""}
-                    disabled={disabled}
-                    onValueChange={(value) => {
-                      const col = columns.find((c) => c.id === value);
-                      handleFilterChange(
-                        {
-                          column: col?.name,
-                          type: col?.type,
-                          operator:
-                            // does not work as expected on eval-template form when embedded into form via InlineFilterBuilder
-                            // col?.type !== undefined &&
-                            // filterOperators[col.type]?.length > 0
-                            //   ? (filterOperators[col.type][0] as any) // operator matches type
-                            undefined,
-                          value: undefined,
-                          key: undefined,
-                        },
-                        i,
-                      );
-                    }}
-                  >
-                    <SelectTrigger className="min-w-[100px]">
-                      <SelectValue placeholder="Column" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {columns.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        type="button"
+                        disabled={disabled}
+                        className="w-full min-w-32 justify-between"
+                      >
+                        {column ? column.name : "Column"}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="max-w-fit p-0">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search for column"
+                          onFocus={(e) => (e.target.style.border = "none")}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No options found.</CommandEmpty>
+                          <CommandGroup>
+                            {columns.map((option) => (
+                              <CommandItem
+                                key={option.id}
+                                value={option.id}
+                                onSelect={(value) => {
+                                  const col = columns.find(
+                                    (c) => c.id === value,
+                                  );
+                                  const defaultOperator = col?.type
+                                    ? getOperator(col.type)
+                                    : undefined;
+
+                                  handleFilterChange(
+                                    {
+                                      column: col?.name,
+                                      type: col?.type,
+                                      operator: defaultOperator,
+                                      value: undefined,
+                                      key: undefined,
+                                    } as WipFilterCondition,
+                                    i,
+                                  );
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    option.id === column?.id
+                                      ? "visible"
+                                      : "invisible",
+                                  )}
+                                />
+                                {option.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {filter.type &&
                   (filter.type === "numberObject" ||
                     filter.type === "stringObject") &&
@@ -343,6 +398,8 @@ function FilterBuilderForm({
                   <Select
                     disabled={!filter.column || disabled}
                     onValueChange={(value) => {
+                      // protect against invalid empty operator values
+                      if (value === "") return;
                       handleFilterChange(
                         {
                           ...filter,
@@ -404,7 +461,7 @@ function FilterBuilderForm({
                     />
                   ) : filter.type === "datetime" ? (
                     <DatePicker
-                      className="min-w-[100px]"
+                      className="w-full"
                       disabled={disabled}
                       date={filter.value ? new Date(filter.value) : undefined}
                       onChange={(date) => {
@@ -416,6 +473,7 @@ function FilterBuilderForm({
                           i,
                         );
                       }}
+                      includeTimePicker
                     />
                   ) : filter.type === "stringOptions" ||
                     filter.type === "arrayOptions" ? (

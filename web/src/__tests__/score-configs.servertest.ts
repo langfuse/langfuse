@@ -14,7 +14,7 @@ import {
   GetScoreConfigResponse,
   PostScoreConfigResponse,
   GetScoreConfigsResponse,
-} from "@/src/features/public-api/types/score-configs";
+} from "@langfuse/shared";
 
 const configOne = [
   {

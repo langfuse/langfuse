@@ -1,9 +1,13 @@
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import {
+  NumberParam,
+  StringParam,
+  useQueryParam,
+  useQueryParams,
+  withDefault,
+} from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
 import { DataTable } from "@/src/components/table/data-table";
@@ -14,21 +18,18 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { type RouterInput, type RouterOutput } from "@/src/utils/types";
-import { type Score } from "@langfuse/shared";
-import { utcDateOffsetByDays } from "@/src/utils/dates";
+import { type RouterOutput } from "@/src/utils/types";
+import { type FilterState } from "@langfuse/shared";
 import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
-import { useTableLookBackDays } from "@/src/hooks/useTableLookBackDays";
-
-export type ScoreFilterInput = Omit<RouterInput["users"]["all"], "projectId">;
+import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 type RowData = {
   userId: string;
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
-  lastScore: Score | undefined;
   totalTokens: string;
   totalCost: string;
 };
@@ -38,15 +39,9 @@ export default function UsersPage() {
   const projectId = router.query.projectId as string;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [
-      {
-        column: "timestamp",
-        type: "datetime",
-        operator: ">",
-        value: utcDateOffsetByDays(-useTableLookBackDays(projectId)),
-      },
-    ],
+    [],
     "users",
+    projectId,
   );
 
   const { setDetailPageList } = useDetailPageLists();
@@ -56,19 +51,42 @@ export default function UsersPage() {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const { selectedOption, dateRange, setDateRangeAndOption } =
+    useTableDateRange(projectId);
+
+  const dateRangeFilter: FilterState = dateRange
+    ? [
+        {
+          column: "Timestamp",
+          type: "datetime",
+          operator: ">=",
+          value: dateRange.from,
+        },
+      ]
+    : [];
+
+  const filterState = userFilterState.concat(dateRangeFilter);
+
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
   const users = api.users.all.useQuery({
-    filter: userFilterState,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     projectId,
+    searchQuery: searchQuery ?? undefined,
   });
 
   // this API call will return an empty array if there are no users.
-  // Hence this adds one fast unnecessary API call if there are no users.
+  // Hence, this adds one fast unnecessary API call if there are no users.
   const userMetrics = api.users.metrics.useQuery(
     {
       projectId,
       userIds: users.data?.users.map((u) => u.userId) ?? [],
+      filter: filterState,
     },
     {
       enabled: users.isSuccess,
@@ -97,13 +115,15 @@ export default function UsersPage() {
     })),
   );
 
-  const totalCount = users.data?.totalUsers ?? 0;
+  const totalCount = users.data?.totalUsers
+    ? Number(users.data.totalUsers)
+    : null;
 
   useEffect(() => {
     if (users.isSuccess) {
       setDetailPageList(
         "users",
-        users.data.users.map((u) => encodeURIComponent(u.userId)),
+        users.data.users.map((u) => ({ id: encodeURIComponent(u.userId) })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,6 +134,7 @@ export default function UsersPage() {
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["userId"] = row.getValue("userId");
         return typeof value === "string" ? (
@@ -121,7 +142,6 @@ export default function UsersPage() {
             <TableLink
               path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
               value={value}
-              truncateAt={40}
             />
           </>
         ) : undefined;
@@ -130,6 +150,7 @@ export default function UsersPage() {
     {
       accessorKey: "firstEvent",
       header: "First Event",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
@@ -143,6 +164,7 @@ export default function UsersPage() {
     {
       accessorKey: "lastEvent",
       header: "Last Event",
+      size: 150,
       cell: ({ row }) => {
         const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
@@ -156,6 +178,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalEvents",
       header: "Total Events",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
@@ -169,6 +192,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalTokens",
       header: "Total Tokens",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
@@ -182,6 +206,7 @@ export default function UsersPage() {
     {
       accessorKey: "totalCost",
       header: "Total Cost",
+      size: 120,
       cell: ({ row }) => {
         const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
@@ -190,34 +215,6 @@ export default function UsersPage() {
         if (typeof value === "string") {
           return <>{value}</>;
         }
-      },
-    },
-    {
-      accessorKey: "lastScore",
-      header: "Last Score",
-      cell: ({ row }) => {
-        const value: RowData["lastScore"] = row.getValue("lastScore");
-        if (!userMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-
-        return (
-          <>
-            {value ? (
-              <div className="flex items-center gap-4">
-                <TableLink
-                  path={
-                    value.observationId
-                      ? `/project/${projectId}/traces/${value.traceId}?observation=${value.observationId}`
-                      : `/project/${projectId}/traces/${value.traceId}`
-                  }
-                  value={value.traceId}
-                />
-                <GroupedScoreBadges scores={[value]} />
-              </div>
-            ) : undefined}
-          </>
-        );
       },
     },
   ];
@@ -235,8 +232,15 @@ export default function UsersPage() {
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
-        setFilterState={setUserFilterState}
+        setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
+        selectedOption={selectedOption}
+        setDateRangeAndOption={setDateRangeAndOption}
+        searchConfig={{
+          placeholder: "Search by id",
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+        }}
       />
       <DataTable
         columns={columns}
@@ -258,15 +262,12 @@ export default function UsersPage() {
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
-                        t.lastObservation?.toLocaleString() ??
-                        t.lastTrace?.toLocaleString() ??
-                        "No event yet",
+                        t.lastTrace?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
                         Number(t.totalTraces ?? 0) +
                           Number(t.totalObservations ?? 0),
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
-                      lastScore: t.lastScore,
                       totalCost: usdFormatter(
                         t.sumCalculatedTotalCost ?? 0,
                         2,
@@ -277,7 +278,7 @@ export default function UsersPage() {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(Number(totalCount) / paginationState.pageSize),
+          totalCount,
           onChange: setPaginationState,
           state: paginationState,
         }}

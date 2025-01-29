@@ -52,10 +52,17 @@ service:
           configId:
             type: optional<string>
             docs: Retrieve only scores with a specific configId.
+          queueId:
+            type: optional<string>
+            docs: Retrieve only scores with a specific annotation queueId.
           dataType:
             type: optional<commons.ScoreDataType>
             docs: Retrieve only scores with a specific dataType.
-      response: Scores
+          traceTags:
+            type: optional<string>
+            allow-multiple: true
+            docs: Only scores linked to traces that include all of these tags will be returned.
+      response: GetScoresResponse
     get-by-id:
       docs: Get a score
       method: GET
@@ -132,7 +139,38 @@ types:
       id:
         type: string
         docs: The id of the created object in Langfuse
-  Scores:
+  GetScoresResponseTraceData:
     properties:
-      data: list<commons.Score>
+      userId:
+        type: optional<string>
+        docs: The user ID associated with the trace referenced by score
+      tags:
+        type: optional<list<string>>
+        docs: A list of tags associated with the trace referenced by score
+
+  GetScoresResponseDataNumeric:
+    extends: commons.NumericScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseDataCategorical:
+    extends: commons.CategoricalScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseDataBoolean:
+    extends: commons.BooleanScore
+    properties:
+      trace: GetScoresResponseTraceData
+
+  GetScoresResponseData:
+    discriminant: dataType
+    union:
+      NUMERIC: GetScoresResponseDataNumeric
+      CATEGORICAL: GetScoresResponseDataCategorical
+      BOOLEAN: GetScoresResponseDataBoolean
+
+  GetScoresResponse:
+    properties:
+      data: list<GetScoresResponseData>
       meta: pagination.MetaResponse

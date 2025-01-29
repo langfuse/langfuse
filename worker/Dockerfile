@@ -6,11 +6,11 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
-RUN npm install turbo@^1.13.3 --global
+RUN npm install turbo@^1.13.4 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@8.15.5 --activate
+RUN corepack prepare pnpm@9.5.0 --activate
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
@@ -35,6 +35,7 @@ RUN pnpm install --frozen-lockfile
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ARG NEXT_PUBLIC_DEMO_ORG_ID
 ARG NEXT_PUBLIC_DEMO_PROJECT_ID
 ARG NEXT_PUBLIC_POSTHOG_KEY
 ARG NEXT_PUBLIC_POSTHOG_HOST
@@ -44,11 +45,17 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
 
-
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
 
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+RUN apk add --no-cache dumb-init
+
 WORKDIR /app
+
+ARG NEXT_PUBLIC_BUILD_ID
+ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
@@ -58,9 +65,14 @@ RUN addgroup --system --gid 1001 expressjs
 RUN adduser --system --uid 1001 expressjs
 USER expressjs
 COPY --from=builder --chown=expressjs:expressjs /app .
+COPY --chown=expressjs:expressjs ./worker/entrypoint.sh ./worker/entrypoint.sh
+RUN chmod +x ./worker/entrypoint.sh
 
 EXPOSE 3030
 ENV PORT=3030
 
+ENTRYPOINT ["dumb-init", "--", "./worker/entrypoint.sh"]
+
+# startup command
 CMD ["node", "worker/dist/index.js"]
 

@@ -6,6 +6,7 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { getTracesBySessionId } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -14,7 +15,6 @@ export default withMiddlewares({
     responseSchema: GetSessionV1Response,
     fn: async ({ query, auth }) => {
       const { sessionId } = query;
-
       const session = await prisma.traceSession.findUnique({
         where: {
           id_projectId: {
@@ -26,7 +26,6 @@ export default withMiddlewares({
           id: true,
           createdAt: true,
           projectId: true,
-          traces: true,
         },
       });
 
@@ -36,7 +35,14 @@ export default withMiddlewares({
         );
       }
 
-      return session;
+      const traces = await getTracesBySessionId(auth.scope.projectId, [
+        sessionId,
+      ]);
+
+      return {
+        ...session,
+        traces,
+      };
     },
   }),
 });

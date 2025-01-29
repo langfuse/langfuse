@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { CreateLlmApiKey } from "@/src/features/llm-api-key/types";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -9,15 +9,21 @@ import {
 import {
   type ChatMessage,
   LLMApiKeySchema,
-  fetchLLMCompletion,
   ChatMessageRole,
   supportedModels,
+  GCPServiceAccountKeySchema,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { isEeEnabled } from "@/src/ee/utils/isEeEnabled";
+import {
+  fetchLLMCompletion,
+  LLMAdapter,
+  logger,
+} from "@langfuse/shared/src/server";
 
 export function getDisplaySecretKey(secretKey: string) {
-  return "..." + secretKey.slice(-4);
+  return secretKey.endsWith('"}')
+    ? "..." + secretKey.slice(-6, -2)
+    : "..." + secretKey.slice(-4);
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
@@ -25,12 +31,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
-        if (!isEeEnabled) {
-          throw new Error(
-            "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-          );
-        }
-        throwIfNoAccess({
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "llmApiKeys:create",
@@ -40,12 +41,19 @@ export const llmApiKeyRouter = createTRPCRouter({
           data: {
             projectId: input.projectId,
             secretKey: encrypt(input.secretKey),
+            extraHeaders: input.extraHeaders
+              ? encrypt(JSON.stringify(input.extraHeaders))
+              : undefined,
+            extraHeaderKeys: input.extraHeaders
+              ? Object.keys(input.extraHeaders)
+              : undefined,
             adapter: input.adapter,
             displaySecretKey: getDisplaySecretKey(input.secretKey),
             provider: input.provider,
             baseURL: input.baseURL,
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
+            config: input.config,
           },
         });
 
@@ -56,7 +64,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "create",
         });
       } catch (e) {
-        console.log(e);
+        logger.error(e);
         throw e;
       }
     }),
@@ -68,12 +76,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      if (!isEeEnabled) {
-        throw new Error(
-          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-        );
-      }
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:delete",
@@ -100,23 +103,22 @@ export const llmApiKeyRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      if (!isEeEnabled) {
-        throw new Error(
-          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-        );
-      }
-
-      throwIfNoAccess({
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
 
       const apiKeys = z
-        .array(LLMApiKeySchema.extend({ secretKey: z.undefined() }))
+        .array(
+          LLMApiKeySchema.extend({
+            secretKey: z.undefined(),
+            extraHeaders: z.undefined(),
+          }),
+        )
         .parse(
           await ctx.prisma.llmApiKeys.findMany({
-            // we must not return the secret key via the API, hence not selected
+            // we must not return the secret key AND extra headers via the API, hence not selected
             select: {
               id: true,
               createdAt: true,
@@ -128,6 +130,7 @@ export const llmApiKeyRouter = createTRPCRouter({
               baseURL: true,
               customModels: true,
               withDefaultModels: true,
+              extraHeaderKeys: true,
             },
             where: {
               projectId: input.projectId,
@@ -150,18 +153,20 @@ export const llmApiKeyRouter = createTRPCRouter({
   test: protectedProjectProcedure
     .input(CreateLlmApiKey)
     .mutation(async ({ input }) => {
-      if (!isEeEnabled) {
-        throw new Error(
-          "LLM API keys are only required for model-based evaluations and the playground. Both are not yet available in the v2 open-source version.",
-        );
-      }
-
       try {
         const model = input.customModels?.length
           ? input.customModels[0]
           : supportedModels[input.adapter][0];
 
         if (!model) throw Error("No model found");
+
+        if (input.adapter === LLMAdapter.VertexAI) {
+          const parsed = GCPServiceAccountKeySchema.safeParse(
+            JSON.parse(input.secretKey),
+          );
+          if (!parsed.success)
+            throw Error("Invalid GCP service account JSON key");
+        }
 
         const testMessages: ChatMessage[] = [
           { role: ChatMessageRole.System, content: "You are a bot" },
@@ -176,14 +181,16 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
           baseURL: input.baseURL,
           apiKey: input.secretKey,
+          extraHeaders: input.extraHeaders,
           messages: testMessages,
           streaming: false,
           maxRetries: 1,
+          config: input.config,
         });
 
         return { success: true };
       } catch (err) {
-        console.log(err);
+        logger.error(err);
 
         return {
           success: false,

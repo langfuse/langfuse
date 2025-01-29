@@ -53,9 +53,7 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ### Architecture Overview
 
-> [!NOTE]
-> Infrastructure will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
-> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x.
+**Langfuse v2**
 
 ```mermaid
 flowchart TB
@@ -93,15 +91,70 @@ flowchart TB
         I --- Prisma
     end
 
-    subgraph s5["Application (langfuse/langfuse/worker)"]
-        Worker_API[Public HTTP API]
+    Prisma --- DB
+    JS --- API
+    Python --- API
+```
+
+**Langfuse v3 (work in progress, not released yet)**
+
+> [!NOTE]
+> Infrastructure will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
+> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x.
+
+```mermaid
+flowchart TB
+    subgraph s4["Clients"]
+        subgraph s2["langfuse/langfuse-python"]
+            Python["Python low-level SDK"]
+            Decorator["observe() decorator"] -->|extends| Python
+            OAI["OpenAI drop-in replacement"] -->|extends| Python
+            Llamaindex["LlamaIndex Integration"] -->|extends| Python
+            LCPYTHON["Langchain Python Integration"] -->|extends| Python
+            Langflow -->|uses| LCPYTHON
+            LiteLLM -->|uses| Python
+        end
+        subgraph s3["langfuse/langfuse-js"]
+            JS["JS SDK"]
+            LCJS["Langchain JS Integration"]  -->|extends| JS
+            Flowise -->|uses| LCJS
+        end
     end
 
-    API --> Worker_API
-    Worker_API --- DB
-    Worker_API --- Redis
+    subgraph s9 ["VPC (US and EU separated)"]
+        DB[Postgres Database]
+        Redis[Redis Cache/Queue]
+        Clickhouse[Clickhouse Database]
 
-    Prisma --- DB
+        subgraph s1["Application (langfuse/langfuse/web)"]
+            API[Public HTTP API]
+            G[TRPC API]
+            I[NextAuth]
+            H[React Frontend]
+            ORM
+            H --> G
+            H --> I
+            G --> I
+            G --- ORM
+            API --- ORM
+            I --- ORM
+        end
+
+        subgraph s5["Application (langfuse/langfuse/worker)"]
+            Worker
+        end
+
+        Worker --- DB
+        Worker --- Redis
+        Worker --- Clickhouse
+
+        ORM --- DB
+        ORM --- Redis
+        ORM --- Clickhouse
+
+
+    end
+
     JS --- API
     Python --- API
 ```
@@ -116,7 +169,7 @@ flowchart LR
    Browser ---|Web UI & TRPC API| App
    Integrations/SDKs ---|Public HTTP API| App
    subgraph i1["Application Network"]
-      App["Langfuse Application (Docker or Serverless)"]
+      App["Langfuse Application"]
    end
    subgraph i2["Database Network"]
       DB["Postgres Database"]
@@ -149,6 +202,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 20 as specified in the [.nvmrc](.nvmrc)
+- Pnpm v.9.5.0
 - Docker to run the database locally
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
@@ -347,7 +401,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --primary-accent         | Primary accent color used for branding                             | Layout                           |
 | --hover-primary-accent   | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
 | --muted-green            | Muted green for Event label                                        | ObservationTree                  |
-| --muted-orange           | Muted orange for Generation label                                  | ObservationTree                  |
+| --muted-magenta          | Muted magenta for Generation label                                 | ObservationTree                  |
 | --muted-blue             | Muted blue for Span label                                          | ObservationTree                  |
 | --muted-gray             | Muted gray for disabled status badges                              | StatusBadge                      |
 | --accent-light-green     | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
@@ -381,6 +435,20 @@ Example:
 ```bash
 op run --env-file="./.env" -- pnpm --filter=shared run db:deploy
 ```
+
+### Editing default models and prices
+
+You can update the default AI models and prices by adding or updating an entry in `worker/src/constants/default-model-prices.json`.
+
+Please note that
+
+- prices are in USD
+- the list is ordered by ID, so make sure to keep this order and insert new models at the end of the list
+- the `updated_at` field must be updated with the current date in ISO 8601 format. Otherwise, the change will be ignored.
+
+### Transition period until V3 release
+
+Until the V3 release, both the JSON record must be updated **and** a migration must be created to continue supporting self-hosted users. Note that the migration must updated both the `models` as well as the `prices` table accordingly.
 
 ## License
 

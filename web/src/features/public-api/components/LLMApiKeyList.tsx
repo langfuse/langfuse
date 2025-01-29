@@ -21,31 +21,53 @@ import {
   TableRow,
 } from "@/src/components/ui/table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
-
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useEntitlements } from "@/src/features/entitlements/hooks";
 
 export function LlmApiKeyList(props: { projectId: string }) {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:read",
   });
-  const isEeEnabled = useIsEeEnabled();
+
+  // only show if the user has access to features that require LLM API keys
+  const entitlements = useEntitlements();
+  const isAvailable =
+    entitlements.includes("playground") ||
+    entitlements.includes("model-based-evaluations");
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
       projectId: props.projectId,
     },
     {
-      enabled: hasAccess && isEeEnabled,
+      enabled: hasAccess && isAvailable,
     },
   );
 
-  if (!hasAccess) return null;
-  if (!isEeEnabled) return null;
+  const hasExtraHeaderKeys = apiKeys.data?.data.some(
+    (key) => key.extraHeaderKeys.length > 0,
+  );
+
+  if (!isAvailable) return null;
+
+  if (!hasAccess) {
+    return (
+      <div>
+        <Header title="LLM API Keys" level="h3" />
+        <Alert>
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            You do not have permission to view LLM API keys for this project.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div id="llm-api-keys">
@@ -64,40 +86,55 @@ export function LlmApiKeyList(props: { projectId: string }) {
               <TableHead className="text-primary md:table-cell">
                 Provider
               </TableHead>
-              <TableHead className="hidden text-primary md:table-cell">
+              <TableHead className="text-primary md:table-cell">
                 Adapter
               </TableHead>
               <TableHead className="text-primary md:table-cell">
                 Base URL
               </TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
+              {hasExtraHeaderKeys ? (
+                <TableHead className="text-primary">Extra headers</TableHead>
+              ) : null}
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody className="text-muted-foreground">
-            {apiKeys.data?.data.map((apiKey) => (
-              <TableRow key={apiKey.id} className="hover:bg-primary-foreground">
-                <TableCell className="hidden md:table-cell">
-                  {apiKey.createdAt.toLocaleDateString()}
-                </TableCell>
-                <TableCell className="font-mono">{apiKey.provider}</TableCell>
-                <TableCell className="hidden font-mono">
-                  {apiKey.adapter}
-                </TableCell>
-                <TableCell className="max-w-md overflow-auto font-mono">
-                  {apiKey.baseURL ?? "default"}
-                </TableCell>
-                <TableCell className="font-mono">
-                  {apiKey.displaySecretKey}
-                </TableCell>
-                <TableCell>
-                  <DeleteApiKeyButton
-                    projectId={props.projectId}
-                    apiKeyId={apiKey.id}
-                  />
+            {apiKeys.data?.data.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center">
+                  None
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              apiKeys.data?.data.map((apiKey) => (
+                <TableRow
+                  key={apiKey.id}
+                  className="hover:bg-primary-foreground"
+                >
+                  <TableCell className="hidden md:table-cell">
+                    {apiKey.createdAt.toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="font-mono">{apiKey.provider}</TableCell>
+                  <TableCell className="font-mono">{apiKey.adapter}</TableCell>
+                  <TableCell className="max-w-md overflow-auto font-mono">
+                    {apiKey.baseURL ?? "default"}
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {apiKey.displaySecretKey}
+                  </TableCell>
+                  {hasExtraHeaderKeys ? (
+                    <TableCell> {apiKey.extraHeaderKeys.join(", ")} </TableCell>
+                  ) : null}
+                  <TableCell>
+                    <DeleteApiKeyButton
+                      projectId={props.projectId}
+                      apiKeyId={apiKey.id}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -109,7 +146,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
 // show dialog to let user confirm that this is a destructive action
 function DeleteApiKeyButton(props: { projectId: string; apiKeyId: string }) {
   const capture = usePostHogClientCapture();
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "llmApiKeys:delete",
   });

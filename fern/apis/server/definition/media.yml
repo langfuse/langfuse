@@ -1,0 +1,161 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get a media record
+      method: GET
+      path: /media/{mediaId}
+      path-parameters:
+        mediaId:
+          type: string
+          docs: The unique langfuse identifier of a media record
+      response: GetMediaResponse
+
+    patch:
+      docs: Patch a media record
+      method: PATCH
+      path: /media/{mediaId}
+      path-parameters:
+        mediaId:
+          type: string
+          docs: The unique langfuse identifier of a media record
+      request: PatchMediaBody
+
+    getUploadUrl:
+      docs: Get a presigned upload URL for a media record
+      method: POST
+      path: /media
+      request: GetMediaUploadUrlRequest
+      response: GetMediaUploadUrlResponse
+
+types:
+  GetMediaResponse:
+    properties:
+      mediaId:
+        type: string
+        docs: The unique langfuse identifier of a media record
+      contentType:
+        type: string
+        docs: The MIME type of the media record
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      uploadedAt:
+        type: datetime
+        docs: The date and time when the media record was uploaded
+      url:
+        type: string
+        docs: The download URL of the media record
+      urlExpiry:
+        type: string
+        docs: The expiry date and time of the media record download URL
+
+  PatchMediaBody:
+    properties:
+      uploadedAt:
+        type: datetime
+        docs: The date and time when the media record was uploaded
+      uploadHttpStatus:
+        type: integer
+        docs: The HTTP status code of the upload
+      uploadHttpError:
+        type: optional<string>
+        docs: The HTTP error message of the upload
+      uploadTimeMs:
+        type: optional<integer>
+        docs: The time in milliseconds it took to upload the media record
+
+  GetMediaUploadUrlRequest:
+    properties:
+      traceId:
+        type: string
+        docs: The trace ID associated with the media record
+      observationId:
+        type: optional<string>
+        docs: The observation ID associated with the media record. If the media record is associated directly with a trace, this will be null.
+      contentType: MediaContentType
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      sha256Hash:
+        type: string
+        docs: The SHA-256 hash of the media record
+      field:
+        type: string
+        docs: The trace / observation field the media record is associated with. This can be one of `input`, `output`, `metadata`
+
+  GetMediaUploadUrlResponse:
+    properties:
+      uploadUrl:
+        type: optional<string>
+        docs: The presigned upload URL. If the asset is already uploaded, this will be null
+      mediaId:
+        type: string
+        docs: The unique langfuse identifier of a media record
+
+  MediaContentType:
+    enum:
+      - value: image/png
+        name: IMAGE_PNG
+      - value: image/jpeg
+        name: IMAGE_JPEG
+      - value: image/jpg
+        name: IMAGE_JPG
+      - value: image/webp
+        name: IMAGE_WEBP
+      - value: image/gif
+        name: IMAGE_GIF
+      - value: image/svg+xml
+        name: IMAGE_SVG_XML
+      - value: image/tiff
+        name: IMAGE_TIFF
+      - value: image/bmp
+        name: IMAGE_BMP
+      - value: audio/mpeg
+        name: AUDIO_MPEG
+      - value: audio/mp3
+        name: AUDIO_MP3
+      - value: audio/wav
+        name: AUDIO_WAV
+      - value: audio/ogg
+        name: AUDIO_OGG
+      - value: audio/oga
+        name: AUDIO_OGA
+      - value: audio/aac
+        name: AUDIO_AAC
+      - value: audio/mp4
+        name: AUDIO_MP4
+      - value: audio/flac
+        name: AUDIO_FLAC
+      - value: video/mp4
+        name: VIDEO_MP4
+      - value: video/webm
+        name: VIDEO_WEBM
+      - value: text/plain
+        name: TEXT_PLAIN
+      - value: text/html
+        name: TEXT_HTML
+      - value: text/css
+        name: TEXT_CSS
+      - value: text/csv
+        name: TEXT_CSV
+      - value: application/pdf
+        name: APPLICATION_PDF
+      - value: application/msword
+        name: APPLICATION_MSWORD
+      - value: application/vnd.ms-excel
+        name: APPLICATION_MS_EXCEL
+      - value: application/zip
+        name: APPLICATION_ZIP
+      - value: application/json
+        name: APPLICATION_JSON
+      - value: application/xml
+        name: APPLICATION_XML
+      - value: application/octet-stream
+        name: APPLICATION_OCTET_STREAM
+    docs: The MIME type of the media record
