@@ -51,7 +51,6 @@
     "@opentelemetry/instrumentation-http": "^0.53.0",
     "@opentelemetry/instrumentation-ioredis": "^0.43.0",
     "@opentelemetry/instrumentation-winston": "^0.40.0",
-    "@opentelemetry/otlp-transformer": "^0.57.1",
     "@opentelemetry/resource-detector-aws": "^1.6.2",
     "@opentelemetry/resource-detector-container": "^0.4.2",
     "@opentelemetry/resources": "^1.26.0",
