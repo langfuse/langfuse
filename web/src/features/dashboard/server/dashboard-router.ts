@@ -224,27 +224,14 @@ export const dashboardRouter = createTRPCRouter({
             input.projectId,
             input.filter ?? [],
           );
-          return numericScoreTimeSeries.map((row) => ({
-            scoreTimestamp: row.score_timestamp,
-            scoreName: row.score_name,
-            avgValue: row.avg_value,
-          })) as DatabaseRow[];
+          return numericScoreTimeSeries as DatabaseRow[];
         case "categorical-score-chart":
           const categoricalScoreTimeSeries =
             await getCategoricalScoreTimeSeries(
               input.projectId,
               input.filter ?? [],
             );
-          return categoricalScoreTimeSeries.map((row) => ({
-            ...(row.score_timestamp
-              ? { scoreTimestamp: row.score_timestamp }
-              : {}),
-            scoreName: row.score_name || null,
-            scoreDataType: row.score_data_type || null,
-            scoreSource: row.score_source || null,
-            stringValue: row.score_value || null,
-            countStringValue: Number(row.count) || 0,
-          })) as DatabaseRow[];
+          return categoricalScoreTimeSeries as DatabaseRow[];
         case "observations-status-timeseries":
           return (await getObservationsStatusTimeSeries(
             input.projectId,

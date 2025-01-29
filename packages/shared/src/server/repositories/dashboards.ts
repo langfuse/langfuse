@@ -165,7 +165,8 @@ export const groupTracesByTime = async (
     GROUP BY timestamp
     ${orderByQuery}
     `;
-
+  console.log(chFilter.params);
+  console.log(orderByParams);
   const result = await queryClickhouse<{
     timestamp: string;
     count: string;
@@ -179,7 +180,7 @@ export const groupTracesByTime = async (
   });
 
   return result.map((row) => ({
-    timestamp: new Date(row.timestamp),
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     countTraceId: Number(row.count),
   }));
 };
@@ -242,7 +243,7 @@ export const getObservationUsageByTime = async (
   });
 
   return result.map((row) => ({
-    start_time: new Date(row.start_time),
+    start_time: parseClickhouseUTCDateTimeFormat(row.start_time),
     units: Object.fromEntries(
       Object.entries(row.units ?? {}).map(([key, value]) => [
         key,
@@ -288,10 +289,6 @@ export const getDistinctModels = async (
     AND ${appliedFilter.query}
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     `;
-
-  console.log(query);
-
-  console.log(JSON.stringify(appliedFilter.params));
 
   const result = await queryClickhouse<{ model: string }>({
     query,
@@ -363,7 +360,7 @@ export const getScoresAggregateOverTime = async (
   });
 
   return result.map((row) => ({
-    scoreTimestamp: new Date(row.timestamp),
+    scoreTimestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     scoreName: row.name,
     scoreDataType: row.data_type,
     scoreSource: row.source,
@@ -571,7 +568,7 @@ export const getModelLatenciesOverTime = async (
     p95: Number(row.quantiles[3]) / 1000,
     p99: Number(row.quantiles[4]) / 1000,
     model: row.provided_model_name,
-    start_time: new Date(row.start_time_bucket),
+    start_time: parseClickhouseUTCDateTimeFormat(row.start_time_bucket),
   }));
 };
 
@@ -604,8 +601,8 @@ export const getNumericScoreTimeSeries = async (
     ${orderByQuery}
   `;
 
-  return queryClickhouse<{
-    score_timestamp: Date;
+  const result = await queryClickhouse<{
+    score_timestamp: string;
     score_name: string;
     avg_value: number;
   }>({
@@ -616,6 +613,12 @@ export const getNumericScoreTimeSeries = async (
       ...orderByParams,
     },
   });
+
+  return result.map((row) => ({
+    scoreTimestamp: parseClickhouseUTCDateTimeFormat(row.score_timestamp),
+    scoreName: row.score_name,
+    avgValue: Number(row.avg_value),
+  }));
 };
 
 export const getCategoricalScoreTimeSeries = async (
@@ -650,8 +653,8 @@ export const getCategoricalScoreTimeSeries = async (
       ${orderByQuery}
   `;
 
-  return queryClickhouse<{
-    score_timestamp?: Date;
+  const result = await queryClickhouse<{
+    score_timestamp?: string;
     score_name: string;
     score_data_type: string;
     score_source: string;
@@ -665,6 +668,17 @@ export const getCategoricalScoreTimeSeries = async (
       ...orderByParams,
     },
   });
+
+  return result.map((row) => ({
+    scoreTimestamp: row.score_timestamp
+      ? parseClickhouseUTCDateTimeFormat(row.score_timestamp)
+      : undefined,
+    scoreName: row.score_name,
+    scoreDataType: row.score_data_type,
+    scoreSource: row.score_source,
+    scoreValue: row.score_value,
+    count: Number(row.count),
+  }));
 };
 
 export const getObservationsStatusTimeSeries = async (
@@ -722,7 +736,7 @@ export const getObservationsStatusTimeSeries = async (
 export const orderByTimeSeries = (
   filter: FilterState,
   col: string,
-): [string, { fromTime: Date; toTime: Date }, number] => {
+): [string, { fromTime: number; toTime: number }, number] => {
   const potentialBucketSizesSeconds = [
     5, 10, 30, 60, 300, 600, 1800, 3600, 18000, 36000, 86400, 604800, 2592000,
   ];
@@ -749,9 +763,9 @@ export const orderByTimeSeries = (
     `ORDER BY ${col} ASC 
     WITH FILL
     FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL ${bucketSizeInSeconds} SECOND)
-    TO toStartOfInterval(toDateTime({toTime: DateTime64(3)}), INTERVAL ${bucketSizeInSeconds} SECOND)
+    TO toStartOfInterval(toDateTime({toTime: DateTime64(3)}) + INTERVAL ${bucketSizeInSeconds} SECOND, INTERVAL ${bucketSizeInSeconds} SECOND)
     STEP ${interval}`,
-    { fromTime: from, toTime: to },
+    { fromTime: new Date(from).getTime(), toTime: new Date(to).getTime() },
     bucketSizeInSeconds,
   ];
 };

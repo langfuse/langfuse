@@ -193,7 +193,7 @@ export default function Dashboard() {
         )}
       </div>
       <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-        <TracesBarListChart
+        {/* <TracesBarListChart
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
@@ -209,14 +209,14 @@ export default function Dashboard() {
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
-        />
+        /> */}
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}
           agg={agg}
         />
-        {!disableExpensiveDashboardComponents && (
+        {/* {!disableExpensiveDashboardComponents && (
           <ModelUsageChart
             className="col-span-1 min-h-24 xl:col-span-3"
             projectId={projectId}
@@ -259,7 +259,7 @@ export default function Dashboard() {
             projectId={projectId}
             globalFilterState={mergedFilterState}
           />
-        )}
+        )} */}
       </div>
     </ScrollScreenPage>
   );
