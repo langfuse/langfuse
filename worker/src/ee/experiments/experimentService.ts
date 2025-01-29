@@ -40,12 +40,17 @@ const replaceVariablesInPrompt = (
   variables: string[],
 ): { role: string; content: string }[] => {
   const processContent = (content: string) => {
-    // Only include the variables that are in the variables array
+    // Extract only relevant variables from itemInput
     const filteredContext = Object.fromEntries(
       Object.entries(itemInput).filter(([key]) => variables.includes(key)),
     );
 
-    return compileHandlebarString(content, filteredContext);
+    // Apply Handlebars ONLY if the content contains `{{variable}}` pattern
+    if (content.includes("{{")) {
+      return compileHandlebarString(content, filteredContext);
+    }
+
+    return content; // Return original content if no placeholders are found
   };
 
   if (typeof prompt === "string") {
