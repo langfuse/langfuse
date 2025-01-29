@@ -165,8 +165,6 @@ export const groupTracesByTime = async (
     GROUP BY timestamp
     ${orderByQuery}
     `;
-  console.log(chFilter.params);
-  console.log(orderByParams);
   const result = await queryClickhouse<{
     timestamp: string;
     count: string;
@@ -743,7 +741,11 @@ export const orderByTimeSeries = (
 
   // Calculate time difference in seconds
   const [from, to] = extractFromAndToTimestampsFromFilter(filter);
-  const diffInSeconds = Math.abs(to.getTime() - from.getTime()) / 1000;
+
+  const fromDate = new Date(from.value as Date);
+  const toDate = new Date(to.value as Date);
+
+  const diffInSeconds = Math.abs(toDate.getTime() - fromDate.getTime()) / 1000;
 
   // choose the bucket size that is the closest to the desired number of buckets
   const bucketSizeInSeconds = potentialBucketSizesSeconds.reduce(
@@ -763,9 +765,9 @@ export const orderByTimeSeries = (
     `ORDER BY ${col} ASC 
     WITH FILL
     FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL ${bucketSizeInSeconds} SECOND)
-    TO toStartOfInterval(toDateTime({toTime: DateTime64(3)}) + INTERVAL ${bucketSizeInSeconds} SECOND, INTERVAL ${bucketSizeInSeconds} SECOND)
+    TO toDateTime({toTime: DateTime64(3)}) + INTERVAL ${bucketSizeInSeconds} SECOND
     STEP ${interval}`,
-    { fromTime: new Date(from).getTime(), toTime: new Date(to).getTime() },
+    { fromTime: fromDate.getTime(), toTime: toDate.getTime() },
     bucketSizeInSeconds,
   ];
 };
@@ -778,28 +780,17 @@ export const selectTimeseriesColumn = (
   return `toStartOfInterval(${col}, INTERVAL ${bucketSizeInSeconds} SECOND) as ${as}`;
 };
 
-export const extractFromAndToTimestampsFromFilter = (
-  filter?: FilterState,
-): [Date, Date] => {
+export const extractFromAndToTimestampsFromFilter = (filter?: FilterState) => {
   if (!filter)
-    return [new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), new Date()];
-  const fromTimestamp = filter
-    .filter(
-      (f) =>
-        f.type === "datetime" && (f.operator === ">" || f.operator === ">="),
-    )
-    .map((f) => new Date(f.value as string | number | Date));
+    throw new Error("Time Filter is required for time series queries");
 
-  const toTimestamp = filter
-    .filter(
-      (f) =>
-        f.type === "datetime" && (f.operator === "<" || f.operator === "<="),
-    )
-    .map((f) => new Date(f.value as string | number | Date));
+  const fromTimestamp = filter.filter(
+    (f) => f.type === "datetime" && (f.operator === ">" || f.operator === ">="),
+  );
 
-  if (fromTimestamp.length === 0 || toTimestamp.length === 0) {
-    return [new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), new Date()];
-  }
+  const toTimestamp = filter.filter(
+    (f) => f.type === "datetime" && (f.operator === "<" || f.operator === "<="),
+  );
 
   return [fromTimestamp[0], toTimestamp[0]];
 };
