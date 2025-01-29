@@ -2,7 +2,7 @@ import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
 import { ingestionEvent } from "@langfuse/shared/src/server";
 
 describe("OTel Resource Span Mapping", () => {
-  it("should convert a OTel Span to Langfuse Ingestions", () => {
+  it("should convert an OpenLit OTel Span to Langfuse Events", () => {
     // Setup
     const resourceSpan = {
       resource: {
