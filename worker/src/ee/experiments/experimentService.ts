@@ -234,7 +234,7 @@ export const createExperimentJob = async ({
       );
     } catch (error) {
       // skip this dataset item if there is an error replacing variables
-      logger.warning(
+      logger.error(
         `Error replacing variables in prompt for dataset item ${datasetItem.id}`,
         error,
       );
