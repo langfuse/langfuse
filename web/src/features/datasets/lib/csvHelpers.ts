@@ -2,7 +2,7 @@ import { parse } from "csv-parse";
 import { type Prisma } from "@langfuse/shared";
 
 const MAX_PREVIEW_ROWS = 10;
-const PREVIEW_FILE_SIZE_BYTES = 64 * 1024; // 64KB
+const PREVIEW_FILE_SIZE_BYTES = 1024 * 1024 * 2; // 2MB
 
 type ColumnType =
   | "string"

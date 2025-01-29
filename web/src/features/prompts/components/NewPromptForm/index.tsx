@@ -390,14 +390,18 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem className="relative">
               <FormLabel>Commit message (optional)</FormLabel>
+              <FormDescription>
+                Provide information about the changes made in this version.
+                Helps maintain a clear history of prompt iterations.
+              </FormDescription>
               <FormControl>
                 <Textarea
                   placeholder="Add commit message..."
                   {...field}
-                  className="rounded-md border text-xs focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                  className="rounded-md border text-sm focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                 />
               </FormControl>
-              <FormMessage className="ml-2 text-xs" />
+              <FormMessage />
             </FormItem>
           )}
         />

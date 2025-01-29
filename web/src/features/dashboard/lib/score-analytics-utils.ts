@@ -12,7 +12,7 @@ export const RESOURCE_METRICS = [
     key: "latency",
     value: "Latency",
     objectKey: "avgLatency",
-    label: "Latency (ms)",
+    label: "Latency (s)",
   },
   {
     key: "cost",
