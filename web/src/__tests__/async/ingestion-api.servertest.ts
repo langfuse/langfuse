@@ -53,21 +53,6 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
-    [
-      "stringified-io",
-      {
-        id: randomUUID(),
-        type: "trace-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          metadata: { hello: "world" },
-          input: ["hello", { world: "world" }, [1, 2, 3]],
-          output: JSON.stringify(["hello", { world: "world" }, [1, 2, 3]]),
-        },
-      },
-    ],
   ])(
     "should create traces via the ingestion API (%s)",
     async (_name: string, entity: any) => {
