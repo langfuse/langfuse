@@ -35,7 +35,7 @@ import {
   InputCommandInput,
   InputCommandItem,
   InputCommandList,
-} from "@/src/components/ui/command";
+} from "@/src/components/ui/input-command";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({

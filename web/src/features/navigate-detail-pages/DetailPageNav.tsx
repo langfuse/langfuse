@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { InputCommandShortcut } from "@/src/components/ui/command";
+import { InputCommandShortcut } from "@/src/components/ui/input-command";
 import {
   Tooltip,
   TooltipContent,

@@ -1,4 +1,4 @@
-import { InputCommandItem } from "@/src/components/ui/command";
+import { InputCommandItem } from "@/src/components/ui/input-command";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
 import { Button } from "@/src/components/ui/button";

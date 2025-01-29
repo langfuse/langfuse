@@ -5,7 +5,7 @@ import {
   InputCommandItem,
   InputCommandList,
   InputCommandInput,
-} from "@/src/components/ui/command";
+} from "@/src/components/ui/input-command";
 import { Command as CommandPrimitive } from "cmdk";
 import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 

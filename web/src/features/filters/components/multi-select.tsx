@@ -12,7 +12,7 @@ import {
   InputCommandItem,
   InputCommandList,
   InputCommandSeparator,
-} from "@/src/components/ui/command";
+} from "@/src/components/ui/input-command";
 import {
   Popover,
   PopoverContent,

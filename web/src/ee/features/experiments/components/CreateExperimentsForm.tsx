@@ -20,7 +20,7 @@ import {
   InputCommandList,
   InputCommand,
   InputCommandItem,
-} from "@/src/components/ui/command";
+} from "@/src/components/ui/input-command";
 import {
   Select,
   SelectContent,

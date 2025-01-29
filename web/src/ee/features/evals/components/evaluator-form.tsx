@@ -60,7 +60,7 @@ import {
   InputCommandItem,
   InputCommandList,
   InputCommandSeparator,
-} from "@/src/components/ui/command";
+} from "@/src/components/ui/input-command";
 import { cn } from "@/src/utils/tailwind";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
