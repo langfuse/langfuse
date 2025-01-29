@@ -1,5 +1,8 @@
 "use client";
 
+// Adapted command to be used as a form field with suggestions
+// Find original shadcn/ui command component in /components/ui/command.tsx
+
 import * as React from "react";
 import { type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
