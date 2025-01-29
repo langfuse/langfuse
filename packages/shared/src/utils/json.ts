@@ -8,7 +8,6 @@ import { JsonNested } from "./zod";
 export function deepParseJson(json: unknown): unknown {
   if (typeof json === "string") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsed = JSON.parse(json);
       if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
       return deepParseJson(parsed); // Recursively parse parsed value
