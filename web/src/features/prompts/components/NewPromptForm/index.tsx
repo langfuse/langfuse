@@ -383,6 +383,25 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="commitMessage"
+          render={({ field }) => (
+            <FormItem className="relative">
+              <FormLabel>Commit message (optional)</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Add commit message..."
+                  {...field}
+                  className="rounded-md border text-xs focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                />
+              </FormControl>
+              <FormMessage className="ml-2 text-xs" />
+            </FormItem>
+          )}
+        />
+
         {initialPrompt ? (
           <div className="flex flex-col gap-2">
             <ReviewPromptDialog

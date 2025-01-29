@@ -9,5 +9,5 @@ export function decryptAndParseExtraHeaders(
 ) {
   if (!extraHeaders) return;
 
-  return ExtraHeaderSchema.parse(decrypt(extraHeaders));
+  return ExtraHeaderSchema.parse(JSON.parse(decrypt(extraHeaders)));
 }

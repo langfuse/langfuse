@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -88,13 +86,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     scope: "models:CUD",
   });
 
-  // Set row height to medium if small as view is not optimized for small row heights
-  useEffect(() => {
-    if (rowHeight === "s") {
-      setRowHeight("m");
-    }
-  }, [rowHeight, setRowHeight]);
-
   const columns: LangfuseColumnDef<ModelTableRow>[] = [
     {
       accessorKey: "modelName",
@@ -105,7 +96,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       cell: ({ row }) => {
         return (
-          <span className="font-mono text-xs font-semibold">
+          <span className="truncate font-mono text-xs font-semibold">
             {row.original.modelName}
           </span>
         );
@@ -152,7 +143,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: string = row.getValue("matchPattern");
 
         return value ? (
-          <span className="font-mono text-xs">{value}</span>
+          <span className="truncate font-mono text-xs">{value}</span>
         ) : null;
       },
     },

@@ -492,6 +492,7 @@ export type Prompt = {
     config: Generated<unknown>;
     tags: Generated<string[]>;
     labels: Generated<string[]>;
+    commit_message: string | null;
 };
 export type QueueBackUp = {
     id: string;

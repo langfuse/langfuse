@@ -1426,14 +1426,14 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
-  /api/public/v2/prompts/{promptName}/version/{version}:
+  /api/public/v2/prompts/{name}/versions/{version}:
     patch:
       description: Update labels for a specific prompt version
       operationId: promptVersion_update
       tags:
         - PromptVersion
       parameters:
-        - name: promptName
+        - name: name
           in: path
           description: The name of the prompt
           required: true
@@ -4523,6 +4523,10 @@ components:
             type: string
           nullable: true
           description: List of tags to apply to all versions of this prompt.
+        commitMessage:
+          type: string
+          nullable: true
+          description: Commit message for this prompt version.
       required:
         - name
         - prompt
@@ -4548,6 +4552,10 @@ components:
             type: string
           nullable: true
           description: List of tags to apply to all versions of this prompt.
+        commitMessage:
+          type: string
+          nullable: true
+          description: Commit message for this prompt version.
       required:
         - name
         - prompt
@@ -4597,6 +4605,10 @@ components:
           description: >-
             List of tags. Used to filter via UI and API. The same across
             versions of a prompt.
+        commitMessage:
+          type: string
+          nullable: true
+          description: Commit message for this prompt version.
       required:
         - name
         - version

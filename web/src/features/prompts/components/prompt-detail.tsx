@@ -302,6 +302,18 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
+
+          {prompt.commitMessage && (
+            <div className="mx-auto mt-5 w-full rounded-lg border text-base">
+              <div className="border-b px-3 py-1 text-xs font-medium">
+                Commit message
+              </div>
+              <div className="flex flex-wrap gap-2 p-2 text-xs">
+                {prompt.commitMessage}
+              </div>
+            </div>
+          )}
+
           <p className="mt-6 text-xs text-muted-foreground">
             Fetch prompts via Python or JS/TS SDKs. See{" "}
             <a

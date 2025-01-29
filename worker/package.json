@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.17.0",
+  "version": "3.18.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -13,7 +13,7 @@
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 33",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
