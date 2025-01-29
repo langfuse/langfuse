@@ -20,6 +20,8 @@ export default withMiddlewares({
     name: "OTel Traces",
     querySchema: z.any(),
     responseSchema: z.any(),
+    rateLimitResource: "otel",
+    successStatusCode: 207,
     fn: async ({ req, res, auth }) => {
       let body: Buffer;
       try {
@@ -52,8 +54,7 @@ export default withMiddlewares({
       const events: IngestionEventType[] = resourceSpans.flatMap(
         convertOtelSpanToIngestionEvent,
       );
-      const result = await processEventBatch(events, auth);
-      return res.status(207).json(result);
+      return processEventBatch(events, auth);
     },
   }),
 });
