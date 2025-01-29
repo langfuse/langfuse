@@ -96,7 +96,7 @@ export function compileHandlebarString(
     const template = Handlebars.compile(handlebarString, { noEscape: true });
     return template(context);
   } catch (error) {
-    console.error("Handlebars compilation error:", error);
+    logger.info("Handlebars compilation error:", error);
     return handlebarString; // Fallback to the original string if Handlebars fails
   }
 }
