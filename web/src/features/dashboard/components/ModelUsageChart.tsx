@@ -147,8 +147,6 @@ export const ModelUsageChart = ({
     }[]
   >();
 
-  console.log(dates, allModels, allUsageUnits);
-
   dates?.forEach((d) => {
     allModels.forEach((m) => {
       allUsageUnits.forEach((uu) => {
@@ -177,28 +175,21 @@ export const ModelUsageChart = ({
             },
           ]);
         }
+
+        if (existingEntry) {
+          usageTypeMap.set(uu, [
+            ...(usageTypeMap.get(uu) ?? []),
+            {
+              ...existingEntry,
+              units: existingEntry.units[uu],
+              cost: existingEntry.cost[uu],
+              usageType: uu,
+            },
+          ]);
+        }
       });
     });
   });
-
-  // queryResult.data?.forEach((row) => {
-  //   console.log(`row: `, row);
-  //   for (const [key, value] of Object.entries(row.units ?? {})) {
-  //     console.log(key, value);
-  //     usageTypeMap.set(key, [
-  //       ...(usageTypeMap.get(key) ?? []),
-  //       {
-  //         ...row,
-  //         units: value,
-  //         cost: Number(row.cost?.[key as keyof typeof row.cost]) || 0,
-  //         usageType: key,
-  //         model: row.model as string,
-  //       },
-  //     ]);
-  //   }
-  // });
-
-  console.log(JSON.stringify(usageTypeMap));
 
   const usageData = Array.from(usageTypeMap.values()).flat();
   const currentModels = [

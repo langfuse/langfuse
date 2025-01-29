@@ -289,6 +289,10 @@ export const getDistinctModels = async (
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     `;
 
+  console.log(query);
+
+  console.log(JSON.stringify(appliedFilter.params));
+
   const result = await queryClickhouse<{ model: string }>({
     query,
     params: {
@@ -299,6 +303,8 @@ export const getDistinctModels = async (
         : {}),
     },
   });
+
+  console.log(JSON.stringify(result));
 
   return result;
 };
