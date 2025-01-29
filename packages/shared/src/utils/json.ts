@@ -18,7 +18,6 @@ export const parseJson = (input: string) => {
 export function deepParseJson(json: unknown): unknown {
   if (typeof json === "string") {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const parsed = JSON.parse(json);
       if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
       return deepParseJson(parsed); // Recursively parse parsed value
@@ -37,7 +36,7 @@ export function deepParseJson(json: unknown): unknown {
         // Ensure we only iterate over the object's own properties
         if (Object.prototype.hasOwnProperty.call(json, key)) {
           (json as Record<string, unknown>)[key] = deepParseJson(
-            (json as Record<string, unknown>)[key]
+            (json as Record<string, unknown>)[key],
           );
         }
       }
@@ -50,7 +49,7 @@ export function deepParseJson(json: unknown): unknown {
 
 export const mergeJson = (
   json1?: z.infer<typeof jsonSchema>,
-  json2?: z.infer<typeof jsonSchema>
+  json2?: z.infer<typeof jsonSchema>,
 ) => {
   if (json1 === undefined) {
     return json2;
