@@ -80,10 +80,11 @@ export default async function handler(
     }
 
     try {
-      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-        authCheck.scope,
-        "ingestion",
-      );
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "ingestion",
+        );
 
       if (rateLimitCheck?.isRateLimited()) {
         return rateLimitCheck.sendRestResponseIfLimited(res);

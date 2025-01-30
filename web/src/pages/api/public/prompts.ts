@@ -56,10 +56,11 @@ export default async function handler(
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
 
-      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-        authCheck.scope,
-        "prompts",
-      );
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "prompts",
+        );
 
       if (rateLimitCheck?.isRateLimited()) {
         return rateLimitCheck.sendRestResponseIfLimited(res);

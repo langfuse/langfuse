@@ -71,7 +71,7 @@ describe("RateLimitService", () => {
 
     expect(redis).toBeDefined();
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
     expect(result?.res).toEqual({
@@ -102,7 +102,7 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
     await rateLimitService.rateLimitRequest(scope, "public-api");
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
@@ -130,7 +130,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
     await rateLimitService.rateLimitRequest(scope, "public-api");
 
     const firstResult = await rateLimitService.rateLimitRequest(
@@ -180,7 +180,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
 
     for (let i = 0; i < 5; i++) {
       await rateLimitService.rateLimitRequest(scope, "public-api");
@@ -211,7 +211,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
@@ -237,7 +237,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
 
     const result = await rateLimitService.rateLimitRequest(scope, "prompts");
 
@@ -256,7 +256,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
 
     const result = await rateLimitService.rateLimitRequest(scope, "ingestion");
 
@@ -291,7 +291,7 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = new RateLimitService(redis!);
+    const rateLimitService = RateLimitService.getInstance();
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
