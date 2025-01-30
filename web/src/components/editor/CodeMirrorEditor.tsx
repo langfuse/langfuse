@@ -1,5 +1,4 @@
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
@@ -13,6 +12,8 @@ import {
   MUSTACHE_REGEX,
   UNCLOSED_VARIABLE_REGEX,
 } from "@langfuse/shared";
+import { lightTheme } from "@/src/components/editor/light-theme";
+import { darkTheme } from "@/src/components/editor/dark-theme";
 
 // Custom language mode for prompts that highlights mustache variables
 const promptLanguage = StreamLanguage.define({
@@ -107,7 +108,7 @@ export function CodeMirrorEditor({
   placeholder?: string;
 }) {
   const { resolvedTheme } = useTheme();
-  const codeMirrorTheme = resolvedTheme === "dark" ? githubDark : githubLight;
+  const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
@@ -119,12 +120,25 @@ export function CodeMirrorEditor({
       value={value}
       theme={codeMirrorTheme}
       basicSetup={{
-        foldGutter: true,
+        foldGutter: lineNumbers,
         highlightActiveLine: false,
         lineNumbers: lineNumbers,
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Hide gutter when lineNumbers is false
+        // Fix missing gutter border
+        ...(!lineNumbers
+          ? [
+              EditorView.theme({
+                ".cm-gutters": { display: "none" },
+              }),
+            ]
+          : [
+              EditorView.theme({
+                ".cm-gutters": { borderRight: "1px solid" },
+              }),
+            ]),
         // Extend gutter to full height when minHeight > content height
         // This also enlarges the text area to minHeight
         ...(minHeight === "none"
