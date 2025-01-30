@@ -259,9 +259,9 @@ export const traceRouter = createTRPCRouter({
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...o,
-          input: JSON.stringify(o.input),
-          output: JSON.stringify(o.output),
-        })),
+          input: null, // this is not queried above.
+          output: null,
+        })) as ObservationReturnType[],
       };
     }),
   deleteMany: protectedProjectProcedure
