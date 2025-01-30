@@ -5,13 +5,13 @@ import { useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/components/ui/input-command";
 import {
   Popover,
   PopoverContent,
@@ -98,16 +98,16 @@ export const SaveToPromptButton: React.FC = () => {
           Save as new prompt
         </Button>
         <Divider />
-        <Command className="min-h-[8rem]">
-          <CommandInput placeholder="Search chat prompts..." />
-          <CommandEmpty>
+        <InputCommand className="min-h-[8rem]">
+          <InputCommandInput placeholder="Search chat prompts..." />
+          <InputCommandEmpty>
             No chat prompt found
             <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />
-          </CommandEmpty>
-          <CommandGroup className="mt-2">
-            <CommandList>
+          </InputCommandEmpty>
+          <InputCommandGroup className="mt-2">
+            <InputCommandList>
               {allChatPromptNamesWithIds.map((chatPrompt) => (
-                <CommandItem
+                <InputCommandItem
                   key={chatPrompt.id}
                   title={chatPrompt.name}
                   value={chatPrompt.name}
@@ -133,11 +133,11 @@ export const SaveToPromptButton: React.FC = () => {
                   <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                     {chatPrompt.name}
                   </span>
-                </CommandItem>
+                </InputCommandItem>
               ))}
-            </CommandList>
-          </CommandGroup>
-        </Command>
+            </InputCommandList>
+          </InputCommandGroup>
+        </InputCommand>
         <Button
           className="mt-2 w-full"
           disabled={!Boolean(selectedPromptId)}
