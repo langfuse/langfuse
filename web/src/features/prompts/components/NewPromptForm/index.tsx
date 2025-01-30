@@ -44,12 +44,11 @@ import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
-import { Switch } from "@/src/components/ui/switch";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 
 type NewPromptFormProps = {
@@ -64,7 +63,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const [formError, setFormError] = useState<string | null>(null);
   const { playgroundCache } = usePlaygroundCache();
   const [initialMessages, setInitialMessages] = useState<unknown>([]);
-  const [showJsonEditor, setShowJsonEditor] = useState(false);
 
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -241,24 +239,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         {/* Prompt content field - text vs. chat */}
         <>
           <FormItem>
-            <FormLabel className="flex flex-row items-center justify-between">
-              <div>Prompt</div>
-              {form.watch("type") === PromptType.Text ? (
-                <div className="flex flex-row items-center">
-                  <p className="mr-1 text-xs text-muted-foreground">
-                    JSON editor
-                  </p>
-
-                  <Switch
-                    checked={showJsonEditor}
-                    className={
-                      showJsonEditor ? "data-[state=checked]:bg-dark-green" : ""
-                    }
-                    onCheckedChange={setShowJsonEditor}
-                  />
-                </div>
-              ) : null}
-            </FormLabel>
+            <FormLabel>Prompt</FormLabel>
             <Tabs
               value={form.watch("type")}
               onValueChange={(e) => {
@@ -296,18 +277,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   render={({ field }) => (
                     <>
                       <FormControl>
-                        {showJsonEditor ? (
-                          <JsonEditor
-                            defaultValue={field.value}
-                            onChange={field.onChange}
-                            editable
-                          />
-                        ) : (
-                          <Textarea
-                            {...field}
-                            className="min-h-[200px] flex-1 font-mono text-xs"
-                          />
-                        )}
+                        <CodeMirrorEditor
+                          value={field.value}
+                          onChange={field.onChange}
+                          editable
+                          mode="prompt"
+                          minHeight={200}
+                        />
                       </FormControl>
                       <FormMessage />
                     </>
@@ -343,11 +319,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Config</FormLabel>
-              <JsonEditor
-                defaultValue={field.value}
+              <CodeMirrorEditor
+                value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 editable
+                mode="json"
+                minHeight="none"
               />
               <FormDescription>
                 Track configs for LLM API calls such as function definitions or
