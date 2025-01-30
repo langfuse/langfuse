@@ -370,12 +370,12 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
       })
     : null;
 
-  const isSessionPrivate = !!traceSession && !traceSession.public;
+  const isSessionPublic = traceSession?.public === true;
 
   if (
     !trace.public &&
     !sessionProject &&
-    (isSessionPrivate || !trace.sessionId) &&
+    !isSessionPublic &&
     ctx.session?.user?.admin !== true
   ) {
     logger.error(
