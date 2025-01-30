@@ -1,5 +1,4 @@
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
@@ -107,7 +106,7 @@ export function CodeMirrorEditor({
   placeholder?: string;
 }) {
   const { resolvedTheme } = useTheme();
-  const codeMirrorTheme = resolvedTheme === "dark" ? githubDark : githubLight;
+  const codeMirrorTheme = resolvedTheme === "dark" ? undefined : undefined;
 
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
