@@ -32,11 +32,7 @@ export const darkThemeStyle: CreateThemeOptions["styles"] = [
 ];
 
 export const darkThemeInit = (options?: Partial<CreateThemeOptions>) => {
-  const {
-    theme = "light", // needs to be light, otherwise gutter border is not rendered
-    settings = {},
-    styles = [],
-  } = options || {};
+  const { theme = "dark", settings = {}, styles = [] } = options || {};
   return createTheme({
     theme: theme,
     settings: {
