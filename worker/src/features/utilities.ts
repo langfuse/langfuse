@@ -92,6 +92,11 @@ export function compileHandlebarString(
   handlebarString: string,
   context: Record<string, any>,
 ): string {
-  const template = Handlebars.compile(handlebarString);
-  return template(context);
+  try {
+    const template = Handlebars.compile(handlebarString, { noEscape: true });
+    return template(context);
+  } catch (error) {
+    logger.info("Handlebars compilation error:", error);
+    return handlebarString; // Fallback to the original string if Handlebars fails
+  }
 }
