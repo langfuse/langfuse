@@ -6,9 +6,12 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { env } from "@/src/env.mjs";
 
 export function CommandKMenu({
   mainNavigation,
@@ -17,6 +20,7 @@ export function CommandKMenu({
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const { allProjectItems } = useNavigationItems();
 
   const navItems = mainNavigation
     .flatMap((item) => [
@@ -67,6 +71,7 @@ export function CommandKMenu({
             <CommandItem
               key={item.url}
               value={item.url}
+              keywords={[item.title]}
               onSelect={() => {
                 router.push(item.url);
                 setOpen(false);
@@ -76,7 +81,83 @@ export function CommandKMenu({
             </CommandItem>
           ))}
         </CommandGroup>
+        {allProjectItems.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Projects">
+              {allProjectItems.map((item) => (
+                <CommandItem
+                  key={item.url}
+                  value={item.title}
+                  keywords={item.keywords}
+                  onSelect={() => {
+                    router.push(item.url);
+                    setOpen(false);
+                  }}
+                >
+                  {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
       </CommandList>
     </CommandDialog>
   );
 }
+
+export const useNavigationItems = () => {
+  const router = useRouter();
+  const session = useSession();
+
+  const organizations = session.data?.user?.organizations;
+
+  const truncatePathBeforeDynamicSegments = (path: string) => {
+    const allowlistedIds = ["[projectId]", "[organizationId]", "[page]"];
+    const segments = router.route.split("/");
+    const idSegments = segments.filter(
+      (segment) => segment.startsWith("[") && segment.endsWith("]"),
+    );
+    const stopSegment = idSegments.filter((id) => !allowlistedIds.includes(id));
+    if (stopSegment.length === 0) return path;
+    const stopIndex = segments.indexOf(stopSegment[0]);
+    const truncatedPath = path.split("/").slice(0, stopIndex).join("/");
+    return truncatedPath;
+  };
+
+  const getProjectPath = (projectId: string) =>
+    router.query.projectId
+      ? truncatePathBeforeDynamicSegments(router.asPath).replace(
+          router.query.projectId as string,
+          projectId,
+        )
+      : `/project/${projectId}`;
+
+  const allProjectItems = organizations
+    ? organizations
+        .sort((a, b) => {
+          // sort demo org to the bottom
+          const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
+          const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
+          if (isDemoA) return 1;
+          if (isDemoB) return -1;
+          return a.name.localeCompare(b.name);
+        })
+        .flatMap((org) =>
+          org.projects.map((proj) => ({
+            title: `${org.name} > ${proj.name}`,
+            url: getProjectPath(proj.id),
+            keywords: [
+              "project",
+              org.name.toLowerCase(),
+              proj.name.toLowerCase(),
+            ],
+          })),
+        )
+    : [];
+
+  return {
+    allProjectItems,
+    isLoading: !organizations,
+  };
+};
