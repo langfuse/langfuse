@@ -358,7 +358,26 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
-  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true) {
+  const traceSession = !!trace.sessionId
+    ? await ctx.prisma.traceSession.findFirst({
+        where: {
+          id: trace.sessionId,
+          projectId,
+        },
+        select: {
+          public: true,
+        },
+      })
+    : null;
+
+  const isSessionPrivate = !!traceSession && !traceSession.public;
+
+  if (
+    !trace.public &&
+    !sessionProject &&
+    (isSessionPrivate || !trace.sessionId) &&
+    ctx.session?.user?.admin !== true
+  ) {
     logger.error(
       `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
     );
