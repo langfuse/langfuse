@@ -12,6 +12,8 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useDebounce } from "@/src/hooks/useDebounce";
 
 export function CommandKMenu({
   mainNavigation,
@@ -21,6 +23,7 @@ export function CommandKMenu({
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { allProjectItems } = useNavigationItems();
+  const capture = usePostHogClientCapture();
 
   const navItems = mainNavigation
     .flatMap((item) => [
@@ -43,12 +46,17 @@ export function CommandKMenu({
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((open) => !open);
+        setOpen((open) => {
+          if (open === false) {
+            capture("cmd_k_menu:opened");
+          }
+          return !open;
+        });
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, []);
+  }, [capture]);
 
   return (
     <CommandDialog
@@ -63,6 +71,15 @@ export function CommandKMenu({
       <CommandInput
         placeholder="Type a command or search..."
         className="border-none focus:border-none focus:outline-none focus:ring-0 focus:ring-transparent"
+        onValueChange={useDebounce(
+          (value: string) => {
+            capture("cmd_k_menu:search_entered", {
+              search: value,
+            });
+          },
+          500,
+          false,
+        )}
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
@@ -74,6 +91,11 @@ export function CommandKMenu({
               keywords={[item.title]}
               onSelect={() => {
                 router.push(item.url);
+                capture("cmd_k_menu:navigated", {
+                  type: "main_navigation",
+                  title: item.title,
+                  url: item.url,
+                });
                 setOpen(false);
               }}
             >
@@ -92,6 +114,11 @@ export function CommandKMenu({
                   keywords={item.keywords}
                   onSelect={() => {
                     router.push(item.url);
+                    capture("cmd_k_menu:navigated", {
+                      type: "project",
+                      title: item.title,
+                      url: item.url,
+                    });
                     setOpen(false);
                   }}
                 >
