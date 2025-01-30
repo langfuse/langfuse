@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { CommandShortcut } from "@/src/components/ui/command";
+import { InputCommandShortcut } from "@/src/components/ui/input-command";
 import {
   Tooltip,
   TooltipContent,
@@ -91,9 +91,9 @@ export const DetailPageNav = (props: {
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               k
-            </CommandShortcut>
+            </InputCommandShortcut>
           </TooltipContent>
         </Tooltip>
 
@@ -120,9 +120,9 @@ export const DetailPageNav = (props: {
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               j
-            </CommandShortcut>
+            </InputCommandShortcut>
           </TooltipContent>
         </Tooltip>
       </div>
