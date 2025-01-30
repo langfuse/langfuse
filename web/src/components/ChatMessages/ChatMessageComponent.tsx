@@ -90,7 +90,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             {capitalize(message.role)}
           </Button>
         </div>
-
         <CodeMirrorEditor
           defaultValue={message.content}
           onChange={(value) => updateMessage(message.id, "content", value)}
