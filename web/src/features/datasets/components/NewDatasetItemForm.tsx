@@ -19,7 +19,7 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

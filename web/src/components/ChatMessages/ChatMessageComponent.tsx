@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import type { MessagesContext } from "./types";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/src/utils/tailwind";

@@ -12,6 +12,8 @@ import {
   MUSTACHE_REGEX,
   UNCLOSED_VARIABLE_REGEX,
 } from "@langfuse/shared";
+import { lightTheme } from "@/src/components/editor/light-theme";
+import { darkTheme } from "@/src/components/editor/dark-theme";
 
 // Custom language mode for prompts that highlights mustache variables
 const promptLanguage = StreamLanguage.define({
@@ -106,7 +108,7 @@ export function CodeMirrorEditor({
   placeholder?: string;
 }) {
   const { resolvedTheme } = useTheme();
-  const codeMirrorTheme = resolvedTheme === "dark" ? undefined : undefined;
+  const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(

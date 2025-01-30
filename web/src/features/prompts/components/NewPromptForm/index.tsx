@@ -44,7 +44,7 @@ import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
