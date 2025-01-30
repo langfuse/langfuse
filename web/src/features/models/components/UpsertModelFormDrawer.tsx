@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { Button } from "@/src/components/ui/button";
 import {
   Drawer,

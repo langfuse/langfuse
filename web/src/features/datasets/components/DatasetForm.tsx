@@ -13,7 +13,7 @@ import {
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { Input } from "@/src/components/ui/input";
-import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";

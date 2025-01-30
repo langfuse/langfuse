@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
 
 const formSchema = z.object({
