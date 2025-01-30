@@ -16,6 +16,12 @@ if (env.LANGFUSE_INIT_ORG_ID) {
 
   // Create Project: Org -> Project
   if (env.LANGFUSE_INIT_PROJECT_ID) {
+    let retentionDays: number | null = null;
+    if (env.LANGFUSE_INIT_PROJECT_RETENTION) {
+      // TODO: We need to perform an entitlement check here.
+      retentionDays = env.LANGFUSE_INIT_PROJECT_RETENTION;
+    }
+
     await prisma.project.upsert({
       where: { id: env.LANGFUSE_INIT_PROJECT_ID },
       update: {},
@@ -23,6 +29,7 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         id: env.LANGFUSE_INIT_PROJECT_ID,
         name: env.LANGFUSE_INIT_PROJECT_NAME ?? "Provisioned Project",
         orgId: org.id,
+        retentionDays,
       },
     });
 
