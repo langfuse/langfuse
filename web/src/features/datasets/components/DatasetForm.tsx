@@ -231,7 +231,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
-                        defaultValue={field.value}
+                        value={field.value}
                         onChange={(v) => {
                           field.onChange(v);
                         }}

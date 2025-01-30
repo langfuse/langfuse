@@ -177,7 +177,7 @@ export const NewDatasetItemForm = (props: {
                   <FormControl>
                     <CodeMirrorEditor
                       mode="json"
-                      defaultValue={field.value}
+                      value={field.value}
                       onChange={field.onChange}
                       minHeight={200}
                     />
@@ -195,7 +195,7 @@ export const NewDatasetItemForm = (props: {
                   <FormControl>
                     <CodeMirrorEditor
                       mode="json"
-                      defaultValue={field.value}
+                      value={field.value}
                       onChange={field.onChange}
                       minHeight={200}
                     />
@@ -214,7 +214,7 @@ export const NewDatasetItemForm = (props: {
                 <FormControl>
                   <CodeMirrorEditor
                     mode="json"
-                    defaultValue={field.value}
+                    value={field.value}
                     onChange={field.onChange}
                     minHeight={100}
                   />

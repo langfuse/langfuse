@@ -278,7 +278,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     <>
                       <FormControl>
                         <CodeMirrorEditor
-                          defaultValue={field.value}
+                          value={field.value}
                           onChange={field.onChange}
                           editable
                           mode="prompt"
@@ -320,7 +320,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             <FormItem>
               <FormLabel>Config</FormLabel>
               <CodeMirrorEditor
-                defaultValue={field.value}
+                value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 editable

@@ -91,7 +91,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           </Button>
         </div>
         <CodeMirrorEditor
-          defaultValue={message.content}
+          value={message.content}
           onChange={(value) => updateMessage(message.id, "content", value)}
           mode="prompt"
           minHeight={30}

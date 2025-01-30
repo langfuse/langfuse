@@ -162,7 +162,7 @@ export const EditDatasetItem = ({
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
-                          defaultValue={field.value}
+                          value={field.value}
                           onChange={(v) => {
                             setHasChanges(true);
                             field.onChange(v);
@@ -184,7 +184,7 @@ export const EditDatasetItem = ({
                       <FormControl>
                         <CodeMirrorEditor
                           mode="json"
-                          defaultValue={field.value}
+                          value={field.value}
                           onChange={(v) => {
                             setHasChanges(true);
                             field.onChange(v);
@@ -207,7 +207,7 @@ export const EditDatasetItem = ({
                     <FormControl>
                       <CodeMirrorEditor
                         mode="json"
-                        defaultValue={field.value}
+                        value={field.value}
                         onChange={(v) => {
                           setHasChanges(true);
                           field.onChange(v);

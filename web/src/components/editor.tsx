@@ -84,7 +84,7 @@ const promptLinter = linter((view) => {
 const promptSupport = new LanguageSupport(promptLanguage);
 
 export function CodeMirrorEditor({
-  defaultValue,
+  value,
   onChange,
   editable = true,
   lineWrapping = true,
@@ -95,7 +95,7 @@ export function CodeMirrorEditor({
   minHeight,
   placeholder,
 }: {
-  defaultValue: string;
+  value: string;
   onChange?: (value: string) => void;
   editable?: boolean;
   onBlur?: () => void;
@@ -111,12 +111,12 @@ export function CodeMirrorEditor({
 
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
-    !!defaultValue && defaultValue !== "",
+    !!value && value !== "",
   );
 
   return (
     <CodeMirror
-      value={defaultValue}
+      value={value}
       theme={codeMirrorTheme}
       basicSetup={{
         foldGutter: true,
@@ -142,7 +142,7 @@ export function CodeMirrorEditor({
         ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
         ...(lineWrapping ? [EditorView.lineWrapping] : []),
       ]}
-      defaultValue={defaultValue}
+      defaultValue={value}
       onChange={(c) => {
         if (onChange) onChange(c);
         setLinterEnabled(c !== "");

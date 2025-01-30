@@ -439,7 +439,7 @@ export const UpsertModelFormDrawer = ({
                     <FormLabel>Tokenizer Config</FormLabel>
                     <CodeMirrorEditor
                       mode="json"
-                      defaultValue={field.value ?? "{}"}
+                      value={field.value ?? "{}"}
                       onChange={field.onChange}
                       minHeight="none"
                     />
