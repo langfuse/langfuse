@@ -1,10 +1,10 @@
 import { capitalize } from "lodash";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { type ChangeEvent, useEffect, useState, useRef } from "react";
+import { useState } from "react";
 import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Textarea } from "@/src/components/ui/textarea";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import type { MessagesContext } from "./types";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/src/utils/tailwind";
@@ -22,8 +22,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   availableRoles,
   index,
 }) => {
-  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [textAreaRows, setTextAreaRows] = useState(1);
   const [roleIndex, setRoleIndex] = useState(1);
 
   const {
@@ -58,20 +56,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     }
   };
 
-  const handleContentChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    updateMessage(message.id, "content", event.target.value);
-  };
-
   const placeholder = `Enter ${message.role === ChatMessageRole.User ? "a user" : message.role === ChatMessageRole.System ? "a system" : "an assistant"} message here.`;
-
-  useEffect(() => {
-    const textAreaWidth = textAreaRef.current?.clientWidth ?? 0;
-    const charsPerRow = Math.floor(textAreaWidth / 10);
-
-    setTextAreaRows(
-      countContentRows(message.content, charsPerRow || undefined),
-    );
-  }, [message.content]);
 
   return (
     <Card
@@ -106,14 +91,15 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           </Button>
         </div>
 
-        <Textarea
-          ref={textAreaRef}
-          id={message.id}
-          className="height-[auto] min-h-6 w-full font-mono text-xs focus:outline-none"
+        <CodeMirrorEditor
+          defaultValue={message.content}
+          onChange={(value) => updateMessage(message.id, "content", value)}
+          mode="prompt"
+          minHeight={30}
+          className="w-full"
+          editable={true}
+          lineNumbers={false}
           placeholder={placeholder}
-          value={message.content}
-          onChange={handleContentChange}
-          rows={textAreaRows}
         />
         <Button
           variant="ghost"
@@ -127,15 +113,3 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     </Card>
   );
 };
-
-function countContentRows(str: string, charsPerRow = 80) {
-  const lines = str.split("\n");
-
-  const totalRows = lines.reduce((acc, line) => {
-    const additionalRows = Math.max(1, Math.ceil(line.length / charsPerRow));
-
-    return acc + additionalRows;
-  }, 0);
-
-  return totalRows;
-}

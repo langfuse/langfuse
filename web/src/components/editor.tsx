@@ -88,19 +88,23 @@ export function CodeMirrorEditor({
   onChange,
   editable = true,
   lineWrapping = true,
+  lineNumbers = true,
   className,
   onBlur,
   mode,
   minHeight,
+  placeholder,
 }: {
   defaultValue: string;
   onChange?: (value: string) => void;
   editable?: boolean;
   onBlur?: () => void;
+  lineNumbers?: boolean;
   lineWrapping?: boolean;
   className?: string;
   mode: "json" | "text" | "prompt";
-  minHeight: "none" | 100 | 200;
+  minHeight: "none" | 30 | 100 | 200;
+  placeholder?: string;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? githubDark : githubLight;
@@ -117,6 +121,7 @@ export function CodeMirrorEditor({
       basicSetup={{
         foldGutter: true,
         highlightActiveLine: false,
+        lineNumbers: lineNumbers,
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
@@ -148,6 +153,7 @@ export function CodeMirrorEditor({
         className,
       )}
       editable={editable}
+      placeholder={placeholder}
     />
   );
 }
