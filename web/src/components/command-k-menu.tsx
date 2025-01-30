@@ -29,7 +29,11 @@ export function CommandKMenu({
         url: child.url,
       })) ?? []),
     ])
-    .filter((item) => Boolean(item.url));
+    .filter(
+      (item) =>
+        Boolean(item.url) && // no empty urls
+        !item.url.includes("["), // no dynamic routes without inserted values
+    );
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
