@@ -42,7 +42,7 @@ describe("Traces table API test", () => {
     expect(tableRows[0].public).toEqual(trace.public);
   });
 
-  it("#5274: should get a traces in expected default oder", async () => {
+  it("#5274: should get a traces in expected default order", async () => {
     const project_id = v4();
     const trace_id = v4();
 
