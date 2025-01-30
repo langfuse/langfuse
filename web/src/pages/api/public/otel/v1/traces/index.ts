@@ -20,7 +20,7 @@ export default withMiddlewares({
     name: "OTel Traces",
     querySchema: z.any(),
     responseSchema: z.any(),
-    rateLimitResource: "otel",
+    rateLimitResource: "ingestion",
     successStatusCode: 207,
     fn: async ({ req, res, auth }) => {
       let body: Buffer;

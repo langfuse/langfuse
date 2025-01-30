@@ -224,12 +224,6 @@ const getPlanBasedRateLimitConfig = (
             points: 10,
             durationInSec: 60,
           };
-        case "otel":
-          return {
-            resource: "otel",
-            points: 500,
-            durationInSec: 60,
-          };
         default:
           const exhaustiveCheckDefault: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheckDefault}`);
@@ -264,12 +258,6 @@ const getPlanBasedRateLimitConfig = (
           return {
             resource: "public-api-metrics",
             points: 10,
-            durationInSec: 60,
-          };
-        case "otel":
-          return {
-            resource: "otel",
-            points: 500,
             durationInSec: 60,
           };
         default:
