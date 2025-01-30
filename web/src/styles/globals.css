@@ -26,7 +26,7 @@
     --secondary-foreground: 222.2 47.4% 11.2%;
 
     --accent: 210 40% 96.1%;
-    --accent-foreground: ;
+    --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -159,6 +159,7 @@
 }
 
 @layer base {
+
   input[type="number"].appearance-none::-webkit-inner-spin-button,
   input[type="number"].appearance-none::-webkit-outer-spin-button {
     -webkit-appearance: none;
