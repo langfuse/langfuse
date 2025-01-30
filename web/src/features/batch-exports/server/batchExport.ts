@@ -30,10 +30,7 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
-        console.log(
-          "[TRPC] Creating export job",
-          JSON.stringify(input, null, 2),
-        );
+        logger.info("[TRPC] Creating export job", { job: input });
         const userId = ctx.session.user.id;
 
         // Create export job
