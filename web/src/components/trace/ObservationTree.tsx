@@ -309,6 +309,7 @@ const ObservationTreeNodeCard = ({
     ) {
       currentObservationRef.current.scrollIntoView({
         behavior: "smooth",
+        block: "center",
       });
     }
     // Should only trigger a single time on initial render
