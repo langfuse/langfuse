@@ -54,12 +54,11 @@ export const createAuthedAPIRoute = <
       return;
     }
 
-    const rateLimitResponse = await new RateLimitService(
-      redis,
-    ).rateLimitRequest(
-      auth.scope,
-      routeConfig.rateLimitResource || "public-api",
-    );
+    const rateLimitResponse =
+      await RateLimitService.getInstance().rateLimitRequest(
+        auth.scope,
+        routeConfig.rateLimitResource || "public-api",
+      );
 
     if (rateLimitResponse?.isRateLimited()) {
       return rateLimitResponse.sendRestResponseIfLimited(res);
