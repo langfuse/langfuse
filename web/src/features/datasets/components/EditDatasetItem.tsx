@@ -13,7 +13,7 @@ import {
 } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
 
 const formSchema = z.object({
@@ -143,7 +143,8 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Input</FormLabel>
                   <FormControl>
-                    <JsonEditor
+                    <CodeMirrorEditor
+                      mode="json"
                       defaultValue={field.value}
                       onChange={(v) => {
                         setHasChanges(true);
@@ -164,7 +165,8 @@ export const EditDatasetItem = ({
                 <FormItem>
                   <FormLabel>Expected output</FormLabel>
                   <FormControl>
-                    <JsonEditor
+                    <CodeMirrorEditor
+                      mode="json"
                       defaultValue={field.value}
                       onChange={(v) => {
                         setHasChanges(true);
@@ -186,7 +188,8 @@ export const EditDatasetItem = ({
               <FormItem>
                 <FormLabel>Metadata</FormLabel>
                 <FormControl>
-                  <JsonEditor
+                  <CodeMirrorEditor
+                    mode="json"
                     defaultValue={field.value}
                     onChange={(v) => {
                       setHasChanges(true);

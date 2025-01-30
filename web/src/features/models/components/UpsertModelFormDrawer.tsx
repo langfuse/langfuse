@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { Button } from "@/src/components/ui/button";
 import {
   Drawer,
@@ -437,7 +437,8 @@ export const UpsertModelFormDrawer = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tokenizer Config</FormLabel>
-                    <JsonEditor
+                    <CodeMirrorEditor
+                      mode="json"
                       defaultValue={field.value ?? "{}"}
                       onChange={field.onChange}
                     />

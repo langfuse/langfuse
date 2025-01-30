@@ -44,7 +44,7 @@ import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
 import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
@@ -297,10 +297,11 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     <>
                       <FormControl>
                         {showJsonEditor ? (
-                          <JsonEditor
+                          <CodeMirrorEditor
                             defaultValue={field.value}
                             onChange={field.onChange}
                             editable
+                            mode="text"
                           />
                         ) : (
                           <Textarea
@@ -343,11 +344,12 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Config</FormLabel>
-              <JsonEditor
+              <CodeMirrorEditor
                 defaultValue={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 editable
+                mode="json"
               />
               <FormDescription>
                 Track configs for LLM API calls such as function definitions or

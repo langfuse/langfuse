@@ -7,13 +7,14 @@ import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 
-export function JsonEditor({
+export function CodeMirrorEditor({
   defaultValue,
   onChange,
   editable = true,
   lineWrapping = true,
   className,
   onBlur,
+  mode,
 }: {
   defaultValue: string;
   onChange?: (value: string) => void;
@@ -21,6 +22,7 @@ export function JsonEditor({
   onBlur?: () => void;
   lineWrapping?: boolean;
   className?: string;
+  mode: "json" | "text";
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
@@ -29,19 +31,30 @@ export function JsonEditor({
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!defaultValue && defaultValue !== "",
   );
+
+  const extensions = [];
+
+  if (mode === "json") {
+    extensions.push(json());
+    if (linterEnabled) {
+      extensions.push(linter(jsonParseLinter()));
+    }
+  }
+
+  if (lineWrapping) {
+    extensions.push(EditorView.lineWrapping);
+  }
+
   return (
     <CodeMirror
       value={defaultValue}
       theme={codeMirrorTheme}
       basicSetup={{
         foldGutter: true,
+        highlightActiveLine: false,
       }}
-      lang={"json"}
-      extensions={[
-        json(),
-        ...(linterEnabled ? [linter(jsonParseLinter())] : []),
-        ...(lineWrapping ? [EditorView.lineWrapping] : []),
-      ]}
+      lang={mode === "json" ? "json" : undefined}
+      extensions={extensions}
       defaultValue={defaultValue}
       onChange={(c) => {
         if (onChange) onChange(c);

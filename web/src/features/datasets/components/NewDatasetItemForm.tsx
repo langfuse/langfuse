@@ -19,7 +19,7 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -169,7 +169,8 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Input</FormLabel>
                 <FormControl>
-                  <JsonEditor
+                  <CodeMirrorEditor
+                    mode="json"
                     defaultValue={field.value}
                     onChange={field.onChange}
                   />
@@ -185,7 +186,8 @@ export const NewDatasetItemForm = (props: {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Expected output</FormLabel>
                 <FormControl>
-                  <JsonEditor
+                  <CodeMirrorEditor
+                    mode="json"
                     defaultValue={field.value}
                     onChange={field.onChange}
                   />
@@ -202,7 +204,8 @@ export const NewDatasetItemForm = (props: {
             <FormItem className="flex flex-col gap-2">
               <FormLabel>Metadata</FormLabel>
               <FormControl>
-                <JsonEditor
+                <CodeMirrorEditor
+                  mode="json"
                   defaultValue={field.value}
                   onChange={field.onChange}
                 />

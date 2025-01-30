@@ -13,7 +13,7 @@ import {
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { Input } from "@/src/components/ui/input";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
@@ -229,7 +229,8 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   <FormItem>
                     <FormLabel>Metadata (optional)</FormLabel>
                     <FormControl>
-                      <JsonEditor
+                      <CodeMirrorEditor
+                        mode="json"
                         defaultValue={field.value}
                         onChange={(v) => {
                           field.onChange(v);
