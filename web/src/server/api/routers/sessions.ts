@@ -312,6 +312,8 @@ export const sessionRouter = createTRPCRouter({
           traces: clickhouseTraces.map((t) => ({
             ...t,
             scores: validatedScores.filter((s) => s.traceId === t.id),
+            input: JSON.stringify(t.input),
+            output: JSON.stringify(t.output),
           })),
           totalCost: costData ?? 0,
           users: [
