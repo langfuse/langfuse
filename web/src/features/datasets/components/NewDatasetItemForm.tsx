@@ -173,6 +173,7 @@ export const NewDatasetItemForm = (props: {
                     mode="json"
                     defaultValue={field.value}
                     onChange={field.onChange}
+                    minHeight={200}
                   />
                 </FormControl>
                 <FormMessage />
@@ -190,6 +191,7 @@ export const NewDatasetItemForm = (props: {
                     mode="json"
                     defaultValue={field.value}
                     onChange={field.onChange}
+                    minHeight={200}
                   />
                 </FormControl>
                 <FormMessage />
@@ -208,6 +210,7 @@ export const NewDatasetItemForm = (props: {
                   mode="json"
                   defaultValue={field.value}
                   onChange={field.onChange}
+                  minHeight={100}
                 />
               </FormControl>
               <FormMessage />

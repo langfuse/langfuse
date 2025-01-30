@@ -151,7 +151,8 @@ export const EditDatasetItem = ({
                         field.onChange(v);
                       }}
                       editable={hasAccess}
-                      className="max-h-[500px] overflow-y-auto"
+                      className="max-h-[500px]"
+                      minHeight={200}
                     />
                   </FormControl>
                   <FormMessage />
@@ -173,7 +174,8 @@ export const EditDatasetItem = ({
                         field.onChange(v);
                       }}
                       editable={hasAccess}
-                      className="max-h-[500px] overflow-y-auto"
+                      className="max-h-[500px]"
+                      minHeight={200}
                     />
                   </FormControl>
                   <FormMessage />
@@ -196,7 +198,8 @@ export const EditDatasetItem = ({
                       field.onChange(v);
                     }}
                     editable={hasAccess}
-                    className="max-h-[200px] overflow-y-auto"
+                    className="max-h-[150px]"
+                    minHeight={100}
                   />
                 </FormControl>
                 <FormMessage />

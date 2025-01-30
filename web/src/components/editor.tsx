@@ -15,6 +15,7 @@ export function CodeMirrorEditor({
   className,
   onBlur,
   mode,
+  minHeight,
 }: {
   defaultValue: string;
   onChange?: (value: string) => void;
@@ -23,6 +24,7 @@ export function CodeMirrorEditor({
   lineWrapping?: boolean;
   className?: string;
   mode: "json" | "text";
+  minHeight: "none" | 100 | 200;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
@@ -31,19 +33,6 @@ export function CodeMirrorEditor({
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!defaultValue && defaultValue !== "",
   );
-
-  const extensions = [];
-
-  if (mode === "json") {
-    extensions.push(json());
-    if (linterEnabled) {
-      extensions.push(linter(jsonParseLinter()));
-    }
-  }
-
-  if (lineWrapping) {
-    extensions.push(EditorView.lineWrapping);
-  }
 
   return (
     <CodeMirror
@@ -54,14 +43,33 @@ export function CodeMirrorEditor({
         highlightActiveLine: false,
       }}
       lang={mode === "json" ? "json" : undefined}
-      extensions={extensions}
+      extensions={[
+        // Extend gutter to full height when minHeight > content height
+        // This also enlarges the text area to minHeight
+        ...(minHeight === "none"
+          ? []
+          : [
+              EditorView.theme({
+                ".cm-gutter,.cm-content": { minHeight: `${minHeight}px` },
+                ".cm-scroller": { overflow: "auto" },
+              }),
+            ]),
+        ...(mode === "json" ? [json()] : []),
+        ...(mode === "json" && linterEnabled
+          ? [linter(jsonParseLinter())]
+          : []),
+        ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      ]}
       defaultValue={defaultValue}
       onChange={(c) => {
         if (onChange) onChange(c);
         setLinterEnabled(c !== "");
       }}
       onBlur={onBlur}
-      className={cn("overflow-hidden rounded-md border text-xs", className)}
+      className={cn(
+        "overflow-hidden overflow-y-auto rounded-md border text-xs",
+        className,
+      )}
       editable={editable}
     />
   );

@@ -441,6 +441,7 @@ export const UpsertModelFormDrawer = ({
                       mode="json"
                       defaultValue={field.value ?? "{}"}
                       onChange={field.onChange}
+                      minHeight="none"
                     />
                     <FormDescription>
                       The config for the tokenizer. Required for openai. See the{" "}

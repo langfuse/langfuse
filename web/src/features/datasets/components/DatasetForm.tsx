@@ -235,6 +235,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
                         onChange={(v) => {
                           field.onChange(v);
                         }}
+                        minHeight="none"
                       />
                     </FormControl>
                     <FormMessage />

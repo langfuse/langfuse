@@ -282,6 +282,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                           onChange={field.onChange}
                           editable
                           mode="text"
+                          minHeight={200}
                         />
                       </FormControl>
                       <FormMessage />
@@ -324,6 +325,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 onBlur={field.onBlur}
                 editable
                 mode="json"
+                minHeight="none"
               />
               <FormDescription>
                 Track configs for LLM API calls such as function definitions or
