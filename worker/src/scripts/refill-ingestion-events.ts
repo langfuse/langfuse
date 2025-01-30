@@ -47,7 +47,7 @@ const main = async () => {
   const ingestionQueue = IngestionQueue.getInstance();
 
   // Process each record
-  const BATCH_SIZE = 50; // Process 100 events at a time
+  const BATCH_SIZE = 20;
 
   for (let i = 0; i < unprocessedRecords.length; i += BATCH_SIZE) {
     const batch = unprocessedRecords.slice(i, i + BATCH_SIZE);
