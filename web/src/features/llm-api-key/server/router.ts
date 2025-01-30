@@ -178,6 +178,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             adapter: input.adapter,
             provider: input.provider,
             model,
+            top_p: 0.9, // Langchain sets 1 as default that is not supported HuggingFace
           },
           baseURL: input.baseURL,
           apiKey: input.secretKey,
