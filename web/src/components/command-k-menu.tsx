@@ -25,6 +25,16 @@ export function CommandKMenu({
   const { allProjectItems } = useNavigationItems();
   const capture = usePostHogClientCapture();
 
+  const debouncedSearchChange = useDebounce(
+    (value: string) => {
+      capture("cmd_k_menu:search_entered", {
+        search: value,
+      });
+    },
+    500,
+    false,
+  );
+
   const navItems = mainNavigation
     .flatMap((item) => [
       {
@@ -71,15 +81,7 @@ export function CommandKMenu({
       <CommandInput
         placeholder="Type a command or search..."
         className="border-none focus:border-none focus:outline-none focus:ring-0 focus:ring-transparent"
-        onValueChange={useDebounce(
-          (value: string) => {
-            capture("cmd_k_menu:search_entered", {
-              search: value,
-            });
-          },
-          500,
-          false,
-        )}
+        onValueChange={debouncedSearchChange}
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
