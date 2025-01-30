@@ -22,15 +22,26 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { parseJsonPrioritised } from "@langfuse/shared";
 
 export const NewDatasetItemFromTrace = (props: {
   projectId: string;
   traceId: string;
   observationId?: string;
-  input: Prisma.JsonValue;
-  output: Prisma.JsonValue;
+  input: string | null;
+  output: string | null;
   metadata: Prisma.JsonValue;
 }) => {
+  const parsedInput =
+    props.input && typeof props.input === "string"
+      ? (parseJsonPrioritised(props.input) ?? null)
+      : null;
+
+  const parsedOutput =
+    props.output && typeof props.output === "string"
+      ? (parseJsonPrioritised(props.output) ?? null)
+      : null;
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
@@ -124,8 +135,8 @@ export const NewDatasetItemFromTrace = (props: {
             traceId={props.traceId}
             observationId={props.observationId}
             projectId={props.projectId}
-            input={props.input}
-            output={props.output}
+            input={parsedInput}
+            output={parsedOutput}
             metadata={props.metadata}
             onFormSuccess={() => setIsFormOpen(false)}
             className="h-full overflow-y-auto"

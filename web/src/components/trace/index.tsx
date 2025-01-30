@@ -54,7 +54,10 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
-  trace: Trace;
+  trace: Omit<Trace, "input" | "output"> & {
+    input: string | null;
+    output: string | null;
+  };
   scores: APIScore[];
   projectId: string;
   viewType?: "detailed" | "focused";
