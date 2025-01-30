@@ -126,6 +126,7 @@ export const entitlementAccess: Record<
       "self-host-ui-customization",
       "integration-posthog",
       "audit-logs",
+      "data-retention",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
