@@ -354,7 +354,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
               column: "timestamp_to_date",
               order: orderBy.order,
             },
-            { column: "timestamp", order: "DESC" as "DESC" },
+            { column: "timestamp", order: orderBy.order },
             { column: "event_ts", order: "DESC" as "DESC" },
           ]
         : null,
