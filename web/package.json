@@ -96,7 +96,6 @@
     "@trpc/react-query": "^10.45.0",
     "@trpc/server": "^10.45.0",
     "@uiw/codemirror-theme-github": "^4.21.24",
-    "@uiw/codemirror-theme-tokyo-night": "^4.21.24",
     "@uiw/react-codemirror": "^4.21.24",
     "ai": "^3.4.9",
     "bcryptjs": "^2.4.3",
