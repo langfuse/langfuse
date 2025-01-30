@@ -33,6 +33,8 @@ export const observationsRouter = createTRPCRouter({
         }
         return {
           ...obs,
+          input: JSON.stringify(obs.input),
+          output: JSON.stringify(obs.output),
           internalModel: obs?.internalModelId,
         };
       } catch (e) {

@@ -188,7 +188,11 @@ export const traceRouter = createTRPCRouter({
           message: "Trace not found",
         });
       }
-      return trace;
+      return {
+        ...trace,
+        input: JSON.stringify(trace.input),
+        output: JSON.stringify(trace.output),
+      };
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
     .input(
@@ -249,9 +253,15 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
+        input: JSON.stringify(trace.input),
+        output: JSON.stringify(trace.output),
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: observations as ObservationReturnType[],
+        observations: observations.map((o) => ({
+          ...o,
+          input: JSON.stringify(o.input),
+          output: JSON.stringify(o.output),
+        })),
       };
     }),
   deleteMany: protectedProjectProcedure
