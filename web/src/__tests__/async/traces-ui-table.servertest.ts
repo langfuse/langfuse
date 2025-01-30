@@ -42,6 +42,39 @@ describe("Traces table API test", () => {
     expect(tableRows[0].public).toEqual(trace.public);
   });
 
+  it("#5274: should get a traces in expected default oder", async () => {
+    const project_id = v4();
+    const trace_id = v4();
+
+    // Trace1 happened after Trace2, but Trace2 got updated.
+    const trace1 = createTrace({
+      id: `${trace_id}-1`,
+      project_id,
+      timestamp: new Date().getTime(),
+      event_ts: new Date().getTime(),
+    });
+    const trace2 = createTrace({
+      id: `${trace_id}-2`,
+      project_id,
+      timestamp: new Date().getTime() - 5000,
+      event_ts: new Date().getTime() + 5000,
+    });
+    await createTracesCh([trace1, trace2]);
+
+    const tableRows = await getTracesTable(
+      project_id,
+      [],
+      undefined,
+      { column: "timestamp", order: "DESC" },
+      2,
+      0,
+    );
+
+    expect(tableRows).toHaveLength(2);
+    expect(tableRows[0].id).toEqual(`${trace_id}-1`);
+    expect(tableRows[1].id).toEqual(`${trace_id}-2`);
+  });
+
   it("should get a correct trace with observations", async () => {
     const project_id = v4();
     const trace_id = v4();
