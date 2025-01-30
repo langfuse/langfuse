@@ -145,23 +145,26 @@ export const getScoreAggregate = async (
 export const groupTracesByTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
   ).apply();
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "timestamp",
+  );
+
   const query = `
     SELECT 
-      ${selectTimeseriesColumn(groupBy, "timestamp", "timestamp")},
+      ${selectTimeseriesColumn(bucketSizeInSeconds, "timestamp", "timestamp")},
       count(*) as count
     FROM traces t FINAL
     WHERE project_id = {projectId: String}
     AND ${chFilter.query}
     GROUP BY timestamp
-    ${orderByTimeSeries(groupBy, "timestamp")}
+    ${orderByQuery}
     `;
-
   const result = await queryClickhouse<{
     timestamp: string;
     count: string;
@@ -170,11 +173,12 @@ export const groupTracesByTime = async (
     params: {
       projectId,
       ...chFilter.params,
+      ...orderByParams,
     },
   });
 
   return result.map((row) => ({
-    timestamp: new Date(row.timestamp),
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     countTraceId: Number(row.count),
   }));
 };
@@ -182,7 +186,6 @@ export const groupTracesByTime = async (
 export const getObservationUsageByTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -200,9 +203,14 @@ export const getObservationUsageByTime = async (
       ) as DateTimeFilter | undefined)
     : undefined;
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "start_time",
+  );
+
   const query = `
     SELECT 
-      ${selectTimeseriesColumn(groupBy, "start_time", "start_time")},
+      ${selectTimeseriesColumn(bucketSizeInSeconds, "start_time", "start_time")},
       sumMap(usage_details) as units,
       sumMap(cost_details) as cost, 
       provided_model_name
@@ -212,7 +220,7 @@ export const getObservationUsageByTime = async (
     AND ${appliedFilter.query}
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY start_time, provided_model_name
-    ${orderByTimeSeries(groupBy, "start_time")}
+    ${orderByQuery}
     `;
 
   const result = await queryClickhouse<{
@@ -225,6 +233,7 @@ export const getObservationUsageByTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...orderByParams,
       ...(timeFilter
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
@@ -232,7 +241,7 @@ export const getObservationUsageByTime = async (
   });
 
   return result.map((row) => ({
-    start_time: new Date(row.start_time),
+    start_time: parseClickhouseUTCDateTimeFormat(row.start_time),
     units: Object.fromEntries(
       Object.entries(row.units ?? {}).map(([key, value]) => [
         key,
@@ -296,7 +305,6 @@ export const getDistinctModels = async (
 export const getScoresAggregateOverTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -307,9 +315,14 @@ export const getScoresAggregateOverTime = async (
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
   // TODO: Validate whether we can filter traces on timestamp here.
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "timestamp",
+  );
+
   const query = `
   SELECT 
-    ${selectTimeseriesColumn(groupBy, "timestamp", "timestamp")},
+    ${selectTimeseriesColumn(bucketSizeInSeconds, "timestamp", "timestamp")},
     name,
     data_type,
     source,
@@ -324,7 +337,7 @@ export const getScoresAggregateOverTime = async (
     name,
     data_type,
     source
-  ${orderByTimeSeries(groupBy, "timestamp")};
+  ${orderByQuery};
 `;
 
   const result = await queryClickhouse<{
@@ -338,11 +351,12 @@ export const getScoresAggregateOverTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...orderByParams,
     },
   });
 
   return result.map((row) => ({
-    scoreTimestamp: new Date(row.timestamp),
+    scoreTimestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     scoreName: row.name,
     scoreDataType: row.data_type,
     scoreSource: row.source,
@@ -506,7 +520,6 @@ export const getTracesLatencies = async (
 export const getModelLatenciesOverTime = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -516,10 +529,15 @@ export const getModelLatenciesOverTime = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "start_time_bucket",
+  );
+
   // Skipping FINAL here, as the quantiles are approximate to begin with.
   const query = `
   SELECT 
-    ${selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket")},
+    ${selectTimeseriesColumn(bucketSizeInSeconds, "o.start_time", "start_time_bucket")},
     provided_model_name,
     quantiles(0.5, 0.75, 0.9, 0.95, 0.99)(date_diff('millisecond', o.start_time, o.end_time)) as quantiles
   FROM observations o
@@ -527,14 +545,17 @@ export const getModelLatenciesOverTime = async (
   WHERE project_id = {projectId: String}
   AND ${appliedFilter.query}
   GROUP BY provided_model_name, start_time_bucket
-  ${orderByTimeSeries(groupBy, "start_time_bucket")};
+  ${orderByQuery};
 `;
 
   const result = await queryClickhouse<{
     start_time_bucket: string;
     provided_model_name: string;
     quantiles: string[];
-  }>({ query, params: { projectId, ...appliedFilter.params } });
+  }>({
+    query,
+    params: { projectId, ...appliedFilter.params, ...orderByParams },
+  });
 
   return result.map((row) => ({
     p50: Number(row.quantiles[0]) / 1000,
@@ -543,14 +564,13 @@ export const getModelLatenciesOverTime = async (
     p95: Number(row.quantiles[3]) / 1000,
     p99: Number(row.quantiles[4]) / 1000,
     model: row.provided_model_name,
-    start_time: new Date(row.start_time_bucket),
+    start_time: parseClickhouseUTCDateTimeFormat(row.start_time_bucket),
   }));
 };
 
 export const getNumericScoreTimeSeries = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -559,9 +579,14 @@ export const getNumericScoreTimeSeries = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "score_timestamp",
+  );
+
   const query = `
     SELECT
-    ${selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp")},
+    ${selectTimeseriesColumn(bucketSizeInSeconds, "s.timestamp", "score_timestamp")},
     s.name as score_name,
     AVG(s.value) as avg_value
     FROM scores s final
@@ -569,11 +594,11 @@ export const getNumericScoreTimeSeries = async (
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_timestamp
-    ${orderByTimeSeries(groupBy, "score_timestamp")}
+    ${orderByQuery}
   `;
 
-  return queryClickhouse<{
-    score_timestamp: Date;
+  const result = await queryClickhouse<{
+    score_timestamp: string;
     score_name: string;
     avg_value: number;
   }>({
@@ -581,14 +606,20 @@ export const getNumericScoreTimeSeries = async (
     params: {
       projectId,
       ...(chFilterRes ? chFilterRes.params : {}),
+      ...orderByParams,
     },
   });
+
+  return result.map((row) => ({
+    scoreTimestamp: parseClickhouseUTCDateTimeFormat(row.score_timestamp),
+    scoreName: row.score_name,
+    avgValue: Number(row.avg_value),
+  }));
 };
 
 export const getCategoricalScoreTimeSeries = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc | undefined,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -597,9 +628,14 @@ export const getCategoricalScoreTimeSeries = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "score_timestamp",
+  );
+
   const query = `
     SELECT
-    ${groupBy ? selectTimeseriesColumn(groupBy, "s.timestamp", "score_timestamp") + ", " : ""}
+    ${bucketSizeInSeconds ? selectTimeseriesColumn(bucketSizeInSeconds, "s.timestamp", "score_timestamp") + ", " : ""}
     s.name as score_name,
     s.data_type as score_data_type,
     s.source as score_source,
@@ -609,12 +645,12 @@ export const getCategoricalScoreTimeSeries = async (
     ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
-    GROUP BY score_name, score_data_type, score_source, score_value ${groupBy ? ", score_timestamp" : ""}
-    ${groupBy ? orderByTimeSeries(groupBy, "score_timestamp") : ""}
+    GROUP BY score_name, score_data_type, score_source, score_value ${bucketSizeInSeconds ? ", score_timestamp" : ""}
+      ${orderByQuery}
   `;
 
-  return queryClickhouse<{
-    score_timestamp?: Date;
+  const result = await queryClickhouse<{
+    score_timestamp?: string;
     score_name: string;
     score_data_type: string;
     score_source: string;
@@ -625,14 +661,25 @@ export const getCategoricalScoreTimeSeries = async (
     params: {
       projectId,
       ...(chFilterRes ? chFilterRes.params : {}),
+      ...orderByParams,
     },
   });
+
+  return result.map((row) => ({
+    scoreTimestamp: row.score_timestamp
+      ? parseClickhouseUTCDateTimeFormat(row.score_timestamp)
+      : undefined,
+    scoreName: row.score_name,
+    scoreDataType: row.score_data_type,
+    scoreSource: row.score_source,
+    scoreValue: row.score_value,
+    count: Number(row.count),
+  }));
 };
 
 export const getObservationsStatusTimeSeries = async (
   projectId: string,
   filter: FilterState,
-  groupBy: DateTrunc | undefined,
 ) => {
   const chFilter = new FilterList(
     createFilterFromFilterState(filter, dashboardColumnDefinitions),
@@ -641,9 +688,14 @@ export const getObservationsStatusTimeSeries = async (
 
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
+  const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
+    filter,
+    "start_time_bucket",
+  );
+
   const query = `
     SELECT 
-      ${groupBy ? selectTimeseriesColumn(groupBy, "o.start_time", "start_time_bucket") + ", " : ""}
+      ${bucketSizeInSeconds ? selectTimeseriesColumn(bucketSizeInSeconds, "o.start_time", "start_time_bucket") + ", " : ""}
       count(*) as observation_count,
       level as level
     FROM observations o
@@ -651,8 +703,8 @@ export const getObservationsStatusTimeSeries = async (
     WHERE project_id = {projectId: String}
     AND o.level IS NOT NULL
     AND ${chFilterRes?.query}
-    GROUP BY level ${groupBy ? ", start_time_bucket" : ""}
-    ${groupBy ? orderByTimeSeries(groupBy, "start_time_bucket") : ""}
+    GROUP BY level ${bucketSizeInSeconds ? ", start_time_bucket" : ""}
+    ${orderByQuery}
   `;
 
   const result = await queryClickhouse<{
@@ -661,7 +713,11 @@ export const getObservationsStatusTimeSeries = async (
     level: string;
   }>({
     query,
-    params: { projectId, ...(chFilterRes ? chFilterRes.params : {}) },
+    params: {
+      projectId,
+      ...(chFilterRes ? chFilterRes.params : {}),
+      ...orderByParams,
+    },
   });
 
   return result.map((row) => ({
@@ -673,61 +729,70 @@ export const getObservationsStatusTimeSeries = async (
   }));
 };
 
-const orderByTimeSeries = (dateTrunc: DateTrunc, col: string) => {
-  let interval;
-  switch (dateTrunc) {
-    case "year":
-      interval = "toIntervalYear(1)";
-      break;
-    case "month":
-      interval = "toIntervalMonth(1)";
-      break;
-    case "week":
-      interval = "toIntervalWeek(1)";
-      break;
-    case "day":
-      interval = "toIntervalDay(1)";
-      break;
-    case "hour":
-      interval = "toIntervalHour(1)";
-      break;
-    case "minute":
-      interval = "toIntervalMinute(1)";
-      break;
-    default:
-      return undefined;
+export const orderByTimeSeries = (
+  filter: FilterState,
+  col: string,
+): [string, { fromTime: number; toTime: number }, number] => {
+  const potentialBucketSizesSeconds = [
+    5, 10, 30, 60, 300, 600, 1800, 3600, 18000, 36000, 86400, 604800, 2592000,
+  ];
+
+  // Calculate time difference in seconds
+  const [from, to] = extractFromAndToTimestampsFromFilter(filter);
+
+  if (!from || !to) {
+    throw new Error("Time Filter is required for time series queries");
   }
 
-  return `ORDER BY ${col} ASC WITH FILL STEP ${interval}`;
+  const fromDate = new Date(from.value as Date);
+  const toDate = new Date(to.value as Date);
+
+  const diffInSeconds = Math.abs(toDate.getTime() - fromDate.getTime()) / 1000;
+
+  // choose the bucket size that is the closest to the desired number of buckets
+  const bucketSizeInSeconds = potentialBucketSizesSeconds.reduce(
+    (closest, size) => {
+      const diffFromDesiredBuckets = Math.abs(diffInSeconds / size - 50);
+      return diffFromDesiredBuckets < closest.diffFromDesiredBuckets
+        ? { size, diffFromDesiredBuckets }
+        : closest;
+    },
+    { size: 0, diffFromDesiredBuckets: Infinity },
+  ).size;
+
+  // Convert to interval string
+  const interval = `toIntervalSecond(${bucketSizeInSeconds})`;
+
+  return [
+    `ORDER BY ${col} ASC 
+    WITH FILL
+    FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL ${bucketSizeInSeconds} SECOND)
+    TO toDateTime({toTime: DateTime64(3)}) + INTERVAL ${bucketSizeInSeconds} SECOND
+    STEP ${interval}`,
+    { fromTime: fromDate.getTime(), toTime: toDate.getTime() },
+    bucketSizeInSeconds,
+  ];
 };
 
-const selectTimeseriesColumn = (
-  dateTrunc: DateTrunc,
+export const selectTimeseriesColumn = (
+  bucketSizeInSeconds: number,
   col: string,
   as: String,
 ) => {
-  let interval;
-  switch (dateTrunc) {
-    case "year":
-      interval = "toStartOfYear";
-      break;
-    case "month":
-      interval = "toStartOfMonth";
-      break;
-    case "week":
-      interval = "toStartOfWeek";
-      break;
-    case "day":
-      interval = "toStartOfDay";
-      break;
-    case "hour":
-      interval = "toStartOfHour";
-      break;
-    case "minute":
-      interval = "toStartOfMinute";
-      break;
-    default:
-      return undefined;
-  }
-  return `${interval}(${col}) as ${as}`;
+  return `toStartOfInterval(${col}, INTERVAL ${bucketSizeInSeconds} SECOND) as ${as}`;
+};
+
+export const extractFromAndToTimestampsFromFilter = (filter?: FilterState) => {
+  if (!filter)
+    throw new Error("Time Filter is required for time series queries");
+
+  const fromTimestamp = filter.filter(
+    (f) => f.type === "datetime" && (f.operator === ">" || f.operator === ">="),
+  );
+
+  const toTimestamp = filter.filter(
+    (f) => f.type === "datetime" && (f.operator === "<" || f.operator === "<="),
+  );
+
+  return [fromTimestamp[0], toTimestamp[0]];
 };
