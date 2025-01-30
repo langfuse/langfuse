@@ -127,86 +127,20 @@ export const EditDatasetItem = ({
   }
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <Form {...form}>
         <form
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-4"
+          className="flex h-full flex-col"
           onChange={() => setHasChanges(true)}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="input"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Input</FormLabel>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      mode="json"
-                      defaultValue={field.value}
-                      onChange={(v) => {
-                        setHasChanges(true);
-                        field.onChange(v);
-                      }}
-                      editable={hasAccess}
-                      className="max-h-[500px]"
-                      minHeight={200}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="expectedOutput"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Expected output</FormLabel>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      mode="json"
-                      defaultValue={field.value}
-                      onChange={(v) => {
-                        setHasChanges(true);
-                        field.onChange(v);
-                      }}
-                      editable={hasAccess}
-                      className="max-h-[500px]"
-                      minHeight={200}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormField
-            control={form.control}
-            name="metadata"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Metadata</FormLabel>
-                <FormControl>
-                  <CodeMirrorEditor
-                    mode="json"
-                    defaultValue={field.value}
-                    onChange={(v) => {
-                      setHasChanges(true);
-                      field.onChange(v);
-                    }}
-                    editable={hasAccess}
-                    className="max-h-[150px]"
-                    minHeight={100}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-4 py-4">
+            {formError ? (
+              <p className="text-red text-center">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            ) : null}
             <Button
               type="submit"
               loading={updateDatasetItemMutation.isLoading}
@@ -216,13 +150,80 @@ export const EditDatasetItem = ({
               {hasChanges ? "Save changes" : "Saved"}
             </Button>
           </div>
+          <div className="flex-1 overflow-auto">
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="input"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Input</FormLabel>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          defaultValue={field.value}
+                          onChange={(v) => {
+                            setHasChanges(true);
+                            field.onChange(v);
+                          }}
+                          editable={hasAccess}
+                          minHeight={200}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="expectedOutput"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expected output</FormLabel>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          defaultValue={field.value}
+                          onChange={(v) => {
+                            setHasChanges(true);
+                            field.onChange(v);
+                          }}
+                          editable={hasAccess}
+                          minHeight={200}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metadata</FormLabel>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        defaultValue={field.value}
+                        onChange={(v) => {
+                          setHasChanges(true);
+                          field.onChange(v);
+                        }}
+                        editable={hasAccess}
+                        minHeight={100}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </form>
       </Form>
-      {formError ? (
-        <p className="text-red text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
-      ) : null}
     </div>
   );
 };
