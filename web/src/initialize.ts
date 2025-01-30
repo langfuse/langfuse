@@ -2,6 +2,8 @@ import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 // Create Organization
 if (env.LANGFUSE_INIT_ORG_ID) {
@@ -17,8 +19,11 @@ if (env.LANGFUSE_INIT_ORG_ID) {
   // Create Project: Org -> Project
   if (env.LANGFUSE_INIT_PROJECT_ID) {
     let retentionDays: number | null = null;
-    if (env.LANGFUSE_INIT_PROJECT_RETENTION) {
-      // TODO: We need to perform an entitlement check here.
+    const hasRetentionEntitlement = hasEntitlementBasedOnPlan({
+      plan: getOrganizationPlanServerSide(),
+      entitlement: "data-retention",
+    });
+    if (env.LANGFUSE_INIT_PROJECT_RETENTION && hasRetentionEntitlement) {
       retentionDays = env.LANGFUSE_INIT_PROJECT_RETENTION;
     }
 
