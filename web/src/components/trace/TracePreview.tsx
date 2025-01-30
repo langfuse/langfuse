@@ -82,6 +82,7 @@ export const TracePreview = ({
       projectId: trace.projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
