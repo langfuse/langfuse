@@ -4,7 +4,6 @@ import {
   type Trace,
   type ScoreSource,
   AnnotationQueueObjectType,
-  parseJsonPrioritised,
 } from "@langfuse/shared";
 import {
   Card,
@@ -50,7 +49,11 @@ export const TracePreview = ({
   viewType = "detailed",
   className,
 }: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    latency?: number;
+    input: string | null;
+    output: string | null;
+  };
   observations: ObservationReturnType[];
   scores: APIScore[];
   commentCounts?: Map<string, number>;
