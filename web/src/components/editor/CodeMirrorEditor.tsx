@@ -120,7 +120,7 @@ export function CodeMirrorEditor({
       value={value}
       theme={codeMirrorTheme}
       basicSetup={{
-        foldGutter: true,
+        foldGutter: lineNumbers,
         highlightActiveLine: false,
         lineNumbers: lineNumbers,
       }}
