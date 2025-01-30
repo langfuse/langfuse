@@ -36,16 +36,21 @@ export function CommandKMenu({
   );
 
   const navItems = mainNavigation
-    .flatMap((item) => [
-      {
-        title: item.title,
-        url: item.url,
-      },
-      ...(item.items?.map((child) => ({
-        title: `${item.title} > ${child.title}`,
-        url: child.url,
-      })) ?? []),
-    ])
+    .flatMap((item) => {
+      if (item.items) {
+        // if the item has children, return the children and not the parent
+        return item.items.map((child) => ({
+          title: `${item.title} > ${child.title}`,
+          url: child.url,
+        }));
+      }
+      return [
+        {
+          title: item.title,
+          url: item.url,
+        },
+      ];
+    })
     .filter(
       (item) =>
         Boolean(item.url) && // no empty urls
@@ -114,6 +119,7 @@ export function CommandKMenu({
                   key={item.url}
                   value={item.title}
                   keywords={item.keywords}
+                  disabled={item.active}
                   onSelect={() => {
                     router.push(item.url);
                     capture("cmd_k_menu:navigated", {
@@ -176,6 +182,7 @@ export const useNavigationItems = () => {
           org.projects.map((proj) => ({
             title: `${org.name} > ${proj.name}`,
             url: getProjectPath(proj.id),
+            active: router.query.projectId === proj.id,
             keywords: [
               "project",
               org.name.toLowerCase(),
