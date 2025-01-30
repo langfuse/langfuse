@@ -299,8 +299,6 @@ export const getDistinctModels = async (
     },
   });
 
-  console.log(JSON.stringify(result));
-
   return result;
 };
 
@@ -741,6 +739,10 @@ export const orderByTimeSeries = (
 
   // Calculate time difference in seconds
   const [from, to] = extractFromAndToTimestampsFromFilter(filter);
+
+  if (!from || !to) {
+    throw new Error("Time Filter is required for time series queries");
+  }
 
   const fromDate = new Date(from.value as Date);
   const toDate = new Date(to.value as Date);
