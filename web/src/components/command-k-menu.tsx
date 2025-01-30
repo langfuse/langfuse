@@ -1,14 +1,11 @@
 import { type NavigationItem } from "@/src/components/layouts/layout";
 import {
-  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
-  CommandShortcut,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -46,7 +43,15 @@ export function CommandKMenu({
   }, []);
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog
+      open={open}
+      onOpenChange={setOpen}
+      filter={(value, search, keywords) => {
+        const extendValue = value + " " + keywords?.join(" ");
+        if (extendValue.toLowerCase().includes(search.toLowerCase())) return 1;
+        return 0;
+      }}
+    >
       <CommandInput
         placeholder="Type a command or search..."
         className="border-none focus:border-none focus:outline-none focus:ring-0 focus:ring-transparent"
