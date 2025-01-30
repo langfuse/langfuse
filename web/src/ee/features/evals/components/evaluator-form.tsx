@@ -65,6 +65,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { JSONPath } from "jsonpath-plus";
 
 const formSchema = z.object({
   scoreName: z.string(),
@@ -370,6 +371,10 @@ export const InnerEvalConfigForm = (props: {
     },
   );
 
+  const jsonData = {}; // Replace with actual JSON data
+  const result = JSONPath({ path: "hehe", json: jsonData });
+  console.log("result", result);
+
   const datasetFilterOptions = useMemo(() => {
     if (!datasets.data) return undefined;
     return {
@@ -498,6 +503,7 @@ export const InnerEvalConfigForm = (props: {
 
   return (
     <Form {...form}>
+      <>{JSON.stringify(form.watch())}</>
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
@@ -803,6 +809,39 @@ export const InnerEvalConfigForm = (props: {
                               </div>
                             )}
                           />
+                          {["input", "output"].includes(
+                            form.watch(`mapping.${index}.selectedColumnId`) ??
+                              "",
+                          ) ? (
+                            <FormField
+                              control={form.control}
+                              key={`${mappingField.id}-jsonPath`}
+                              name={`mapping.${index}.selectedJsonPath`}
+                              render={({ field }) => (
+                                <div className="flex items-center gap-2">
+                                  <VariableMappingDescription
+                                    title={"JSON path"}
+                                    description={
+                                      "Name of the Langfuse object to retrieve the data from."
+                                    }
+                                    href={
+                                      "https://langfuse.com/docs/scores/model-based-evals"
+                                    }
+                                  />
+                                  <FormItem className="w-2/3">
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        disabled={props.disabled}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                </div>
+                              )}
+                            />
+                          ) : undefined}
                         </Card>
                       ))}
                     </div>

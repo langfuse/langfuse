@@ -32,6 +32,7 @@ export const wipVariableMapping = z.object({
   objectName: z.string().nullish(),
   langfuseObject: z.enum(langfuseObjects),
   selectedColumnId: z.string().nullish(),
+  selectedJsonPath: z.string().nullish(),
 });
 
 const observationCols = [
