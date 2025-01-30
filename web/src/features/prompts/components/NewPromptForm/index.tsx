@@ -281,7 +281,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                           defaultValue={field.value}
                           onChange={field.onChange}
                           editable
-                          mode="text"
+                          mode="prompt"
                           minHeight={200}
                         />
                       </FormControl>

@@ -4,22 +4,26 @@ export function getIsCharOrUnderscore(value: string): boolean {
   return charOrUnderscore.test(value);
 }
 
+// Regex for valid variable names (letters, numbers, underscores, starting with letter/underscore)
+export const VARIABLE_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+// Regex to find variables in mustache syntax
+export const MUSTACHE_REGEX = /{{([^}]*)}}/g;
+
+// Regex to find multiline variables
+export const MULTILINE_VARIABLE_REGEX = /{{[^}]*\n[^}]*}}/g;
+
+// Regex to find unclosed variables
+export const UNCLOSED_VARIABLE_REGEX = /{{(?![^{]*}})/g;
+
+export function isValidVariableName(variable: string): boolean {
+  return VARIABLE_REGEX.test(variable);
+}
+
 export function extractVariables(mustacheString: string): string[] {
-  const mustacheRegex = /\{\{(.*?)\}\}/g;
-  const uniqueVariables = new Set<string>();
-
-  for (const match of mustacheString.matchAll(mustacheRegex)) {
-    uniqueVariables.add(match[1]);
-  }
-
-  for (const variable of uniqueVariables) {
-    // if validated fails, remove from set
-    if (!getIsCharOrUnderscore(variable)) {
-      uniqueVariables.delete(variable);
-    }
-  }
-
-  return Array.from(uniqueVariables);
+  return Array.from(mustacheString.matchAll(MUSTACHE_REGEX))
+    .map((match) => match[1])
+    .filter(isValidVariableName);
 }
 
 export function stringifyValue(value: unknown) {

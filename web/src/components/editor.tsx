@@ -1,11 +1,87 @@
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { githubLight } from "@uiw/codemirror-theme-github";
-import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
+import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
-import { linter } from "@codemirror/lint";
+import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
+import { LanguageSupport, StreamLanguage } from "@codemirror/language";
+import type { StringStream } from "@codemirror/language";
+import {
+  isValidVariableName,
+  MULTILINE_VARIABLE_REGEX,
+  MUSTACHE_REGEX,
+  UNCLOSED_VARIABLE_REGEX,
+} from "@langfuse/shared";
+
+// Custom language mode for prompts that highlights mustache variables
+const promptLanguage = StreamLanguage.define({
+  name: "prompt",
+  startState: () => ({}),
+  token: (stream: StringStream) => {
+    if (stream.match("{{")) {
+      const start = stream.pos;
+      stream.skipTo("}}") || stream.skipToEnd();
+      const content = stream.string.slice(start, stream.pos);
+      stream.match("}}");
+      return isValidVariableName(content) ? "variable" : "error";
+    }
+    stream.next();
+    return null;
+  },
+});
+
+// Linter for prompt variables
+const promptLinter = linter((view) => {
+  const diagnostics: Diagnostic[] = [];
+  const content = view.state.doc.toString();
+
+  // Check for multiline variables
+  for (const match of content.matchAll(MULTILINE_VARIABLE_REGEX)) {
+    diagnostics.push({
+      from: match.index,
+      to: match.index + match[0].length,
+      severity: "error",
+      message: "Variables cannot span multiple lines",
+    });
+  }
+
+  // Check for unclosed variables
+  for (const match of content.matchAll(UNCLOSED_VARIABLE_REGEX)) {
+    diagnostics.push({
+      from: match.index,
+      to: match.index + 2,
+      severity: "error",
+      message: "Unclosed variable brackets",
+    });
+  }
+
+  // Check variable format
+  for (const match of content.matchAll(MUSTACHE_REGEX)) {
+    const variable = match[1];
+    if (!variable || variable.trim() === "") {
+      diagnostics.push({
+        from: match.index,
+        to: match.index + match[0].length,
+        severity: "error",
+        message: "Empty variable is not allowed",
+      });
+    } else if (!isValidVariableName(variable)) {
+      diagnostics.push({
+        from: match.index,
+        to: match.index + match[0].length,
+        severity: "error",
+        message:
+          "Variable must start with a letter or underscore and can only contain letters, numbers, and underscores",
+      });
+    }
+  }
+
+  return diagnostics;
+});
+
+// Create a language support instance that combines the language and its configuration
+const promptSupport = new LanguageSupport(promptLanguage);
 
 export function CodeMirrorEditor({
   defaultValue,
@@ -23,11 +99,11 @@ export function CodeMirrorEditor({
   onBlur?: () => void;
   lineWrapping?: boolean;
   className?: string;
-  mode: "json" | "text";
+  mode: "json" | "text" | "prompt";
   minHeight: "none" | 100 | 200;
 }) {
   const { resolvedTheme } = useTheme();
-  const codeMirrorTheme = resolvedTheme === "dark" ? tokyoNight : githubLight;
+  const codeMirrorTheme = resolvedTheme === "dark" ? githubDark : githubLight;
 
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
@@ -58,6 +134,7 @@ export function CodeMirrorEditor({
         ...(mode === "json" && linterEnabled
           ? [linter(jsonParseLinter())]
           : []),
+        ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
         ...(lineWrapping ? [EditorView.lineWrapping] : []),
       ]}
       defaultValue={defaultValue}
