@@ -22,11 +22,17 @@ export function CommandKMenu({
   const router = useRouter();
 
   const navItems = mainNavigation
-    .filter((item) => Boolean(item.url))
-    .map((item) => ({
-      title: item.title,
-      url: item.url,
-    }));
+    .flatMap((item) => [
+      {
+        title: item.title,
+        url: item.url,
+      },
+      ...(item.items?.map((child) => ({
+        title: `${item.title} > ${child.title}`,
+        url: child.url,
+      })) ?? []),
+    ])
+    .filter((item) => Boolean(item.url));
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
