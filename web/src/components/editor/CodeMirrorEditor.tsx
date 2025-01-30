@@ -126,6 +126,14 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // Hide gutter when lineNumbers is false
+        ...(!lineNumbers
+          ? [
+              EditorView.theme({
+                ".cm-gutters": { display: "none" },
+              }),
+            ]
+          : []),
         // Extend gutter to full height when minHeight > content height
         // This also enlarges the text area to minHeight
         ...(minHeight === "none"
