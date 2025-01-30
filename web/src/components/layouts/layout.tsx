@@ -327,7 +327,7 @@ export type NavigationItem = NestedNavigationItem & {
   items?: NestedNavigationItem[];
 };
 
-type NestedNavigationItem = Omit<Route, "children"> & {
+type NestedNavigationItem = Omit<Route, "children" | "items"> & {
   url: string;
   isActive: boolean;
 };

@@ -59,7 +59,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Tracing",
-    pathname: `/project/[projectId]/traces`,
+    pathname: "",
     icon: ListTree,
     items: [
       {
@@ -83,7 +83,7 @@ export const ROUTES: Route[] = [
   {
     title: "Evaluation",
     icon: Lightbulb,
-    pathname: `/project/[projectId]/annotation-queues`,
+    pathname: "",
     entitlements: ["annotation-queues", "model-based-evaluations"],
     projectRbacScopes: ["annotationQueues:read", "evalJob:read"],
     items: [
