@@ -38,11 +38,20 @@ import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRi
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { api } from "@/src/utils/api";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import {
+  type SelectAllTableName,
+  type ActionId,
+  type OrderByState,
+} from "@langfuse/shared";
 
 type TableActionMenuProps = {
   projectId: string;
-  tableName: string;
-  actionIds: string[];
+  tableName: SelectAllTableName;
+  actionIds: ActionId[];
+  orderByState: OrderByState;
+  filterState: any;
   onActionComplete?: () => void;
 };
 
@@ -78,9 +87,13 @@ export function TableActionMenu({
   tableName,
   actionIds,
   onActionComplete,
+  orderByState,
+  filterState,
 }: TableActionMenuProps) {
   const { selectAll } = useSelectAll(projectId, tableName);
-  const [selectedActionId, setSelectedActionId] = useState<string>("");
+  const [selectedActionId, setSelectedActionId] = useState<ActionId | null>(
+    null,
+  );
   const [isDialogOpen, setDialogOpen] = useState(false);
   const actions = actionIds.reduce(
     (acc, actionId) => acc.set(actionId, getActionConfig(actionId)),
@@ -88,13 +101,34 @@ export function TableActionMenu({
   );
   const selectedActionProps = actions.get(selectedActionId);
 
-  const handleAction = (actionId: string) => {
+  const selectAllMutation = api.selectAll.create.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Select all in progress",
+        description: "Your action may take a few minutes to complete.",
+        duration: 10000,
+      });
+    },
+  });
+
+  const handleAction = (actionId: ActionId) => {
     setSelectedActionId(actionId);
     setDialogOpen(true);
   };
 
-  const confirmAction = () => {
+  const handleActionConfirm = async () => {
+    if (!selectedActionId) return;
     onActionComplete?.();
+    await selectAllMutation.mutateAsync({
+      actionId: selectedActionId,
+      projectId,
+      tableName,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+        tableName,
+      },
+    });
   };
 
   const form = useForm({
@@ -157,7 +191,9 @@ export function TableActionMenu({
             <DialogFooter className="sm:justify-start">
               <TableMenuConfirmButton
                 variant="destructive"
-                confirmAction={confirmAction}
+                loading={selectAllMutation.isLoading}
+                disabled={selectAllMutation.isLoading}
+                confirmAction={handleActionConfirm}
                 {...selectedActionProps}
               />
             </DialogFooter>
@@ -178,7 +214,9 @@ export function TableActionMenu({
             <Form {...form}>
               <form
                 className="space-y-6"
-                onSubmit={form.handleSubmit(() => confirmAction())}
+                onSubmit={form.handleSubmit(
+                  async () => await handleActionConfirm(),
+                )}
               >
                 <DialogHeader>
                   <DialogTitle>
@@ -220,7 +258,8 @@ export function TableActionMenu({
                 <DialogFooter className="sm:justify-start">
                   <TableMenuConfirmButton
                     type="submit"
-                    confirmAction={confirmAction}
+                    loading={selectAllMutation.isLoading}
+                    disabled={selectAllMutation.isLoading}
                     {...selectedActionProps}
                   />
                 </DialogFooter>

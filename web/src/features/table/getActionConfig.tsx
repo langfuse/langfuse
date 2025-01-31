@@ -1,32 +1,29 @@
 import { type TableAction } from "@/src/features/table/types";
 import { ClipboardPen } from "lucide-react";
+import { ACTION_ACCESS_MAP, type ActionId } from "@langfuse/shared";
 
-const ACTION_MAP: Record<string, TableAction> = {
-  "trace-delete": {
-    id: "trace-delete",
-    type: "delete",
-    accessCheck: {
-      scope: "traces:delete",
-      entitlement: "trace-deletion",
-    },
-  },
-  "trace-add-to-annotation-queue": {
-    id: "trace-add-to-annotation-queue",
-    type: "create",
-    accessCheck: {
-      scope: "annotationQueues:CUD",
-      entitlement: "annotation-queues",
-    },
-    createConfig: {
-      getTargetOptions: () => [],
-      targetLabel: "Annotation Queue",
-    },
-    icon: <ClipboardPen className="mr-2 h-4 w-4" />,
-  },
-};
+export const getActionConfig = (actionId: ActionId): TableAction | null => {
+  const accessCheck = ACTION_ACCESS_MAP[actionId];
 
-export const getActionConfig = (
-  actionId: keyof typeof ACTION_MAP,
-): TableAction => {
-  return ACTION_MAP[actionId];
+  switch (actionId) {
+    case "trace-delete":
+      return {
+        id: actionId,
+        type: "delete",
+        accessCheck,
+      };
+    case "trace-add-to-annotation-queue":
+      return {
+        id: actionId,
+        type: "create",
+        accessCheck,
+        createConfig: {
+          getTargetOptions: () => [],
+          targetLabel: "Annotation Queue",
+        },
+        icon: <ClipboardPen className="mr-2 h-4 w-4" />,
+      };
+    default:
+      return null;
+  }
 };

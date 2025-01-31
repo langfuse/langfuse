@@ -37,6 +37,7 @@ import {
   tracesTableColsWithOptions,
   type ObservationLevel,
   BatchExportTableName,
+  SelectAllTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -840,8 +841,10 @@ export default function TracesTable({
           ).length > 0 ? (
             <TableActionMenu
               projectId={projectId}
-              tableName="traces"
+              tableName={SelectAllTableName.Traces}
               actionIds={["trace-delete"]}
+              orderByState={orderByState}
+              filterState={filterState}
               // selectedIds={Object.keys(selectedRows).filter((traceId) =>
               //   traces.data?.traces.map((t) => t.id).includes(traceId),
               // )}
