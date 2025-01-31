@@ -1,6 +1,5 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
-import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -58,6 +57,7 @@ import { InfoIcon } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { Separator } from "@/src/components/ui/separator";
 import React from "react";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -838,13 +838,14 @@ export default function TracesTable({
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
           ).length > 0 ? (
-            <TraceTableMultiSelectAction
-              // Exclude traces that are not in the current page
-              selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              )}
+            <TableActionMenu
               projectId={projectId}
-              onDeleteSuccess={() => {
+              tableName="traces"
+              actionIds={["trace-delete"]}
+              // selectedIds={Object.keys(selectedRows).filter((traceId) =>
+              //   traces.data?.traces.map((t) => t.id).includes(traceId),
+              // )}
+              onActionComplete={() => {
                 setSelectedRows({});
               }}
             />
