@@ -15,6 +15,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
+import { CommandKMenu } from "@/src/components/command-k-menu";
 
 const signOutUser = async () => {
   localStorage.clear();
@@ -314,6 +315,7 @@ export default function Layout(props: PropsWithChildren) {
           <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
             <main className="h-full p-3">{props.children}</main>
             <Toaster visibleToasts={1} />
+            <CommandKMenu mainNavigation={navigation} />
           </SidebarInset>
         </SidebarProvider>
       </div>
@@ -325,7 +327,7 @@ export type NavigationItem = NestedNavigationItem & {
   items?: NestedNavigationItem[];
 };
 
-type NestedNavigationItem = Omit<Route, "children"> & {
+type NestedNavigationItem = Omit<Route, "children" | "items"> & {
   url: string;
   isActive: boolean;
 };

@@ -49,7 +49,11 @@ export const TracePreview = ({
   viewType = "detailed",
   className,
 }: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    latency?: number;
+    input: string | null;
+    output: string | null;
+  };
   observations: ObservationReturnType[];
   scores: APIScore[];
   commentCounts?: Map<string, number>;
@@ -82,6 +86,7 @@ export const TracePreview = ({
       projectId: trace.projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,

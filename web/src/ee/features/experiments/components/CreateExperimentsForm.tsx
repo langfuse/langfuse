@@ -14,13 +14,13 @@ import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import {
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandList,
-  Command,
-  CommandItem,
-} from "@/src/components/ui/command";
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandList,
+  InputCommand,
+  InputCommandItem,
+} from "@/src/components/ui/input-command";
 import {
   Select,
   SelectContent,
@@ -562,7 +562,7 @@ export const CreateExperimentsForm = ({
             render={() => (
               <FormItem>
                 <FormLabel>Prompt</FormLabel>
-                {/* FIX: I need the command list in the popover to be scrollable, currently it's not */}
+                {/* FIX: I need the Inputcommand list in the popover to be scrollable, currently it's not */}
                 <div className="mb-2 flex gap-2">
                   <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
@@ -580,18 +580,20 @@ export const CreateExperimentsForm = ({
                       className="w-[--radix-popover-trigger-width] overflow-auto p-0"
                       align="start"
                     >
-                      <Command>
-                        <CommandInput
+                      <InputCommand>
+                        <InputCommandInput
                           placeholder="Search prompts..."
                           className="h-9"
                         />
-                        <CommandList>
-                          <CommandEmpty>No prompt found.</CommandEmpty>
-                          <CommandGroup>
+                        <InputCommandList>
+                          <InputCommandEmpty>
+                            No prompt found.
+                          </InputCommandEmpty>
+                          <InputCommandGroup>
                             {promptsByName &&
                               Object.entries(promptsByName).map(
                                 ([name, promptData]) => (
-                                  <CommandItem
+                                  <InputCommandItem
                                     key={name}
                                     onSelect={() => {
                                       setSelectedPromptName(name);
@@ -615,12 +617,12 @@ export const CreateExperimentsForm = ({
                                           : "opacity-0",
                                       )}
                                     />
-                                  </CommandItem>
+                                  </InputCommandItem>
                                 ),
                               )}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
+                          </InputCommandGroup>
+                        </InputCommandList>
+                      </InputCommand>
                     </PopoverContent>
                   </Popover>
 
@@ -642,16 +644,18 @@ export const CreateExperimentsForm = ({
                       className="w-[--radix-popover-trigger-width] p-0"
                       align="start"
                     >
-                      <Command>
-                        <CommandList>
-                          <CommandEmpty>No version found.</CommandEmpty>
-                          <CommandGroup className="overflow-y-auto">
+                      <InputCommand>
+                        <InputCommandList>
+                          <InputCommandEmpty>
+                            No version found.
+                          </InputCommandEmpty>
+                          <InputCommandGroup className="overflow-y-auto">
                             {promptsByName &&
                             selectedPromptName &&
                             promptsByName[selectedPromptName] ? (
                               promptsByName[selectedPromptName].map(
                                 (prompt) => (
-                                  <CommandItem
+                                  <InputCommandItem
                                     key={prompt.id}
                                     onSelect={() => {
                                       setSelectedPromptVersion(prompt.version);
@@ -668,17 +672,17 @@ export const CreateExperimentsForm = ({
                                           : "opacity-0",
                                       )}
                                     />
-                                  </CommandItem>
+                                  </InputCommandItem>
                                 ),
                               )
                             ) : (
-                              <CommandItem disabled>
+                              <InputCommandItem disabled>
                                 No versions available
-                              </CommandItem>
+                              </InputCommandItem>
                             )}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
+                          </InputCommandGroup>
+                        </InputCommandList>
+                      </InputCommand>
                     </PopoverContent>
                   </Popover>
                 </div>

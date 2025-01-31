@@ -4,11 +4,11 @@ import { PlusIcon, TagIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
-  Command,
-  CommandGroup,
-  CommandList,
-  CommandSeparator,
-} from "@/src/components/ui/command";
+  InputCommand,
+  InputCommandGroup,
+  InputCommandList,
+  InputCommandSeparator,
+} from "@/src/components/ui/input-command";
 import {
   Popover,
   PopoverContent,
@@ -122,10 +122,10 @@ export function SetPromptVersionLabels({
             <strong>production</strong> labeled prompt will be served by
             default.
           </h2>
-          <Command className="mx-0 my-3 px-0">
-            <CommandList className="max-h-full overflow-hidden">
-              <CommandSeparator />
-              <CommandGroup heading="Promote to production?">
+          <InputCommand className="mx-0 my-3 px-0">
+            <InputCommandList className="max-h-full overflow-hidden">
+              <InputCommandSeparator />
+              <InputCommandGroup heading="Promote to production?">
                 <LabelCommandItem
                   {...{
                     selectedLabels,
@@ -133,9 +133,9 @@ export function SetPromptVersionLabels({
                     label: PRODUCTION_LABEL,
                   }}
                 />
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup heading="Custom labels">
+              </InputCommandGroup>
+              <InputCommandSeparator />
+              <InputCommandGroup heading="Custom labels">
                 <div
                   className="max-h-[300px] overflow-y-auto overflow-x-hidden"
                   ref={customLabelScrollRef}
@@ -149,8 +149,8 @@ export function SetPromptVersionLabels({
                       />
                     ))}
                 </div>
-              </CommandGroup>
-            </CommandList>
+              </InputCommandGroup>
+            </InputCommandList>
             <div className="px-1">
               {isAddingLabel ? (
                 <AddLabelForm
@@ -180,7 +180,7 @@ export function SetPromptVersionLabels({
                 </Button>
               )}
             </div>
-          </Command>
+          </InputCommand>
           <Button
             type="button"
             variant={

@@ -19,7 +19,7 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -135,59 +135,88 @@ export const NewDatasetItemForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn("flex flex-col gap-6", props.className)}
+        className={cn("flex h-full flex-col gap-6", props.className)}
       >
-        <FormField
-          control={form.control}
-          name="datasetId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dataset</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a dataset" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {datasets.data?.map((dataset) => (
-                    <SelectItem value={dataset.id} key={dataset.id}>
-                      {dataset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex-none">
           <FormField
             control={form.control}
-            name="input"
+            name="datasetId"
             render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel>Input</FormLabel>
-                <FormControl>
-                  <JsonEditor
-                    defaultValue={field.value}
-                    onChange={field.onChange}
-                  />
-                </FormControl>
+              <FormItem>
+                <FormLabel>Dataset</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a dataset" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {datasets.data?.map((dataset) => (
+                      <SelectItem value={dataset.id} key={dataset.id}>
+                        {dataset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
           />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="input"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Input</FormLabel>
+                  <FormControl>
+                    <CodeMirrorEditor
+                      mode="json"
+                      value={field.value}
+                      onChange={field.onChange}
+                      minHeight={200}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="expectedOutput"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Expected output</FormLabel>
+                  <FormControl>
+                    <CodeMirrorEditor
+                      mode="json"
+                      value={field.value}
+                      onChange={field.onChange}
+                      minHeight={200}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <FormField
             control={form.control}
-            name="expectedOutput"
+            name="metadata"
             render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel>Expected output</FormLabel>
+              <FormItem className="mt-4 flex flex-col gap-2">
+                <FormLabel>Metadata</FormLabel>
                 <FormControl>
-                  <JsonEditor
-                    defaultValue={field.value}
+                  <CodeMirrorEditor
+                    mode="json"
+                    value={field.value}
                     onChange={field.onChange}
+                    minHeight={100}
                   />
                 </FormControl>
                 <FormMessage />
@@ -195,35 +224,21 @@ export const NewDatasetItemForm = (props: {
             )}
           />
         </div>
-        <FormField
-          control={form.control}
-          name="metadata"
-          render={({ field }) => (
-            <FormItem className="flex flex-col gap-2">
-              <FormLabel>Metadata</FormLabel>
-              <FormControl>
-                <JsonEditor
-                  defaultValue={field.value}
-                  onChange={field.onChange}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button
-          type="submit"
-          loading={createDatasetItemMutation.isLoading}
-          className="mt-auto w-full"
-        >
-          Add to dataset
-        </Button>
+        <div className="mt-3 flex-none">
+          <Button
+            type="submit"
+            loading={createDatasetItemMutation.isLoading}
+            className="w-full"
+          >
+            Add to dataset
+          </Button>
+          {formError ? (
+            <p className="text-red mt-2 text-center">
+              <span className="font-bold">Error:</span> {formError}
+            </p>
+          ) : null}
+        </div>
       </form>
-      {formError ? (
-        <p className="text-red text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
-      ) : null}
     </Form>
   );
 };

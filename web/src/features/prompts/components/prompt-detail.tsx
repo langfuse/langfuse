@@ -12,7 +12,6 @@ import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@langfuse/shared";
-import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
 import Generations from "@/src/components/table/use-cases/observations";
@@ -29,7 +28,7 @@ import { Lock, Plus, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import {
   Dialog,
   DialogContent,
@@ -139,7 +138,7 @@ export const PromptDetail = () => {
   }
 
   return (
-    <ScrollScreenPage>
+    <FullScreenPage>
       <Header
         title={prompt.name}
         help={{
@@ -254,7 +253,7 @@ export const PromptDetail = () => {
           </>
         }
       />
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4 overflow-hidden">
         <div className="col-span-3">
           <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground">
             <div className="flex flex-row items-center gap-3 px-3 py-1">
@@ -270,7 +269,7 @@ export const PromptDetail = () => {
             </div>
           </div>
         </div>
-        <div className="col-span-2 md:h-full">
+        <div className="col-span-2 overflow-y-auto">
           {prompt.type === PromptType.Chat && chatMessages ? (
             <OpenAiMessageView
               title="Chat prompt"
@@ -351,19 +350,15 @@ export const PromptDetail = () => {
             cardView
           />
         </div>
-        <div className="flex flex-col">
-          <div className="text-m px-3 font-medium">
-            <ScrollArea className="flex border-l pl-2">
-              <PromptHistoryNode
-                prompts={promptHistory.data.promptVersions}
-                currentPromptVersion={prompt.version}
-                setCurrentPromptVersion={setCurrentPromptVersion}
-                totalCount={promptHistory.data.totalCount}
-              />
-            </ScrollArea>
-          </div>
+        <div className="text-m flex flex-col overflow-y-auto border-l px-3 pl-2 font-medium">
+          <PromptHistoryNode
+            prompts={promptHistory.data.promptVersions}
+            currentPromptVersion={prompt.version}
+            setCurrentPromptVersion={setCurrentPromptVersion}
+            totalCount={promptHistory.data.totalCount}
+          />
         </div>
       </div>
-    </ScrollScreenPage>
+    </FullScreenPage>
   );
 };

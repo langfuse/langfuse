@@ -331,7 +331,11 @@ export function TraceTimelineView({
   projectId,
   scores,
 }: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    latency?: number;
+    input: string | null;
+    output: string | null;
+  };
   observations: Array<ObservationReturnType>;
   projectId: string;
   scores: APIScore[];

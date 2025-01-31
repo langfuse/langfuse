@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  CommandGroup,
-  CommandItem,
-  CommandList,
-  CommandInput,
-} from "@/src/components/ui/command";
+  InputCommandGroup,
+  InputCommandItem,
+  InputCommandList,
+  InputCommandInput,
+} from "@/src/components/ui/input-command";
 import { Command as CommandPrimitive } from "cmdk";
 import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 
@@ -93,7 +93,7 @@ export const AutoComplete = ({
   return (
     <CommandPrimitive onKeyDown={handleKeyDown}>
       <div>
-        <CommandInput
+        <InputCommandInput
           ref={inputRef}
           value={inputValue}
           onValueChange={setInputValue}
@@ -106,13 +106,13 @@ export const AutoComplete = ({
       <div className="relative mt-1">
         {isOpen ? (
           <div className="absolute top-0 z-10 w-full rounded-xl bg-background outline-none animate-in fade-in-0 zoom-in-95">
-            <CommandList className="rounded-lg ring-1 ring-border">
+            <InputCommandList className="rounded-lg ring-1 ring-border">
               {options.length > 0 ? (
-                <CommandGroup>
+                <InputCommandGroup>
                   {options.map((option) => {
                     const isSelected = selected.value === option.value;
                     return (
-                      <CommandItem
+                      <InputCommandItem
                         key={option.value}
                         value={option.label}
                         onMouseDown={(event) => {
@@ -127,12 +127,12 @@ export const AutoComplete = ({
                       >
                         {isSelected ? <Check className="w-4" /> : null}
                         {option.label}
-                      </CommandItem>
+                      </InputCommandItem>
                     );
                   })}
-                </CommandGroup>
+                </InputCommandGroup>
               ) : null}
-              <CommandItemCreate
+              <InputCommandItemCreate
                 onMouseDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -143,17 +143,17 @@ export const AutoComplete = ({
                 createLabel={createLabel}
                 {...{ inputValue, options }}
               />
-            </CommandList>
+            </InputCommandList>
           </div>
         ) : (
-          <CommandList /> // CommandPrimitive expects a CommandList child, fix to prevent errors introduced in cmdk v1.0.0
+          <InputCommandList /> // CommandPrimitive expects a InputCommandList child, fix to prevent errors introduced in cmdk v1.0.0
         )}
       </div>
     </CommandPrimitive>
   );
 };
 
-const CommandItemCreate = ({
+const InputCommandItemCreate = ({
   inputValue,
   options,
   createLabel,
@@ -175,7 +175,7 @@ const CommandItemCreate = ({
   if (!render) return null;
 
   return (
-    <CommandItem
+    <InputCommandItem
       key={inputValue}
       value={inputValue}
       className="text-muted-foreground"
@@ -184,6 +184,6 @@ const CommandItemCreate = ({
     >
       <div className={cn("m-2 h-4 w-4")} />
       {createLabel}: &quot;{inputValue}&quot;
-    </CommandItem>
+    </InputCommandItem>
   );
 };

@@ -5,12 +5,7 @@ import {
   logger,
   type TraceParams,
 } from "@langfuse/shared/src/server";
-import {
-  ApiError,
-  BaseError,
-  LLMApiKeySchema,
-  ZodModelConfig,
-} from "@langfuse/shared";
+import { ApiError, LLMApiKeySchema, ZodModelConfig } from "@langfuse/shared";
 import { z, ZodSchema } from "zod";
 import { decrypt } from "@langfuse/shared/encryption";
 import { tokenCount } from "./tokenisation/usage";
@@ -45,6 +40,9 @@ export async function callStructuredLLM<T extends ZodSchema>(
 
     return structuredOutputSchema.parse(completion);
   } catch (e) {
+    if (e instanceof Error && e.name === "InsufficientQuotaError") {
+      throw new ApiError(e.name, 429);
+    }
     logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, e);
     throw new ApiError(
       `Failed to call LLM: ${e}`,

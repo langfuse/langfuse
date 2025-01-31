@@ -108,14 +108,9 @@ export const dashboardRouter = createTRPCRouter({
           })) as DatabaseRow[];
 
         case "traces-timeseries":
-          const dateTrunc = extractTimeSeries(input.groupBy);
-          if (!dateTrunc) {
-            return [];
-          }
           const rows = await groupTracesByTime(
             input.projectId,
             input.filter ?? [],
-            dateTrunc,
           );
 
           return rows as DatabaseRow[];
@@ -127,7 +122,6 @@ export const dashboardRouter = createTRPCRouter({
           const rowsObs = await getObservationUsageByTime(
             input.projectId,
             input.filter ?? [],
-            dateTruncObs,
           );
 
           return rowsObs.map((row) => ({
@@ -145,14 +139,9 @@ export const dashboardRouter = createTRPCRouter({
           return models as DatabaseRow[];
 
         case "scores-aggregate-timeseries":
-          const dateTruncScores = extractTimeSeries(input.groupBy);
-          if (!dateTruncScores) {
-            return [];
-          }
           const aggregatedScores = await getScoresAggregateOverTime(
             input.projectId,
             input.filter ?? [],
-            dateTruncScores,
           );
 
           return aggregatedScores as DatabaseRow[];
@@ -197,14 +186,9 @@ export const dashboardRouter = createTRPCRouter({
             percentile99Duration: row.p99,
           })) as DatabaseRow[];
         case "model-latencies-over-time":
-          const dateTruncModels = extractTimeSeries(input.groupBy);
-          if (!dateTruncModels) {
-            return [];
-          }
           const modelLatencies = await getModelLatenciesOverTime(
             input.projectId,
             input.filter ?? [],
-            dateTruncModels,
           );
 
           return modelLatencies.map((row) => ({
@@ -239,40 +223,19 @@ export const dashboardRouter = createTRPCRouter({
           const numericScoreTimeSeries = await getNumericScoreTimeSeries(
             input.projectId,
             input.filter ?? [],
-            dateTruncNumericScoreTimeSeries,
           );
-          return numericScoreTimeSeries.map((row) => ({
-            scoreTimestamp: row.score_timestamp,
-            scoreName: row.score_name,
-            avgValue: row.avg_value,
-          })) as DatabaseRow[];
+          return numericScoreTimeSeries as DatabaseRow[];
         case "categorical-score-chart":
-          const dateTruncCategoricalScoreTimeSeries = extractTimeSeries(
-            input.groupBy,
-          );
           const categoricalScoreTimeSeries =
             await getCategoricalScoreTimeSeries(
               input.projectId,
               input.filter ?? [],
-              dateTruncCategoricalScoreTimeSeries,
             );
-          return categoricalScoreTimeSeries.map((row) => ({
-            ...(row.score_timestamp
-              ? { scoreTimestamp: row.score_timestamp }
-              : {}),
-            scoreName: row.score_name || null,
-            scoreDataType: row.score_data_type || null,
-            scoreSource: row.score_source || null,
-            stringValue: row.score_value || null,
-            countStringValue: Number(row.count) || 0,
-          })) as DatabaseRow[];
+          return categoricalScoreTimeSeries as DatabaseRow[];
         case "observations-status-timeseries":
-          const timeSeriesGroupBy = extractTimeSeries(input.groupBy);
-
           return (await getObservationsStatusTimeSeries(
             input.projectId,
             input.filter ?? [],
-            timeSeriesGroupBy,
           )) as DatabaseRow[];
 
         default:
