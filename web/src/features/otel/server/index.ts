@@ -6,6 +6,7 @@ const convertNanoTimestampToISO = (timestamp: {
   high: number;
   low: number;
 }) => {
+  logger.info(`Timestamp`, { timestamp });
   return new Date(
     (timestamp.high * Math.pow(2, 32) + timestamp.low) / 1e6,
   ).toISOString();
