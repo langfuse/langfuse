@@ -1,10 +1,10 @@
 import { SelectAllProcessingEventType } from "@langfuse/shared/src/server";
 import z from "zod";
 import { orderBy } from "../../../../packages/shared/dist/src/interfaces/orderBy";
-import { BatchExportTableName, singleFilter } from "@langfuse/shared";
+import { SelectAllTableName, singleFilter } from "@langfuse/shared";
 
 export const SelectAllQuerySchema = z.object({
-  tableName: z.nativeEnum(BatchExportTableName),
+  tableName: z.nativeEnum(SelectAllTableName),
   filter: z.array(singleFilter).nullable(),
   orderBy,
 });
