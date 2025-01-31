@@ -51,6 +51,9 @@ export default withMiddlewares({
         return res.status(400).json({ error: "Failed to parse OTel Trace" });
       }
 
+      logger.info(`Received ${resourceSpans.length} OTel spans`, {
+        resourceSpans,
+      });
       const events: IngestionEventType[] = resourceSpans.flatMap(
         convertOtelSpanToIngestionEvent,
       );
