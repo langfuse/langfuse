@@ -11,6 +11,7 @@ describe("RateLimitService", () => {
   beforeAll(() => {
     redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
       maxRetriesPerRequest: null,
+      enableAutoPipelining: false, // Align with our settings overwrite for rate limit service
     });
   });
 
@@ -71,7 +72,7 @@ describe("RateLimitService", () => {
 
     expect(redis).toBeDefined();
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
     expect(result?.res).toEqual({
@@ -102,7 +103,7 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
     await rateLimitService.rateLimitRequest(scope, "public-api");
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
@@ -130,7 +131,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
     await rateLimitService.rateLimitRequest(scope, "public-api");
 
     const firstResult = await rateLimitService.rateLimitRequest(
@@ -180,7 +181,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
 
     for (let i = 0; i < 5; i++) {
       await rateLimitService.rateLimitRequest(scope, "public-api");
@@ -211,7 +212,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 
@@ -237,7 +238,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
 
     const result = await rateLimitService.rateLimitRequest(scope, "prompts");
 
@@ -256,7 +257,7 @@ describe("RateLimitService", () => {
       ],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
 
     const result = await rateLimitService.rateLimitRequest(scope, "ingestion");
 
@@ -291,7 +292,7 @@ describe("RateLimitService", () => {
       rateLimitOverrides: [],
     };
 
-    const rateLimitService = RateLimitService.getInstance();
+    const rateLimitService = RateLimitService.getInstance(redis);
 
     const result = await rateLimitService.rateLimitRequest(scope, "public-api");
 

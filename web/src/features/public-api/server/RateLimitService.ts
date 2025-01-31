@@ -26,11 +26,13 @@ export class RateLimitService {
   private static redis: Redis | null;
   private static instance: RateLimitService | null = null;
 
-  public static getInstance() {
+  public static getInstance(redis: Redis | null = null) {
     if (!RateLimitService.instance) {
-      RateLimitService.redis = createNewRedisInstance({
-        enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
-      });
+      RateLimitService.redis =
+        redis ??
+        createNewRedisInstance({
+          enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
+        });
       RateLimitService.instance = new RateLimitService();
     }
     return RateLimitService.instance;
