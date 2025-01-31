@@ -9,18 +9,19 @@ import {
   CommandSeparator,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 
-export function CommandKMenu({
+export function CommandMenu({
   mainNavigation,
 }: {
   mainNavigation: NavigationItem[];
 }) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen } = useCommandMenu();
   const router = useRouter();
   const { allProjectItems } = useNavigationItems();
   const capture = usePostHogClientCapture();
@@ -61,17 +62,15 @@ export function CommandKMenu({
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((open) => {
-          if (open === false) {
-            capture("cmd_k_menu:opened");
-          }
-          return !open;
-        });
+        if (!open) {
+          capture("cmd_k_menu:opened");
+        }
+        setOpen(!open);
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [capture]);
+  }, [capture, setOpen, open]);
 
   return (
     <CommandDialog
