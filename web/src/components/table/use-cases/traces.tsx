@@ -59,6 +59,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { Separator } from "@/src/components/ui/separator";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -156,6 +157,7 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
   const tracesAllCountFilter = {
     projectId,
@@ -272,6 +274,7 @@ export default function TracesTable({
               table.toggleAllPageRowsSelected(!!value);
               if (!value) {
                 setSelectedRows({});
+                setSelectAll(false);
               }
             }}
             aria-label="Select all"
@@ -282,7 +285,12 @@ export default function TracesTable({
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={(value) => {
+            row.toggleSelected(!!value);
+            if (!value) {
+              setSelectAll(false);
+            }
+          }}
           aria-label="Select row"
           className="opacity-60"
         />
@@ -869,6 +877,14 @@ export default function TracesTable({
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
+        multiSelect={{
+          selectAll: selectAll,
+          setSelectAll: setSelectAll,
+          rowSelection: selectedRows,
+          setRowSelection: setSelectedRows,
+          totalCount,
+          ...paginationState,
+        }}
       />
       <DataTable
         columns={columns}
@@ -889,7 +905,10 @@ export default function TracesTable({
         }
         pagination={{
           totalCount,
-          onChange: setPaginationState,
+          onChange: (updater) => {
+            setPaginationState(updater);
+            setSelectAll(false);
+          },
           state: paginationState,
         }}
         setOrderBy={setOrderByState}
