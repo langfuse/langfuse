@@ -6,6 +6,7 @@
 
 import { logger, redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 const TIMEOUT = 110_000;
 
@@ -33,6 +34,8 @@ export const shutdown = async (signal: PrexitSignal) => {
 
     return await new Promise<void>((resolve) => {
       setTimeout(async () => {
+        RateLimitService.shutdown();
+
         logger.info(`Redis status ${redis?.status}`);
         if (!redis) {
           return;

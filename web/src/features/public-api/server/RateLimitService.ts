@@ -36,6 +36,12 @@ export class RateLimitService {
     return RateLimitService.instance;
   }
 
+  public static shutdown() {
+    if (RateLimitService.redis && RateLimitService.redis.status !== "end") {
+      RateLimitService.redis.disconnect();
+    }
+  }
+
   async rateLimitRequest(
     scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
