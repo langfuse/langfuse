@@ -60,6 +60,7 @@ export const SelectAllProcessingEventSchema = z.object({
   actionId: z.string(),
   query: z.string(),
   tableName: z.string(),
+  cutoffCreatedAt: z.date(),
 });
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;

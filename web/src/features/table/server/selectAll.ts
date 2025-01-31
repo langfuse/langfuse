@@ -66,6 +66,7 @@ export const selectAllRouter = createTRPCRouter({
             actionId,
             query: JSON.stringify(query),
             tableName,
+            cutoffCreatedAt: new Date(),
           },
         });
       } catch (e) {

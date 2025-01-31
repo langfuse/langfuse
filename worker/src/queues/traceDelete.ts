@@ -1,8 +1,5 @@
 import { Job, Processor } from "bullmq";
 import {
-  deleteObservationsByTraceIds,
-  deleteScoresByTraceIds,
-  deleteTraces,
   logger,
   QueueName,
   TQueueJobTypes,
@@ -10,6 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 
 export const traceDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.TraceDelete]>,
@@ -77,19 +75,6 @@ export const traceDeleteProcessor: Processor = async (
   }
 
   if (env.CLICKHOUSE_URL) {
-    try {
-      await Promise.all([
-        deleteTraces(projectId, traceIds),
-        deleteObservationsByTraceIds(projectId, traceIds),
-        deleteScoresByTraceIds(projectId, traceIds),
-      ]);
-    } catch (e) {
-      logger.error(
-        `Error deleting trace ${JSON.stringify(traceIds)} in project ${projectId} from Clickhouse`,
-        e,
-      );
-      traceException(e);
-      throw e;
-    }
+    await processClickhouseTraceDelete(projectId, traceIds);
   }
 };
