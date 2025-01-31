@@ -83,9 +83,9 @@ const convertKeyPathToNestedObject = (
   // If one of the key starts with a number, we assume it's an array
   const useArray = keys.some((key) => key.match(/^\d+\./));
   if (useArray) {
-    const result = [];
+    const result: any[] = [];
     for (const key of keys) {
-      const [index, ikey] = key.split(".", 2);
+      const [index, ikey] = key.split(".", 2) as [number, string];
       if (!result[index]) {
         result[index] = {};
       }
@@ -93,7 +93,7 @@ const convertKeyPathToNestedObject = (
     }
     return result;
   } else {
-    const result = {};
+    const result: Record<string, unknown> = {};
     for (const key of keys) {
       result[key] = input[`${prefix}.${key}`];
     }
