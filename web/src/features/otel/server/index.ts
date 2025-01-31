@@ -1,4 +1,4 @@
-import { type IngestionEventType } from "@langfuse/shared/src/server";
+import { type IngestionEventType, logger } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ObservationLevel } from "@prisma/client";
 
@@ -6,9 +6,9 @@ const convertNanoTimestampToISO = (timestamp: {
   high: number;
   low: number;
 }) => {
-  return new Date(
-    (timestamp.high * Math.pow(2, 32) + timestamp.low) / 1e6,
-  ).toISOString();
+  const time = (timestamp.high * Math.pow(2, 32) + timestamp.low) / 1e6;
+  logger.info(`Converting timestamp ${time} to ISO`);
+  return new Date(time).toISOString();
 };
 
 const convertValueToPlainJavascript = (value: Record<string, any>): any => {
