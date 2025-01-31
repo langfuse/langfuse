@@ -264,24 +264,25 @@ describe("RateLimitService", () => {
     expect(result?.res).toBeUndefined();
   });
 
-  it("should not apply rate limits when redis is not defined", async () => {
-    const scope = {
-      orgId: orgId,
-      plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
-      accessLevel: "all" as const,
-      rateLimitOverrides: [
-        { resource: "public-api" as const, points: 5, durationInSec: 10 },
-      ],
-    };
-
-    const rateLimitService = new RateLimitService(null);
-
-    const result = await rateLimitService.rateLimitRequest(scope, "public-api");
-
-    expect(result?.res).toBeUndefined();
-    expect(result?.isRateLimited()).toBe(false);
-  });
+  // Not applicable now that the RateLimitService instantiates its own Redis
+  // it("should not apply rate limits when redis is not defined", async () => {
+  //   const scope = {
+  //     orgId: orgId,
+  //     plan: "cloud:hobby" as const,
+  //     projectId: "test-project-id",
+  //     accessLevel: "all" as const,
+  //     rateLimitOverrides: [
+  //       { resource: "public-api" as const, points: 5, durationInSec: 10 },
+  //     ],
+  //   };
+  //
+  //   const rateLimitService = new RateLimitService(null);
+  //
+  //   const result = await rateLimitService.rateLimitRequest(scope, "public-api");
+  //
+  //   expect(result?.res).toBeUndefined();
+  //   expect(result?.isRateLimited()).toBe(false);
+  // });
 
   it("should not apply rate limits for OSS plan", async () => {
     const scope = {
