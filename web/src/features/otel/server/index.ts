@@ -27,10 +27,78 @@ const convertValueToPlainJavascript = (value: Record<string, any>): any => {
   if (value.intValue && value.intValue.high === 0) {
     return value.intValue.low;
   }
+  if (
+    value.intValue &&
+    value.intValue.high === -1 &&
+    value.intValue.low === -1
+  ) {
+    return -1;
+  }
   if (value.intValue && value.intValue.high !== 0) {
-    return value; // We keep the `long` format here as is to handle INTs with more than 32 bits.
+    // As JavaScript has native 64-bit support, we try the conversion
+    return value.intValue.high * Math.pow(2, 32) + value.intValue.low;
   }
   return JSON.stringify(value);
+};
+
+/**
+ * convertKeyPathToNestedObject accepts the result of the naive body parsing and translates it into
+ * a nested object. In addition, we remove the prefix from the keys to make them easier to read.
+ * Array Example:
+ * // Input
+ * {
+ *     gen_ai.completion.0.content: "Hello World",
+ *     gen_ai.completion.0.role: "assistant"
+ * }
+ * // Output
+ * [{ content: "Hello World", role: "assistant" }]
+ *
+ * Object Example:
+ * // Input
+ * {
+ *    gen_ai.completion.content: "Hello World",
+ *    gen_ai.completion.role: "assistant"
+ * }
+ * // Output
+ * { content: "Hello World", role: "assistant" }
+ *
+ * Plain Example:
+ * // Input
+ * { gen_ai.completion: "Hello World" }
+ * // Output
+ * "Hello World"
+ */
+const convertKeyPathToNestedObject = (
+  input: Record<string, unknown>,
+  prefix: string,
+): any => {
+  // Handle base-case where we only have the prefix as key
+  if (input[prefix]) {
+    return input[prefix];
+  }
+
+  // Get all keys and strip the prefix
+  const keys = Object.keys(input).map((key) => key.replace(`${prefix}.`, ""));
+
+  // If one of the key starts with a number, we assume it's an array
+  const useArray = keys.some((key) => key.match(/^\d+\./));
+  if (useArray) {
+    const result = [];
+    for (const key of keys) {
+      const [index, ikey] = key.split(".", 2);
+      if (!result[index]) {
+        result[index] = {};
+      }
+      result[index][ikey] = input[`${prefix}.${index}.${ikey}`];
+    }
+    return result;
+  } else {
+    const result = {};
+    for (const key of keys) {
+      result[key] = input[`${prefix}.${key}`];
+    }
+    return result;
+  }
 };
 
 const extractInputAndOutput = (
@@ -65,7 +133,10 @@ const extractInputAndOutput = (
       acc[key] = attributes[key];
       return acc;
     }, {});
-    return { input, output };
+    return {
+      input: convertKeyPathToNestedObject(input, "gen_ai.prompt"),
+      output: convertKeyPathToNestedObject(output, "gen_ai.completion"),
+    };
   }
 
   return { input: null, output: null };
@@ -95,6 +166,63 @@ const extractSessionId = (
         : JSON.stringify(attributes[key]);
     }
   }
+};
+
+const extractModelParameters = (
+  attributes: Record<string, unknown>,
+): Record<string, unknown> => {
+  const modelParameters = Object.keys(attributes).filter((key) =>
+    key.startsWith("gen_ai.request."),
+  );
+  return modelParameters.reduce((acc: any, key) => {
+    const modelParamKey = key.replace("gen_ai.request.", "");
+    acc[modelParamKey] = attributes[key];
+    return acc;
+  }, {});
+};
+
+const extractModelName = (
+  attributes: Record<string, unknown>,
+): string | undefined => {
+  const modelNameKeys = ["gen_ai.request.model", "gen_ai.response.model"];
+  for (const key of modelNameKeys) {
+    if (attributes[key]) {
+      return typeof attributes[key] === "string"
+        ? (attributes[key] as string)
+        : JSON.stringify(attributes[key]);
+    }
+  }
+};
+
+const extractUsageDetails = (
+  attributes: Record<string, unknown>,
+): Record<string, unknown> => {
+  const usageDetails = Object.keys(attributes).filter(
+    (key) => key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost",
+  );
+  const usageDetailKeyMapping: Record<string, string> = {
+    prompt_tokens: "input",
+    completion_tokens: "output",
+    total_tokens: "total",
+    input_tokens: "input",
+    output_tokens: "output",
+  };
+  return usageDetails.reduce((acc: any, key) => {
+    const usageDetailKey = key.replace("gen_ai.usage.", "");
+    const mappedUsageDetailKey =
+      usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
+    acc[mappedUsageDetailKey] = attributes[key];
+    return acc;
+  }, {});
+};
+
+const extractCostDetails = (
+  attributes: Record<string, unknown>,
+): Record<string, unknown> => {
+  if (attributes["gen_ai.usage.cost"]) {
+    return { total: attributes["gen_ai.usage.cost"] };
+  }
+  return {};
 };
 
 /**
@@ -169,6 +297,11 @@ export const convertOtelSpanToIngestionEvent = (
           span.status?.code === 2
             ? ObservationLevel.ERROR
             : ObservationLevel.DEFAULT,
+        modelParameters: extractModelParameters(attributes),
+        model: extractModelName(attributes),
+
+        usageDetails: extractUsageDetails(attributes),
+        costDetails: extractCostDetails(attributes),
 
         // Input and Output
         ...extractInputAndOutput(span?.events ?? [], attributes),

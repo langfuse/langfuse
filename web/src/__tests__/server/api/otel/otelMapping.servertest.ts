@@ -373,6 +373,158 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: "session-1",
         },
       ],
+      [
+        "should extract providedModelName from gen_ai.request.model",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.request.model",
+          otelAttributeValue: { stringValue: "gpt-4" },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gpt-4",
+        },
+      ],
+      [
+        "should extract modelParameters from gen_ai.request (request.temperature)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.request.temperature",
+          otelAttributeValue: { doubleValue: 1 },
+          entityAttributeKey: "modelParameters.temperature",
+          entityAttributeValue: 1,
+        },
+      ],
+      [
+        "should extract modelParameters from gen_ai.request (request.max_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.request.max_tokens",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract usage from gen_ai.usage (input_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.input_tokens",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.input",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract usage from gen_ai.usage (completion_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.completion_tokens",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.output",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract usage from gen_ai.usage (total_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.total_tokens",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.total",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract usage from gen_ai.usage (custom_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.custom_tokens",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.custom_tokens",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract cost from gen_ai.usage.cost",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.cost",
+          otelAttributeValue: {
+            doubleValue: 0.000151,
+          },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0.000151,
+        },
+      ],
+      [
+        "should not treat usage.cost as usage",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.cost",
+          otelAttributeValue: {
+            doubleValue: 0.000151,
+          },
+          entityAttributeKey: "usageDetails.cost",
+          entityAttributeValue: undefined,
+        },
+      ],
+      [
+        "should map gen_ai.prompt.0.content to input[0].content",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.prompt.0.content",
+          otelAttributeValue: {
+            stringValue: "What is LLM Observability?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [{ content: "What is LLM Observability?" }],
+        },
+      ],
+      [
+        "should map gen_ai.completion.0.content to output[0].content",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.completion.0.content",
+          otelAttributeValue: {
+            stringValue: "Observing LLMs",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: [{ content: "Observing LLMs" }],
+        },
+      ],
+      [
+        "should map gen_ai.completion.content to output.content",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.completion.content",
+          otelAttributeValue: {
+            stringValue: "Observing LLMs",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: { content: "Observing LLMs" },
+        },
+      ],
+      [
+        "should map gen_ai.completion to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.completion",
+          otelAttributeValue: {
+            stringValue: "Observing LLMs",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "Observing LLMs",
+        },
+      ],
     ])(
       "Attributes: %s",
       (
@@ -410,9 +562,11 @@ describe("OTel Resource Span Mapping", () => {
         // Then
         const entity: { body: Record<string, any> } =
           spec.entity === "trace" ? langfuseEvents[0] : langfuseEvents[1];
-        expect(entity.body[spec.entityAttributeKey]).toEqual(
-          spec.entityAttributeValue,
-        );
+        expect(
+          spec.entityAttributeKey // This logic allows to follow a path in the object, e.g. foo.bar.baz.
+            .split(".")
+            .reduce((acc: any, key: string) => acc && acc[key], entity.body),
+        ).toEqual(spec.entityAttributeValue);
       },
     );
 
