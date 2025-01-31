@@ -297,11 +297,11 @@ export const convertOtelSpanToIngestionEvent = (
           span.status?.code === 2
             ? ObservationLevel.ERROR
             : ObservationLevel.DEFAULT,
-        modelParameters: extractModelParameters(attributes),
+        modelParameters: extractModelParameters(attributes) as any,
         model: extractModelName(attributes),
 
-        usageDetails: extractUsageDetails(attributes),
-        costDetails: extractCostDetails(attributes),
+        usageDetails: extractUsageDetails(attributes) as any,
+        costDetails: extractCostDetails(attributes) as any,
 
         // Input and Output
         ...extractInputAndOutput(span?.events ?? [], attributes),
