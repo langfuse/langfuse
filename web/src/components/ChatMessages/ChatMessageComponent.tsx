@@ -80,12 +80,12 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         </div>
       )}
       <CardContent className="ml-4 flex flex-row space-x-1 p-0">
-        <div className="min-w-[6rem]">
+        <div className="min-w-[5rem]">
           <Button
             onClick={toggleRole}
             type="button" // prevents submitting a form if this button is inside a form
             variant="outline"
-            className="text-xs"
+            className="px-2 text-xs"
           >
             {capitalize(message.role)}
           </Button>
