@@ -81,7 +81,8 @@ export default withMiddlewares({
           };
         }
 
-        const mediaId = getMediaId({ projectId, sha256Hash });
+        const mediaId =
+          existingMedia?.id ?? getMediaId({ projectId, sha256Hash });
 
         if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
           throw new InternalServerError(
