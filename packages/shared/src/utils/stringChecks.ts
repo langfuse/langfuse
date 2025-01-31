@@ -21,9 +21,10 @@ export function isValidVariableName(variable: string): boolean {
 }
 
 export function extractVariables(mustacheString: string): string[] {
-  return Array.from(mustacheString.matchAll(MUSTACHE_REGEX))
+  const matches = Array.from(mustacheString.matchAll(MUSTACHE_REGEX))
     .map((match) => match[1])
     .filter(isValidVariableName);
+  return [...new Set(matches)];
 }
 
 export function stringifyValue(value: unknown) {
