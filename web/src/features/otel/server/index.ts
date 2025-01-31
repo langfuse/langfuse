@@ -71,6 +71,32 @@ const extractInputAndOutput = (
   return { input: null, output: null };
 };
 
+const extractUserId = (
+  attributes: Record<string, unknown>,
+): string | undefined => {
+  const userIdKeys = ["langfuse.user.id", "user.id"];
+  for (const key of userIdKeys) {
+    if (attributes[key]) {
+      return typeof attributes[key] === "string"
+        ? (attributes[key] as string)
+        : JSON.stringify(attributes[key]);
+    }
+  }
+};
+
+const extractSessionId = (
+  attributes: Record<string, unknown>,
+): string | undefined => {
+  const userIdKeys = ["langfuse.session.id", "session.id"];
+  for (const key of userIdKeys) {
+    if (attributes[key]) {
+      return typeof attributes[key] === "string"
+        ? (attributes[key] as string)
+        : JSON.stringify(attributes[key]);
+    }
+  }
+};
+
 /**
  * Accepts an OpenTelemetry resourceSpan from a ExportTraceServiceRequest and
  * returns a list of Langfuse events.
@@ -102,8 +128,13 @@ export const convertOtelSpanToIngestionEvent = (
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
           metadata: {
+            attributes,
             resourceAttributes,
+            scope: scopeSpan?.scope,
           },
+          version: resourceAttributes?.["service.version"] ?? null,
+          userId: extractUserId(attributes),
+          sessionId: extractSessionId(attributes),
         };
         events.push({
           id: randomUUID(),
