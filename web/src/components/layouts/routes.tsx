@@ -14,7 +14,6 @@ import {
   Sparkle,
   FileJson,
   Search,
-  Command,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -22,10 +21,8 @@ import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/u
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown";
-import { Button } from "@/src/components/ui/button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { Separator } from "@radix-ui/react-dropdown-menu";
 
 export type Route = {
   title: string;
@@ -51,7 +48,7 @@ export const ROUTES: Route[] = [
     title: "Go to...",
     pathname: "", // Empty pathname since this is a dropdown
     icon: Search,
-    menuNode: <CommandKButton />,
+    menuNode: <CommandMenuTrigger />,
   },
   {
     title: "Organizations",
@@ -174,7 +171,7 @@ export const ROUTES: Route[] = [
   },
 ];
 
-function CommandKButton() {
+function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();
 
   return (

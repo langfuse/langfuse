@@ -16,7 +16,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 
-export function CommandKMenu({
+export function CommandMenu({
   mainNavigation,
 }: {
   mainNavigation: NavigationItem[];
