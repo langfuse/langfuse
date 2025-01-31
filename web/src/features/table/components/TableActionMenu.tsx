@@ -31,7 +31,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, Trash, Plus } from "lucide-react";
 import { z } from "zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { getActionConfig } from "@/src/features/table/getActionConfig";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
@@ -45,6 +45,7 @@ import {
   type ActionId,
   type OrderByState,
 } from "@langfuse/shared";
+import { type TableAction } from "@/src/features/table/types";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -58,12 +59,15 @@ type TableActionMenuProps = {
 type TableMenuConfirmButton = {
   projectId: string;
   scope: ProjectScope;
-  entitlement: Entitlement;
-  confirmAction: () => void;
+  entitlement?: Entitlement;
+  confirmAction?: () => void;
 } & Pick<ButtonProps, "variant" | "type">;
 
 function TableMenuConfirmButton(props: TableMenuConfirmButton) {
-  const hasEntitlement = useHasEntitlement(props.entitlement);
+  // workaround to not call hook conditionally
+  const hasEntitlement = useHasEntitlement(
+    props.entitlement ?? "trace-deletion",
+  );
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: props.scope,
@@ -73,9 +77,9 @@ function TableMenuConfirmButton(props: TableMenuConfirmButton) {
     <ActionButton
       type={props.type}
       variant={props.variant}
-      onClick={() => props.confirmAction()}
-      hasEntitlement={hasEntitlement}
+      onClick={() => props.confirmAction?.()}
       hasAccess={hasAccess}
+      hasEntitlement={props.entitlement ? hasEntitlement : true}
     >
       Confirm
     </ActionButton>
@@ -91,15 +95,18 @@ export function TableActionMenu({
   filterState,
 }: TableActionMenuProps) {
   const { selectAll } = useSelectAll(projectId, tableName);
-  const [selectedActionId, setSelectedActionId] = useState<ActionId | null>(
+  const [selectedAction, setSelectedAction] = useState<TableAction | null>(
     null,
   );
   const [isDialogOpen, setDialogOpen] = useState(false);
-  const actions = actionIds.reduce(
-    (acc, actionId) => acc.set(actionId, getActionConfig(actionId)),
-    new Map(),
+  const actions = useMemo(
+    () =>
+      actionIds.reduce(
+        (acc, actionId) => acc.set(actionId, getActionConfig(actionId)),
+        new Map(),
+      ),
+    [actionIds],
   );
-  const selectedActionProps = actions.get(selectedActionId);
 
   const selectAllMutation = api.selectAll.create.useMutation({
     onSuccess: () => {
@@ -112,21 +119,20 @@ export function TableActionMenu({
   });
 
   const handleAction = (actionId: ActionId) => {
-    setSelectedActionId(actionId);
+    setSelectedAction(actions.get(actionId));
     setDialogOpen(true);
   };
 
   const handleActionConfirm = async () => {
-    if (!selectedActionId) return;
+    if (!selectedAction) return;
     onActionComplete?.();
     await selectAllMutation.mutateAsync({
-      actionId: selectedActionId,
+      actionId: selectedAction.id,
       projectId,
       tableName,
       query: {
         filter: filterState,
         orderBy: orderByState,
-        tableName,
       },
     });
   };
@@ -171,7 +177,7 @@ export function TableActionMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {isDialogOpen && selectedActionProps?.type === "delete" && (
+      {isDialogOpen && selectedAction?.type === "delete" && (
         <Dialog
           open={isDialogOpen}
           onOpenChange={(isOpen) => {
@@ -190,18 +196,20 @@ export function TableActionMenu({
             </DialogHeader>
             <DialogFooter className="sm:justify-start">
               <TableMenuConfirmButton
+                projectId={projectId}
                 variant="destructive"
-                loading={selectAllMutation.isLoading}
-                disabled={selectAllMutation.isLoading}
+                // loading={selectAllMutation.isLoading}
+                // disabled={selectAllMutation.isLoading}
                 confirmAction={handleActionConfirm}
-                {...selectedActionProps}
+                scope={selectedAction?.accessCheck?.scope}
+                entitlement={selectedAction?.accessCheck?.entitlement}
               />
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {isDialogOpen && selectedActionProps?.type === "create" && (
+      {isDialogOpen && selectedAction?.type === "create" && (
         <Dialog
           open={isDialogOpen}
           onOpenChange={(isOpen) => {
@@ -220,11 +228,11 @@ export function TableActionMenu({
               >
                 <DialogHeader>
                   <DialogTitle>
-                    Add to {selectedActionProps?.createConfig?.targetLabel}
+                    Add to {selectedAction?.createConfig?.targetLabel}
                   </DialogTitle>
                   <DialogDescription>
-                    Select a {selectedActionProps?.createConfig?.targetLabel} to
-                    add the selected items to.
+                    Select a {selectedAction?.createConfig?.targetLabel} to add
+                    the selected items to.
                   </DialogDescription>
                 </DialogHeader>
                 <FormField
@@ -258,9 +266,11 @@ export function TableActionMenu({
                 <DialogFooter className="sm:justify-start">
                   <TableMenuConfirmButton
                     type="submit"
-                    loading={selectAllMutation.isLoading}
-                    disabled={selectAllMutation.isLoading}
-                    {...selectedActionProps}
+                    projectId={projectId}
+                    // loading={selectAllMutation.isLoading}
+                    // disabled={selectAllMutation.isLoading}
+                    scope={selectedAction?.accessCheck?.scope}
+                    entitlement={selectedAction?.accessCheck?.entitlement}
                   />
                 </DialogFooter>
               </form>

@@ -840,6 +840,7 @@ export default function TracesTable({
             traces.data?.traces.map((t) => t.id).includes(traceId),
           ).length > 0 ? (
             <TableActionMenu
+              key="traces-multi-select-actions"
               projectId={projectId}
               tableName={SelectAllTableName.Traces}
               actionIds={["trace-delete"]}
