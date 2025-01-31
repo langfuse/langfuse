@@ -29,6 +29,7 @@ export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/datasetRunItemUpsert";
 export * from "./redis/batchExport";
+export * from "./redis/selectAllQueue";
 export * from "./redis/ingestionQueue";
 export * from "./redis/postHogIntegrationQueue";
 export * from "./redis/postHogIntegrationProcessingQueue";

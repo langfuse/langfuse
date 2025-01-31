@@ -55,6 +55,12 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
+export const SelectAllProcessingEventSchema = z.object({
+  projectId: z.string(),
+  actionId: z.string(),
+  query: z.string(),
+  tableName: z.string(),
+});
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
@@ -74,6 +80,9 @@ export type PostHogIntegrationProcessingEventType = z.infer<
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
 >;
+export type SelectAllProcessingEventType = z.infer<
+  typeof SelectAllProcessingEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -92,6 +101,7 @@ export enum QueueName {
   MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
   DataRetentionQueue = "data-retention-queue",
   DataRetentionProcessingQueue = "data-retention-processing-queue",
+  SelectAllQueue = "select-all-queue",
 }
 
 export enum QueueJobs {
@@ -111,6 +121,7 @@ export enum QueueJobs {
   MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
   DataRetentionJob = "data-retention-job",
   DataRetentionProcessingJob = "data-retention-processing-job",
+  SelectAllProcessingJob = "select-all-processing-job",
 }
 
 export type TQueueJobTypes = {
@@ -179,5 +190,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: DataRetentionProcessingEventType;
     name: QueueJobs.DataRetentionProcessingJob;
+  };
+  [QueueName.SelectAllQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: SelectAllProcessingEventType;
+    name: QueueJobs.SelectAllProcessingJob;
   };
 };
