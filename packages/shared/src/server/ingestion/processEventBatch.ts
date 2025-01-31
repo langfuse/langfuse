@@ -4,7 +4,6 @@ import { z } from "zod";
 import { type Model } from "../../db";
 import { env } from "../../env";
 import {
-  ForbiddenError,
   InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
