@@ -1,4 +1,4 @@
-import { type IngestionEventType } from "@langfuse/shared/src/server";
+import { logger, type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ObservationLevel } from "@prisma/client";
 
