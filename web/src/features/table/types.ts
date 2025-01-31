@@ -1,9 +1,10 @@
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ActionId } from "@langfuse/shared";
 import { type ComponentType, type ReactElement } from "react";
 
 type BaseTableAction = {
-  id: string;
+  id: ActionId;
   icon?: ReactElement | ComponentType<{ className?: string }>;
   accessCheck: {
     scope: ProjectScope;

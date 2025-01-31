@@ -4,23 +4,17 @@ import {
 } from "@langfuse/shared/src/server";
 import z from "zod";
 import { orderBy } from "../../../../packages/shared/dist/src/interfaces/orderBy";
-import {
-  BatchExportTableName,
-  SelectAllTableName,
-  singleFilter,
-} from "@langfuse/shared";
+import { BatchExportTableName, singleFilter } from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
-import { chunk } from "lodash";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
+import { env } from "../../env";
 
 export const SelectAllQuerySchema = z.object({
-  tableName: z.nativeEnum(SelectAllTableName),
   filter: z.array(singleFilter).nullable(),
   orderBy,
 });
 
 const CHUNK_SIZE = 1000;
-
 async function processActionChunk(
   actionId: string,
   chunkIds: string[],
@@ -50,7 +44,7 @@ export const handleSelectAllJob = async (
     selectAllEvent;
 
   // Parse query from job
-  const parsedQuery = SelectAllQuerySchema.safeParse(query);
+  const parsedQuery = SelectAllQuerySchema.safeParse(JSON.parse(query));
   if (!parsedQuery.success) {
     throw new Error(
       `Failed to parse query in project ${projectId} for ${actionId}: ${parsedQuery.error.message}`,
@@ -60,34 +54,34 @@ export const handleSelectAllJob = async (
   // TODO: given retries must skip any item we have already processed
   const dbReadStream = await getDatabaseReadStream({
     projectId: projectId,
-    cutoffCreatedAt,
+    cutoffCreatedAt: new Date(cutoffCreatedAt),
     ...parsedQuery.data,
     tableName: tableName as BatchExportTableName,
+    exportLimit: env.SELECT_ALL_EXPORT_ROW_LIMIT,
   });
 
-  let pendingIds: string[] = [];
+  // Process stream in database-sized batches
+  let batch: string[] = [];
+  for await (const record of dbReadStream) {
+    if (record?.id) {
+      batch.push(record.id);
+    }
 
-  // Process stream
-  for await (const batch of dbReadStream) {
-    const batchIds = (batch as Array<{ id: string }>).map((item) => item.id);
-    pendingIds.push(...batchIds);
-
-    // Process when we have enough ids to make a chunk
-    if (pendingIds.length >= CHUNK_SIZE) {
-      const chunks = chunk(pendingIds, CHUNK_SIZE);
-      await Promise.all(
-        chunks.map((chunkIds) =>
-          processActionChunk(actionId, chunkIds, projectId),
-        ),
-      );
-      pendingIds = [];
+    // When batch reaches 1000, process it and reset
+    if (batch.length >= CHUNK_SIZE) {
+      await processActionChunk(actionId, batch, projectId);
+      batch = [];
     }
   }
 
-  // Process any remaining ids
-  if (pendingIds.length > 0) {
-    await processActionChunk(actionId, pendingIds, projectId);
+  // Process any remaining records
+  if (batch.length > 0) {
+    await processActionChunk(actionId, batch, projectId);
   }
 
-  logger.info("Select all job completed", { projectId, actionId, tableName });
+  logger.info("Select all job completed", {
+    projectId,
+    actionId,
+    tableName,
+  });
 };

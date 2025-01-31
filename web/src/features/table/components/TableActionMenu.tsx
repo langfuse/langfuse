@@ -94,7 +94,7 @@ export function TableActionMenu({
   orderByState,
   filterState,
 }: TableActionMenuProps) {
-  const { selectAll } = useSelectAll(projectId, tableName);
+  const { selectAll, setSelectAll } = useSelectAll(projectId, tableName);
   const [selectedAction, setSelectedAction] = useState<TableAction | null>(
     null,
   );
@@ -125,7 +125,7 @@ export function TableActionMenu({
 
   const handleActionConfirm = async () => {
     if (!selectedAction) return;
-    onActionComplete?.();
+    setDialogOpen(false);
     await selectAllMutation.mutateAsync({
       actionId: selectedAction.id,
       projectId,
@@ -135,6 +135,8 @@ export function TableActionMenu({
         orderBy: orderByState,
       },
     });
+    setSelectAll(false);
+    onActionComplete?.();
   };
 
   const form = useForm({
@@ -198,8 +200,6 @@ export function TableActionMenu({
               <TableMenuConfirmButton
                 projectId={projectId}
                 variant="destructive"
-                // loading={selectAllMutation.isLoading}
-                // disabled={selectAllMutation.isLoading}
                 confirmAction={handleActionConfirm}
                 scope={selectedAction?.accessCheck?.scope}
                 entitlement={selectedAction?.accessCheck?.entitlement}
@@ -267,8 +267,6 @@ export function TableActionMenu({
                   <TableMenuConfirmButton
                     type="submit"
                     projectId={projectId}
-                    // loading={selectAllMutation.isLoading}
-                    // disabled={selectAllMutation.isLoading}
                     scope={selectedAction?.accessCheck?.scope}
                     entitlement={selectedAction?.accessCheck?.entitlement}
                   />

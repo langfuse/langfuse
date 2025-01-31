@@ -851,6 +851,7 @@ export default function TracesTable({
               // )}
               onActionComplete={() => {
                 setSelectedRows({});
+                setUserFilterState([]);
               }}
             />
           ) : null,
