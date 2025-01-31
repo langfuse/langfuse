@@ -15,7 +15,7 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
-import { CommandKMenu } from "@/src/components/command-k-menu";
+import { CommandKMenu } from "@/src/features/command-k-menu/CommandMenu";
 
 const signOutUser = async () => {
   localStorage.clear();

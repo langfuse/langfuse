@@ -13,6 +13,8 @@ import {
   Grid2X2,
   Sparkle,
   FileJson,
+  Search,
+  Command,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -20,6 +22,10 @@ import { type UiCustomizationOption } from "@/src/ee/features/ui-customization/u
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown";
+import { Button } from "@/src/components/ui/button";
+import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
+import { Separator } from "@radix-ui/react-dropdown-menu";
 
 export type Route = {
   title: string;
@@ -41,6 +47,12 @@ export type Route = {
 };
 
 export const ROUTES: Route[] = [
+  {
+    title: "Go to...",
+    pathname: "", // Empty pathname since this is a dropdown
+    icon: Search,
+    menuNode: <CommandKButton />,
+  },
   {
     title: "Organizations",
     pathname: "/",
@@ -161,3 +173,25 @@ export const ROUTES: Route[] = [
     menuNode: <SupportMenuDropdown />,
   },
 ];
+
+function CommandKButton() {
+  const { setOpen } = useCommandMenu();
+
+  return (
+    <SidebarMenuButton
+      onClick={() => setOpen(true)}
+      className="whitespace-nowrap"
+    >
+      <Search className="h-4 w-4" />
+      Go to...
+      <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded-md border px-1.5 font-mono text-[10px]">
+        {navigator.userAgent.includes("Mac") ? (
+          <span className="text-[12px]">⌘</span>
+        ) : (
+          <span>Ctrl</span>
+        )}
+        <span>K</span>
+      </kbd>
+    </SidebarMenuButton>
+  );
+}
