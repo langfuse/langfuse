@@ -13,6 +13,7 @@ import {
   type ApiAccessScope,
   logger,
   createNewRedisInstance,
+  redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
@@ -32,6 +33,8 @@ export class RateLimitService {
         redis ??
         createNewRedisInstance({
           enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
+          enableOfflineQueue: false,
+          ...redisQueueRetryOptions,
         });
       RateLimitService.instance = new RateLimitService();
     }
