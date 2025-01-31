@@ -12,6 +12,7 @@ import {
   recordIncrement,
   type ApiAccessScope,
   logger,
+  createNewRedisInstance,
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
@@ -22,10 +23,25 @@ import { type NextApiResponse } from "next";
 // - isRateLimited returns false for self-hosters
 // - sendRestResponseIfLimited sends a 429 response with headers if the rate limit is exceeded. Return this from the route handler.
 export class RateLimitService {
-  private redis: Redis | null;
+  private static redis: Redis | null;
+  private static instance: RateLimitService | null = null;
 
-  constructor(redis: Redis | null) {
-    this.redis = redis;
+  public static getInstance(redis: Redis | null = null) {
+    if (!RateLimitService.instance) {
+      RateLimitService.redis =
+        redis ??
+        createNewRedisInstance({
+          enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
+        });
+      RateLimitService.instance = new RateLimitService();
+    }
+    return RateLimitService.instance;
+  }
+
+  public static shutdown() {
+    if (RateLimitService.redis && RateLimitService.redis.status !== "end") {
+      RateLimitService.redis.disconnect();
+    }
   }
 
   async rateLimitRequest(
@@ -41,7 +57,7 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
-    if (!this.redis) {
+    if (!RateLimitService.redis) {
       logger.warn("Rate limiting not available without Redis");
       return new RateLimitHelper(undefined);
     }
@@ -70,7 +86,7 @@ export class RateLimitService {
       duration: effectiveConfig.durationInSec, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
-      storeClient: this.redis,
+      storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });
 

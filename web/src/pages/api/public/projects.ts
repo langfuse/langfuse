@@ -33,10 +33,11 @@ export default async function handler(
         },
       });
 
-      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-        authCheck.scope,
-        "public-api",
-      );
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "public-api",
+        );
 
       if (rateLimitCheck?.isRateLimited()) {
         return rateLimitCheck.sendRestResponseIfLimited(res);
