@@ -90,9 +90,11 @@ export const getDatabaseReadStream = async ({
   filter,
   orderBy,
   cutoffCreatedAt,
+  exportLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
+  exportLimit?: number;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -166,7 +168,7 @@ export const getDatabaseReadStream = async ({
           });
         },
         1000,
-        env.BATCH_EXPORT_ROW_LIMIT,
+        exportLimit,
       );
     case "generations": {
       let emptyScoreColumns: Record<string, null>;
@@ -219,7 +221,7 @@ export const getDatabaseReadStream = async ({
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
         1000,
-        env.BATCH_EXPORT_ROW_LIMIT,
+        exportLimit,
       );
     }
     case "traces": {
@@ -320,7 +322,7 @@ export const getDatabaseReadStream = async ({
           return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
         },
         1000,
-        env.BATCH_EXPORT_ROW_LIMIT,
+        exportLimit,
       );
     }
     default:

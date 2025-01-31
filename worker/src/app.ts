@@ -43,6 +43,7 @@ import {
   dataRetentionProcessingProcessor,
   dataRetentionProcessor,
 } from "./queues/dataRetentionQueue";
+import { selectAllQueueProcessor } from "./queues/selectAllQueue";
 
 const app = express();
 
@@ -149,6 +150,16 @@ if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
     concurrency: 1, // only 1 job at a time
     limiter: {
       // execute 1 batch export in 5 seconds to avoid overloading the DB
+      max: 1,
+      duration: 5_000,
+    },
+  });
+}
+
+if (env.QUEUE_CONSUMER_SELECT_ALL_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.SelectAllQueue, selectAllQueueProcessor, {
+    concurrency: 1, // only 1 job at a time
+    limiter: {
       max: 1,
       duration: 5_000,
     },

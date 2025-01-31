@@ -30,6 +30,7 @@ import { experimentsRouter } from "@/src/ee/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { auditLogsRouter } from "./routers/auditLogs";
+import { selectAllRouter } from "@/src/features/table/server/selectAll";
 
 /**
  * This is the primary router for your server.
@@ -68,6 +69,7 @@ export const appRouter = createTRPCRouter({
   media: mediaRouter,
   backgroundMigrations: backgroundMigrationsRouter,
   auditLogs: auditLogsRouter,
+  selectAll: selectAllRouter,
 });
 
 // export type definition of API
