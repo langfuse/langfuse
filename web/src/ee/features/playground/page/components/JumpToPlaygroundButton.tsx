@@ -28,7 +28,10 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Observation;
+      generation: Omit<Observation, "input" | "output"> & {
+        input: string | undefined;
+        output: string | undefined;
+      };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
@@ -133,7 +136,12 @@ const parsePrompt = (prompt: Prompt): PlaygroundCache => {
   }
 };
 
-const parseGeneration = (generation: Observation): PlaygroundCache => {
+const parseGeneration = (
+  generation: Omit<Observation, "input" | "output"> & {
+    input: string | undefined;
+    output: string | undefined;
+  },
+): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
 
   const modelParams = parseModelParams(generation);
@@ -179,7 +187,7 @@ const parseGeneration = (generation: Observation): PlaygroundCache => {
 };
 
 function parseModelParams(
-  generation: Observation,
+  generation: Omit<Observation, "input" | "output">,
 ):
   | (Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">)
   | undefined {

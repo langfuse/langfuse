@@ -333,8 +333,8 @@ export function TraceTimelineView({
 }: {
   trace: Omit<Trace, "input" | "output"> & {
     latency?: number;
-    input: string | null;
-    output: string | null;
+    input: string | undefined;
+    output: string | undefined;
   };
   observations: Array<ObservationReturnType>;
   projectId: string;
