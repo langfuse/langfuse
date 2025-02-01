@@ -39,7 +39,11 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Trace & { latency?: number };
+  trace: Trace & {
+    latency?: number;
+    input: string | undefined;
+    output: string | undefined;
+  };
   scores: APIScore[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
