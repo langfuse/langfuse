@@ -223,11 +223,11 @@ export const IOTableCell = ({
             className,
           )}
         >
-          {stringifyJsonNode(data)}
+          {data ? stringifyJsonNode(data) : undefined}
         </div>
       ) : (
         <JSONView
-          json={stringifyJsonNode(data)}
+          json={data ? stringifyJsonNode(data) : undefined}
           className={cn(
             "h-full w-full self-stretch overflow-y-auto rounded-sm",
             className,
