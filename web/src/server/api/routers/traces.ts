@@ -190,8 +190,8 @@ export const traceRouter = createTRPCRouter({
       }
       return {
         ...trace,
-        input: JSON.stringify(trace.input),
-        output: JSON.stringify(trace.output),
+        input: trace.input ? JSON.stringify(trace.input) : undefined,
+        output: trace.output ? JSON.stringify(trace.output) : undefined,
       };
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure
@@ -253,14 +253,14 @@ export const traceRouter = createTRPCRouter({
 
       return {
         ...trace,
-        input: JSON.stringify(trace.input),
-        output: JSON.stringify(trace.output),
+        input: trace.input ? JSON.stringify(trace.input) : undefined,
+        output: trace.output ? JSON.stringify(trace.output) : undefined,
         scores: validatedScores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...o,
-          input: null, // this is not queried above.
-          output: null,
+          output: undefined,
+          input: undefined, // this is not queried above.
         })) as ObservationReturnType[],
       };
     }),
