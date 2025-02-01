@@ -34,7 +34,22 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   );
 
   const query = `
-        SELECT
+    with clickhouse_keys as (
+      SELECT
+        id,
+        trace_id,
+        project_id,
+        type,
+        start_time,
+      FROM observations o ${shouldUseSkipIndexes ? "" : "FINAL"}
+      ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+      WHERE o.project_id = {projectId: String}
+      ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+      AND ${appliedFilter.query}
+      ${shouldUseSkipIndexes ? "ORDER BY start_time desc, event_ts desc LIMIT 1 by id, project_id" : "ORDER BY start_time DESC"}
+      ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    )
+      SELECT 
         id,
         trace_id,
         project_id,
@@ -65,12 +80,11 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         updated_at,
         event_ts
       FROM observations o ${shouldUseSkipIndexes ? "" : "FINAL"}
-      ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+      
       WHERE o.project_id = {projectId: String}
-      ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
-      AND ${appliedFilter.query}
+      AND (id, trace_id, project_id, type, start_time) in (select * from clickhouse_keys)
+
       ${shouldUseSkipIndexes ? "ORDER BY start_time desc, event_ts desc LIMIT 1 by id, project_id" : "ORDER BY start_time DESC"}
-      ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
   const result = await queryClickhouse<ObservationRecordReadType>({
