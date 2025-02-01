@@ -17,7 +17,7 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, instrumentAsync } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -44,71 +44,84 @@ export default withMiddlewares({
           `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
         );
 
-      try {
-        const existingMedia = await prisma.media.findUnique({
-          where: {
-            projectId_sha256Hash: {
-              projectId,
-              sha256Hash,
-            },
-          },
-        });
+      return await instrumentAsync(
+        { name: "media-create-upload-url" },
+        async (span) => {
+          span.setAttribute("projectId", projectId);
+          span.setAttribute("traceId", traceId);
+          span.setAttribute("observationId", observationId ?? "");
+          span.setAttribute("field", field);
+          span.setAttribute("sha256Hash", sha256Hash);
 
-        if (
-          existingMedia &&
-          existingMedia.uploadHttpStatus === 200 &&
-          existingMedia.contentType === contentType
-        ) {
-          if (observationId) {
-            // Use raw upserts to avoid deadlocks
-            await prisma.$queryRaw`
+          try {
+            const existingMedia = await prisma.media.findUnique({
+              where: {
+                projectId_sha256Hash: {
+                  projectId,
+                  sha256Hash,
+                },
+              },
+            });
+
+            if (
+              existingMedia &&
+              existingMedia.uploadHttpStatus === 200 &&
+              existingMedia.contentType === contentType
+            ) {
+              span.setAttribute("mediaId", existingMedia.id);
+
+              if (observationId) {
+                // Use raw upserts to avoid deadlocks
+                await prisma.$queryRaw`
               INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
               VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${existingMedia.id}, ${field})
               ON CONFLICT DO NOTHING;
             `;
-          } else {
-            // Use raw upserts to avoid deadlocks
-            await prisma.$queryRaw`
+              } else {
+                // Use raw upserts to avoid deadlocks
+                await prisma.$queryRaw`
               INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
               VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${existingMedia.id}, ${field})
               ON CONFLICT DO NOTHING;
             `;
-          }
+              }
 
-          return {
-            mediaId: existingMedia.id,
-            uploadUrl: null,
-          };
-        }
+              return {
+                mediaId: existingMedia.id,
+                uploadUrl: null,
+              };
+            }
 
-        const mediaId =
-          existingMedia?.id ?? getMediaId({ projectId, sha256Hash });
+            const mediaId =
+              existingMedia?.id ?? getMediaId({ projectId, sha256Hash });
 
-        if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
-          throw new InternalServerError(
-            "Media upload to blob storage not enabled or no bucket configured",
-          );
+            span.setAttribute("mediaId", mediaId);
 
-        const s3Client = getMediaStorageServiceClient(
-          env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-        );
+            if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
+              throw new InternalServerError(
+                "Media upload to blob storage not enabled or no bucket configured",
+              );
 
-        const bucketPath = getBucketPath({
-          projectId,
-          mediaId,
-          contentType,
-        });
+            const s3Client = getMediaStorageServiceClient(
+              env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+            );
 
-        const uploadUrl = await s3Client.getSignedUploadUrl({
-          path: bucketPath,
-          ttlSeconds: 60 * 60, // 1 hour
-          sha256Hash,
-          contentType,
-          contentLength,
-        });
+            const bucketPath = getBucketPath({
+              projectId,
+              mediaId,
+              contentType,
+            });
 
-        // Create media record first to ensure fkey constraint is met on next queries
-        await prisma.$queryRaw`
+            const uploadUrl = await s3Client.getSignedUploadUrl({
+              path: bucketPath,
+              ttlSeconds: 60 * 60, // 1 hour
+              sha256Hash,
+              contentType,
+              contentLength,
+            });
+
+            // Create media record first to ensure fkey constraint is met on next queries
+            await prisma.$queryRaw`
             INSERT INTO "media" (
                 "id", 
                 "project_id", 
@@ -135,30 +148,32 @@ export default withMiddlewares({
                 "content_length" = ${contentLength}
           `;
 
-        if (observationId) {
-          await prisma.$queryRaw`
+            if (observationId) {
+              await prisma.$queryRaw`
                 INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
                 VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
                 ON CONFLICT DO NOTHING;
             `;
-        } else {
-          await prisma.$queryRaw`
+            } else {
+              await prisma.$queryRaw`
                 INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
                 VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
                 ON CONFLICT DO NOTHING;
             `;
-        }
+            }
 
-        return {
-          mediaId,
-          uploadUrl,
-        };
-      } catch (error) {
-        logger.error(
-          `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
-        );
-        throw new InternalServerError("Failed to get media upload URL");
-      }
+            return {
+              mediaId,
+              uploadUrl,
+            };
+          } catch (error) {
+            logger.error(
+              `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
+            );
+            throw new InternalServerError("Failed to get media upload URL");
+          }
+        },
+      );
     },
   }),
 });
