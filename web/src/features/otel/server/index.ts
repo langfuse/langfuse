@@ -1,4 +1,4 @@
-import { type IngestionEventType, logger } from "@langfuse/shared/src/server";
+import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ObservationLevel } from "@prisma/client";
 
@@ -33,6 +33,9 @@ const convertValueToPlainJavascript = (value: Record<string, any>): any => {
   }
   if (value.intValue && value.intValue.high === 0) {
     return value.intValue.low;
+  }
+  if (value.intValue && typeof value.intValue === "number") {
+    return value.intValue;
   }
   if (
     value.intValue &&
