@@ -2,10 +2,17 @@ import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { ObservationLevel } from "@prisma/client";
 
-const convertNanoTimestampToISO = (timestamp: {
-  high: number;
-  low: number;
-}) => {
+const convertNanoTimestampToISO = (
+  timestamp:
+    | number
+    | {
+        high: number;
+        low: number;
+      },
+) => {
+  if (typeof timestamp === "number") {
+    return new Date(timestamp / 1e6).toISOString();
+  }
   return new Date(
     (timestamp.high * Math.pow(2, 32) + timestamp.low) / 1e6,
   ).toISOString();
@@ -26,6 +33,9 @@ const convertValueToPlainJavascript = (value: Record<string, any>): any => {
   }
   if (value.intValue && value.intValue.high === 0) {
     return value.intValue.low;
+  }
+  if (value.intValue && typeof value.intValue === "number") {
+    return value.intValue;
   }
   if (
     value.intValue &&
