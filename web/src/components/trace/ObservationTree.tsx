@@ -39,7 +39,7 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Trace & {
+  trace: Omit<Trace, "input" | "output"> & {
     latency?: number;
     input: string | undefined;
     output: string | undefined;
@@ -121,7 +121,11 @@ export const ObservationTree = ({
 };
 
 const ObservationTreeTraceNode = (props: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    input: string | undefined;
+    output: string | undefined;
+    latency?: number;
+  };
   expandAll: () => void;
   collapseAll: () => void;
   scores: APIScore[];
