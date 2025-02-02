@@ -121,32 +121,54 @@ export default withMiddlewares({
             });
 
             // Create media record first to ensure fkey constraint is met on next queries
-            await prisma.$queryRaw`
-            INSERT INTO "media" (
-                "id", 
-                "project_id", 
-                "sha_256_hash", 
-                "bucket_path", 
-                "bucket_name", 
-                "content_type", 
-                "content_length"
-              )
-              VALUES (
-                ${mediaId},
-                ${projectId},
-                ${sha256Hash},
-                ${bucketPath},
-                ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
-                ${contentType},
-                ${contentLength}
-              )
-              ON CONFLICT ("project_id", "sha_256_hash") 
-              DO UPDATE SET
-                "bucket_name" = ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
-                "bucket_path" = ${bucketPath},
-                "content_type" = ${contentType},
-                "content_length" = ${contentLength}
-          `;
+            // Under high concurrency, the upsert might fail due to the multiple uniqueness constraints
+            // (id and (project_id ad sha_256))
+            // See also: https://stackoverflow.com/questions/73164161/insert-on-conflict-do-update-set-an-upsert-statement-with-a-unique-constraint
+            const maxRetries = 3;
+            const delayMs = 100;
+            let retryCount = 0;
+
+            while (retryCount < maxRetries) {
+              try {
+                await prisma.$queryRaw`
+                  INSERT INTO "media" (
+                      "id",
+                      "project_id",
+                      "sha_256_hash",
+                      "bucket_path",
+                      "bucket_name",
+                      "content_type",
+                      "content_length"
+                    )
+                    VALUES (
+                      ${mediaId},
+                      ${projectId},
+                      ${sha256Hash},
+                      ${bucketPath},
+                      ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
+                      ${contentType},
+                      ${contentLength}
+                    )
+                    ON CONFLICT ("project_id", "sha_256_hash")
+                    DO UPDATE SET
+                      "bucket_name" = ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
+                      "bucket_path" = ${bucketPath},
+                      "content_type" = ${contentType},
+                      "content_length" = ${contentLength}
+                  `;
+                break;
+              } catch (e) {
+                retryCount += 1;
+
+                if (retryCount >= maxRetries) throw e;
+
+                logger.debug(
+                  `Failed to create media record. Retrying (${retryCount}/${maxRetries})...`,
+                );
+
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+              }
+            }
 
             if (observationId) {
               await prisma.$queryRaw`
