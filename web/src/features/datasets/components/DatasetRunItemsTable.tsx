@@ -98,7 +98,7 @@ export function DatasetRunItemsTable(
       id: "runAt",
       size: 150,
       cell: ({ row }) => {
-        const value: DatasetRunItemRowData["runAt"] = row.getValue("createdAt");
+        const value: DatasetRunItemRowData["runAt"] = row.getValue("runAt");
         return <LocalIsoDate date={value} />;
       },
     },

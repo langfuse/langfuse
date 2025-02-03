@@ -7,7 +7,7 @@ export const LocalIsoDate = ({
   date: Date;
   accuracy?: Accuracy;
 }) => {
-  if (!(date instanceof Date)) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
     return null;
   }
 
