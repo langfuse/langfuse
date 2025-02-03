@@ -62,7 +62,7 @@ export default function ConfigureRetention() {
 
   return (
     <div>
-      <Header title="Data Retention (Beta)" level="h3" />
+      <Header title="Data Retention" level="h3" />
       <Card className="mb-4 p-3">
         <p className="mb-4 text-sm text-primary">
           Data retention automatically deletes events older than the specified

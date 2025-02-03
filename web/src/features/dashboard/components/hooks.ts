@@ -136,7 +136,6 @@ export function fillMissingValuesAndTransform(
       values: chartDataArray,
     });
   });
-
   return result;
 }
 

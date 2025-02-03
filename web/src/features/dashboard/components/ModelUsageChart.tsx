@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Button } from "@/src/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/src/components/ui/command";
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+  InputCommandSeparator,
+} from "@/src/components/ui/input-command";
 import {
   Popover,
   PopoverContent,
@@ -37,6 +37,13 @@ import {
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
+
+type ModelUsageReturnType = {
+  startTime: string;
+  units: Record<string, number>;
+  cost: Record<string, number>;
+  model: string;
+};
 
 export const ModelUsageChart = ({
   className,
@@ -122,6 +129,14 @@ export const ModelUsageChart = ({
     }
   }, [allModels, firstAllModelUpdate]);
 
+  const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
+
+  const allUsageUnits = [
+    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
+  ];
+
+  const dates = typedData.flatMap((r) => new Date(r.startTime));
+
   const usageTypeMap = new Map<
     string,
     {
@@ -132,19 +147,48 @@ export const ModelUsageChart = ({
     }[]
   >();
 
-  queryResult.data?.forEach((row) => {
-    for (const [key, value] of Object.entries(row.units ?? {})) {
-      usageTypeMap.set(key, [
-        ...(usageTypeMap.get(key) ?? []),
-        {
-          ...row,
-          units: value,
-          cost: Number(row.cost?.[key as keyof typeof row.cost]),
-          usageType: key,
-          model: row.model as string,
-        },
-      ]);
-    }
+  dates?.forEach((d) => {
+    allModels.forEach((m) => {
+      allUsageUnits.forEach((uu) => {
+        const existingEntry = typedData.find(
+          (td) =>
+            new Date(td.startTime).getTime() === d.getTime() && td.model === m,
+        );
+
+        if (!existingEntry) {
+          const newEntry = {
+            startTime: d.toString(),
+            model: m,
+            units: { [uu]: 0 },
+            cost: { [uu]: 0 },
+          };
+          typedData.push(newEntry);
+
+          // Add the new entry to usageTypeMap
+          usageTypeMap.set(uu, [
+            ...(usageTypeMap.get(uu) ?? []),
+            {
+              ...newEntry,
+              units: 0,
+              cost: 0,
+              usageType: uu,
+            },
+          ]);
+        }
+
+        if (existingEntry) {
+          usageTypeMap.set(uu, [
+            ...(usageTypeMap.get(uu) ?? []),
+            {
+              ...existingEntry,
+              units: existingEntry.units[uu],
+              cost: existingEntry.cost[uu],
+              usageType: uu,
+            },
+          ]);
+        }
+      });
+    });
   });
 
   const usageData = Array.from(usageTypeMap.values()).flat();
@@ -281,11 +325,11 @@ export const ModelUsageChart = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-0">
-              <Command>
-                <CommandInput placeholder="Search models..." />
-                <CommandEmpty>No model found.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem onSelect={handleSelectAll}>
+              <InputCommand>
+                <InputCommandInput placeholder="Search models..." />
+                <InputCommandEmpty>No model found.</InputCommandEmpty>
+                <InputCommandGroup>
+                  <InputCommandItem onSelect={handleSelectAll}>
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
@@ -295,11 +339,11 @@ export const ModelUsageChart = ({
                     <span>
                       <p className="font-semibold">Select All</p>
                     </span>
-                  </CommandItem>
-                  <CommandSeparator className="my-1" />
-                  <CommandList>
+                  </InputCommandItem>
+                  <InputCommandSeparator className="my-1" />
+                  <InputCommandList>
                     {allModels.map((model) => (
-                      <CommandItem
+                      <InputCommandItem
                         key={model}
                         onSelect={() => {
                           setSelectedModels((prev) =>
@@ -318,11 +362,11 @@ export const ModelUsageChart = ({
                           )}
                         />
                         {!model || model === "" ? <i>none</i> : model}
-                      </CommandItem>
+                      </InputCommandItem>
                     ))}
-                  </CommandList>
-                </CommandGroup>
-              </Command>
+                  </InputCommandList>
+                </InputCommandGroup>
+              </InputCommand>
             </PopoverContent>
           </Popover>
         </div>
@@ -347,6 +391,7 @@ export const ModelUsageChart = ({
                     agg={agg}
                     data={item.data}
                     showLegend={true}
+                    connectNulls={true}
                     valueFormatter={item.formatter}
                   />
                 )}

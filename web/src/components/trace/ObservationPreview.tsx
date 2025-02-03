@@ -89,6 +89,7 @@ export const ObservationPreview = ({
       projectId: projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
