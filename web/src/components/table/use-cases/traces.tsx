@@ -5,7 +5,6 @@ import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
@@ -60,6 +59,8 @@ import { Separator } from "@/src/components/ui/separator";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { SelectionColumnCell } from "@/src/features/table/components/SelectColumnCell";
+import { SelectionColumnHeader } from "@/src/features/table/components/SelectColumnHeader";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -261,39 +262,14 @@ export default function TracesTable({
       size: 30,
       isPinned: true,
       header: ({ table }) => (
-        <div className="flex h-full items-center">
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected()
-                ? true
-                : table.getIsSomePageRowsSelected()
-                  ? "indeterminate"
-                  : false
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllPageRowsSelected(!!value);
-              if (!value) {
-                setSelectedRows({});
-                setSelectAll(false);
-              }
-            }}
-            aria-label="Select all"
-            className="opacity-60"
-          />
-        </div>
+        <SelectionColumnHeader
+          table={table}
+          setSelectedRows={setSelectedRows}
+          setSelectAll={setSelectAll}
+        />
       ),
       cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => {
-            row.toggleSelected(!!value);
-            if (!value) {
-              setSelectAll(false);
-            }
-          }}
-          aria-label="Select row"
-          className="opacity-60"
-        />
+        <SelectionColumnCell row={row} setSelectAll={setSelectAll} />
       ),
     },
     {
