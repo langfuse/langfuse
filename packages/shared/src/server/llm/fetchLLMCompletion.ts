@@ -242,7 +242,7 @@ export async function fetchLLMCompletion(
     }
 
     /*
-  Workaround OpenAI o1 while in beta:
+  Workaround OpenAI reasoning models:
   
   This is a temporary workaround to avoid sending system messages to OpenAI's O1 models.
   O1 models do not support in beta:
@@ -253,7 +253,10 @@ export async function fetchLLMCompletion(
 
   Reference: https://platform.openai.com/docs/guides/reasoning/beta-limitations
   */
-    if (modelParams.model.startsWith("o1-")) {
+    if (
+      modelParams.model.startsWith("o1-") ||
+      modelParams.model.startsWith("o3-")
+    ) {
       return {
         completion: await new ChatOpenAI({
           openAIApiKey: apiKey,
@@ -263,6 +266,9 @@ export async function fetchLLMCompletion(
           topP: undefined,
           callbacks,
           maxRetries,
+          modelKwargs: {
+            max_completion_tokens: modelParams.max_tokens,
+          },
           configuration: {
             baseURL,
           },
