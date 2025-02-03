@@ -115,7 +115,7 @@ export const createEvalJobs = async ({
         const datasetItems = await prisma.$queryRaw<
           Array<{ id: string }>
         >(Prisma.sql`
-          SELECT id,
+          SELECT id
           FROM dataset_items as di
           WHERE project_id = ${event.projectId}
             AND id = ${event.datasetItemId}
