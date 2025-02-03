@@ -111,8 +111,8 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 RUN apk add --no-cache dumb-init tzdata
 
 
-RUN addgroup --system --gid ${UID} expressjs
-RUN adduser --system --uid ${GID} expressjs
+RUN addgroup --system --gid ${GID} nodejs
+RUN adduser --system --uid ${UID} nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma@6.3.0
 
