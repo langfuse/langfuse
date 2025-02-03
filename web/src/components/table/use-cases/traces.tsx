@@ -827,7 +827,7 @@ export default function TracesTable({
               key="traces-multi-select-actions"
               projectId={projectId}
               tableName={SelectAllTableName.Traces}
-              actionIds={["trace-delete"]}
+              actionIds={["trace-delete", "trace-add-to-annotation-queue"]}
               orderByState={orderByState}
               filterState={filterState}
               selectedIds={Object.keys(selectedRows).filter((traceId) =>

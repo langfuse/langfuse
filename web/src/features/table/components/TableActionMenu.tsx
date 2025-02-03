@@ -26,7 +26,9 @@ import {
   SelectTrigger,
   SelectContent,
   SelectValue,
+  SelectItem,
 } from "@/src/components/ui/select";
+import { useSession } from "next-auth/react";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, Trash, Plus } from "lucide-react";
@@ -43,8 +45,13 @@ import {
   type ActionId,
   type OrderByState,
 } from "@langfuse/shared";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  type TargetOptionsRoute,
+  type TableAction,
+  type TableActionQueryConfig,
+} from "@/src/features/table/types";
 import { useTableActionMutations } from "@/src/features/table/hooks/useTableActionMutations";
+import { queryHooks } from "@/src/features/table/components/queryHooks";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -84,6 +91,29 @@ function TableMenuConfirmButton(props: TableMenuConfirmButton) {
       Confirm
     </ActionButton>
   );
+}
+
+function TableActionTargetOptions({
+  projectId,
+  queryConfig,
+}: {
+  projectId: string;
+  queryConfig: TableActionQueryConfig;
+}) {
+  const session = useSession();
+  const hasEntitlement = useHasEntitlement(queryConfig.entitlement);
+
+  const useTargetOptionsQuery = queryHooks[queryConfig.targetQueryRoute];
+  const targetOptions = useTargetOptionsQuery(
+    { projectId },
+    { enabled: session.status === "authenticated" && hasEntitlement },
+  );
+
+  return targetOptions.data?.map((option: { id: string; name: string }) => (
+    <SelectItem key={option.id} value={option.id}>
+      {option.name}
+    </SelectItem>
+  ));
 }
 
 export function TableActionMenu({
@@ -132,10 +162,20 @@ export function TableActionMenu({
         },
       });
     } else {
-      await actionMutations[selectedAction.id].mutateAsync({
+      const baseParams = {
         projectId,
-        traceIds: selectedIds,
-      });
+        itemIds: selectedIds,
+      };
+
+      const data =
+        selectedAction.type === "create"
+          ? selectedAction.translateToMutationInput({
+              ...baseParams,
+              targetId: form.getValues().targetId,
+            })
+          : selectedAction.translateToMutationInput(baseParams);
+
+      await actionMutations[selectedAction.id].mutateAsync(data);
     }
     setSelectAll(false);
     onActionComplete?.();
@@ -230,10 +270,10 @@ export function TableActionMenu({
               >
                 <DialogHeader>
                   <DialogTitle>
-                    Add to {selectedAction?.createConfig?.targetLabel}
+                    Add to {selectedAction?.queryConfig?.targetLabel}
                   </DialogTitle>
                   <DialogDescription>
-                    Select a {selectedAction?.createConfig?.targetLabel} to add
+                    Select a {selectedAction?.queryConfig?.targetLabel} to add
                     the selected items to.
                   </DialogDescription>
                 </DialogHeader>
@@ -251,14 +291,12 @@ export function TableActionMenu({
                             <SelectValue placeholder="Select..." />
                           </SelectTrigger>
                         </FormControl>
+
                         <SelectContent>
-                          {/* {selectedActionProps?.createConfig
-                            ?.getTargetOptions(projectId)
-                            .map((target) => (
-                              <SelectItem key={target.id} value={target.id}>
-                                {target.name}
-                              </SelectItem>
-                            ))} */}
+                          <TableActionTargetOptions
+                            projectId={projectId}
+                            queryConfig={selectedAction?.queryConfig}
+                          />
                         </SelectContent>
                       </Select>
                       <FormMessage />
