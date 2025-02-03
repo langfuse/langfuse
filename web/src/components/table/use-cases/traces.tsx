@@ -907,10 +907,7 @@ export default function TracesTable({
         }
         pagination={{
           totalCount,
-          onChange: (updater) => {
-            setPaginationState(updater);
-            setSelectAll(false);
-          },
+          onChange: setPaginationState,
           state: paginationState,
         }}
         setOrderBy={setOrderByState}
