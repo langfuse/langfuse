@@ -3,7 +3,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
 import { GetPromptByNameSchema } from "@/src/features/prompts/server/utils/validation";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { redis } from "@langfuse/shared/src/server";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
@@ -15,7 +14,7 @@ const getPromptNameHandler = async (
 ) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
 
-  const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
+  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     authCheck.scope,
     "prompts",
   );

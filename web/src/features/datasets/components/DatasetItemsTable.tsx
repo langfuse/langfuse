@@ -27,6 +27,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
 import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type RowData = {
   id: string;
@@ -35,7 +36,7 @@ type RowData = {
     observationId?: string;
   };
   status: DatasetItem["status"];
-  createdAt: string;
+  createdAt: Date;
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
@@ -154,6 +155,10 @@ export function DatasetItemsTable({
       id: "createdAt",
       size: 150,
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: RowData["createdAt"] = row.getValue("createdAt");
+        return <LocalIsoDate date={value} />;
+      },
     },
     {
       accessorKey: "input",
@@ -260,7 +265,7 @@ export function DatasetItemsTable({
           }
         : undefined,
       status: item.status,
-      createdAt: item.createdAt.toLocaleString(),
+      createdAt: item.createdAt,
       input: item.input,
       expectedOutput: item.expectedOutput,
       metadata: item.metadata,

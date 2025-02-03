@@ -39,7 +39,11 @@ export const ObservationTree = ({
   toggleCollapsedObservation: (id: string) => void;
   collapseAll: () => void;
   expandAll: () => void;
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    latency?: number;
+    input: string | undefined;
+    output: string | undefined;
+  };
   scores: APIScore[];
   currentObservationId: string | undefined;
   setCurrentObservationId: (id: string | undefined) => void;
@@ -117,7 +121,11 @@ export const ObservationTree = ({
 };
 
 const ObservationTreeTraceNode = (props: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    input: string | undefined;
+    output: string | undefined;
+    latency?: number;
+  };
   expandAll: () => void;
   collapseAll: () => void;
   scores: APIScore[];
@@ -309,6 +317,7 @@ const ObservationTreeNodeCard = ({
     ) {
       currentObservationRef.current.scrollIntoView({
         behavior: "smooth",
+        block: "center",
       });
     }
     // Should only trigger a single time on initial render

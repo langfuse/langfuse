@@ -40,6 +40,7 @@ import {
 import { BreakdownTooltip } from "./BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export const ObservationPreview = ({
   observations,
@@ -89,6 +90,7 @@ export const ObservationPreview = ({
       projectId: projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -157,7 +159,10 @@ export const ObservationPreview = ({
               <span>{preloadedObservation.name}</span>
             </CardTitle>
             <CardDescription className="flex gap-2">
-              {preloadedObservation.startTime.toLocaleString()}
+              <LocalIsoDate
+                date={preloadedObservation.startTime}
+                accuracy="millisecond"
+              />
             </CardDescription>
             {viewType === "detailed" && (
               <div className="flex flex-wrap gap-2">

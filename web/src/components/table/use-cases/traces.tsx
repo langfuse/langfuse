@@ -61,6 +61,7 @@ import { TableActionMenu } from "@/src/features/table/components/TableActionMenu
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { SelectionColumnCell } from "@/src/features/table/components/SelectColumnCell";
 import { SelectionColumnHeader } from "@/src/features/table/components/SelectColumnHeader";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -324,7 +325,7 @@ export default function TracesTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? new Date(value).toLocaleString() : undefined;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {

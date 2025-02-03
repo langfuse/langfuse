@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eventTypes, ingestionBatchEvent } from ".";
+import { eventTypes } from ".";
 
 export const IngestionEvent = z.object({
   data: z.object({

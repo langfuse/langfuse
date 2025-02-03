@@ -40,6 +40,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export const TracePreview = ({
   trace,
@@ -49,7 +50,11 @@ export const TracePreview = ({
   viewType = "detailed",
   className,
 }: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    latency?: number;
+    input: string | undefined;
+    output: string | undefined;
+  };
   observations: ObservationReturnType[];
   scores: APIScore[];
   commentCounts?: Map<string, number>;
@@ -82,6 +87,7 @@ export const TracePreview = ({
       projectId: trace.projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -126,7 +132,7 @@ export const TracePreview = ({
               <span>{trace.name}</span>
             </CardTitle>
             <CardDescription>
-              {trace.timestamp.toLocaleString()}
+              <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
             </CardDescription>
             {viewType === "detailed" && (
               <div className="flex flex-wrap gap-2">
