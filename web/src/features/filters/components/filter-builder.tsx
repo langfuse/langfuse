@@ -303,7 +303,15 @@ function FilterBuilderForm({
                         <ChevronDown className="h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="max-w-fit p-0">
+                    <PopoverContent
+                      className="max-w-fit p-0"
+                      onWheel={(e) => {
+                        e.stopPropagation();
+                      }}
+                      onTouchMove={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
                       <InputCommand>
                         <InputCommandInput
                           placeholder="Search for column"
