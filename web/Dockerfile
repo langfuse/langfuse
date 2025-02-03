@@ -96,6 +96,8 @@ ARG BUILDPLATFORM
 WORKDIR /app
 
 ARG NEXT_PUBLIC_BUILD_ID
+ARG UID=1001
+ARG GID=1001
 ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
@@ -108,8 +110,9 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 
 RUN apk add --no-cache dumb-init tzdata
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+
+RUN addgroup --system --gid ${UID} expressjs
+RUN adduser --system --uid ${GID} expressjs
 
 RUN npm install -g --no-package-lock --no-save prisma@6.3.0
 
