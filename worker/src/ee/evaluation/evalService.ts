@@ -106,14 +106,14 @@ export const createEvalJobs = async ({
       | { id: string; sourceObservationId: string | undefined }
       | undefined;
     if (isDatasetConfig) {
+      const condition = tableColumnsToSqlFilterAndPrefix(
+        config.target_object === "dataset" ? validatedFilter : [],
+        evalDatasetFormFilterCols,
+        "dataset_items",
+      );
+
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
-        const condition = tableColumnsToSqlFilterAndPrefix(
-          config.target_object === "dataset" ? validatedFilter : [],
-          evalDatasetFormFilterCols,
-          "dataset_items",
-        );
-
         const datasetItems = await prisma.$queryRaw<
           Array<{ id: string; sourceObservationId: string | undefined }>
         >(Prisma.sql`
@@ -132,9 +132,12 @@ export const createEvalJobs = async ({
         >(Prisma.sql`
           SELECT dataset_item_id as id, observation_id as "sourceObservationId"
           FROM dataset_run_items as dri
-          WHERE project_id = ${event.projectId}
-          AND trace_id = ${event.traceId}
+          JOIN dataset_items as di ON di.id = dri.dataset_item_id
+          WHERE dri.project_id = ${event.projectId}
+            AND dri.trace_id = ${event.traceId}
+            ${condition}
         `);
+
         datasetItem = datasetItems.shift();
       }
     }
