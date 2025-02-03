@@ -8,7 +8,7 @@ export const selectAllQueueProcessor = async (
 ) => {
   try {
     logger.info("Executing Batch Export Job", job.data.payload);
-    await handleSelectAllJob(job.data.payload);
+    await handleSelectAllJob(job);
     logger.info("Finished Select All Job", job.data.payload);
 
     return true;

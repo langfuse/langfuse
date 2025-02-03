@@ -1,6 +1,8 @@
 import {
   logger,
+  QueueName,
   SelectAllProcessingEventType,
+  TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import z from "zod";
 import { orderBy } from "../../../../packages/shared/dist/src/interfaces/orderBy";
@@ -8,11 +10,14 @@ import { BatchExportTableName, singleFilter } from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
+import { Job } from "bullmq";
 
 export const SelectAllQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy,
 });
+
+const SelectAllJobProgressSchema = z.number();
 
 const CHUNK_SIZE = 1000;
 async function processActionChunk(
@@ -38,8 +43,10 @@ async function processActionChunk(
 }
 
 export const handleSelectAllJob = async (
-  selectAllEvent: SelectAllProcessingEventType,
+  selectAllJob: Job<TQueueJobTypes[QueueName.SelectAllQueue]>,
 ) => {
+  const selectAllEvent: SelectAllProcessingEventType =
+    selectAllJob.data.payload;
   const { projectId, actionId, tableName, query, cutoffCreatedAt } =
     selectAllEvent;
 
@@ -50,6 +57,17 @@ export const handleSelectAllJob = async (
       `Failed to parse query in project ${projectId} for ${actionId}: ${parsedQuery.error.message}`,
     );
   }
+
+  // Load processed chunk count from job metadata
+  const jobProgress = selectAllJob.progress ?? {};
+  const parsedJobProgress = SelectAllJobProgressSchema.safeParse(jobProgress);
+  if (!parsedJobProgress.success) {
+    throw new Error(
+      `Failed to parse job progress in project ${projectId} for ${actionId}: ${parsedJobProgress.error.message}`,
+    );
+  }
+
+  const processedChunkCount = parsedJobProgress.data;
 
   // TODO: given retries must skip any item we have already processed
   const dbReadStream = await getDatabaseReadStream({
@@ -62,6 +80,7 @@ export const handleSelectAllJob = async (
 
   // Process stream in database-sized batches
   let batch: string[] = [];
+  let index = 0;
   for await (const record of dbReadStream) {
     if (record?.id) {
       batch.push(record.id);
@@ -69,7 +88,21 @@ export const handleSelectAllJob = async (
 
     // When batch reaches 1000, process it and reset
     if (batch.length >= CHUNK_SIZE) {
+      // Skip if we have already processed this chunk
+      if (processedChunkCount >= index) {
+        // reset batch
+        batch = [];
+        continue;
+      }
+
       await processActionChunk(actionId, batch, projectId);
+
+      // Update progress
+      if (processedChunkCount < index) {
+        selectAllJob.updateProgress(index);
+      }
+
+      // Reset batch
       batch = [];
     }
   }
