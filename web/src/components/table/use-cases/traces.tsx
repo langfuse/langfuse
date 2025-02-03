@@ -58,6 +58,7 @@ import { InfoIcon } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { Separator } from "@/src/components/ui/separator";
 import React from "react";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -339,7 +340,7 @@ export default function TracesTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? new Date(value).toLocaleString() : undefined;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {
