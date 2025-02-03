@@ -38,14 +38,13 @@ import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRi
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type SelectAllTableName,
   type ActionId,
   type OrderByState,
 } from "@langfuse/shared";
 import { type TableAction } from "@/src/features/table/types";
+import { useTableActionMutations } from "@/src/features/table/hooks/useTableActionMutations";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -53,6 +52,7 @@ type TableActionMenuProps = {
   actionIds: ActionId[];
   orderByState: OrderByState;
   filterState: any;
+  selectedIds: string[];
   onActionComplete?: () => void;
 };
 
@@ -93,6 +93,7 @@ export function TableActionMenu({
   onActionComplete,
   orderByState,
   filterState,
+  selectedIds,
 }: TableActionMenuProps) {
   const { selectAll, setSelectAll } = useSelectAll(projectId, tableName);
   const [selectedAction, setSelectedAction] = useState<TableAction | null>(
@@ -107,16 +108,10 @@ export function TableActionMenu({
       ),
     [actionIds],
   );
-
-  const selectAllMutation = api.selectAll.create.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        title: "Select all in progress",
-        description: "Your action may take a few minutes to complete.",
-        duration: 10000,
-      });
-    },
-  });
+  const { selectAllMutation, actionMutations } = useTableActionMutations(
+    actionIds,
+    projectId,
+  );
 
   const handleAction = (actionId: ActionId) => {
     setSelectedAction(actions.get(actionId));
@@ -126,15 +121,22 @@ export function TableActionMenu({
   const handleActionConfirm = async () => {
     if (!selectedAction) return;
     setDialogOpen(false);
-    await selectAllMutation.mutateAsync({
-      actionId: selectedAction.id,
-      projectId,
-      tableName,
-      query: {
-        filter: filterState,
-        orderBy: orderByState,
-      },
-    });
+    if (selectAll) {
+      await selectAllMutation.mutateAsync({
+        actionId: selectedAction.id,
+        projectId,
+        tableName,
+        query: {
+          filter: filterState,
+          orderBy: orderByState,
+        },
+      });
+    } else {
+      await actionMutations[selectedAction.id].mutateAsync({
+        projectId,
+        traceIds: selectedIds,
+      });
+    }
     setSelectAll(false);
     onActionComplete?.();
   };

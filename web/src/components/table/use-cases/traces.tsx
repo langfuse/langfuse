@@ -854,9 +854,9 @@ export default function TracesTable({
               actionIds={["trace-delete"]}
               orderByState={orderByState}
               filterState={filterState}
-              // selectedIds={Object.keys(selectedRows).filter((traceId) =>
-              //   traces.data?.traces.map((t) => t.id).includes(traceId),
-              // )}
+              selectedIds={Object.keys(selectedRows).filter((traceId) =>
+                traces.data?.traces.map((t) => t.id).includes(traceId),
+              )}
               onActionComplete={() => {
                 setSelectedRows({});
                 setUserFilterState([]);
@@ -880,7 +880,9 @@ export default function TracesTable({
         multiSelect={{
           selectAll: selectAll,
           setSelectAll: setSelectAll,
-          rowSelection: selectedRows,
+          selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
+            traces.data?.traces.map((t) => t.id).includes(traceId),
+          ),
           setRowSelection: setSelectedRows,
           totalCount,
           ...paginationState,

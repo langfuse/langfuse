@@ -27,7 +27,7 @@ import { DataTableSelectAllBanner } from "@/src/components/table/data-table-mult
 export interface MultiSelect {
   selectAll: boolean;
   setSelectAll: Dispatch<SetStateAction<boolean>>;
-  rowSelection: RowSelectionState;
+  selectedRowIds: string[];
   setRowSelection: Dispatch<SetStateAction<RowSelectionState>>;
   pageSize: number;
   pageIndex: number;
@@ -152,8 +152,9 @@ export function DataTableToolbar<TData, TValue>({
       </div>
       {multiSelect &&
         multiSelect.pageIndex === 0 &&
-        Object.keys(multiSelect.rowSelection).length ===
-          multiSelect.pageSize && <DataTableSelectAllBanner {...multiSelect} />}
+        multiSelect.selectedRowIds.length === multiSelect.pageSize && (
+          <DataTableSelectAllBanner {...multiSelect} />
+        )}
     </>
   );
 }
