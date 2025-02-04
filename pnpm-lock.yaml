@@ -8,15 +8,23 @@ overrides:
   jsonpath-plus: 10.0.7
   nanoid: ^3.3.8
   katex: ^0.16.21
+  openid-client: 5.6.5
 
 patchedDependencies:
   next-auth@4.24.11:
     hash: cczsf6i6qe2m2htirvgxjtoclu
     path: patches/next-auth@4.24.11.patch
+  openid-client@5.6.5:
+    hash: ppbxwvx6sjf4zweycc43cxgeu4
+    path: patches/openid-client@5.6.5.patch
 
 importers:
 
   .:
+    dependencies:
+      follow-redirects:
+        specifier: ^1.15.9
+        version: 1.15.9
     devDependencies:
       '@release-it/bumper':
         specifier: ^6.0.1
@@ -158,7 +166,7 @@ importers:
         version: 0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
       '@langchain/aws':
         specifier: ^0.1.3
-        version: 0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
+        version: 0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
       '@langchain/core':
         specifier: ^0.3.37
         version: 0.3.37(openai@4.82.0(zod@3.23.8))
@@ -215,10 +223,10 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.15
-        version: 0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))
+        version: 0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))
       langfuse-langchain:
         specifier: 3.30.3
-        version: 3.30.3(langchain@0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8)))
+        version: 3.30.3(langchain@0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8)))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -546,7 +554,7 @@ importers:
         version: 4.23.7(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)
       '@uiw/react-codemirror':
         specifier: ^4.21.24
-        version: 4.23.7(@babel/runtime@7.26.0)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)(@lezer/common@1.2.3))(@codemirror/language@6.10.8)(@codemirror/lint@6.8.4)(@codemirror/search@6.5.6)(@codemirror/state@6.5.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.36.2)(codemirror@6.0.1(@lezer/common@1.2.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 4.23.7(@babel/runtime@7.26.7)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)(@lezer/common@1.2.3))(@codemirror/language@6.10.8)(@codemirror/lint@6.8.4)(@codemirror/search@6.5.6)(@codemirror/state@6.5.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.36.2)(codemirror@6.0.1(@lezer/common@1.2.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ai:
         specifier: ^3.4.9
         version: 3.4.9(openai@4.82.0(zod@3.23.8))(react@18.2.0)(solid-js@1.8.18)(sswr@2.1.0(svelte@4.2.19))(svelte@4.2.19)(vue@3.4.27(typescript@5.4.5))(zod@3.23.8)
@@ -609,7 +617,7 @@ importers:
         version: 0.27.4
       langchain:
         specifier: ^0.3.6
-        version: 0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))
+        version: 0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -2558,6 +2566,7 @@ packages:
   '@mui/base@5.0.0-beta.40':
     resolution: {integrity: sha512-I/lGHztkCzvwlXpjD2+SNmvNQvB4227xBXhISPjEaJUXGImOQ9f3D2Yj/T3KasSI/h0MLWy74X0J6clhPmsRbQ==}
     engines: {node: '>=12.0.0'}
+    deprecated: This package has been replaced by @base-ui-components/react
     peerDependencies:
       '@types/react': ^17.0.0 || ^18.0.0
       react: ^17.0.0 || ^18.0.0
@@ -7241,6 +7250,15 @@ packages:
       debug:
         optional: true
 
+  follow-redirects@1.15.9:
+    resolution: {integrity: sha512-gew4GsXizNgdoRyqmyfMHyAmXsZDk6mHkSxZFCzW9gwlbtOW44CDtYavM+y+72qD/Vq2l550kMF52DT8fOLJqQ==}
+    engines: {node: '>=4.0'}
+    peerDependencies:
+      debug: '*'
+    peerDependenciesMeta:
+      debug:
+        optional: true
+
   for-each@0.3.3:
     resolution: {integrity: sha512-jqYfLp7mo9vIyQf8ykW2v7A+2N4QjeCeI5+Dz9XraiO1ign81wjiH7Fb9vSOWvQfNtmSa4H2RoQTrrXivdUZmw==}
 
@@ -11805,7 +11823,7 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/client-sso-oidc': 3.668.0(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/client-sso-oidc': 3.668.0(@aws-sdk/client-sts@3.668.0)
       '@aws-sdk/client-sts': 3.668.0
       '@aws-sdk/core': 3.667.0
       '@aws-sdk/credential-provider-node': 3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)
@@ -12065,51 +12083,6 @@ snapshots:
       '@aws-sdk/client-sts': 3.668.0
       '@aws-sdk/core': 3.667.0
       '@aws-sdk/credential-provider-node': 3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)
-      '@aws-sdk/middleware-host-header': 3.667.0
-      '@aws-sdk/middleware-logger': 3.667.0
-      '@aws-sdk/middleware-recursion-detection': 3.667.0
-      '@aws-sdk/middleware-user-agent': 3.668.0
-      '@aws-sdk/region-config-resolver': 3.667.0
-      '@aws-sdk/types': 3.667.0
-      '@aws-sdk/util-endpoints': 3.667.0
-      '@aws-sdk/util-user-agent-browser': 3.667.0
-      '@aws-sdk/util-user-agent-node': 3.668.0
-      '@smithy/config-resolver': 3.0.9
-      '@smithy/core': 2.4.8
-      '@smithy/fetch-http-handler': 3.2.9
-      '@smithy/hash-node': 3.0.7
-      '@smithy/invalid-dependency': 3.0.7
-      '@smithy/middleware-content-length': 3.0.9
-      '@smithy/middleware-endpoint': 3.1.4
-      '@smithy/middleware-retry': 3.0.23
-      '@smithy/middleware-serde': 3.0.7
-      '@smithy/middleware-stack': 3.0.7
-      '@smithy/node-config-provider': 3.1.8
-      '@smithy/node-http-handler': 3.2.4
-      '@smithy/protocol-http': 4.1.4
-      '@smithy/smithy-client': 3.4.0
-      '@smithy/types': 3.5.0
-      '@smithy/url-parser': 3.0.7
-      '@smithy/util-base64': 3.0.0
-      '@smithy/util-body-length-browser': 3.0.0
-      '@smithy/util-body-length-node': 3.0.0
-      '@smithy/util-defaults-mode-browser': 3.0.23
-      '@smithy/util-defaults-mode-node': 3.0.23
-      '@smithy/util-endpoints': 2.1.3
-      '@smithy/util-middleware': 3.0.7
-      '@smithy/util-retry': 3.0.7
-      '@smithy/util-utf8': 3.0.0
-      tslib: 2.6.3
-    transitivePeerDependencies:
-      - aws-crt
-
-  '@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.675.0)':
-    dependencies:
-      '@aws-crypto/sha256-browser': 5.2.0
-      '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/client-sts': 3.675.0
-      '@aws-sdk/core': 3.667.0
-      '@aws-sdk/credential-provider-node': 3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)
       '@aws-sdk/middleware-host-header': 3.667.0
       '@aws-sdk/middleware-logger': 3.667.0
       '@aws-sdk/middleware-recursion-detection': 3.667.0
@@ -12437,34 +12410,15 @@ snapshots:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
-  '@aws-sdk/credential-provider-ini@3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)':
+  '@aws-sdk/credential-provider-ini@3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.675.0
-      '@aws-sdk/core': 3.667.0
-      '@aws-sdk/credential-provider-env': 3.667.0
-      '@aws-sdk/credential-provider-http': 3.667.0
-      '@aws-sdk/credential-provider-process': 3.667.0
-      '@aws-sdk/credential-provider-sso': 3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))
-      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.675.0)
-      '@aws-sdk/types': 3.667.0
-      '@smithy/credential-provider-imds': 3.2.4
-      '@smithy/property-provider': 3.1.7
-      '@smithy/shared-ini-file-loader': 3.1.8
-      '@smithy/types': 3.5.0
-      tslib: 2.6.3
-    transitivePeerDependencies:
-      - '@aws-sdk/client-sso-oidc'
-      - aws-crt
-
-  '@aws-sdk/credential-provider-ini@3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)':
-    dependencies:
-      '@aws-sdk/client-sts': 3.675.0
+      '@aws-sdk/client-sts': 3.668.0
       '@aws-sdk/core': 3.667.0
       '@aws-sdk/credential-provider-env': 3.667.0
       '@aws-sdk/credential-provider-http': 3.667.0
       '@aws-sdk/credential-provider-process': 3.667.0
       '@aws-sdk/credential-provider-sso': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))
-      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.668.0)
       '@aws-sdk/types': 3.667.0
       '@smithy/credential-provider-imds': 3.2.4
       '@smithy/property-provider': 3.1.7
@@ -12513,33 +12467,14 @@ snapshots:
       - '@aws-sdk/client-sts'
       - aws-crt
 
-  '@aws-sdk/credential-provider-node@3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)':
+  '@aws-sdk/credential-provider-node@3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)':
     dependencies:
       '@aws-sdk/credential-provider-env': 3.667.0
       '@aws-sdk/credential-provider-http': 3.667.0
-      '@aws-sdk/credential-provider-ini': 3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)
-      '@aws-sdk/credential-provider-process': 3.667.0
-      '@aws-sdk/credential-provider-sso': 3.668.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))
-      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.675.0)
-      '@aws-sdk/types': 3.667.0
-      '@smithy/credential-provider-imds': 3.2.4
-      '@smithy/property-provider': 3.1.7
-      '@smithy/shared-ini-file-loader': 3.1.8
-      '@smithy/types': 3.5.0
-      tslib: 2.6.3
-    transitivePeerDependencies:
-      - '@aws-sdk/client-sso-oidc'
-      - '@aws-sdk/client-sts'
-      - aws-crt
-
-  '@aws-sdk/credential-provider-node@3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)':
-    dependencies:
-      '@aws-sdk/credential-provider-env': 3.667.0
-      '@aws-sdk/credential-provider-http': 3.667.0
-      '@aws-sdk/credential-provider-ini': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-ini': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)
       '@aws-sdk/credential-provider-process': 3.667.0
       '@aws-sdk/credential-provider-sso': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))
-      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.668.0)
       '@aws-sdk/types': 3.667.0
       '@smithy/credential-provider-imds': 3.2.4
       '@smithy/property-provider': 3.1.7
@@ -12569,6 +12504,26 @@ snapshots:
       - '@aws-sdk/client-sso-oidc'
       - '@aws-sdk/client-sts'
       - aws-crt
+
+  '@aws-sdk/credential-provider-node@3.675.0(@aws-sdk/client-sts@3.675.0)':
+    dependencies:
+      '@aws-sdk/credential-provider-env': 3.667.0
+      '@aws-sdk/credential-provider-http': 3.667.0
+      '@aws-sdk/credential-provider-ini': 3.675.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-process': 3.667.0
+      '@aws-sdk/credential-provider-sso': 3.675.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))
+      '@aws-sdk/credential-provider-web-identity': 3.667.0(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/types': 3.667.0
+      '@smithy/credential-provider-imds': 3.2.4
+      '@smithy/property-provider': 3.1.7
+      '@smithy/shared-ini-file-loader': 3.1.8
+      '@smithy/types': 3.5.0
+      tslib: 2.6.3
+    transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
+      - '@aws-sdk/client-sts'
+      - aws-crt
+    optional: true
 
   '@aws-sdk/credential-provider-process@3.667.0':
     dependencies:
@@ -12807,7 +12762,7 @@ snapshots:
 
   '@aws-sdk/token-providers@3.667.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))':
     dependencies:
-      '@aws-sdk/client-sso-oidc': 3.668.0(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/client-sso-oidc': 3.668.0(@aws-sdk/client-sts@3.668.0)
       '@aws-sdk/types': 3.667.0
       '@smithy/property-provider': 3.1.7
       '@smithy/shared-ini-file-loader': 3.1.8
@@ -13213,7 +13168,6 @@ snapshots:
   '@babel/runtime@7.26.7':
     dependencies:
       regenerator-runtime: 0.14.1
-    optional: true
 
   '@babel/template@7.24.0':
     dependencies:
@@ -14175,12 +14129,12 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))':
+  '@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))':
     dependencies:
       '@aws-sdk/client-bedrock-agent-runtime': 3.668.0
       '@aws-sdk/client-bedrock-runtime': 3.668.0
       '@aws-sdk/client-kendra': 3.668.0
-      '@aws-sdk/credential-provider-node': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-node': 3.675.0(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)
       '@langchain/core': 0.3.37(openai@4.82.0(zod@3.23.8))
       zod: 3.23.8
       zod-to-json-schema: 3.23.5(zod@3.23.8)
@@ -14189,12 +14143,12 @@ snapshots:
       - '@aws-sdk/client-sts'
       - aws-crt
 
-  '@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))':
+  '@langchain/aws@0.1.3(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))':
     dependencies:
       '@aws-sdk/client-bedrock-agent-runtime': 3.668.0
       '@aws-sdk/client-bedrock-runtime': 3.668.0
       '@aws-sdk/client-kendra': 3.668.0
-      '@aws-sdk/credential-provider-node': 3.675.0(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)
+      '@aws-sdk/credential-provider-node': 3.675.0(@aws-sdk/client-sts@3.675.0)
       '@langchain/core': 0.3.18(openai@4.82.0(zod@3.23.8))
       zod: 3.23.8
       zod-to-json-schema: 3.23.5(zod@3.23.8)
@@ -14416,7 +14370,7 @@ snapshots:
 
   '@mui/base@5.0.0-beta.40(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@floating-ui/react-dom': 2.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@mui/types': 7.2.21(@types/react@18.2.79)
       '@mui/utils': 5.16.14(@types/react@18.2.79)(react@18.2.0)
@@ -14432,7 +14386,7 @@ snapshots:
 
   '@mui/material@5.15.19(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@mui/base': 5.0.0-beta.40(@types/react@18.2.79)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@mui/core-downloads-tracker': 5.16.14
       '@mui/system': 5.16.7(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0)
@@ -14453,7 +14407,7 @@ snapshots:
 
   '@mui/private-theming@5.16.14(@types/react@18.2.79)(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@mui/utils': 5.16.14(@types/react@18.2.79)(react@18.2.0)
       prop-types: 15.8.1
       react: 18.2.0
@@ -14462,7 +14416,7 @@ snapshots:
 
   '@mui/styled-engine@5.16.14(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@emotion/cache': 11.14.0
       csstype: 3.1.3
       prop-types: 15.8.1
@@ -14473,7 +14427,7 @@ snapshots:
 
   '@mui/system@5.16.7(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@mui/private-theming': 5.16.14(@types/react@18.2.79)(react@18.2.0)
       '@mui/styled-engine': 5.16.14(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@18.2.79)(react@18.2.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
       '@mui/types': 7.2.21(@types/react@18.2.79)
@@ -14497,7 +14451,7 @@ snapshots:
 
   '@mui/utils@5.16.14(@types/react@18.2.79)(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@mui/types': 7.2.21(@types/react@18.2.79)
       '@types/prop-types': 15.7.14
       clsx: 2.1.1
@@ -17528,9 +17482,9 @@ snapshots:
       '@codemirror/state': 6.5.1
       '@codemirror/view': 6.36.2
 
-  '@uiw/react-codemirror@4.23.7(@babel/runtime@7.26.0)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)(@lezer/common@1.2.3))(@codemirror/language@6.10.8)(@codemirror/lint@6.8.4)(@codemirror/search@6.5.6)(@codemirror/state@6.5.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.36.2)(codemirror@6.0.1(@lezer/common@1.2.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@uiw/react-codemirror@4.23.7(@babel/runtime@7.26.7)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.10.8)(@codemirror/state@6.5.1)(@codemirror/view@6.36.2)(@lezer/common@1.2.3))(@codemirror/language@6.10.8)(@codemirror/lint@6.8.4)(@codemirror/search@6.5.6)(@codemirror/state@6.5.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.36.2)(codemirror@6.0.1(@lezer/common@1.2.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.7
       '@codemirror/commands': 6.7.1
       '@codemirror/state': 6.5.1
       '@codemirror/theme-one-dark': 6.1.2
@@ -17556,9 +17510,9 @@ snapshots:
       '@typescript-eslint/parser': 7.12.0(eslint@8.57.0)(typescript@5.4.5)
       eslint-config-prettier: 9.1.0(eslint@8.57.0)
       eslint-import-resolver-alias: 1.1.2(eslint-plugin-import@2.29.1)
-      eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0)
+      eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.57.0)
       eslint-plugin-eslint-comments: 3.2.0(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       eslint-plugin-jest: 27.9.0(@typescript-eslint/eslint-plugin@7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(jest@29.7.0(@types/node@20.14.8)(babel-plugin-macros@3.1.0))(typescript@5.4.5)
       eslint-plugin-jsx-a11y: 6.8.0(eslint@8.57.0)
       eslint-plugin-playwright: 1.5.4(eslint-plugin-jest@27.9.0(@typescript-eslint/eslint-plugin@7.3.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(jest@29.7.0(@types/node@20.14.8)(babel-plugin-macros@3.1.0))(typescript@5.4.5))(eslint@8.57.0)
@@ -19475,7 +19429,7 @@ snapshots:
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1)(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       eslint-plugin-jsx-a11y: 6.8.0(eslint@8.57.0)
       eslint-plugin-react: 7.34.1(eslint@8.57.0)
       eslint-plugin-react-hooks: 4.6.0(eslint@8.57.0)
@@ -19492,7 +19446,7 @@ snapshots:
   eslint-config-standard@17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.4.0(eslint@8.57.0))(eslint@8.57.0):
     dependencies:
       eslint: 8.57.0
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       eslint-plugin-n: 16.6.2(eslint@8.57.0)
       eslint-plugin-promise: 6.4.0(eslint@8.57.0)
 
@@ -19503,7 +19457,7 @@ snapshots:
 
   eslint-import-resolver-alias@1.1.2(eslint-plugin-import@2.29.1):
     dependencies:
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
 
   eslint-import-resolver-node@0.3.9:
     dependencies:
@@ -19519,7 +19473,7 @@ snapshots:
       enhanced-resolve: 5.17.1
       eslint: 8.57.0
       eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       fast-glob: 3.3.2
       get-tsconfig: 4.8.1
       is-core-module: 2.15.1
@@ -19528,34 +19482,6 @@ snapshots:
       - '@typescript-eslint/parser'
       - eslint-import-resolver-node
       - eslint-import-resolver-webpack
-      - supports-color
-
-  eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0):
-    dependencies:
-      debug: 4.3.7(supports-color@5.5.0)
-      enhanced-resolve: 5.17.1
-      eslint: 8.57.0
-      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
-      fast-glob: 3.3.2
-      get-tsconfig: 4.8.1
-      is-core-module: 2.15.1
-      is-glob: 4.0.3
-    transitivePeerDependencies:
-      - '@typescript-eslint/parser'
-      - eslint-import-resolver-node
-      - eslint-import-resolver-webpack
-      - supports-color
-
-  eslint-module-utils@2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0):
-    dependencies:
-      debug: 3.2.7
-    optionalDependencies:
-      '@typescript-eslint/parser': 7.12.0(eslint@8.57.0)(typescript@5.4.5)
-      eslint: 8.57.0
-      eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0)
-    transitivePeerDependencies:
       - supports-color
 
   eslint-module-utils@2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0):
@@ -19582,7 +19508,7 @@ snapshots:
       eslint: 8.57.0
       ignore: 5.3.1
 
-  eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0):
+  eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0):
     dependencies:
       array-includes: 3.1.7
       array.prototype.findlastindex: 1.2.4
@@ -19592,7 +19518,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1)(eslint@8.57.0))(eslint@8.57.0)
+      eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.12.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       hasown: 2.0.2
       is-core-module: 2.15.1
       is-glob: 4.0.3
@@ -20068,6 +19994,8 @@ snapshots:
   fn.name@1.1.0: {}
 
   follow-redirects@1.15.6: {}
+
+  follow-redirects@1.15.9: {}
 
   for-each@0.3.3:
     dependencies:
@@ -21311,7 +21239,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -21521,7 +21449,7 @@ snapshots:
 
   kysely@0.27.4: {}
 
-  langchain@0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8)):
+  langchain@0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8)):
     dependencies:
       '@langchain/core': 0.3.37(openai@4.82.0(zod@3.23.8))
       '@langchain/openai': 0.3.17(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
@@ -21538,7 +21466,7 @@ snapshots:
       zod-to-json-schema: 3.23.5(zod@3.23.8)
     optionalDependencies:
       '@langchain/anthropic': 0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
-      '@langchain/aws': 0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
+      '@langchain/aws': 0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))
       '@langchain/google-vertexai': 0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8)
       axios: 1.7.7
       handlebars: 4.7.8
@@ -21547,7 +21475,7 @@ snapshots:
       - openai
       - ws
 
-  langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8)):
+  langchain@0.3.6(@langchain/anthropic@0.3.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8)):
     dependencies:
       '@langchain/core': 0.3.18(openai@4.82.0(zod@3.23.8))
       '@langchain/openai': 0.3.14(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))
@@ -21564,7 +21492,7 @@ snapshots:
       zod-to-json-schema: 3.23.5(zod@3.23.8)
     optionalDependencies:
       '@langchain/anthropic': 0.3.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))
-      '@langchain/aws': 0.1.3(@aws-sdk/client-sso-oidc@3.675.0(@aws-sdk/client-sts@3.675.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))
+      '@langchain/aws': 0.1.3(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))
       '@langchain/google-vertexai': 0.1.8(@langchain/core@0.3.18(openai@4.82.0(zod@3.23.8)))(zod@3.23.8)
       axios: 1.7.7
       handlebars: 4.7.8
@@ -21576,9 +21504,9 @@ snapshots:
     dependencies:
       mustache: 4.2.0
 
-  langfuse-langchain@3.30.3(langchain@0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))):
+  langfuse-langchain@3.30.3(langchain@0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))):
     dependencies:
-      langchain: 0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.675.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))
+      langchain: 0.3.15(@langchain/anthropic@0.3.12(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/aws@0.1.3(@aws-sdk/client-sso-oidc@3.668.0(@aws-sdk/client-sts@3.668.0))(@aws-sdk/client-sts@3.668.0)(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8))))(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(@langchain/google-vertexai@0.1.8(@langchain/core@0.3.37(openai@4.82.0(zod@3.23.8)))(zod@3.23.8))(axios@1.7.7)(handlebars@4.7.8)(openai@4.82.0(zod@3.23.8))
       langfuse: 3.30.3
       langfuse-core: 3.30.3
 
@@ -22418,7 +22346,7 @@ snapshots:
       jose: 4.15.5
       next: 14.2.21(@babel/core@7.24.3)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       oauth: 0.9.15
-      openid-client: 5.6.5
+      openid-client: 5.6.5(patch_hash=ppbxwvx6sjf4zweycc43cxgeu4)
       preact: 10.19.7
       preact-render-to-string: 5.2.6(preact@10.19.7)
       react: 18.2.0
@@ -22698,7 +22626,7 @@ snapshots:
 
   openapi-types@12.1.3: {}
 
-  openid-client@5.6.5:
+  openid-client@5.6.5(patch_hash=ppbxwvx6sjf4zweycc43cxgeu4):
     dependencies:
       jose: 4.15.5
       lru-cache: 6.0.0
