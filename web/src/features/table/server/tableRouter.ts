@@ -10,13 +10,17 @@ import {
   CreateSelectAllSchema,
   GetIsSelectAllInProgressSchema,
   InvalidRequestError,
+  type SelectAllTableName,
 } from "@langfuse/shared";
 import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const WAITING_JOBS = ["waiting", "delayed", "active"];
 
-const getWaitingJobsByProjectId = async (projectId: string) => {
+const getWaitingJobsByProjectId = async (
+  projectId: string,
+  tableName: SelectAllTableName,
+) => {
   const selectAllQueue = SelectAllQueue.getInstance();
 
   if (!selectAllQueue) {
@@ -29,7 +33,7 @@ const getWaitingJobsByProjectId = async (projectId: string) => {
   if (!redis) {
     return [];
   }
-  const jobIds = await redis.smembers(`projectJobs:${projectId}`);
+  const jobIds = await redis.smembers(`projectJobs:${projectId}:${tableName}`);
   const jobs = await Promise.all(
     jobIds.map((id) => selectAllQueue.getJobState(id)),
   );
@@ -111,7 +115,7 @@ export const tableRouter = createTRPCRouter({
           })
           .then((job) => {
             if (redis && job.id) {
-              redis.sadd(`projectJobs:${projectId}`, job.id); // Store job ID under project-specific key
+              redis.sadd(`projectJobs:${projectId}:${tableName}`, job.id); // Store job ID under project-specific key
             }
           });
       } catch (e) {
@@ -128,7 +132,7 @@ export const tableRouter = createTRPCRouter({
   getIsSelectAllInProgress: protectedProjectProcedure
     .input(GetIsSelectAllInProgressSchema)
     .query(async ({ input }) => {
-      const { projectId } = input;
+      const { projectId, tableName } = input;
 
       const selectAllQueue = SelectAllQueue.getInstance();
 
@@ -140,7 +144,7 @@ export const tableRouter = createTRPCRouter({
         });
       }
 
-      const jobs = await getWaitingJobsByProjectId(projectId);
+      const jobs = await getWaitingJobsByProjectId(projectId, tableName);
       const isInProgress = jobs.length > 0;
 
       return isInProgress;
