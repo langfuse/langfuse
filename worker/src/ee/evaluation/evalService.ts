@@ -102,7 +102,9 @@ export const createEvalJobs = async ({
     );
 
     const isDatasetConfig = config.target_object === "dataset";
-    let datasetItem: { id: string } | undefined;
+    let datasetItem:
+      | { id: string; sourceObservationId: string | undefined }
+      | undefined;
     if (isDatasetConfig) {
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
@@ -113,9 +115,9 @@ export const createEvalJobs = async ({
         );
 
         const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
+          Array<{ id: string; sourceObservationId: string | undefined }>
         >(Prisma.sql`
-          SELECT id
+          SELECT id, source_observation_id as "sourceObservationId"
           FROM dataset_items as di
           WHERE project_id = ${event.projectId}
             AND id = ${event.datasetItemId}
@@ -126,9 +128,9 @@ export const createEvalJobs = async ({
         // Otherwise, try to find the dataset item id from datasetRunItems.
         // Here, we can search for the traceId and projectId and should only get one result.
         const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
+          Array<{ id: string; sourceObservationId: string | undefined }>
         >(Prisma.sql`
-          SELECT dataset_item_id as id
+          SELECT dataset_item_id as id, observation_id as "sourceObservationId"
           FROM dataset_run_items as dri
           WHERE project_id = ${event.projectId}
           AND trace_id = ${event.traceId}
@@ -143,7 +145,7 @@ export const createEvalJobs = async ({
     const observationId =
       "observationId" in event && event.observationId
         ? event.observationId
-        : undefined;
+        : datasetItem?.sourceObservationId;
     if (observationId) {
       const observationExists = await checkObservationExists(
         event.projectId,
@@ -221,7 +223,7 @@ export const createEvalJobs = async ({
           ...(datasetItem
             ? {
                 jobInputDatasetItemId: datasetItem.id,
-                jobInputObservationId: observationId || null,
+                jobInputObservationId: datasetItem.sourceObservationId || null,
               }
             : {}),
         },
