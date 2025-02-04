@@ -6,9 +6,21 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { CreateSelectAllSchema, InvalidRequestError } from "@langfuse/shared";
+import {
+  CreateSelectAllSchema,
+  GetIsSelectAllInProgressSchema,
+  InvalidRequestError,
+} from "@langfuse/shared";
 import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+
+const generateSelectAllId = (
+  projectId: string,
+  actionId: string,
+  tableName: string,
+) => {
+  return `${projectId}-${tableName}-${actionId}`;
+};
 
 export const tableRouter = createTRPCRouter({
   selectAll: protectedProjectProcedure
@@ -48,8 +60,8 @@ export const tableRouter = createTRPCRouter({
           });
         }
 
-        const { projectId, actionId, query, tableName } = input;
-        const selectAllId = `${projectId}-${tableName}-${actionId}`;
+        const { projectId, actionId, query, tableName, targetId } = input;
+        const selectAllId = generateSelectAllId(projectId, actionId, tableName);
 
         // Create audit log >> generate based on actionId
         await auditLog({
@@ -71,6 +83,7 @@ export const tableRouter = createTRPCRouter({
             query: JSON.stringify(query),
             tableName,
             cutoffCreatedAt: new Date(),
+            targetId,
           },
         });
       } catch (e) {
@@ -83,5 +96,24 @@ export const tableRouter = createTRPCRouter({
           message: "Creating export job failed.",
         });
       }
+    }),
+  getIsSelectAllInProgress: protectedProjectProcedure
+    .input(GetIsSelectAllInProgressSchema)
+    .query(async ({ input }) => {
+      const { projectId, actionId, tableName } = input;
+      const selectAllId = generateSelectAllId(projectId, actionId, tableName);
+
+      const selectAllQueue = SelectAllQueue.getInstance();
+
+      if (!selectAllQueue) {
+        logger.warn(`SelectAllQueue not initialized`);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Select All action failed to process.",
+        });
+      }
+
+      const isInProgress = await selectAllQueue.getJob(selectAllId);
+      return !!isInProgress;
     }),
 });

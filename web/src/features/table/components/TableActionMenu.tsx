@@ -46,12 +46,12 @@ import {
   type OrderByState,
 } from "@langfuse/shared";
 import {
-  type TargetOptionsRoute,
   type TableAction,
   type TableActionQueryConfig,
 } from "@/src/features/table/types";
 import { useTableActionMutations } from "@/src/features/table/hooks/useTableActionMutations";
 import { queryHooks } from "@/src/features/table/components/queryHooks";
+import { api } from "@/src/utils/api";
 
 type TableActionMenuProps = {
   projectId: string;
@@ -68,6 +68,8 @@ type TableMenuConfirmButton = {
   scope: ProjectScope;
   entitlement?: Entitlement;
   confirmAction?: () => void;
+  loading?: boolean;
+  disabled?: boolean;
 } & Pick<ButtonProps, "variant" | "type">;
 
 function TableMenuConfirmButton(props: TableMenuConfirmButton) {
@@ -87,6 +89,8 @@ function TableMenuConfirmButton(props: TableMenuConfirmButton) {
       onClick={() => props.confirmAction?.()}
       hasAccess={hasAccess}
       hasEntitlement={props.entitlement ? hasEntitlement : true}
+      loading={props.loading}
+      disabled={props.disabled}
     >
       Confirm
     </ActionButton>
@@ -129,6 +133,7 @@ export function TableActionMenu({
   const [selectedAction, setSelectedAction] = useState<TableAction | null>(
     null,
   );
+
   const [isDialogOpen, setDialogOpen] = useState(false);
   const actions = useMemo(
     () =>
@@ -142,6 +147,12 @@ export function TableActionMenu({
     actionIds,
     projectId,
   );
+
+  const isSelectAllInProgress = api.table.getIsSelectAllInProgress.useQuery({
+    projectId,
+    actionId: selectedAction?.id ?? "",
+    tableName,
+  });
 
   const handleAction = (actionId: ActionId) => {
     setSelectedAction(actions.get(actionId));
@@ -160,6 +171,7 @@ export function TableActionMenu({
           filter: filterState,
           orderBy: orderByState,
         },
+        targetId: form.getValues().targetId,
       });
     } else {
       const baseParams = {
@@ -243,6 +255,8 @@ export function TableActionMenu({
                 confirmAction={handleActionConfirm}
                 scope={selectedAction?.accessCheck?.scope}
                 entitlement={selectedAction?.accessCheck?.entitlement}
+                loading={isSelectAllInProgress.isLoading}
+                disabled={isSelectAllInProgress.data}
               />
             </DialogFooter>
           </DialogContent>
@@ -307,6 +321,8 @@ export function TableActionMenu({
                     projectId={projectId}
                     scope={selectedAction?.accessCheck?.scope}
                     entitlement={selectedAction?.accessCheck?.entitlement}
+                    loading={isSelectAllInProgress.isLoading}
+                    disabled={isSelectAllInProgress.data}
                   />
                 </DialogFooter>
               </form>
