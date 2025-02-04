@@ -30,6 +30,4 @@ export const CreateSelectAllSchema = z.object({
 
 export const GetIsSelectAllInProgressSchema = z.object({
   projectId: z.string(),
-  actionId: z.string(),
-  tableName: z.nativeEnum(SelectAllTableName),
 });

@@ -14,6 +14,28 @@ import {
 import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
+const WAITING_JOBS = ["waiting", "delayed", "active"];
+
+const getWaitingJobsByProjectId = async (projectId: string) => {
+  const selectAllQueue = SelectAllQueue.getInstance();
+
+  if (!selectAllQueue) {
+    logger.warn(`SelectAllQueue not initialized`);
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Select All action failed to process.",
+    });
+  }
+  if (!redis) {
+    return [];
+  }
+  const jobIds = await redis.smembers(`projectJobs:${projectId}`);
+  const jobs = await Promise.all(
+    jobIds.map((id) => selectAllQueue.getJobState(id)),
+  );
+  return jobs.filter((job) => job !== null && WAITING_JOBS.includes(job));
+};
+
 const generateSelectAllId = (
   projectId: string,
   actionId: string,
@@ -50,6 +72,9 @@ export const tableRouter = createTRPCRouter({
           });
         }
 
+        const { projectId, actionId, query, tableName, targetId } = input;
+        const selectAllId = generateSelectAllId(projectId, actionId, tableName);
+
         const selectAllQueue = SelectAllQueue.getInstance();
 
         if (!selectAllQueue) {
@@ -59,9 +84,6 @@ export const tableRouter = createTRPCRouter({
             message: "Select All action failed to process.",
           });
         }
-
-        const { projectId, actionId, query, tableName, targetId } = input;
-        const selectAllId = generateSelectAllId(projectId, actionId, tableName);
 
         // Create audit log >> generate based on actionId
         await auditLog({
@@ -73,19 +95,25 @@ export const tableRouter = createTRPCRouter({
         });
 
         // Notify worker
-        await selectAllQueue.add(QueueJobs.SelectAllProcessingJob, {
-          id: selectAllId, // Use the selectAllId to deduplicate when the same job is sent multiple times
-          name: QueueJobs.SelectAllProcessingJob,
-          timestamp: new Date(),
-          payload: {
-            projectId,
-            actionId,
-            query: JSON.stringify(query),
-            tableName,
-            cutoffCreatedAt: new Date(),
-            targetId,
-          },
-        });
+        await selectAllQueue
+          .add(QueueJobs.SelectAllProcessingJob, {
+            id: selectAllId, // Use the selectAllId to deduplicate when the same job is sent multiple times
+            name: QueueJobs.SelectAllProcessingJob,
+            timestamp: new Date(),
+            payload: {
+              projectId,
+              actionId,
+              query: JSON.stringify(query),
+              tableName,
+              cutoffCreatedAt: new Date(),
+              targetId,
+            },
+          })
+          .then((job) => {
+            if (redis && job.id) {
+              redis.sadd(`projectJobs:${projectId}`, job.id); // Store job ID under project-specific key
+            }
+          });
       } catch (e) {
         logger.error(e);
         if (e instanceof TRPCError) {
@@ -100,8 +128,7 @@ export const tableRouter = createTRPCRouter({
   getIsSelectAllInProgress: protectedProjectProcedure
     .input(GetIsSelectAllInProgressSchema)
     .query(async ({ input }) => {
-      const { projectId, actionId, tableName } = input;
-      const selectAllId = generateSelectAllId(projectId, actionId, tableName);
+      const { projectId } = input;
 
       const selectAllQueue = SelectAllQueue.getInstance();
 
@@ -113,7 +140,9 @@ export const tableRouter = createTRPCRouter({
         });
       }
 
-      const isInProgress = await selectAllQueue.getJob(selectAllId);
-      return !!isInProgress;
+      const jobs = await getWaitingJobsByProjectId(projectId);
+      const isInProgress = jobs.length > 0;
+
+      return isInProgress;
     }),
 });

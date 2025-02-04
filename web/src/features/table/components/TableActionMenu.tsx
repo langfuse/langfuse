@@ -150,8 +150,6 @@ export function TableActionMenu({
 
   const isSelectAllInProgress = api.table.getIsSelectAllInProgress.useQuery({
     projectId,
-    actionId: selectedAction?.id ?? "",
-    tableName,
   });
 
   const handleAction = (actionId: ActionId) => {
