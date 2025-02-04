@@ -18,6 +18,7 @@ describe("select all test suite", () => {
       createTrace({
         project_id: projectId,
         id: randomUUID(),
+        timestamp: new Date("2024-01-01").getTime(),
       }),
     );
 
@@ -33,7 +34,7 @@ describe("select all test suite", () => {
             filter: [],
             orderBy: { column: "timestamp", order: "DESC" },
           }),
-          cutoffCreatedAt: new Date().toISOString(),
+          cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
       progress: 0,
@@ -49,7 +50,7 @@ describe("select all test suite", () => {
     const stream = await getDatabaseReadStream({
       projectId,
       tableName: BatchExportTableName.Traces,
-      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      cutoffCreatedAt: new Date("2024-01-02"),
       filter: [],
       orderBy: { column: "timestamp", order: "DESC" },
     });
@@ -68,6 +69,7 @@ describe("select all test suite", () => {
       createTrace({
         project_id: projectId,
         id: randomUUID(),
+        timestamp: new Date("2024-01-01").getTime(),
       }),
     );
 
@@ -83,10 +85,10 @@ describe("select all test suite", () => {
             filter: [],
             orderBy: { column: "timestamp", order: "DESC" },
           }),
-          cutoffCreatedAt: new Date().toISOString(),
+          cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
-      progress: 1000, // Simulate already processed first chunk
+      progress: 1, // Simulate already processed first chunk
       updateProgress: vi.fn(),
     } as any;
 
@@ -104,11 +106,13 @@ describe("select all test suite", () => {
         project_id: projectId,
         id: randomUUID(),
         user_id: "user1",
+        timestamp: new Date("2024-01-01").getTime(),
       }),
       createTrace({
         project_id: projectId,
         id: randomUUID(),
         user_id: "user2",
+        timestamp: new Date("2024-01-01").getTime(),
       }),
     ];
 
@@ -124,14 +128,14 @@ describe("select all test suite", () => {
             filter: [
               {
                 type: "string",
-                value: "user1",
+                operator: "=",
                 column: "User ID",
-                operator: "equals",
+                value: "user1",
               },
             ],
             orderBy: { column: "timestamp", order: "DESC" },
           }),
-          cutoffCreatedAt: new Date().toISOString(),
+          cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
       progress: 0,
@@ -144,7 +148,7 @@ describe("select all test suite", () => {
     const stream = await getDatabaseReadStream({
       projectId,
       tableName: BatchExportTableName.Traces,
-      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      cutoffCreatedAt: new Date("2024-01-02"),
       filter: [],
       orderBy: { column: "timestamp", order: "DESC" },
     });
@@ -154,6 +158,6 @@ describe("select all test suite", () => {
       remainingRows.push(chunk);
     }
     expect(remainingRows).toHaveLength(1);
-    expect(remainingRows[0].user_id).toBe("user2");
+    expect(remainingRows[0].userId).toBe("user2");
   });
 });

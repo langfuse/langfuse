@@ -99,7 +99,7 @@ export const handleSelectAllJob = async (
 
   // Process stream in database-sized batches
   let batch: string[] = [];
-  let index = 0;
+  let chunkCount = 0;
   for await (const record of dbReadStream) {
     if (record?.id) {
       batch.push(record.id);
@@ -108,18 +108,18 @@ export const handleSelectAllJob = async (
     // When batch reaches 1000, process it and reset
     if (batch.length >= CHUNK_SIZE) {
       // Skip if we have already processed this chunk
-      if (processedChunkCount >= index) {
+      if (processedChunkCount >= chunkCount) {
         // reset batch
         batch = [];
+        chunkCount++;
         continue;
       }
 
       await processActionChunk(actionId, batch, projectId, targetId);
 
       // Update progress
-      if (processedChunkCount < index) {
-        selectAllJob.updateProgress(index);
-      }
+      chunkCount++;
+      selectAllJob.updateProgress(chunkCount);
 
       // Reset batch
       batch = [];
@@ -129,6 +129,8 @@ export const handleSelectAllJob = async (
   // Process any remaining records
   if (batch.length > 0) {
     await processActionChunk(actionId, batch, projectId, targetId);
+    chunkCount++;
+    selectAllJob.updateProgress(chunkCount);
   }
 
   logger.info("Select all job completed", {
