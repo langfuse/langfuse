@@ -34,6 +34,7 @@ export class RateLimitService {
         createNewRedisInstance({
           enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
           enableOfflineQueue: false,
+          lazyConnect: true, // Connect when first command is sent
           ...redisQueueRetryOptions,
         });
       RateLimitService.instance = new RateLimitService();
@@ -81,6 +82,15 @@ export class RateLimitService {
       !effectiveConfig.durationInSec
     ) {
       return;
+    }
+
+    // Connect Redis if not initialized
+    if (RateLimitService?.redis?.status !== "ready") {
+      try {
+        await RateLimitService?.redis?.connect();
+      } catch (err) {
+        // Do nothing here. We will fail open if Redis is not available.
+      }
     }
 
     const rateLimiter = new RateLimiterRedis({
