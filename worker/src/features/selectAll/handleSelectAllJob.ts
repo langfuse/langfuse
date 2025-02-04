@@ -86,8 +86,6 @@ export const handleSelectAllJob = async (
     );
   }
 
-  const processedChunkCount = parsedJobProgress.data;
-
   // TODO: given retries must skip any item we have already processed
   const dbReadStream = await getDatabaseReadStream({
     projectId: projectId,
@@ -98,39 +96,36 @@ export const handleSelectAllJob = async (
   });
 
   // Process stream in database-sized batches
-  let batch: string[] = [];
-  let chunkCount = 0;
+  // 1. Read all records
+  const records: any[] = [];
   for await (const record of dbReadStream) {
     if (record?.id) {
-      batch.push(record.id);
-    }
-
-    // When batch reaches 1000, process it and reset
-    if (batch.length >= CHUNK_SIZE) {
-      // Skip if we have already processed this chunk
-      if (processedChunkCount > chunkCount) {
-        // reset batch
-        batch = [];
-        chunkCount++;
-        continue;
-      }
-
-      await processActionChunk(actionId, batch, projectId, targetId);
-
-      // Update progress
-      chunkCount++;
-      selectAllJob.updateProgress(chunkCount);
-
-      // Reset batch
-      batch = [];
+      records.push(record);
     }
   }
 
-  // Process any remaining records
-  if (batch.length > 0) {
-    await processActionChunk(actionId, batch, projectId, targetId);
+  // 2. Process in chunks
+  const startingChunk = (selectAllJob.progress as number) || 0;
+  let chunkCount = 0;
+  for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+    // Skip processing if this chunk is before our saved progress
+    if (chunkCount < startingChunk) {
+      logger.info(`Skipping batch ${chunkCount} (already processed)`);
+      chunkCount++;
+      continue;
+    }
+
+    const batch = records.slice(i, i + CHUNK_SIZE);
+
+    await processActionChunk(
+      actionId,
+      batch.map((r) => r.id),
+      projectId,
+      targetId,
+    );
+
     chunkCount++;
-    selectAllJob.updateProgress(chunkCount);
+    await selectAllJob.updateProgress(chunkCount);
   }
 
   logger.info("Select all job completed", {
