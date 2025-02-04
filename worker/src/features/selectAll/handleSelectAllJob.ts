@@ -78,7 +78,7 @@ export const handleSelectAllJob = async (
   }
 
   // Load processed chunk count from job metadata
-  const jobProgress = selectAllJob.progress ?? {};
+  const jobProgress = selectAllJob.progress ?? 0;
   const parsedJobProgress = SelectAllJobProgressSchema.safeParse(jobProgress);
   if (!parsedJobProgress.success) {
     throw new Error(
@@ -108,7 +108,7 @@ export const handleSelectAllJob = async (
     // When batch reaches 1000, process it and reset
     if (batch.length >= CHUNK_SIZE) {
       // Skip if we have already processed this chunk
-      if (processedChunkCount >= chunkCount) {
+      if (processedChunkCount > chunkCount) {
         // reset batch
         batch = [];
         chunkCount++;

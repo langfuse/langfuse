@@ -44,7 +44,7 @@ describe("select all test suite", () => {
     await handleSelectAllJob(selectAllJob);
 
     // Should have processed in chunks of 1000
-    expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(2);
+    expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(3);
 
     // Verify traces were deleted
     const stream = await getDatabaseReadStream({
@@ -95,7 +95,7 @@ describe("select all test suite", () => {
     await handleSelectAllJob(selectAllJob);
 
     // Should only process remaining chunks
-    expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(1);
+    expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(2);
   });
 
   it("should handle filtered queries", async () => {
