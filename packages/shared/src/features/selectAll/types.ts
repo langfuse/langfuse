@@ -23,6 +23,7 @@ export const CreateSelectAllSchema = z.object({
       (val): val is ActionId => val in ACTION_ACCESS_MAP,
       "Invalid action ID",
     ),
+  targetId: z.string().optional(),
   query: SelectAllQuerySchema,
   tableName: z.nativeEnum(SelectAllTableName),
 });

@@ -17,7 +17,7 @@ describe("select all test suite", () => {
     const traces = Array.from({ length: 2500 }).map(() =>
       createTrace({
         project_id: projectId,
-        id: "12345",
+        id: randomUUID(),
       }),
     );
 

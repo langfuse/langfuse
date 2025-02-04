@@ -6,11 +6,16 @@ import {
 } from "@langfuse/shared/src/server";
 import z from "zod";
 import { orderBy } from "../../../../packages/shared/dist/src/interfaces/orderBy";
-import { BatchExportTableName, singleFilter } from "@langfuse/shared";
+import {
+  ACTION_ACCESS_MAP,
+  BatchExportTableName,
+  singleFilter,
+} from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
+import { processAddToQueue } from "./processAddToQueue";
 
 export const SelectAllQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
@@ -24,14 +29,21 @@ async function processActionChunk(
   actionId: string,
   chunkIds: string[],
   projectId: string,
+  targetId?: string,
 ): Promise<void> {
   try {
     switch (actionId) {
       case "trace-delete":
+        logger.info(
+          `Deleting traces ${JSON.stringify(chunkIds)} in project ${projectId}`,
+        );
         await processClickhouseTraceDelete(projectId, chunkIds);
         break;
       case "trace-add-to-annotation-queue":
-        // await processAddToQueue(chunkIds, projectId, targetId);
+        logger.info(
+          `Adding traces ${JSON.stringify(chunkIds)} to annotation queue ${targetId} in project ${projectId}`,
+        );
+        await processAddToQueue(projectId, chunkIds, targetId as string);
         break;
       default:
         throw new Error(`Unknown action: ${actionId}`);
@@ -47,8 +59,15 @@ export const handleSelectAllJob = async (
 ) => {
   const selectAllEvent: SelectAllProcessingEventType =
     selectAllJob.data.payload;
-  const { projectId, actionId, tableName, query, cutoffCreatedAt } =
+  const { projectId, actionId, tableName, query, cutoffCreatedAt, targetId } =
     selectAllEvent;
+
+  const { type } =
+    ACTION_ACCESS_MAP[actionId as keyof typeof ACTION_ACCESS_MAP];
+
+  if (type == "create" && !targetId) {
+    throw new Error(`Target ID is required for create action`);
+  }
 
   // Parse query from job
   const parsedQuery = SelectAllQuerySchema.safeParse(JSON.parse(query));
@@ -95,7 +114,7 @@ export const handleSelectAllJob = async (
         continue;
       }
 
-      await processActionChunk(actionId, batch, projectId);
+      await processActionChunk(actionId, batch, projectId, targetId);
 
       // Update progress
       if (processedChunkCount < index) {
@@ -109,7 +128,7 @@ export const handleSelectAllJob = async (
 
   // Process any remaining records
   if (batch.length > 0) {
-    await processActionChunk(actionId, batch, projectId);
+    await processActionChunk(actionId, batch, projectId, targetId);
   }
 
   logger.info("Select all job completed", {

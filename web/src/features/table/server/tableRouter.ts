@@ -6,7 +6,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { CreateSelectAllSchema } from "@langfuse/shared";
+import { CreateSelectAllSchema, InvalidRequestError } from "@langfuse/shared";
 import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -17,6 +17,12 @@ export const tableRouter = createTRPCRouter({
       try {
         const { scope, entitlement, resourceType, type } =
           getServerActionConfig(input.actionId, input.tableName);
+
+        if (type == "create" && !input.targetId) {
+          throw new InvalidRequestError(
+            `Target ID is required for create action`,
+          );
+        }
 
         throwIfNoProjectAccess({
           session: ctx.session,
