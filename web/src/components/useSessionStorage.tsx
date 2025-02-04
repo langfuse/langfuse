@@ -32,10 +32,7 @@ function useSessionStorage<T>(
       const storedValue = sessionStorage.getItem(sessionStorageKey);
       return storedValue ? JSON.parse(storedValue) : initialValue;
     } catch (error) {
-      console.error(
-        `Error reading sessionStorageKey “${sessionStorageKey}”:`,
-        error,
-      );
+      console.error("Error reading from session storage", error);
       return initialValue;
     }
   }, [sessionStorageKey, initialValue]);
@@ -61,10 +58,7 @@ function useSessionStorage<T>(
           window.dispatchEvent(new Event("session-storage"));
         }
       } catch (error) {
-        console.error(
-          `Error setting sessionStorageKey “${sessionStorageKey}”:`,
-          error,
-        );
+        console.error("Error reading from session storage", error);
       }
     },
     [sessionStorageKey, storedValue],

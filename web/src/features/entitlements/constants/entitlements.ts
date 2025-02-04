@@ -76,6 +76,7 @@ export const entitlementAccess: Record<
     entitlements: [
       ...cloudAllPlansEntitlements,
       "rbac-project-roles",
+      "trace-deletion",
       "audit-logs",
       "data-retention",
     ],
