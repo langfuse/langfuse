@@ -10,8 +10,8 @@ import { CreateSelectAllSchema } from "@langfuse/shared";
 import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
-export const selectAllRouter = createTRPCRouter({
-  create: protectedProjectProcedure
+export const tableRouter = createTRPCRouter({
+  selectAll: protectedProjectProcedure
     .input(CreateSelectAllSchema)
     .mutation(async ({ input, ctx }) => {
       try {
@@ -54,11 +54,9 @@ export const selectAllRouter = createTRPCRouter({
           action: type,
         });
 
-        // consider passing the relevant query for delete operation?
-
         // Notify worker
         await selectAllQueue.add(QueueJobs.SelectAllProcessingJob, {
-          id: selectAllId, // Use the batchExportId to deduplicate when the same job is sent multiple times
+          id: selectAllId, // Use the selectAllId to deduplicate when the same job is sent multiple times
           name: QueueJobs.SelectAllProcessingJob,
           timestamp: new Date(),
           payload: {

@@ -9,7 +9,7 @@ export const useTableActionMutations = (
   const utils = api.useUtils();
 
   // Base mutation that's always needed
-  const selectAllMutation = api.selectAll.create.useMutation({
+  const selectAllMutation = api.table.selectAll.useMutation({
     onSuccess: () => {
       showSuccessToast({
         title: "Select all in progress",
