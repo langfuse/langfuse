@@ -55,7 +55,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
  * @param delay - Delay overwrite. Used if non-null.
  */
 const getDelay = (delay: number | null) => {
-  if (delay) {
+  if (delay !== null) {
     return delay;
   }
   const now = new Date();
