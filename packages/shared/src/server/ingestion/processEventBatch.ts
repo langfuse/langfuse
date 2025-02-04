@@ -48,9 +48,37 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
+/**
+ * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
+ * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
+ * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
+ * @param delay - Delay overwrite. Used if non-null.
+ */
+const getDelay = (delay: number | null) => {
+  if (delay !== null) {
+    return delay;
+  }
+  const now = new Date();
+  const hours = now.getUTCHours();
+  const minutes = now.getUTCMinutes();
+
+  if ((hours === 23 && minutes >= 45) || (hours === 0 && minutes <= 15)) {
+    return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
+  }
+
+  return 0;
+};
+
+/**
+ * Processes a batch of events.
+ * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
+ * @param authCheck - AuthHeaderValidVerificationResult
+ * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
+ */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
+  delay: number | null = null,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -210,9 +238,7 @@ export const processEventBatch = async (
                 authCheck,
               },
             },
-            {
-              delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
-            },
+            { delay: getDelay(delay) },
           )
         : Promise.reject("Failed to instantiate queue"),
     ),
