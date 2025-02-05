@@ -1,0 +1,13 @@
+diff --git a/lib/helpers/request.js b/lib/helpers/request.js
+index d3dfda3b8291ab8fd06bc54201b098fbaa8a702a..af02ce8de4cac121f9894e2041065607e8d58fc6 100644
+--- a/lib/helpers/request.js
++++ b/lib/helpers/request.js
+@@ -1,7 +1,6 @@
+ const assert = require('assert');
+ const querystring = require('querystring');
+-const http = require('http');
+-const https = require('https');
++const { http, https } = require('follow-redirects');
+ const { once } = require('events');
+ const { URL } = require('url');
+ 
