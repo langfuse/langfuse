@@ -8,8 +8,6 @@ import {
   EvalExecutionEvent,
   tableColumnsToSqlFilterAndPrefix,
   traceException,
-  StorageServiceFactory,
-  StorageService,
   eventTypes,
   redis,
   IngestionQueue,
@@ -39,27 +37,10 @@ import {
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
-import { env } from "../../env";
 import {
   callStructuredLLM,
   compileHandlebarString,
 } from "../../features/utilities";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
