@@ -1,4 +1,5 @@
 import Redis, { RedisOptions } from "ioredis";
+import fs from 'fs';
 import { env } from "../../env";
 import { logger } from "../logger";
 
@@ -23,10 +24,23 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ) => {
+  const tlsEnabled = Boolean(env.REDIS_TLS_ENABLED);
+
+  const tlsOptions = tlsEnabled
+    ? {
+        tls: {
+          ca: fs.readFileSync(env.REDIS_TLS_CA_PATH),
+          cert: fs.readFileSync(env.REDIS_TLS_CERT_PATH),
+          key: fs.readFileSync(env.REDIS_TLS_KEY_PATH),
+        },
+      }
+    : {};
+
   const instance = env.REDIS_CONNECTION_STRING
     ? new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
+        ...tlsOptions,
       })
     : env.REDIS_HOST
       ? new Redis({
@@ -35,6 +49,7 @@ export const createNewRedisInstance = (
           password: String(env.REDIS_AUTH),
           ...defaultRedisOptions,
           ...additionalOptions,
+          ...tlsOptions,
         })
       : null;
 
