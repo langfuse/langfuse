@@ -41,7 +41,7 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
-  type SelectAllTableName,
+  type BulkActionTableName,
   type ActionId,
   type OrderByState,
 } from "@langfuse/shared";
@@ -55,7 +55,7 @@ import { api } from "@/src/utils/api";
 
 type TableActionMenuProps = {
   projectId: string;
-  tableName: SelectAllTableName;
+  tableName: BulkActionTableName;
   actionIds: ActionId[];
   orderByState: OrderByState;
   filterState: any;

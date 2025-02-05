@@ -36,7 +36,7 @@ import {
   tracesTableColsWithOptions,
   type ObservationLevel,
   BatchExportTableName,
-  SelectAllTableName,
+  BulkActionTableName,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -817,7 +817,7 @@ export default function TracesTable({
             <TableActionMenu
               key="traces-multi-select-actions"
               projectId={projectId}
-              tableName={SelectAllTableName.Traces}
+              tableName={BulkActionTableName.Traces}
               actionIds={["trace-delete", "trace-add-to-annotation-queue"]}
               orderByState={orderByState}
               filterState={filterState}

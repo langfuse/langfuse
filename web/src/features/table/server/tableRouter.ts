@@ -7,10 +7,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  CreateSelectAllSchema,
-  GetIsSelectAllInProgressSchema,
+  CreateBulkActionSchema,
+  GetIsBulkActionInProgressSchema,
   InvalidRequestError,
-  type SelectAllTableName,
+  type BulkActionTableName,
 } from "@langfuse/shared";
 import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -19,7 +19,7 @@ const WAITING_JOBS = ["waiting", "delayed", "active"];
 
 const getWaitingJobsByProjectId = async (
   projectId: string,
-  tableName: SelectAllTableName,
+  tableName: BulkActionTableName,
 ) => {
   const selectAllQueue = SelectAllQueue.getInstance();
 
@@ -40,7 +40,7 @@ const getWaitingJobsByProjectId = async (
   return jobs.filter((job) => job !== null && WAITING_JOBS.includes(job));
 };
 
-const generateSelectAllId = (
+const generateBulkSelectId = (
   projectId: string,
   actionId: string,
   tableName: string,
@@ -50,7 +50,7 @@ const generateSelectAllId = (
 
 export const tableRouter = createTRPCRouter({
   selectAll: protectedProjectProcedure
-    .input(CreateSelectAllSchema)
+    .input(CreateBulkActionSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         const { scope, entitlement, resourceType, type } =
@@ -77,7 +77,11 @@ export const tableRouter = createTRPCRouter({
         }
 
         const { projectId, actionId, query, tableName, targetId } = input;
-        const selectAllId = generateSelectAllId(projectId, actionId, tableName);
+        const bulkSelectId = generateBulkSelectId(
+          projectId,
+          actionId,
+          tableName,
+        );
 
         const selectAllQueue = SelectAllQueue.getInstance();
 
@@ -93,7 +97,7 @@ export const tableRouter = createTRPCRouter({
         await auditLog({
           session: ctx.session,
           resourceType,
-          resourceId: selectAllId,
+          resourceId: bulkSelectId,
           projectId,
           action: type,
         });
@@ -101,7 +105,7 @@ export const tableRouter = createTRPCRouter({
         // Notify worker
         await selectAllQueue
           .add(QueueJobs.SelectAllProcessingJob, {
-            id: selectAllId, // Use the selectAllId to deduplicate when the same job is sent multiple times
+            id: bulkSelectId, // Use the selectAllId to deduplicate when the same job is sent multiple times
             name: QueueJobs.SelectAllProcessingJob,
             timestamp: new Date(),
             payload: {
@@ -130,7 +134,7 @@ export const tableRouter = createTRPCRouter({
       }
     }),
   getIsSelectAllInProgress: protectedProjectProcedure
-    .input(GetIsSelectAllInProgressSchema)
+    .input(GetIsBulkActionInProgressSchema)
     .query(async ({ input }) => {
       const { projectId, tableName } = input;
 

@@ -4,17 +4,18 @@ import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRi
 import {
   ACTION_ACCESS_MAP,
   type ActionId,
-  type SelectAllTableName,
+  type BulkActionTableName,
 } from "@langfuse/shared";
 
-const tableNameToResourceType: Record<SelectAllTableName, AuditableResource> = {
-  traces: "trace",
-  // Add other table names from SelectAllTableName enum
-} as const;
+const tableNameToResourceType: Record<BulkActionTableName, AuditableResource> =
+  {
+    traces: "trace",
+    // Add other table names from BulkSelectTableName enum
+  } as const;
 
 export const getServerActionConfig = (
   actionId: ActionId,
-  tableName: SelectAllTableName,
+  tableName: BulkActionTableName,
 ): {
   type: "delete" | "create";
   resourceType: AuditableResource;
