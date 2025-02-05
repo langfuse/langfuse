@@ -19,4 +19,4 @@ SELECT
     updated_at,
     event_ts,
     is_deleted
-FROM observations
+FROM observations;
