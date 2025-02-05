@@ -716,6 +716,7 @@ model EventLog {
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   entityType String  @map("entity_type")
   entityId   String  @map("entity_id")
+  eventId    String  @map("event_id")
 
   // traceId is only optional, because we cannot guarantee its presence for observations.
   // We use it to support deletions on traces as we cannot cascade it down to scores and observations otherwise.
@@ -725,7 +726,7 @@ model EventLog {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([projectId, entityType, entityId])
+  @@index([projectId, entityType, entityId])
   @@map("event_log")
 }
 

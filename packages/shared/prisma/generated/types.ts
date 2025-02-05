@@ -260,6 +260,7 @@ export type EventLog = {
     project_id: string;
     entity_type: string;
     entity_id: string;
+    event_id: string;
     trace_id: string | null;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;

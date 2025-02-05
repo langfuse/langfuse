@@ -26,14 +26,11 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export const uploadEventToS3 = async (
   event: Omit<
     EventLog,
-    "createdAt" | "updatedAt" | "bucketPath" | "bucketName"
+    "createdAt" | "updatedAt" | "bucketPath" | "bucketName" | "id"
   >,
   data: Record<string, unknown>[],
 ) => {
-  // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
-  // That way we batch updates from the same invocation into a single file and reduce
-  // write operations on S3.
-  const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/${event.entityType}/${event.entityId}/${event.id}.json`;
+  const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/${event.entityType}/${event.entityId}/${event.eventId}.json`;
   if (env.LANGFUSE_S3_EVENT_UPLOAD_POSTGRES_LOG_ENABLED === "true") {
     try {
       await prisma.eventLog.create({

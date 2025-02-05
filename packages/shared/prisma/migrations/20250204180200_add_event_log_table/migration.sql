@@ -8,6 +8,7 @@ CREATE TABLE "event_log" (
     "project_id" TEXT NOT NULL,
     "entity_type" TEXT NOT NULL,
     "entity_id" TEXT NOT NULL,
+    "event_id" TEXT NOT NULL,
 
     "trace_id" TEXT,
 
@@ -16,4 +17,4 @@ CREATE TABLE "event_log" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "event_log_project_id_entity_type_entity_id_key" ON "event_log"("project_id", "entity_type", "entity_id");
+CREATE INDEX "event_log_project_id_entity_type_entity_id_idx" ON "event_log"("project_id", "entity_type", "entity_id");

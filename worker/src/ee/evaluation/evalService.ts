@@ -441,10 +441,10 @@ export const evaluate = async ({
     const eventId = randomUUID();
     await uploadEventToS3(
       {
-        id: eventId,
         projectId: event.projectId,
         entityType: "score",
         entityId: scoreId,
+        eventId,
         traceId: job.job_input_trace_id,
       },
       [

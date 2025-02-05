@@ -173,10 +173,10 @@ export const processEventBatch = async (
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
         return uploadEventToS3(
           {
-            id: key,
             projectId: authCheck.scope.projectId,
             entityType: getClickhouseEntityType(type),
             entityId: eventBodyId,
+            eventId: key,
             traceId:
               data // Use the first truthy traceId for the event log.
                 .flatMap((event) =>
