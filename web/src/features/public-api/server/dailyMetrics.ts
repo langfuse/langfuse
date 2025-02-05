@@ -31,6 +31,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // TODO: Why do we group by usage_details here without selecting it? IMO this produces unreliable results for the sums.
   const query = `
     WITH model_usage AS (
       SELECT
