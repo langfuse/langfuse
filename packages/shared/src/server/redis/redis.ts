@@ -24,7 +24,7 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ) => {
-  const tlsEnabled = Boolean(env.REDIS_TLS_ENABLED);
+  const tlsEnabled = env.REDIS_TLS_ENABLED === "true";
 
   const tlsOptions = tlsEnabled
     ? {
