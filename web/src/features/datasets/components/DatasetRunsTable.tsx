@@ -401,7 +401,7 @@ export function DatasetRunsTable(props: {
     <>
       {Boolean(props.selectedMetrics.length) &&
         Boolean(runAggregatedMetrics?.size) && (
-          <Card className="my-4 max-h-[25dvh] md:max-h-[30dvh]">
+          <Card className="my-4 max-h-64">
             <CardContent className="mt-2 h-full">
               <div className="flex h-full w-full gap-4 overflow-x-auto">
                 {props.selectedMetrics.map((key) => {
