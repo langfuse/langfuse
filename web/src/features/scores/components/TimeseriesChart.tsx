@@ -6,7 +6,7 @@ import { type TimeseriesChartProps } from "@/src/features/scores/types";
 
 function ChartWrapper(props: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex w-[80%] flex-none flex-col overflow-hidden md:w-[45%]">
+    <div className="mb-2 flex w-[400px] flex-none flex-col overflow-hidden">
       <div className="shrink-0 text-sm font-medium">{props.title}</div>
       {props.children}
     </div>
