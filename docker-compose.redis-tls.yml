@@ -132,7 +132,7 @@ services:
       --tls-cert-file /certs/redis.crt
       --tls-key-file /certs/redis.key
       --tls-ca-cert-file /certs/ca.crt
-      --tls-protocols "TLSv1.1 TLSv1.2 TLSv1.3"
+      --tls-protocols "TLSv1.2 TLSv1.3"
     ports:
       - 6379:6379
     healthcheck:
