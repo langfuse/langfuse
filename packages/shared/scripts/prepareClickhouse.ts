@@ -96,12 +96,14 @@ export const prepareClickhouse = async (
       'version' AS version,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
       repeat('output', toInt64(randExponential(1 / 100))) AS output,
-      if("type" = 'GENERATION',
-        generateUUIDv4(),
-        NULL) as provided_model_name,
-      if("type" = 'GENERATION',
-        generateUUIDv4(),
-        NULL) as internal_model_id,
+      case
+        when number % 2 = 0 then 'clause-3-haiku-20230407'
+        else 'gpt-4'
+      end as provided_model_name,
+      case
+        when number % 2 = 0 then 'cltra4wbs0000k1407g0ya3'
+        else '1cmtk9y0000y3y79x9jgxj'
+      end as internal_model_id,
       if("type" = 'GENERATION',
         '{"temperature": 0.7, "max_tokens": 150}',
         '{}') AS model_parameters,
