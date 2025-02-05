@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import {
-  getAllModels,
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,

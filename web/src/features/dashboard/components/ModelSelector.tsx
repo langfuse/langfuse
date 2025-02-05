@@ -14,7 +14,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { getAllModels } from "@/src/features/dashboard/components/hooks";
-import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { Check, ChevronsUpDown } from "lucide-react";

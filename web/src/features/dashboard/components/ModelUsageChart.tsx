@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { env } from "@/src/env.mjs";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
@@ -6,7 +5,6 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
-  getAllModels,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
