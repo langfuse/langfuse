@@ -12,6 +12,7 @@ export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
+export * from "./utils/eventLog";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";

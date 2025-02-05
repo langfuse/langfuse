@@ -13,6 +13,7 @@ import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { context, trace } from "@opentelemetry/api";
+import { uploadEventToS3 } from "../utils/eventLog";
 
 let s3StorageServiceClient: StorageService;
 
@@ -53,11 +54,19 @@ export async function upsertClickhouse<
           // @ts-ignore - If it's an observation we now that `type` is a string
           eventType = `${record["type"].toLowerCase()}-create`;
         }
-        s3Client.uploadJson(
-          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
+
+        const eventId = randomUUID();
+        return uploadEventToS3(
+          {
+            id: eventId,
+            projectId: record.project_id as string,
+            entityType: getClickhouseEntityType(eventType),
+            entityId: record.id as string,
+            traceId: record?.trace_id as string,
+          },
           [
             {
-              id: randomUUID(),
+              id: eventId,
               timestamp: new Date().toISOString(),
               type: eventType,
               body: opts.eventBodyMapper(record),

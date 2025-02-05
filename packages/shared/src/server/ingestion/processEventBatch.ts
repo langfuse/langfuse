@@ -21,32 +21,13 @@ import { logger } from "../logger";
 import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { redis } from "../redis/redis";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
+import { uploadEventToS3 } from "../utils/eventLog";
 
 export type TokenCountDelegate = (p: {
   model: Model;
   text: unknown;
 }) => number | undefined;
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
 
 /**
  * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
@@ -181,9 +162,6 @@ export const processEventBatch = async (
    ********************/
   let s3UploadErrored = false;
   await instrumentAsync({ name: "s3-upload-events" }, async () => {
-    const s3Client = getS3StorageServiceClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    );
     // S3 Event Upload is blocking, but non-failing.
     // If a promise rejects, we log it below, but do not throw an error.
     // In this case, we upload the full batch into the Redis queue.
@@ -193,8 +171,21 @@ export const processEventBatch = async (
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        return s3Client.uploadJson(
-          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
+        return uploadEventToS3(
+          {
+            id: key,
+            projectId: authCheck.scope.projectId,
+            entityType: getClickhouseEntityType(type),
+            entityId: eventBodyId,
+            traceId:
+              data // Use the first truthy traceId for the event log.
+                .flatMap((event) =>
+                  "traceId" in event.body && event.body.traceId
+                    ? [event.body.traceId]
+                    : [],
+                )
+                .shift() ?? null,
+          },
           data,
         );
       }),

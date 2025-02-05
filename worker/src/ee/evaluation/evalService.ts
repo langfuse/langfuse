@@ -21,6 +21,7 @@ import {
   getObservationForTraceIdByName,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
+  uploadEventToS3,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -439,14 +440,18 @@ export const evaluate = async ({
 
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
-    const s3Client = getS3StorageServiceClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    );
-    await s3Client.uploadJson(
-      `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${randomUUID()}.json`,
+    const eventId = randomUUID();
+    await uploadEventToS3(
+      {
+        id: eventId,
+        projectId: event.projectId,
+        entityType: "score",
+        entityId: scoreId,
+        traceId: job.job_input_trace_id,
+      },
       [
         {
-          id: randomUUID(),
+          id: eventId,
           timestamp: new Date().toISOString(),
           type: eventTypes.SCORE_CREATE,
           body: {
