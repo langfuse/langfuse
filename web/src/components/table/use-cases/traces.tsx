@@ -59,9 +59,8 @@ import { Separator } from "@/src/components/ui/separator";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { SelectionColumnCell } from "@/src/features/table/components/SelectColumnCell";
-import { SelectionColumnHeader } from "@/src/features/table/components/SelectColumnHeader";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -256,23 +255,14 @@ export default function TracesTable({
 
   const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
 
+  const { selectActionColumn } = TableSelectionManager<TracesTableRow>({
+    projectId,
+    tableName: "traces",
+    setSelectedRows,
+  });
+
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    {
-      id: "select",
-      accessorKey: "select",
-      size: 30,
-      isPinned: true,
-      header: ({ table }) => (
-        <SelectionColumnHeader
-          table={table}
-          setSelectedRows={setSelectedRows}
-          setSelectAll={setSelectAll}
-        />
-      ),
-      cell: ({ row }) => (
-        <SelectionColumnCell row={row} setSelectAll={setSelectAll} />
-      ),
-    },
+    selectActionColumn,
     {
       accessorKey: "bookmarked",
       header: undefined,
@@ -855,8 +845,8 @@ export default function TracesTable({
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         multiSelect={{
-          selectAll: selectAll,
-          setSelectAll: setSelectAll,
+          selectAll,
+          setSelectAll,
           selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
           ),
