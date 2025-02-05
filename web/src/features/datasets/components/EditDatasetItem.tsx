@@ -82,13 +82,13 @@ export const EditDatasetItem = ({
   useEffect(() => {
     if (datasetItem) {
       form.reset({
-        input: datasetItem?.input
+        input: datasetItem.input
           ? JSON.stringify(datasetItem.input, null, 2)
           : "",
-        expectedOutput: datasetItem?.expectedOutput
+        expectedOutput: datasetItem.expectedOutput
           ? JSON.stringify(datasetItem.expectedOutput, null, 2)
           : "",
-        metadata: datasetItem?.metadata
+        metadata: datasetItem.metadata
           ? JSON.stringify(datasetItem.metadata, null, 2)
           : "",
       });
