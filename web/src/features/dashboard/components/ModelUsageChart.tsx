@@ -1,22 +1,5 @@
-import { Check, ChevronsUpDown } from "lucide-react";
 import { useEffect, useState } from "react";
-
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { Button } from "@/src/components/ui/button";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-  InputCommandList,
-  InputCommandSeparator,
-} from "@/src/components/ui/input-command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { env } from "@/src/env.mjs";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
@@ -35,8 +18,11 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
+import {
+  ModelSelectorPopover,
+  useModelSelection,
+} from "@/src/features/dashboard/components/ModelSelector";
 
 type ModelUsageReturnType = {
   startTime: string;
@@ -56,20 +42,14 @@ export const ModelUsageChart = ({
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
 }) => {
-  const allModels = getAllModels(projectId, globalFilterState);
-
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [open, setOpen] = useState(false);
-  const [firstAllModelUpdate, setFirstAllModelUpdate] = useState(true);
-
-  const isAllSelected = selectedModels.length === allModels.length;
-  const buttonText = isAllSelected
-    ? "All models"
-    : `${selectedModels.length} selected`;
-
-  const handleSelectAll = () => {
-    setSelectedModels(isAllSelected ? [] : [...allModels]);
-  };
+  const {
+    allModels,
+    selectedModels,
+    setSelectedModels,
+    isAllSelected,
+    buttonText,
+    handleSelectAll,
+  } = useModelSelection(projectId, globalFilterState);
 
   const queryResult = api.dashboard.chart.useQuery(
     {
@@ -85,16 +65,12 @@ export const ModelUsageChart = ({
       filter: [
         ...globalFilterState,
         { type: "string", column: "type", operator: "=", value: "GENERATION" },
-        ...(!isAllSelected
-          ? [
-              {
-                type: "stringOptions",
-                column: "model",
-                operator: "any of",
-                value: selectedModels,
-              } as const,
-            ]
-          : []),
+        {
+          type: "stringOptions",
+          column: "model",
+          operator: "any of",
+          value: selectedModels,
+        } as const,
       ],
       groupBy: [
         {
@@ -113,7 +89,7 @@ export const ModelUsageChart = ({
       queryName: "observations-usage-timeseries",
     },
     {
-      enabled: selectedModels.length > 0,
+      enabled: selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -121,13 +97,6 @@ export const ModelUsageChart = ({
       },
     },
   );
-
-  useEffect(() => {
-    if (firstAllModelUpdate && allModels.length > 0) {
-      setSelectedModels(allModels);
-      setFirstAllModelUpdate(false);
-    }
-  }, [allModels, firstAllModelUpdate]);
 
   const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
 
@@ -148,7 +117,7 @@ export const ModelUsageChart = ({
   >();
 
   dates?.forEach((d) => {
-    allModels.forEach((m) => {
+    selectedModels.forEach((m) => {
       allUsageUnits.forEach((uu) => {
         const existingEntry = typedData.find(
           (td) =>
@@ -247,6 +216,7 @@ export const ModelUsageChart = ({
           currentModels,
         )
       : [];
+  console.log("costByModel", costByModel.length);
 
   const totalCost = usageData?.reduce(
     (acc, curr) =>
@@ -312,63 +282,14 @@ export const ModelUsageChart = ({
       isLoading={queryResult.isLoading && selectedModels.length > 0}
       headerRight={
         <div className="flex items-center justify-end">
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="w-56 justify-between"
-              >
-                {buttonText}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-0">
-              <InputCommand>
-                <InputCommandInput placeholder="Search models..." />
-                <InputCommandEmpty>No model found.</InputCommandEmpty>
-                <InputCommandGroup>
-                  <InputCommandItem onSelect={handleSelectAll}>
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isAllSelected ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    <span>
-                      <p className="font-semibold">Select All</p>
-                    </span>
-                  </InputCommandItem>
-                  <InputCommandSeparator className="my-1" />
-                  <InputCommandList>
-                    {allModels.map((model) => (
-                      <InputCommandItem
-                        key={model}
-                        onSelect={() => {
-                          setSelectedModels((prev) =>
-                            prev.includes(model)
-                              ? prev.filter((m) => m !== model)
-                              : [...prev, model],
-                          );
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedModels.includes(model)
-                              ? "opacity-100"
-                              : "opacity-0",
-                          )}
-                        />
-                        {!model || model === "" ? <i>none</i> : model}
-                      </InputCommandItem>
-                    ))}
-                  </InputCommandList>
-                </InputCommandGroup>
-              </InputCommand>
-            </PopoverContent>
-          </Popover>
+          <ModelSelectorPopover
+            allModels={allModels}
+            selectedModels={selectedModels}
+            setSelectedModels={setSelectedModels}
+            buttonText={buttonText}
+            isAllSelected={isAllSelected}
+            handleSelectAll={handleSelectAll}
+          />
         </div>
       }
     >
