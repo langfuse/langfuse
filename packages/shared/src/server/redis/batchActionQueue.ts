@@ -3,24 +3,24 @@ import { QueueName, TQueueJobTypes } from "../queues";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
 import { logger } from "../logger";
 
-export class SelectAllQueue {
+export class BatchActionQueue {
   private static instance: Queue<
-    TQueueJobTypes[QueueName.SelectAllQueue]
+    TQueueJobTypes[QueueName.BatchActionQueue]
   > | null = null;
 
   public static getInstance(): Queue<
-    TQueueJobTypes[QueueName.SelectAllQueue]
+    TQueueJobTypes[QueueName.BatchActionQueue]
   > | null {
-    if (SelectAllQueue.instance) return SelectAllQueue.instance;
+    if (BatchActionQueue.instance) return BatchActionQueue.instance;
 
     const newRedis = createNewRedisInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
 
-    SelectAllQueue.instance = newRedis
-      ? new Queue<TQueueJobTypes[QueueName.SelectAllQueue]>(
-          QueueName.SelectAllQueue,
+    BatchActionQueue.instance = newRedis
+      ? new Queue<TQueueJobTypes[QueueName.BatchActionQueue]>(
+          QueueName.BatchActionQueue,
           {
             connection: newRedis,
             defaultJobOptions: {
@@ -36,10 +36,10 @@ export class SelectAllQueue {
         )
       : null;
 
-    SelectAllQueue.instance?.on("error", (err) => {
-      logger.error("SelectAllQueue error", err);
+    BatchActionQueue.instance?.on("error", (err) => {
+      logger.error("BatchActionQueue error", err);
     });
 
-    return SelectAllQueue.instance;
+    return BatchActionQueue.instance;
   }
 }

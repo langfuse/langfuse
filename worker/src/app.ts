@@ -43,7 +43,7 @@ import {
   dataRetentionProcessingProcessor,
   dataRetentionProcessor,
 } from "./queues/dataRetentionQueue";
-import { selectAllQueueProcessor } from "./queues/selectAllQueue";
+import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 
 const app = express();
 
@@ -156,14 +156,18 @@ if (env.QUEUE_CONSUMER_BATCH_EXPORT_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (env.QUEUE_CONSUMER_SELECT_ALL_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(QueueName.SelectAllQueue, selectAllQueueProcessor, {
-    concurrency: 1, // only 1 job at a time
-    limiter: {
-      max: 1,
-      duration: 5_000,
+if (env.QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.BatchActionQueue,
+    batchActionQueueProcessor,
+    {
+      concurrency: 1, // only 1 job at a time
+      limiter: {
+        max: 1,
+        duration: 5_000,
+      },
     },
-  });
+  );
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {

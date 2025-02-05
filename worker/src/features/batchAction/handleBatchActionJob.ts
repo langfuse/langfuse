@@ -1,7 +1,7 @@
 import {
+  BatchActionProcessingEventType,
   logger,
   QueueName,
-  SelectAllProcessingEventType,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import z from "zod";
@@ -17,12 +17,12 @@ import { env } from "../../env";
 import { Job } from "bullmq";
 import { processAddToQueue } from "./processAddToQueue";
 
-export const SelectAllQuerySchema = z.object({
+export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy,
 });
 
-const SelectAllJobProgressSchema = z.number();
+const BatchActionJobProgressSchema = z.number();
 
 const CHUNK_SIZE = 1000;
 async function processActionChunk(
@@ -54,13 +54,13 @@ async function processActionChunk(
   }
 }
 
-export const handleSelectAllJob = async (
-  selectAllJob: Job<TQueueJobTypes[QueueName.SelectAllQueue]>,
+export const handleBatchActionJob = async (
+  batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>,
 ) => {
-  const selectAllEvent: SelectAllProcessingEventType =
-    selectAllJob.data.payload;
+  const batchActionEvent: BatchActionProcessingEventType =
+    batchActionJob.data.payload;
   const { projectId, actionId, tableName, query, cutoffCreatedAt, targetId } =
-    selectAllEvent;
+    batchActionEvent;
 
   const { type } =
     ACTION_ACCESS_MAP[actionId as keyof typeof ACTION_ACCESS_MAP];
@@ -70,7 +70,7 @@ export const handleSelectAllJob = async (
   }
 
   // Parse query from job
-  const parsedQuery = SelectAllQuerySchema.safeParse(JSON.parse(query));
+  const parsedQuery = BatchActionQuerySchema.safeParse(JSON.parse(query));
   if (!parsedQuery.success) {
     throw new Error(
       `Failed to parse query in project ${projectId} for ${actionId}: ${parsedQuery.error.message}`,
@@ -78,8 +78,8 @@ export const handleSelectAllJob = async (
   }
 
   // Load processed chunk count from job metadata
-  const jobProgress = selectAllJob.progress ?? 0;
-  const parsedJobProgress = SelectAllJobProgressSchema.safeParse(jobProgress);
+  const jobProgress = batchActionJob.progress ?? 0;
+  const parsedJobProgress = BatchActionJobProgressSchema.safeParse(jobProgress);
   if (!parsedJobProgress.success) {
     throw new Error(
       `Failed to parse job progress in project ${projectId} for ${actionId}: ${parsedJobProgress.error.message}`,
@@ -92,7 +92,7 @@ export const handleSelectAllJob = async (
     cutoffCreatedAt: new Date(cutoffCreatedAt),
     ...parsedQuery.data,
     tableName: tableName as BatchExportTableName,
-    exportLimit: env.SELECT_ALL_EXPORT_ROW_LIMIT,
+    exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
   });
 
   // Process stream in database-sized batches
@@ -105,7 +105,7 @@ export const handleSelectAllJob = async (
   }
 
   // 2. Process in chunks
-  const startingChunk = (selectAllJob.progress as number) || 0;
+  const startingChunk = (batchActionJob.progress as number) || 0;
   let chunkCount = 0;
   for (let i = 0; i < records.length; i += CHUNK_SIZE) {
     // Skip processing if this chunk is before our saved progress
@@ -125,7 +125,7 @@ export const handleSelectAllJob = async (
     );
 
     chunkCount++;
-    await selectAllJob.updateProgress(chunkCount);
+    await batchActionJob.updateProgress(chunkCount);
   }
 
   logger.info("Select all job completed", {

@@ -1,7 +1,7 @@
 import { BatchExportTableName } from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
 import { randomUUID } from "crypto";
-import { handleSelectAllJob } from "../features/selectAll/handleSelectAllJob";
+import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
 import { getDatabaseReadStream } from "../features/batchExport/handleBatchExportJob";
 import {
   createOrgProjectAndApiKey,
@@ -41,7 +41,7 @@ describe("select all test suite", () => {
       updateProgress: vi.fn(),
     } as any;
 
-    await handleSelectAllJob(selectAllJob);
+    await handleBatchActionJob(selectAllJob);
 
     // Should have processed in chunks of 1000
     expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(3);
@@ -92,7 +92,7 @@ describe("select all test suite", () => {
       updateProgress: vi.fn(),
     } as any;
 
-    await handleSelectAllJob(selectAllJob);
+    await handleBatchActionJob(selectAllJob);
 
     // Should only process remaining chunks
     expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(2);
@@ -142,7 +142,7 @@ describe("select all test suite", () => {
       updateProgress: vi.fn(),
     } as any;
 
-    await handleSelectAllJob(selectAllJob);
+    await handleBatchActionJob(selectAllJob);
 
     // Verify only filtered traces were processed
     const stream = await getDatabaseReadStream({

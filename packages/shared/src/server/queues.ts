@@ -55,7 +55,7 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
-export const SelectAllProcessingEventSchema = z.object({
+export const BatchActionProcessingEventSchema = z.object({
   projectId: z.string(),
   actionId: z.string(),
   query: z.string(),
@@ -82,8 +82,8 @@ export type PostHogIntegrationProcessingEventType = z.infer<
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
 >;
-export type SelectAllProcessingEventType = z.infer<
-  typeof SelectAllProcessingEventSchema
+export type BatchActionProcessingEventType = z.infer<
+  typeof BatchActionProcessingEventSchema
 >;
 
 export enum QueueName {
@@ -103,7 +103,7 @@ export enum QueueName {
   MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
   DataRetentionQueue = "data-retention-queue",
   DataRetentionProcessingQueue = "data-retention-processing-queue",
-  SelectAllQueue = "select-all-queue",
+  BatchActionQueue = "batch-action-queue",
 }
 
 export enum QueueJobs {
@@ -123,7 +123,7 @@ export enum QueueJobs {
   MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
   DataRetentionJob = "data-retention-job",
   DataRetentionProcessingJob = "data-retention-processing-job",
-  SelectAllProcessingJob = "select-all-processing-job",
+  BatchActionProcessingJob = "batch-action-processing-job",
 }
 
 export type TQueueJobTypes = {
@@ -193,10 +193,10 @@ export type TQueueJobTypes = {
     payload: DataRetentionProcessingEventType;
     name: QueueJobs.DataRetentionProcessingJob;
   };
-  [QueueName.SelectAllQueue]: {
+  [QueueName.BatchActionQueue]: {
     timestamp: Date;
     id: string;
-    payload: SelectAllProcessingEventType;
-    name: QueueJobs.SelectAllProcessingJob;
+    payload: BatchActionProcessingEventType;
+    name: QueueJobs.BatchActionProcessingJob;
   };
 };

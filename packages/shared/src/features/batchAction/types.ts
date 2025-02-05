@@ -4,18 +4,18 @@ import { orderBy } from "../../interfaces/orderBy";
 import { ACTION_ACCESS_MAP } from "./constants";
 
 // TODO: merge type with batch export table name
-export enum BulkActionTableName {
+export enum BatchActionTableName {
   Traces = "traces",
 }
 
 export type ActionId = keyof typeof ACTION_ACCESS_MAP;
 
-export const BulkActionQuerySchema = z.object({
+export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy,
 });
 
-export const CreateBulkActionSchema = z.object({
+export const CreateBatchActionSchema = z.object({
   projectId: z.string(),
   actionId: z
     .string()
@@ -24,11 +24,11 @@ export const CreateBulkActionSchema = z.object({
       "Invalid action ID",
     ),
   targetId: z.string().optional(),
-  query: BulkActionQuerySchema,
-  tableName: z.nativeEnum(BulkActionTableName),
+  query: BatchActionQuerySchema,
+  tableName: z.nativeEnum(BatchActionTableName),
 });
 
-export const GetIsBulkActionInProgressSchema = z.object({
+export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
-  tableName: z.nativeEnum(BulkActionTableName),
+  tableName: z.nativeEnum(BatchActionTableName),
 });

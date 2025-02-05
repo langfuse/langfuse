@@ -7,27 +7,31 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  CreateBulkActionSchema,
-  GetIsBulkActionInProgressSchema,
+  CreateBatchActionSchema,
+  GetIsBatchActionInProgressSchema,
   InvalidRequestError,
-  type BulkActionTableName,
+  type BatchActionTableName,
 } from "@langfuse/shared";
-import { SelectAllQueue, logger, QueueJobs } from "@langfuse/shared/src/server";
+import {
+  BatchActionQueue,
+  logger,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const WAITING_JOBS = ["waiting", "delayed", "active"];
 
 const getWaitingJobsByProjectId = async (
   projectId: string,
-  tableName: BulkActionTableName,
+  tableName: BatchActionTableName,
 ) => {
-  const selectAllQueue = SelectAllQueue.getInstance();
+  const batchActionQueue = BatchActionQueue.getInstance();
 
-  if (!selectAllQueue) {
-    logger.warn(`SelectAllQueue not initialized`);
+  if (!batchActionQueue) {
+    logger.warn(`BatchActionQueue not initialized`);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "Select All action failed to process.",
+      message: "Bulk Action action failed to process.",
     });
   }
   if (!redis) {
@@ -35,12 +39,12 @@ const getWaitingJobsByProjectId = async (
   }
   const jobIds = await redis.smembers(`projectJobs:${projectId}:${tableName}`);
   const jobs = await Promise.all(
-    jobIds.map((id) => selectAllQueue.getJobState(id)),
+    jobIds.map((id) => batchActionQueue.getJobState(id)),
   );
   return jobs.filter((job) => job !== null && WAITING_JOBS.includes(job));
 };
 
-const generateBulkSelectId = (
+const generateBatchActionId = (
   projectId: string,
   actionId: string,
   tableName: string,
@@ -50,7 +54,7 @@ const generateBulkSelectId = (
 
 export const tableRouter = createTRPCRouter({
   selectAll: protectedProjectProcedure
-    .input(CreateBulkActionSchema)
+    .input(CreateBatchActionSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         const { scope, entitlement, resourceType, type } =
@@ -77,16 +81,16 @@ export const tableRouter = createTRPCRouter({
         }
 
         const { projectId, actionId, query, tableName, targetId } = input;
-        const bulkSelectId = generateBulkSelectId(
+        const batchActionId = generateBatchActionId(
           projectId,
           actionId,
           tableName,
         );
 
-        const selectAllQueue = SelectAllQueue.getInstance();
+        const batchActionQueue = BatchActionQueue.getInstance();
 
-        if (!selectAllQueue) {
-          logger.warn(`SelectAllQueue not initialized`);
+        if (!batchActionQueue) {
+          logger.warn(`BatchActionQueue not initialized`);
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Select All action failed to process.",
@@ -97,16 +101,16 @@ export const tableRouter = createTRPCRouter({
         await auditLog({
           session: ctx.session,
           resourceType,
-          resourceId: bulkSelectId,
+          resourceId: batchActionId,
           projectId,
           action: type,
         });
 
         // Notify worker
-        await selectAllQueue
-          .add(QueueJobs.SelectAllProcessingJob, {
-            id: bulkSelectId, // Use the selectAllId to deduplicate when the same job is sent multiple times
-            name: QueueJobs.SelectAllProcessingJob,
+        await batchActionQueue
+          .add(QueueJobs.BatchActionProcessingJob, {
+            id: batchActionId, // Use the selectAllId to deduplicate when the same job is sent multiple times
+            name: QueueJobs.BatchActionProcessingJob,
             timestamp: new Date(),
             payload: {
               projectId,
@@ -134,17 +138,17 @@ export const tableRouter = createTRPCRouter({
       }
     }),
   getIsSelectAllInProgress: protectedProjectProcedure
-    .input(GetIsBulkActionInProgressSchema)
+    .input(GetIsBatchActionInProgressSchema)
     .query(async ({ input }) => {
       const { projectId, tableName } = input;
 
-      const selectAllQueue = SelectAllQueue.getInstance();
+      const batchActionQueue = BatchActionQueue.getInstance();
 
-      if (!selectAllQueue) {
-        logger.warn(`SelectAllQueue not initialized`);
+      if (!batchActionQueue) {
+        logger.warn(`BatchActionQueue not initialized`);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Select All action failed to process.",
+          message: "Bulk Action action failed to process.",
         });
       }
 
