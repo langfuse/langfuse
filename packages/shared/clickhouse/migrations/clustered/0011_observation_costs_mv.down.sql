@@ -1,0 +1,1 @@
+DROP VIEW observation_costs_mv ON CLUSTER default;
