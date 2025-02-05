@@ -28,6 +28,8 @@ import {
   getNumericScoreTimeSeries,
   getCategoricalScoreTimeSeries,
   getObservationsStatusTimeSeries,
+  extractFromAndToTimestampsFromFilter,
+  logger,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -61,6 +63,15 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
+      const [from, to] = extractFromAndToTimestampsFromFilter(input.filter);
+
+      if (from.value > to.value) {
+        logger.error(
+          `from > to, returning empty result: from=${from}, to=${to}`,
+        );
+        return [];
+      }
+
       switch (input.queryName) {
         case "traces-total":
           const count = await getTotalTraces(
