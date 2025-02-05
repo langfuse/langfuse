@@ -10,7 +10,6 @@ import {
   CreateBatchActionSchema,
   GetIsBatchActionInProgressSchema,
   InvalidRequestError,
-  type BatchActionTableName,
 } from "@langfuse/shared";
 import {
   BatchActionQueue,
@@ -20,29 +19,6 @@ import {
 import { TRPCError } from "@trpc/server";
 
 const WAITING_JOBS = ["waiting", "delayed", "active"];
-
-const getWaitingJobsByProjectId = async (
-  projectId: string,
-  tableName: BatchActionTableName,
-) => {
-  const batchActionQueue = BatchActionQueue.getInstance();
-
-  if (!batchActionQueue) {
-    logger.warn(`BatchActionQueue not initialized`);
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Bulk Action action failed to process.",
-    });
-  }
-  if (!redis) {
-    return [];
-  }
-  const jobIds = await redis.smembers(`projectJobs:${projectId}:${tableName}`);
-  const jobs = await Promise.all(
-    jobIds.map((id) => batchActionQueue.getJobState(id)),
-  );
-  return jobs.filter((job) => job !== null && WAITING_JOBS.includes(job));
-};
 
 const generateBatchActionId = (
   projectId: string,
@@ -107,8 +83,9 @@ export const tableRouter = createTRPCRouter({
         });
 
         // Notify worker
-        await batchActionQueue
-          .add(QueueJobs.BatchActionProcessingJob, {
+        await batchActionQueue.add(
+          QueueJobs.BatchActionProcessingJob,
+          {
             id: batchActionId, // Use the selectAllId to deduplicate when the same job is sent multiple times
             name: QueueJobs.BatchActionProcessingJob,
             timestamp: new Date(),
@@ -120,12 +97,11 @@ export const tableRouter = createTRPCRouter({
               cutoffCreatedAt: new Date(),
               targetId,
             },
-          })
-          .then((job) => {
-            if (redis && job.id) {
-              redis.sadd(`projectJobs:${projectId}:${tableName}`, job.id); // Store job ID under project-specific key
-            }
-          });
+          },
+          {
+            jobId: batchActionId,
+          },
+        );
       } catch (e) {
         logger.error(e);
         if (e instanceof TRPCError) {
@@ -140,7 +116,12 @@ export const tableRouter = createTRPCRouter({
   getIsSelectAllInProgress: protectedProjectProcedure
     .input(GetIsBatchActionInProgressSchema)
     .query(async ({ input }) => {
-      const { projectId, tableName } = input;
+      const { projectId, tableName, actionId } = input;
+      const batchActionId = generateBatchActionId(
+        projectId,
+        input.actionId,
+        input.tableName,
+      );
 
       const batchActionQueue = BatchActionQueue.getInstance();
 
@@ -152,8 +133,8 @@ export const tableRouter = createTRPCRouter({
         });
       }
 
-      const jobs = await getWaitingJobsByProjectId(projectId, tableName);
-      const isInProgress = jobs.length > 0;
+      const jobState = await batchActionQueue.getJobState(batchActionId);
+      const isInProgress = WAITING_JOBS.includes(jobState);
 
       return isInProgress;
     }),

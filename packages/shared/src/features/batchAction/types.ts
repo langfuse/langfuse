@@ -30,5 +30,11 @@ export const CreateBatchActionSchema = z.object({
 
 export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
+  actionId: z
+    .string()
+    .refine(
+      (val): val is ActionId => val in ACTION_ACCESS_MAP,
+      "Invalid action ID",
+    ),
   tableName: z.nativeEnum(BatchActionTableName),
 });
