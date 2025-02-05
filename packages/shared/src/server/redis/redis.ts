@@ -1,5 +1,5 @@
 import Redis, { RedisOptions } from "ioredis";
-import * as fs from 'fs';
+import fs from 'fs';
 import { env } from "../../env";
 import { logger } from "../logger";
 

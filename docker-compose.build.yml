@@ -48,7 +48,7 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
-      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
       REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
       REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
       REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
@@ -58,8 +58,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    volumes:
-      - ./certs:/certs
 
   langfuse-worker:
     build:
@@ -78,8 +76,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    volumes:
-      - ./certs:/certs
 
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -129,22 +125,13 @@ services:
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
-      --port 0
-      --tls-auth-clients yes
-      --tls-port 6379
-      --tls-cert-file /certs/redis.crt
-      --tls-key-file /certs/redis.key
-      --tls-ca-cert-file /certs/ca.crt
-      --tls-protocols "TLSv1.1 TLSv1.2 TLSv1.3"
     ports:
       - 6379:6379
     healthcheck:
-      test: ["CMD", "redis-cli", "--cert", "/certs/redis.crt", "--key", "/certs/redis.key", "--cacert", "/certs/ca.crt", "--tls", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 10s
       retries: 10
-    volumes:
-      - ./certs:/certs
 
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
