@@ -37,6 +37,7 @@ import {
   type ObservationLevel,
   BatchExportTableName,
   BatchActionTableName,
+  AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -61,6 +62,8 @@ import { TableActionMenu } from "@/src/features/table/components/TableActionMenu
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { type TableAction } from "@/src/features/table/types";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -260,6 +263,95 @@ export default function TracesTable({
     tableName: "traces",
     setSelectedRows,
   });
+
+  const traceDeleteMutation = api.traces.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Traces deleted",
+        description: `Selected traces will be deleted.`,
+      });
+    },
+    onSettled: () => {
+      void utils.traces.all.invalidate();
+    },
+  });
+
+  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: "Traces added to queue",
+        description: `Selected traces added to queue "${data.queueName}".`,
+        link: {
+          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
+          text: `View queue "${data.queueName}"`,
+        },
+      });
+    },
+  });
+
+  const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
+    const selectedTraceIds = Object.keys(selectedRows).filter((traceId) =>
+      traces.data?.traces.map((t) => t.id).includes(traceId),
+    );
+
+    await traceDeleteMutation.mutateAsync({
+      projectId,
+      traceIds: selectedTraceIds,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
+      isBatchAction: selectAll,
+    });
+    setSelectedRows({});
+    setUserFilterState([]);
+  };
+
+  const handleAddToAnnotationQueue = async ({
+    projectId,
+    targetId,
+  }: {
+    projectId: string;
+    targetId: string;
+  }) => {
+    const selectedTraceIds = Object.keys(selectedRows).filter((traceId) =>
+      traces.data?.traces.map((t) => t.id).includes(traceId),
+    );
+
+    await addToQueueMutation.mutateAsync({
+      projectId,
+      objectIds: selectedTraceIds,
+      objectType: AnnotationQueueObjectType.TRACE,
+      queueId: targetId,
+    });
+  };
+
+  const tableActions: TableAction[] = [
+    {
+      id: "trace-delete",
+      type: "delete",
+      label: "Delete Traces",
+      description:
+        "This action permanently deletes traces and cannot be undone.",
+      accessCheck: {
+        scope: "traces:delete",
+        entitlement: "trace-deletion",
+      },
+      execute: handleDeleteTraces,
+    },
+    {
+      id: "trace-add-to-annotation-queue",
+      type: "create",
+      label: "Add to Annotation Queue",
+      description: "Add selected traces to an annotation queue.",
+      targetLabel: "Annotation Queue",
+      execute: handleAddToAnnotationQueue,
+      accessCheck: {
+        scope: "annotationQueues:CUD",
+        entitlement: "annotation-queues",
+      },
+    },
+  ];
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     selectActionColumn,
@@ -817,17 +909,8 @@ export default function TracesTable({
             <TableActionMenu
               key="traces-multi-select-actions"
               projectId={projectId}
+              actions={tableActions}
               tableName={BatchActionTableName.Traces}
-              actionIds={["trace-delete", "trace-add-to-annotation-queue"]}
-              orderByState={orderByState}
-              filterState={filterState}
-              selectedIds={Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              )}
-              onActionComplete={() => {
-                setSelectedRows({});
-                setUserFilterState([]);
-              }}
             />
           ) : null,
           <BatchExportTableButton
