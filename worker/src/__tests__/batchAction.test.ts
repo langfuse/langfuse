@@ -37,8 +37,6 @@ describe("select all test suite", () => {
           cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
-      progress: 0,
-      updateProgress: vi.fn(),
     } as any;
 
     await handleBatchActionJob(selectAllJob);
@@ -60,42 +58,6 @@ describe("select all test suite", () => {
       remainingRows.push(chunk);
     }
     expect(remainingRows).toHaveLength(0);
-  });
-
-  it("should skip already processed chunks on retry", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
-
-    const traces = Array.from({ length: 2500 }).map(() =>
-      createTrace({
-        project_id: projectId,
-        id: randomUUID(),
-        timestamp: new Date("2024-01-01").getTime(),
-      }),
-    );
-
-    await createTracesCh(traces);
-
-    const selectAllJob = {
-      data: {
-        payload: {
-          projectId,
-          actionId: "trace-delete",
-          tableName: BatchExportTableName.Traces,
-          query: JSON.stringify({
-            filter: [],
-            orderBy: { column: "timestamp", order: "DESC" },
-          }),
-          cutoffCreatedAt: new Date("2024-01-02"),
-        },
-      },
-      progress: 1, // Simulate already processed first chunk
-      updateProgress: vi.fn(),
-    } as any;
-
-    await handleBatchActionJob(selectAllJob);
-
-    // Should only process remaining chunks
-    expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(2);
   });
 
   it("should handle filtered queries", async () => {
@@ -138,8 +100,6 @@ describe("select all test suite", () => {
           cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
-      progress: 0,
-      updateProgress: vi.fn(),
     } as any;
 
     await handleBatchActionJob(selectAllJob);

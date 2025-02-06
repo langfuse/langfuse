@@ -105,16 +105,7 @@ export const handleBatchActionJob = async (
   }
 
   // 2. Process in chunks
-  const startingChunk = (batchActionJob.progress as number) || 0;
-  let chunkCount = 0;
   for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-    // Skip processing if this chunk is before our saved progress
-    if (chunkCount < startingChunk) {
-      logger.info(`Skipping batch ${chunkCount} (already processed)`);
-      chunkCount++;
-      continue;
-    }
-
     const batch = records.slice(i, i + CHUNK_SIZE);
 
     await processActionChunk(
@@ -123,9 +114,6 @@ export const handleBatchActionJob = async (
       projectId,
       targetId,
     );
-
-    chunkCount++;
-    await batchActionJob.updateProgress(chunkCount);
   }
 
   logger.info("Select all job completed", {
