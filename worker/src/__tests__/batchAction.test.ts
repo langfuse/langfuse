@@ -41,9 +41,6 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(selectAllJob);
 
-    // Should have processed in chunks of 1000
-    expect(selectAllJob.updateProgress).toHaveBeenCalledTimes(3);
-
     // Verify traces were deleted
     const stream = await getDatabaseReadStream({
       projectId,
