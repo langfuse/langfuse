@@ -654,15 +654,26 @@ export const parseDatabaseRowToString = (
 ): string => {
   const selectedColumn = dbRow[mapping.selectedColumnId];
 
-  const jsonSelectedColumn = mapping.jsonSelector
-    ? JSONPath({
+  let jsonSelectedColumn;
+  if (mapping.jsonSelector) {
+    try {
+      jsonSelectedColumn = JSONPath({
         path: mapping.jsonSelector,
         json:
           typeof selectedColumn === "string"
             ? JSON.parse(selectedColumn)
             : selectedColumn,
-      })
-    : selectedColumn;
+      });
+    } catch (error) {
+      logger.error(
+        `Error parsing JSON for json selector ${mapping.jsonSelector}. Falling back to original value.`,
+        error,
+      );
+      jsonSelectedColumn = selectedColumn;
+    }
+  } else {
+    jsonSelectedColumn = selectedColumn;
+  }
 
   return parseUnknownToString(jsonSelectedColumn);
 };
