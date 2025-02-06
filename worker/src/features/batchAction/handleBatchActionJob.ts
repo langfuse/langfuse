@@ -16,6 +16,7 @@ import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDe
 import { env } from "../../env";
 import { Job } from "bullmq";
 import { processAddToQueue } from "./processAddToQueue";
+import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
@@ -34,17 +35,14 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
-        logger.info(
-          `Deleting traces ${JSON.stringify(chunkIds)} in project ${projectId}`,
-        );
+        await processPostgresTraceDelete(projectId, chunkIds);
         await processClickhouseTraceDelete(projectId, chunkIds);
         break;
+
       case "trace-add-to-annotation-queue":
-        logger.info(
-          `Adding traces ${JSON.stringify(chunkIds)} to annotation queue ${targetId} in project ${projectId}`,
-        );
         await processAddToQueue(projectId, chunkIds, targetId as string);
         break;
+
       default:
         throw new Error(`Unknown action: ${actionId}`);
     }

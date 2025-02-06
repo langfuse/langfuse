@@ -10,6 +10,9 @@ export const processClickhouseTraceDelete = async (
   projectId: string,
   traceIds: string[],
 ) => {
+  logger.info(
+    `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId} from Clickhouse`,
+  );
   try {
     await Promise.all([
       deleteTraces(projectId, traceIds),

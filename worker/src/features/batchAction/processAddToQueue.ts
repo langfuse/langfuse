@@ -6,6 +6,9 @@ export const processAddToQueue = async (
   traceIds: string[],
   targetId: string,
 ) => {
+  logger.info(
+    `Adding traces ${JSON.stringify(traceIds)} to annotation queue ${targetId} in project ${projectId}`,
+  );
   try {
     await prisma.annotationQueueItem.createMany({
       data: traceIds.map((traceId) => ({
