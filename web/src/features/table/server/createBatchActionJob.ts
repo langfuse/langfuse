@@ -1,7 +1,11 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import { type TableAction } from "@/src/features/table/types";
-import { type Role, type BatchActionTableName } from "@langfuse/shared";
+import {
+  type Role,
+  type BatchActionTableName,
+  type BatchActionQuery,
+} from "@langfuse/shared";
 import {
   BatchActionQueue,
   logger,
@@ -23,7 +27,7 @@ type CreateBatchActionJob = {
     projectId?: string;
     projectRole?: Role;
   };
-  query: any; // replace type
+  query: BatchActionQuery;
   targetId?: string;
 };
 
@@ -71,7 +75,7 @@ export const createBatchActionJob = async ({
         actionId,
         tableName,
         cutoffCreatedAt: new Date(),
-        query: JSON.stringify(query), // replace type and remove JSON.stringify
+        query,
         targetId: targetId,
       },
     },

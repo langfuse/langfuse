@@ -9,6 +9,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  BatchActionQuerySchema,
   BatchActionTableName,
   filterAndValidateDbScoreList,
   orderBy,
@@ -272,10 +273,7 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
         projectId: z.string(),
-        query: z.object({
-          filter: z.array(singleFilter).nullable(),
-          orderBy: orderBy,
-        }),
+        query: BatchActionQuerySchema.optional(),
         isBatchAction: z.boolean().default(false),
       }),
     )
@@ -286,7 +284,7 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
-      if (input.isBatchAction) {
+      if (input.isBatchAction && input.query) {
         await createBatchActionJob({
           projectId: input.projectId,
           actionId: "trace-delete",

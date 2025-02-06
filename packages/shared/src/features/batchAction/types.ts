@@ -16,6 +16,8 @@ export const BatchActionQuerySchema = z.object({
   orderBy,
 });
 
+export type BatchActionQuery = z.infer<typeof BatchActionQuerySchema>;
+
 export const CreateBatchActionSchema = z.object({
   projectId: z.string(),
   actionId: z

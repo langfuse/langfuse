@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { eventTypes } from ".";
+import {
+  BatchActionQuerySchema,
+  BatchActionTableName,
+} from "../features/batchAction/types";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -58,8 +62,8 @@ export const DataRetentionProcessingEventSchema = z.object({
 export const BatchActionProcessingEventSchema = z.object({
   projectId: z.string(),
   actionId: z.string(),
-  query: z.string(),
-  tableName: z.string(),
+  query: BatchActionQuerySchema,
+  tableName: z.nativeEnum(BatchActionTableName),
   cutoffCreatedAt: z.date(),
   targetId: z.string().optional(),
 });

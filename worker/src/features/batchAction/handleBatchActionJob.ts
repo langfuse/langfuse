@@ -5,23 +5,13 @@ import {
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import z from "zod";
-import { orderBy } from "../../../../packages/shared/dist/src/interfaces/orderBy";
-import {
-  ACTION_ACCESS_MAP,
-  BatchExportTableName,
-  singleFilter,
-} from "@langfuse/shared";
+import { ACTION_ACCESS_MAP, BatchExportTableName } from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
 import { processAddToQueue } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
-
-export const BatchActionQuerySchema = z.object({
-  filter: z.array(singleFilter).nullable(),
-  orderBy,
-});
 
 const BatchActionJobProgressSchema = z.number();
 
@@ -67,14 +57,6 @@ export const handleBatchActionJob = async (
     throw new Error(`Target ID is required for create action`);
   }
 
-  // Parse query from job
-  const parsedQuery = BatchActionQuerySchema.safeParse(JSON.parse(query));
-  if (!parsedQuery.success) {
-    throw new Error(
-      `Failed to parse query in project ${projectId} for ${actionId}: ${parsedQuery.error.message}`,
-    );
-  }
-
   // Load processed chunk count from job metadata
   const jobProgress = batchActionJob.progress ?? 0;
   const parsedJobProgress = BatchActionJobProgressSchema.safeParse(jobProgress);
@@ -88,8 +70,8 @@ export const handleBatchActionJob = async (
   const dbReadStream = await getDatabaseReadStream({
     projectId: projectId,
     cutoffCreatedAt: new Date(cutoffCreatedAt),
-    ...parsedQuery.data,
-    tableName: tableName as BatchExportTableName,
+    ...query,
+    tableName: tableName as unknown as BatchExportTableName,
     exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
   });
 
