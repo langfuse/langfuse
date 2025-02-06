@@ -115,6 +115,7 @@ export const ingestionQueueProcessorBuilder = (
               entityType: clickhouseEntityType,
               entityId: job.data.payload.data.eventBodyId,
             },
+            distinct: ["bucketPath"],
           });
 
           // Compare files from Postgres with S3 result
