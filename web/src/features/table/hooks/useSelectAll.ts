@@ -17,19 +17,16 @@ export function useSelectAll(projectId: string, tableName: string) {
   );
 
   useEffect(() => {
-    // Only add listener if this is the first instance for this storage key
-    if (!initialValue) {
-      const handleRouteChange = () => {
-        setSelectAll(false);
-      };
+    const handleRouteChange = () => {
+      setSelectAll(false);
+    };
 
-      router.events.on("routeChangeStart", handleRouteChange);
+    router.events.on("routeChangeStart", handleRouteChange);
 
-      return () => {
-        router.events.off("routeChangeStart", handleRouteChange);
-      };
-    }
-  }, [router.events, setSelectAll, initialValue]);
+    return () => {
+      router.events.off("routeChangeStart", handleRouteChange);
+    };
+  }, [router.events, setSelectAll]);
 
   return { selectAll, setSelectAll };
 }
