@@ -822,7 +822,7 @@ export const InnerEvalConfigForm = (props: {
                                   <VariableMappingDescription
                                     title={"JSON Selector"}
                                     description={
-                                      "Optional field: Use JSON path syntax to from the field."
+                                      "Optional selection: Use JSON path syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
                                     }
                                     href={
                                       "https://langfuse.com/docs/scores/model-based-evals"
@@ -834,6 +834,7 @@ export const InnerEvalConfigForm = (props: {
                                         {...field}
                                         value={field.value ?? ""}
                                         disabled={props.disabled}
+                                        placeholder="Optional"
                                       />
                                     </FormControl>
                                     <FormMessage />

@@ -604,9 +604,6 @@ importers:
       ip-address:
         specifier: ^9.0.5
         version: 9.0.5
-      jsonpath-plus:
-        specifier: 10.0.7
-        version: 10.0.7
       kysely:
         specifier: ^0.27.4
         version: 0.27.4
@@ -924,6 +921,9 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.4.1
+      jsonpath-plus:
+        specifier: 10.0.7
+        version: 10.0.7
       kysely:
         specifier: ^0.27.4
         version: 0.27.4
