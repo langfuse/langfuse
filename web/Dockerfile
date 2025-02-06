@@ -96,8 +96,6 @@ ARG BUILDPLATFORM
 WORKDIR /app
 
 ARG NEXT_PUBLIC_BUILD_ID
-ARG UID=1001
-ARG GID=1001
 ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
@@ -110,7 +108,9 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 
 RUN apk add --no-cache dumb-init tzdata
 
-
+# Don't run production as root
+ARG UID=1001
+ARG GID=1001
 RUN addgroup --system --gid ${GID} nodejs
 RUN adduser --system --uid ${UID} nextjs
 
