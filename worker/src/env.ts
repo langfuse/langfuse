@@ -38,6 +38,9 @@ const EnvSchema = z.object({
   LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_POSTGRES_LOG_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
