@@ -9,15 +9,15 @@
 # the `language` matrix defined below to confirm you have the correct set of
 # supported CodeQL languages.
 #
-name: "CodeQL"
+name: "CodeQL Advanced"
 
 on:
   push:
-    branches: ["main", "production", "v*"]
+    branches: ["main", "production", "v2"]
   pull_request:
-    branches: ["main", "production", "v*"]
+    branches: ["main", "production", "v2"]
   schedule:
-    - cron: "31 13 * * 0"
+    - cron: "36 20 * * 3"
 
 jobs:
   analyze:
@@ -56,6 +56,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Add any setup steps before running the `github/codeql-action/init` action.
+      # This includes steps like installing compilers or runtimes (`actions/setup-node`
+      # or others). This is typically only required for manual builds.
+      # - name: Setup runtime (example)
+      #   uses: actions/setup-example@v1
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
