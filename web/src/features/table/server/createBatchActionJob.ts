@@ -61,7 +61,7 @@ export const createBatchActionJob = async ({
     resourceType: "batchAction",
     resourceId: batchActionId,
     projectId: projectId,
-    action: actionType,
+    action: actionType as string,
   });
 
   // Notify worker
