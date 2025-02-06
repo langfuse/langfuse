@@ -19,6 +19,7 @@ export enum LLMAdapter {
   Azure = "azure",
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
+  Livekit = "livekit",
 }
 
 export enum ChatMessageRole {
@@ -127,14 +128,21 @@ export const vertexAIModels = [
   "gemini-1.0-pro",
 ] as const;
 
+export const livekitModels = [
+  "livekit-model-1",
+  "livekit-model-2",
+] as const;
+
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
+export type LivekitModel = (typeof livekitModels)[number];
 export const supportedModels = {
   [LLMAdapter.Anthropic]: anthropicModels,
   [LLMAdapter.OpenAI]: openAIModels,
   [LLMAdapter.VertexAI]: vertexAIModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.Livekit]: livekitModels,
 } as const;
 
 export type LLMFunctionCall = {
