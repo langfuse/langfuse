@@ -30,10 +30,10 @@ describe("select all test suite", () => {
           projectId,
           actionId: "trace-delete",
           tableName: BatchExportTableName.Traces,
-          query: JSON.stringify({
+          query: {
             filter: [],
             orderBy: { column: "timestamp", order: "DESC" },
-          }),
+          },
           cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
@@ -83,7 +83,7 @@ describe("select all test suite", () => {
           projectId,
           actionId: "trace-delete",
           tableName: BatchExportTableName.Traces,
-          query: JSON.stringify({
+          query: {
             filter: [
               {
                 type: "string",
@@ -93,7 +93,7 @@ describe("select all test suite", () => {
               },
             ],
             orderBy: { column: "timestamp", order: "DESC" },
-          }),
+          },
           cutoffCreatedAt: new Date("2024-01-02"),
         },
       },
