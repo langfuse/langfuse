@@ -117,6 +117,7 @@
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
     "ip-address": "^9.0.5",
+    "jsonpath-plus": "10.0.7",
     "kysely": "^0.27.4",
     "langchain": "^0.3.6",
     "lodash": "^4.17.21",
