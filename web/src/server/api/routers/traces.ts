@@ -39,7 +39,6 @@ import {
   QueueJobs,
   TraceDeleteQueue,
   getTracesTableMetrics,
-  BatchActionQueue,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";

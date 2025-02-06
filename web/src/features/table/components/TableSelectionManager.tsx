@@ -1,5 +1,9 @@
 import { Checkbox } from "@/src/components/ui/checkbox";
-import { type Table, type Row, RowSelectionState } from "@tanstack/react-table";
+import {
+  type Table,
+  type Row,
+  type RowSelectionState,
+} from "@tanstack/react-table";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 
 interface TableSelectionManagerProps {
