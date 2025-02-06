@@ -16,6 +16,11 @@ import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete
 const BatchActionJobProgressSchema = z.number();
 
 const CHUNK_SIZE = 1000;
+
+/**
+ * ⚠️ All operations must be idempotent. In case of failure, the job should be retried.
+ * If it does, chunks that have already been processed might be processed again.
+ */
 async function processActionChunk(
   actionId: string,
   chunkIds: string[],
