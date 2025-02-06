@@ -55,14 +55,14 @@ RUN apk add --no-cache dumb-init
 WORKDIR /app
 
 ARG NEXT_PUBLIC_BUILD_ID
-ARG UID=1001
-ARG GID=1001
 ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 
 ENV NODE_ENV production
 ENV DOCKER_BUILD 0
 
 # Don't run production as root
+ARG UID=1001
+ARG GID=1001
 RUN addgroup --system --gid ${GID} expressjs
 RUN adduser --system --uid ${UID} expressjs
 USER expressjs
