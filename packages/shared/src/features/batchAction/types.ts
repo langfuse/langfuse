@@ -5,6 +5,7 @@ import { ACTION_ACCESS_MAP } from "./constants";
 
 // TODO: merge type with batch export table name
 export enum BatchActionTableName {
+  // eslint-disable-next-line no-unused-vars
   Traces = "traces",
 }
 
