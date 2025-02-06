@@ -343,8 +343,6 @@ export const evaluate = async ({
     prompt = template.prompt;
   }
 
-  console.log("prompt", prompt);
-
   logger.debug(
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
   );
