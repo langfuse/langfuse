@@ -822,7 +822,7 @@ export const InnerEvalConfigForm = (props: {
                                   <VariableMappingDescription
                                     title={"JSON Selector"}
                                     description={
-                                      "Optional selection: Use JSON path syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                      "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
                                     }
                                     href={
                                       "https://langfuse.com/docs/scores/model-based-evals"
