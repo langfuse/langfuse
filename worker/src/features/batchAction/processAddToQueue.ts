@@ -11,35 +11,35 @@ export const processAddToQueue = async (
   );
   try {
     // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
-    // conflict must be handled on query level
-    await prisma.$executeRaw`
-    INSERT INTO annotation_queue_items (
-      id, 
-      project_id, 
-      queue_id, 
-      object_id, 
-      object_type, 
-      status, 
-      created_at, 
-      updated_at
-    )
-    VALUES ${Prisma.join(
-      traceIds.map(
-        (id) => Prisma.sql`(
-          gen_random_uuid(), 
-          ${projectId}, 
-          ${targetId}, 
-          ${id}, 
-          'TRACE', 
-          'PENDING'::annotation_queue_status, 
-          NOW(), 
-          NOW()
-        )`,
-      ),
-      ",",
-    )}
-    ON CONFLICT (project_id, queue_id, object_id, object_type) DO NOTHING
-    `;
+    // conflict must be handled on query level by reading existing items and filtering out traces that already exist
+
+    // First get existing items
+    const existingItems = await prisma.annotationQueueItem.findMany({
+      where: {
+        projectId,
+        queueId: targetId,
+        objectId: { in: traceIds },
+        objectType: "TRACE",
+      },
+      select: { objectId: true },
+    });
+
+    // Filter out traces that already exist
+    const existingTraceIds = new Set(
+      existingItems.map((item) => item.objectId),
+    );
+    const newTraceIds = traceIds.filter((id) => !existingTraceIds.has(id));
+
+    if (newTraceIds.length > 0) {
+      await prisma.annotationQueueItem.createMany({
+        data: newTraceIds.map((traceId) => ({
+          projectId,
+          queueId: targetId,
+          objectId: traceId,
+          objectType: "TRACE",
+        })),
+      });
+    }
   } catch (e) {
     logger.error(
       `Error adding traces ${JSON.stringify(traceIds)} to annotation queue ${targetId} in project ${projectId}`,

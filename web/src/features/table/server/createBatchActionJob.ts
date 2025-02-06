@@ -1,10 +1,11 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
-import { type TableAction } from "@/src/features/table/types";
 import {
   type Role,
   type BatchActionTableName,
   type BatchActionQuery,
+  type ActionId,
+  type BatchActionType,
 } from "@langfuse/shared";
 import {
   BatchActionQueue,
@@ -15,9 +16,9 @@ import { TRPCError } from "@trpc/server";
 
 type CreateBatchActionJob = {
   projectId: string;
-  actionId: string;
+  actionId: ActionId;
   tableName: BatchActionTableName;
-  actionType: TableAction["type"];
+  actionType: BatchActionType;
   session: {
     user: {
       id: string;
@@ -77,6 +78,7 @@ export const createBatchActionJob = async ({
         cutoffCreatedAt: new Date(),
         query,
         targetId: targetId,
+        type: actionType,
       },
     },
     {

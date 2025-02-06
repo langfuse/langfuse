@@ -1,7 +1,6 @@
 import z from "zod";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
-import { ACTION_ACCESS_MAP } from "./constants";
 
 // TODO: merge type with batch export table name
 export enum BatchActionTableName {
@@ -9,7 +8,17 @@ export enum BatchActionTableName {
   Traces = "traces",
 }
 
-export type ActionId = keyof typeof ACTION_ACCESS_MAP;
+export enum BatchActionType {
+  Create = "create",
+  Delete = "delete",
+}
+
+const ActionIdSchema = z.enum([
+  "trace-delete",
+  "trace-add-to-annotation-queue",
+]);
+
+export type ActionId = z.infer<typeof ActionIdSchema>;
 
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
@@ -20,12 +29,7 @@ export type BatchActionQuery = z.infer<typeof BatchActionQuerySchema>;
 
 export const CreateBatchActionSchema = z.object({
   projectId: z.string(),
-  actionId: z
-    .string()
-    .refine(
-      (val): val is ActionId => val in ACTION_ACCESS_MAP,
-      "Invalid action ID",
-    ),
+  actionId: ActionIdSchema,
   targetId: z.string().optional(),
   query: BatchActionQuerySchema,
   tableName: z.nativeEnum(BatchActionTableName),
@@ -33,11 +37,6 @@ export const CreateBatchActionSchema = z.object({
 
 export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
-  actionId: z
-    .string()
-    .refine(
-      (val): val is ActionId => val in ACTION_ACCESS_MAP,
-      "Invalid action ID",
-    ),
+  actionId: ActionIdSchema,
   tableName: z.nativeEnum(BatchActionTableName),
 });

@@ -25,7 +25,6 @@ export * from "./features/evals/types";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
-export * from "./features/batchAction/constants";
 
 // annotation
 export * from "./features/annotation/types";

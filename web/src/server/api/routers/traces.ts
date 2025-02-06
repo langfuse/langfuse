@@ -11,6 +11,7 @@ import {
 import {
   BatchActionQuerySchema,
   BatchActionTableName,
+  BatchActionType,
   filterAndValidateDbScoreList,
   orderBy,
   paginationZod,
@@ -287,7 +288,7 @@ export const traceRouter = createTRPCRouter({
         await createBatchActionJob({
           projectId: input.projectId,
           actionId: "trace-delete",
-          actionType: "delete",
+          actionType: BatchActionType.Delete,
           tableName: BatchActionTableName.Traces,
           session: ctx.session,
           query: input.query,

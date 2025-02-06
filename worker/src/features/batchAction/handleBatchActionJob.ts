@@ -5,7 +5,12 @@ import {
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import z from "zod";
-import { ACTION_ACCESS_MAP, BatchExportTableName } from "@langfuse/shared";
+import {
+  BatchActionQuery,
+  BatchActionType,
+  BatchExportTableName,
+  FilterCondition,
+} from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
@@ -13,9 +18,17 @@ import { Job } from "bullmq";
 import { processAddToQueue } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 
-const BatchActionJobProgressSchema = z.number();
-
 const CHUNK_SIZE = 1000;
+const convertDatesInQuery = (query: BatchActionQuery) => {
+  if (!query.filter) return query;
+
+  return {
+    ...query,
+    filter: query.filter.map((f: FilterCondition) =>
+      f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
+    ),
+  };
+};
 
 /**
  * ⚠️ All operations must be idempotent. In case of failure, the job should be retried.
@@ -52,30 +65,25 @@ export const handleBatchActionJob = async (
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
     batchActionJob.data.payload;
-  const { projectId, actionId, tableName, query, cutoffCreatedAt, targetId } =
-    batchActionEvent;
+  const {
+    projectId,
+    actionId,
+    tableName,
+    query,
+    cutoffCreatedAt,
+    targetId,
+    type,
+  } = batchActionEvent;
 
-  const { type } =
-    ACTION_ACCESS_MAP[actionId as keyof typeof ACTION_ACCESS_MAP];
-
-  if (type == "create" && !targetId) {
+  if (type === BatchActionType.Create && !targetId) {
     throw new Error(`Target ID is required for create action`);
-  }
-
-  // Load processed chunk count from job metadata
-  const jobProgress = batchActionJob.progress ?? 0;
-  const parsedJobProgress = BatchActionJobProgressSchema.safeParse(jobProgress);
-  if (!parsedJobProgress.success) {
-    throw new Error(
-      `Failed to parse job progress in project ${projectId} for ${actionId}: ${parsedJobProgress.error.message}`,
-    );
   }
 
   // TODO: given retries must skip any item we have already processed
   const dbReadStream = await getDatabaseReadStream({
     projectId: projectId,
     cutoffCreatedAt: new Date(cutoffCreatedAt),
-    ...query,
+    ...convertDatesInQuery(query),
     tableName: tableName as unknown as BatchExportTableName,
     exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
   });
@@ -101,7 +109,7 @@ export const handleBatchActionJob = async (
     );
   }
 
-  logger.info("Select all job completed", {
+  logger.info("Batch action job completed", {
     projectId,
     actionId,
     tableName,

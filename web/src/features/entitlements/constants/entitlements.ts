@@ -19,6 +19,7 @@ const entitlements = [
 export type Entitlement = (typeof entitlements)[number];
 
 const cloudAllPlansEntitlements: Entitlement[] = [
+  "trace-deletion",
   "playground",
   "model-based-evaluations",
   "cloud-billing",

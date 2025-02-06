@@ -38,6 +38,7 @@ import {
   BatchExportTableName,
   BatchActionTableName,
   AnnotationQueueObjectType,
+  BatchActionType,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -323,13 +324,18 @@ export default function TracesTable({
       objectIds: selectedTraceIds,
       objectType: AnnotationQueueObjectType.TRACE,
       queueId: targetId,
+      isBatchAction: selectAll,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
     });
   };
 
   const tableActions: TableAction[] = [
     {
       id: "trace-delete",
-      type: "delete",
+      type: BatchActionType.Delete,
       label: "Delete Traces",
       description:
         "This action permanently deletes traces and cannot be undone.",
@@ -341,7 +347,7 @@ export default function TracesTable({
     },
     {
       id: "trace-add-to-annotation-queue",
-      type: "create",
+      type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected traces to an annotation queue.",
       targetLabel: "Annotation Queue",

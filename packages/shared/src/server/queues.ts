@@ -3,6 +3,7 @@ import { eventTypes } from ".";
 import {
   BatchActionQuerySchema,
   BatchActionTableName,
+  BatchActionType,
 } from "../features/batchAction/types";
 
 export const IngestionEvent = z.object({
@@ -66,6 +67,7 @@ export const BatchActionProcessingEventSchema = z.object({
   tableName: z.nativeEnum(BatchActionTableName),
   cutoffCreatedAt: z.date(),
   targetId: z.string().optional(),
+  type: z.nativeEnum(BatchActionType),
 });
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;

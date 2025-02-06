@@ -12,6 +12,7 @@ import {
   AnnotationQueueStatus,
   BatchActionQuerySchema,
   BatchActionTableName,
+  BatchActionType,
   paginationZod,
   Prisma,
 } from "@langfuse/shared";
@@ -274,8 +275,8 @@ export const queueItemRouter = createTRPCRouter({
         if (input.isBatchAction && input.query) {
           await createBatchActionJob({
             projectId: input.projectId,
-            actionId: "annotation-queue-item-create",
-            actionType: "create",
+            actionId: "trace-add-to-annotation-queue",
+            actionType: BatchActionType.Create,
             tableName: BatchActionTableName.Traces,
             session: ctx.session,
             query: input.query,
