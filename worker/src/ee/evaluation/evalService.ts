@@ -34,6 +34,7 @@ import {
   ZodModelConfig,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
+  variableMapping,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -41,6 +42,7 @@ import {
   callStructuredLLM,
   compileHandlebarString,
 } from "../../features/utilities";
+import { JSONPath } from "jsonpath-plus";
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -557,7 +559,7 @@ export async function extractVariablesFromTracingData({
 
         return {
           var: variable,
-          value: parseUnknownToString(datasetItem[mapping.selectedColumnId]),
+          value: parseDatabaseRowToString(datasetItem, mapping),
         };
       }
 
@@ -592,7 +594,7 @@ export async function extractVariablesFromTracingData({
 
         return {
           var: variable,
-          value: parseUnknownToString(trace[mapping.selectedColumnId]),
+          value: parseDatabaseRowToString(trace, mapping),
         };
       }
 
@@ -645,6 +647,36 @@ export async function extractVariablesFromTracingData({
     }),
   );
 }
+
+export const parseDatabaseRowToString = (
+  dbRow: Record<string, unknown>,
+  mapping: z.infer<typeof variableMapping>,
+): string => {
+  const selectedColumn = dbRow[mapping.selectedColumnId];
+
+  let jsonSelectedColumn;
+  if (mapping.jsonSelector) {
+    try {
+      jsonSelectedColumn = JSONPath({
+        path: mapping.jsonSelector,
+        json:
+          typeof selectedColumn === "string"
+            ? JSON.parse(selectedColumn)
+            : selectedColumn,
+      });
+    } catch (error) {
+      logger.error(
+        `Error parsing JSON for json selector ${mapping.jsonSelector}. Falling back to original value.`,
+        error,
+      );
+      jsonSelectedColumn = selectedColumn;
+    }
+  } else {
+    jsonSelectedColumn = selectedColumn;
+  }
+
+  return parseUnknownToString(jsonSelectedColumn);
+};
 
 export const parseUnknownToString = (value: unknown): string => {
   if (value === null || value === undefined) {
