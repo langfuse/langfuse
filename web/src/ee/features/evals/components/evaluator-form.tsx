@@ -820,9 +820,9 @@ export const InnerEvalConfigForm = (props: {
                               render={({ field }) => (
                                 <div className="flex items-center gap-2">
                                   <VariableMappingDescription
-                                    title={"JSON Selector"}
+                                    title={"JsonPath"}
                                     description={
-                                      "Optional selection: Use JSON path syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                      "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
                                     }
                                     href={
                                       "https://langfuse.com/docs/scores/model-based-evals"
