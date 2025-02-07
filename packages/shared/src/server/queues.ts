@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { eventTypes } from ".";
+import {
+  BatchActionQuerySchema,
+  BatchActionType,
+} from "../features/batchAction/types";
+import { BatchExportTableName } from "../features/batchExport/types";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -55,6 +60,15 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
+export const BatchActionProcessingEventSchema = z.object({
+  projectId: z.string(),
+  actionId: z.string(),
+  query: BatchActionQuerySchema,
+  tableName: z.nativeEnum(BatchExportTableName),
+  cutoffCreatedAt: z.date(),
+  targetId: z.string().optional(),
+  type: z.nativeEnum(BatchActionType),
+});
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
@@ -74,6 +88,9 @@ export type PostHogIntegrationProcessingEventType = z.infer<
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
 >;
+export type BatchActionProcessingEventType = z.infer<
+  typeof BatchActionProcessingEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -92,6 +109,7 @@ export enum QueueName {
   MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
   DataRetentionQueue = "data-retention-queue",
   DataRetentionProcessingQueue = "data-retention-processing-queue",
+  BatchActionQueue = "batch-action-queue",
 }
 
 export enum QueueJobs {
@@ -111,6 +129,7 @@ export enum QueueJobs {
   MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
   DataRetentionJob = "data-retention-job",
   DataRetentionProcessingJob = "data-retention-processing-job",
+  BatchActionProcessingJob = "batch-action-processing-job",
 }
 
 export type TQueueJobTypes = {
@@ -179,5 +198,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: DataRetentionProcessingEventType;
     name: QueueJobs.DataRetentionProcessingJob;
+  };
+  [QueueName.BatchActionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: BatchActionProcessingEventType;
+    name: QueueJobs.BatchActionProcessingJob;
   };
 };

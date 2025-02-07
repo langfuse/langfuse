@@ -9,6 +9,9 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  BatchActionQuerySchema,
+  BatchExportTableName,
+  BatchActionType,
   filterAndValidateDbScoreList,
   orderBy,
   paginationZod,
@@ -40,6 +43,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -269,6 +274,8 @@ export const traceRouter = createTRPCRouter({
       z.object({
         traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
         projectId: z.string(),
+        query: BatchActionQuerySchema.optional(),
+        isBatchAction: z.boolean().default(false),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -278,82 +285,100 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
-      const traceDeleteQueue = TraceDeleteQueue.getInstance();
+      throwIfNoEntitlement({
+        entitlement: "trace-deletion",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
 
-      for (const traceId of input.traceIds) {
-        await auditLog({
-          resourceType: "trace",
-          resourceId: traceId,
-          action: "delete",
+      if (input.isBatchAction && input.query) {
+        await createBatchActionJob({
+          projectId: input.projectId,
+          actionId: "trace-delete",
+          actionType: BatchActionType.Delete,
+          tableName: BatchExportTableName.Traces,
           session: ctx.session,
+          query: input.query,
+        });
+        return;
+      } else {
+        const traceDeleteQueue = TraceDeleteQueue.getInstance();
+
+        for (const traceId of input.traceIds) {
+          await auditLog({
+            resourceType: "trace",
+            resourceId: traceId,
+            action: "delete",
+            session: ctx.session,
+          });
+        }
+
+        if (!traceDeleteQueue) {
+          logger.warn(
+            `TraceDeleteQueue not initialized. Try synchronous deletion for ${input.traceIds.length} traces.`,
+          );
+          await ctx.prisma.$transaction([
+            ctx.prisma.trace.deleteMany({
+              where: {
+                id: {
+                  in: input.traceIds,
+                },
+                projectId: input.projectId,
+              },
+            }),
+            ctx.prisma.observation.deleteMany({
+              where: {
+                traceId: {
+                  in: input.traceIds,
+                },
+                projectId: input.projectId,
+              },
+            }),
+            ctx.prisma.score.deleteMany({
+              where: {
+                traceId: {
+                  in: input.traceIds,
+                },
+                projectId: input.projectId,
+              },
+            }),
+            // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
+            ctx.prisma.jobExecution.updateMany({
+              where: {
+                jobInputTraceId: { in: input.traceIds },
+                projectId: input.projectId,
+              },
+              data: {
+                jobInputTraceId: {
+                  set: null,
+                },
+                jobInputObservationId: {
+                  set: null,
+                },
+              },
+            }),
+          ]);
+
+          if (env.CLICKHOUSE_URL) {
+            await Promise.all([
+              deleteTraces(input.projectId, input.traceIds),
+              deleteObservationsByTraceIds(input.projectId, input.traceIds),
+              deleteScoresByTraceIds(input.projectId, input.traceIds),
+            ]);
+          }
+          return;
+        }
+
+        await traceDeleteQueue.add(QueueJobs.TraceDelete, {
+          timestamp: new Date(),
+          id: randomUUID(),
+          payload: {
+            projectId: input.projectId,
+            traceIds: input.traceIds,
+          },
+          name: QueueJobs.TraceDelete,
         });
       }
-
-      if (!traceDeleteQueue) {
-        logger.warn(
-          `TraceDeleteQueue not initialized. Try synchronous deletion for ${input.traceIds.length} traces.`,
-        );
-        await ctx.prisma.$transaction([
-          ctx.prisma.trace.deleteMany({
-            where: {
-              id: {
-                in: input.traceIds,
-              },
-              projectId: input.projectId,
-            },
-          }),
-          ctx.prisma.observation.deleteMany({
-            where: {
-              traceId: {
-                in: input.traceIds,
-              },
-              projectId: input.projectId,
-            },
-          }),
-          ctx.prisma.score.deleteMany({
-            where: {
-              traceId: {
-                in: input.traceIds,
-              },
-              projectId: input.projectId,
-            },
-          }),
-          // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
-          ctx.prisma.jobExecution.updateMany({
-            where: {
-              jobInputTraceId: { in: input.traceIds },
-              projectId: input.projectId,
-            },
-            data: {
-              jobInputTraceId: {
-                set: null,
-              },
-              jobInputObservationId: {
-                set: null,
-              },
-            },
-          }),
-        ]);
-
-        if (env.CLICKHOUSE_URL) {
-          await Promise.all([
-            deleteTraces(input.projectId, input.traceIds),
-            deleteObservationsByTraceIds(input.projectId, input.traceIds),
-            deleteScoresByTraceIds(input.projectId, input.traceIds),
-          ]);
-        }
-        return;
-      }
-
-      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: input.projectId,
-          traceIds: input.traceIds,
-        },
-        name: QueueJobs.TraceDelete,
-      });
     }),
   bookmark: protectedProjectProcedure
     .input(
