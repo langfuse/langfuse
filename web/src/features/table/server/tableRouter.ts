@@ -10,7 +10,7 @@ import { TRPCError } from "@trpc/server";
 const WAITING_JOBS = ["waiting", "delayed", "active"];
 
 export const tableRouter = createTRPCRouter({
-  getIsSelectAllInProgress: protectedProjectProcedure
+  getIsBatchActionInProgress: protectedProjectProcedure
     .input(GetIsBatchActionInProgressSchema)
     .query(async ({ input }) => {
       const { projectId, tableName, actionId } = input;

@@ -27,6 +27,8 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type BatchActionTableName } from "@langfuse/shared";
+import { api } from "@/src/utils/api";
+import { Loader2 } from "lucide-react";
 
 type TableActionDialogProps = {
   isOpen: boolean;
@@ -50,6 +52,12 @@ export function TableActionDialog({
   const { setSelectAll } = useSelectAll(projectId, tableName);
   const hasEntitlement = useHasEntitlement(action.accessCheck.entitlement);
   const form = useForm({ defaultValues: { targetId: "" } });
+
+  const isInProgress = api.table.getIsBatchActionInProgress.useQuery({
+    projectId,
+    tableName,
+    actionId: action.id,
+  });
 
   const handleConfirm = async () => {
     await action.execute({ projectId, targetId: form.getValues().targetId });
@@ -97,10 +105,20 @@ export function TableActionDialog({
                 )}
               />
               <DialogFooter>
+                {isInProgress.data && (
+                  <div className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <p className="text-sm text-muted-foreground">
+                      Batch action is in progress, please wait.
+                    </p>
+                  </div>
+                )}
                 <ActionButton
                   type="submit"
                   hasAccess={hasAccess}
                   hasEntitlement={hasEntitlement}
+                  loading={isInProgress.isLoading}
+                  disabled={isInProgress.data}
                 >
                   Confirm
                 </ActionButton>
@@ -111,11 +129,21 @@ export function TableActionDialog({
 
         {action.type === "delete" && (
           <DialogFooter>
+            {isInProgress.data && (
+              <div className="flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <p className="text-sm text-muted-foreground">
+                  Batch action is in progress, please wait.
+                </p>
+              </div>
+            )}
             <ActionButton
               variant="destructive"
-              onClick={handleConfirm}
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
+              loading={isInProgress.isLoading}
+              disabled={isInProgress.data}
+              onClick={handleConfirm}
             >
               Confirm
             </ActionButton>
