@@ -1,5 +1,5 @@
 import { logger, traceException } from "@langfuse/shared/src/server";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 
 export const processAddToQueue = async (
   projectId: string,

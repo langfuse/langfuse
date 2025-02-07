@@ -4,7 +4,6 @@ import {
   QueueName,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import z from "zod";
 import {
   BatchActionQuery,
   BatchActionType,
