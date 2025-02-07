@@ -44,6 +44,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -282,6 +283,12 @@ export const traceRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "traces:delete",
+      });
+
+      throwIfNoEntitlement({
+        entitlement: "trace-deletion",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
       });
 
       if (input.isBatchAction && input.query) {
