@@ -269,7 +269,7 @@ export default function TracesTable({
     onSuccess: () => {
       showSuccessToast({
         title: "Traces deleted",
-        description: `Selected traces will be deleted.`,
+        description: "Selected traces will be deleted. This may take a minute.",
       });
     },
     onSettled: () => {
@@ -281,7 +281,7 @@ export default function TracesTable({
     onSuccess: (data) => {
       showSuccessToast({
         title: "Traces added to queue",
-        description: `Selected traces added to queue "${data.queueName}".`,
+        description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,
         link: {
           href: `/project/${projectId}/annotation-queues/${data.queueId}`,
           text: `View queue "${data.queueName}"`,
@@ -305,7 +305,6 @@ export default function TracesTable({
       isBatchAction: selectAll,
     });
     setSelectedRows({});
-    setUserFilterState([]);
   };
 
   const handleAddToAnnotationQueue = async ({
@@ -330,6 +329,7 @@ export default function TracesTable({
         orderBy: orderByState,
       },
     });
+    setSelectedRows({});
   };
 
   const tableActions: TableAction[] = [

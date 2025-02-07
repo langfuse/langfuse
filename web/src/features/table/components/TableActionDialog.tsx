@@ -53,11 +53,16 @@ export function TableActionDialog({
   const hasEntitlement = useHasEntitlement(action.accessCheck.entitlement);
   const form = useForm({ defaultValues: { targetId: "" } });
 
-  const isInProgress = api.table.getIsBatchActionInProgress.useQuery({
-    projectId,
-    tableName,
-    actionId: action.id,
-  });
+  const isInProgress = api.table.getIsBatchActionInProgress.useQuery(
+    {
+      projectId,
+      tableName,
+      actionId: action.id,
+    },
+    {
+      refetchInterval: 2 * 60 * 1000, // 2 minutes
+    },
+  );
 
   const handleConfirm = async () => {
     await action.execute({ projectId, targetId: form.getValues().targetId });
