@@ -13,8 +13,7 @@ export const batchActionQueueProcessor = async (
 
     return true;
   } catch (e) {
-    // TODO: show error in client to communicate to the user
-    logger.error(`Failed Bulk Action job for id ${job.id}`, e);
+    logger.error(`Failed Batch Action job for id ${job.id}`, e);
     traceException(e);
     throw e;
   }

@@ -1,13 +1,9 @@
 import z from "zod";
 import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
+import { BatchExportTableName } from "../batchExport/types";
 
-// TODO: merge type with batch export table name
-export enum BatchActionTableName {
-  // eslint-disable-next-line no-unused-vars
-  Traces = "traces",
-}
-
+/* eslint-disable no-unused-vars */
 export enum BatchActionType {
   Create = "create",
   Delete = "delete",
@@ -32,11 +28,11 @@ export const CreateBatchActionSchema = z.object({
   actionId: ActionIdSchema,
   targetId: z.string().optional(),
   query: BatchActionQuerySchema,
-  tableName: z.nativeEnum(BatchActionTableName),
+  tableName: z.nativeEnum(BatchExportTableName),
 });
 
 export const GetIsBatchActionInProgressSchema = z.object({
   projectId: z.string(),
   actionId: ActionIdSchema,
-  tableName: z.nativeEnum(BatchActionTableName),
+  tableName: z.nativeEnum(BatchExportTableName),
 });

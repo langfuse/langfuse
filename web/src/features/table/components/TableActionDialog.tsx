@@ -26,7 +26,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { ActionButton } from "@/src/components/ActionButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { type BatchActionTableName } from "@langfuse/shared";
+import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { Loader2 } from "lucide-react";
 
@@ -35,7 +35,7 @@ type TableActionDialogProps = {
   onClose: () => void;
   action: TableAction;
   projectId: string;
-  tableName: BatchActionTableName;
+  tableName: BatchExportTableName;
 };
 
 export function TableActionDialog({

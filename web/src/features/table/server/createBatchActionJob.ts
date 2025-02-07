@@ -2,7 +2,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { generateBatchActionId } from "@/src/features/table/server/helpers";
 import {
   type Role,
-  type BatchActionTableName,
+  type BatchExportTableName,
   type BatchActionQuery,
   type ActionId,
   type BatchActionType,
@@ -17,7 +17,7 @@ import { TRPCError } from "@trpc/server";
 type CreateBatchActionJob = {
   projectId: string;
   actionId: ActionId;
-  tableName: BatchActionTableName;
+  tableName: BatchExportTableName;
   actionType: BatchActionType;
   session: {
     user: {

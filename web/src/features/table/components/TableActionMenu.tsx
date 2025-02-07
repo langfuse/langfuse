@@ -10,12 +10,12 @@ import { ChevronDown, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
 import { type TableAction } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
-import { type BatchActionTableName } from "@langfuse/shared";
+import { type BatchExportTableName } from "@langfuse/shared";
 
 type TableActionMenuProps = {
   projectId: string;
   actions: TableAction[];
-  tableName: BatchActionTableName;
+  tableName: BatchExportTableName;
 };
 
 const getDefaultIcon = (type: TableAction["type"]) => {

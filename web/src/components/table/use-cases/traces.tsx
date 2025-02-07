@@ -36,7 +36,6 @@ import {
   tracesTableColsWithOptions,
   type ObservationLevel,
   BatchExportTableName,
-  BatchActionTableName,
   AnnotationQueueObjectType,
   BatchActionType,
 } from "@langfuse/shared";
@@ -916,7 +915,7 @@ export default function TracesTable({
               key="traces-multi-select-actions"
               projectId={projectId}
               actions={tableActions}
-              tableName={BatchActionTableName.Traces}
+              tableName={BatchExportTableName.Traces}
             />
           ) : null,
           <BatchExportTableButton

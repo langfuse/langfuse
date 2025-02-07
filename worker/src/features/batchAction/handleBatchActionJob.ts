@@ -78,7 +78,6 @@ export const handleBatchActionJob = async (
     throw new Error(`Target ID is required for create action`);
   }
 
-  // TODO: given retries must skip any item we have already processed
   const dbReadStream = await getDatabaseReadStream({
     projectId: projectId,
     cutoffCreatedAt: new Date(cutoffCreatedAt),

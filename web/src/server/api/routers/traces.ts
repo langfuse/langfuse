@@ -10,7 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   BatchActionQuerySchema,
-  BatchActionTableName,
+  BatchExportTableName,
   BatchActionType,
   filterAndValidateDbScoreList,
   orderBy,
@@ -296,7 +296,7 @@ export const traceRouter = createTRPCRouter({
           projectId: input.projectId,
           actionId: "trace-delete",
           actionType: BatchActionType.Delete,
-          tableName: BatchActionTableName.Traces,
+          tableName: BatchExportTableName.Traces,
           session: ctx.session,
           query: input.query,
         });
