@@ -17,6 +17,7 @@ export const variableMapping = z
     objectName: z.string().nullish(),
     langfuseObject: z.enum(langfuseObjects),
     selectedColumnId: z.string(),
+    jsonSelector: z.string().nullish(),
   })
   .refine(
     (value) => value.langfuseObject === "trace" || value.objectName !== null,
@@ -32,6 +33,7 @@ export const wipVariableMapping = z.object({
   objectName: z.string().nullish(),
   langfuseObject: z.enum(langfuseObjects),
   selectedColumnId: z.string().nullish(),
+  jsonSelector: z.string().nullish(),
 });
 
 const observationCols = [

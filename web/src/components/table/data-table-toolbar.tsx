@@ -6,6 +6,7 @@ import { type FilterState } from "@langfuse/shared";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type ColumnDefinition } from "@langfuse/shared";
 import {
+  type RowSelectionState,
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
@@ -21,6 +22,17 @@ import {
   type TableDateRange,
   type TableDateRangeOptions,
 } from "@/src/utils/date-range-utils";
+import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
+
+export interface MultiSelect {
+  selectAll: boolean;
+  setSelectAll: Dispatch<SetStateAction<boolean>>;
+  selectedRowIds: string[];
+  setRowSelection: Dispatch<SetStateAction<RowSelectionState>>;
+  pageSize: number;
+  pageIndex: number;
+  totalCount: number | null;
+}
 
 interface SearchConfig {
   placeholder: string;
@@ -49,6 +61,7 @@ interface DataTableToolbarProps<TData, TValue> {
     option: TableDateRangeOptions,
     date?: TableDateRange,
   ) => void;
+  multiSelect?: MultiSelect;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -67,6 +80,7 @@ export function DataTableToolbar<TData, TValue>({
   columnsWithCustomSelect,
   selectedOption,
   setDateRangeAndOption,
+  multiSelect,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -74,66 +88,73 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
 
   return (
-    <div className="my-2 flex flex-wrap items-center gap-2 @container">
-      {searchConfig && (
-        <div className="flex max-w-md items-center">
-          <Input
-            autoFocus
-            placeholder={searchConfig.placeholder}
-            value={searchString}
-            onChange={(event) => setSearchString(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
+    <>
+      <div className="my-2 flex flex-wrap items-center gap-2 @container">
+        {searchConfig && (
+          <div className="flex max-w-md items-center">
+            <Input
+              autoFocus
+              placeholder={searchConfig.placeholder}
+              value={searchString}
+              onChange={(event) => setSearchString(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  capture("table:search_submit");
+                  searchConfig.updateQuery(searchString);
+                }
+              }}
+              className="w-[150px] rounded-r-none @6xl:w-[250px]"
+            />
+            <Button
+              variant="outline"
+              onClick={() => {
                 capture("table:search_submit");
                 searchConfig.updateQuery(searchString);
-              }
-            }}
-            className="w-[150px] rounded-r-none @6xl:w-[250px]"
+              }}
+              className="rounded-l-none border-l-0 p-3"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
+          <PopoverFilterBuilder
+            columns={filterColumnDefinition}
+            filterState={filterState}
+            onChange={setFilterState}
+            columnsWithCustomSelect={columnsWithCustomSelect}
           />
-          <Button
-            variant="outline"
-            onClick={() => {
-              capture("table:search_submit");
-              searchConfig.updateQuery(searchString);
-            }}
-            className="rounded-l-none border-l-0 p-3"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
+        )}
+        {selectedOption && setDateRangeAndOption && (
+          <TableDateRangeDropdown
+            selectedOption={selectedOption}
+            setDateRangeAndOption={setDateRangeAndOption}
+          />
+        )}
+        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+          {!!columnVisibility && !!setColumnVisibility && (
+            <DataTableColumnVisibilityFilter
+              columns={columns}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+            />
+          )}
+          {!!rowHeight && !!setRowHeight && (
+            <DataTableRowHeightSwitch
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+            />
+          )}
+          {actionButtons}
         </div>
-      )}
-      {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-        <PopoverFilterBuilder
-          columns={filterColumnDefinition}
-          filterState={filterState}
-          onChange={setFilterState}
-          columnsWithCustomSelect={columnsWithCustomSelect}
-        />
-      )}
-      {selectedOption && setDateRangeAndOption && (
-        <TableDateRangeDropdown
-          selectedOption={selectedOption}
-          setDateRangeAndOption={setDateRangeAndOption}
-        />
-      )}
-      <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
-        {!!columnVisibility && !!setColumnVisibility && (
-          <DataTableColumnVisibilityFilter
-            columns={columns}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibility}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-          />
-        )}
-        {!!rowHeight && !!setRowHeight && (
-          <DataTableRowHeightSwitch
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-          />
-        )}
-        {actionButtons}
       </div>
-    </div>
+      {multiSelect &&
+        multiSelect.pageIndex === 0 &&
+        multiSelect.selectedRowIds.length === multiSelect.pageSize && (
+          <DataTableSelectAllBanner {...multiSelect} />
+        )}
+    </>
   );
 }

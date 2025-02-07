@@ -26,6 +26,7 @@ export type AuditableResource =
   | "llmApiKey"
   | "batchExport"
   | "stripeCheckoutSession"
+  | "batchAction"
   // legacy resources
   | "membership";
 
