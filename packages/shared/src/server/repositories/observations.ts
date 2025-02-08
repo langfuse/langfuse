@@ -908,6 +908,7 @@ export const getObservationsGroupedByPromptName = async (
 
 export const getCostForTraces = async (
   projectId: string,
+  timestamp: Date,
   traceIds: string[],
 ) => {
   // Wrapping the query in a CTE allows us to skip FINAL which allows Clickhouse to use skip indexes.
@@ -917,6 +918,7 @@ export const getCostForTraces = async (
       FROM observations o
       WHERE o.project_id = {projectId: String}
       AND o.trace_id IN ({traceIds: Array(String)})
+      AND o.start_time >= {timestamp: DateTime64(3)} - INTERVAL ${OBSERVATIONS_TO_TRACE_INTERVAL}
       ORDER BY o.event_ts DESC
       LIMIT 1 BY o.id, o.project_id
     )
@@ -930,6 +932,7 @@ export const getCostForTraces = async (
     params: {
       projectId,
       traceIds,
+      timestamp: convertDateToClickhouseDateTime(timestamp),
     },
   });
   return res.length > 0 ? Number(res[0].total_cost) : undefined;

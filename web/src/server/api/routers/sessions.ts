@@ -276,12 +276,11 @@ export const sessionRouter = createTRPCRouter({
           input.sessionId,
         );
 
-        const traceIds = clickhouseTraces.map((t) => t.id);
         const chunkSize = 500;
         const chunks = [];
 
-        for (let i = 0; i < traceIds.length; i += chunkSize) {
-          chunks.push(traceIds.slice(i, i + chunkSize));
+        for (let i = 0; i < clickhouseTraces.length; i += chunkSize) {
+          chunks.push(clickhouseTraces.slice(i, i + chunkSize));
         }
 
         const [scores, costs] = await Promise.all([
@@ -289,12 +288,21 @@ export const sessionRouter = createTRPCRouter({
             chunks.map((chunk) =>
               getScoresForTraces({
                 projectId: input.projectId,
-                traceIds: chunk,
+                traceIds: chunk.map((t) => t.id),
+                timestamp: new Date(
+                  Math.min(...chunk.map((t) => t.timestamp.getTime())),
+                ),
               }),
             ),
           ).then((results) => results.flat()),
           Promise.all(
-            chunks.map((chunk) => getCostForTraces(input.projectId, chunk)),
+            chunks.map((chunk) =>
+              getCostForTraces(
+                input.projectId,
+                new Date(Math.min(...chunk.map((t) => t.timestamp.getTime()))),
+                chunk.map((t) => t.id),
+              ),
+            ),
           ).then((results) =>
             results.reduce((sum, cost) => (sum ?? 0) + (cost ?? 0), 0),
           ),
