@@ -394,6 +394,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
         projectRole:
           ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
+      trace: trace, // pass the trace to the next middleware so we do not need to fetch it again
     },
   });
 });
