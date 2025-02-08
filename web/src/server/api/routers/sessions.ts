@@ -31,6 +31,7 @@ import {
   logger,
   getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
+import { chunk } from "lodash";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -276,12 +277,7 @@ export const sessionRouter = createTRPCRouter({
           input.sessionId,
         );
 
-        const chunkSize = 500;
-        const chunks = [];
-
-        for (let i = 0; i < clickhouseTraces.length; i += chunkSize) {
-          chunks.push(clickhouseTraces.slice(i, i + chunkSize));
-        }
+        const chunks = chunk(clickhouseTraces, 500);
 
         const [scores, costs] = await Promise.all([
           Promise.all(
