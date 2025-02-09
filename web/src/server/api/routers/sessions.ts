@@ -279,7 +279,7 @@ export const sessionRouter = createTRPCRouter({
 
         const chunks = chunk(clickhouseTraces, 500);
 
-        // in the below queryes, take the lowest timestamp as a filter condition
+        // in the below queries, take the lowest timestamp as a filter condition
         // to improve performance
         const [scores, costs] = await Promise.all([
           Promise.all(
