@@ -100,7 +100,32 @@ describe("traces trps", () => {
         sessionId,
       });
 
-      console.log(sessionRes);
+      expect(sessionRes).toEqual({
+        id: sessionId,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+        projectId: projectId,
+        bookmarked: false,
+        public: false,
+        traces: expect.arrayContaining([
+          expect.objectContaining({
+            id: trace.id,
+            userId: trace.user_id,
+            name: trace.name,
+            timestamp: new Date(trace.timestamp),
+            scores: [],
+          }),
+          expect.objectContaining({
+            id: trace2.id,
+            userId: trace2.user_id,
+            name: trace2.name,
+            timestamp: new Date(trace2.timestamp),
+            scores: [],
+          }),
+        ]),
+        totalCost: expect.any(Number),
+        users: expect.arrayContaining([trace.user_id, trace2.user_id]),
+      });
     });
   });
 });

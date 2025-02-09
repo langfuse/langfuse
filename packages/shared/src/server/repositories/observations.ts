@@ -918,7 +918,7 @@ export const getCostForTraces = async (
       FROM observations o
       WHERE o.project_id = {projectId: String}
       AND o.trace_id IN ({traceIds: Array(String)})
-      AND o.start_time >= {timestamp: DateTime64(3)} - INTERVAL ${OBSERVATIONS_TO_TRACE_INTERVAL}
+      AND o.start_time >= {timestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}
       ORDER BY o.event_ts DESC
       LIMIT 1 BY o.id, o.project_id
     )
