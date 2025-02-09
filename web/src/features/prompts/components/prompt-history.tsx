@@ -4,11 +4,13 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
   prompt: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
+  currentPrompt?: RouterOutputs["prompts"]["allVersions"]["promptVersions"][number];
   currentPromptVersion: number | undefined;
   setCurrentPromptVersion: (version: number | undefined) => void;
   router: NextRouter;
@@ -17,7 +19,28 @@ const PromptHistoryTraceNode = (props: {
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
+  const [isPromptDiffOpen, setIsPromptDiffOpen] = useState(false);
   const { prompt } = props;
+
+  // Add ref for scroll into view
+  const currentPromptRef = useRef<HTMLDivElement>(null);
+
+  // Add useEffect for scroll into view behavior
+  useEffect(() => {
+    if (
+      props.currentPromptVersion &&
+      currentPromptRef.current &&
+      props.currentPromptVersion === prompt.version
+    ) {
+      currentPromptRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+    // Should only trigger a single time on initial render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPromptRef.current]);
+
   let badges: JSX.Element[] = prompt.labels
     .sort((a, b) =>
       a === PRODUCTION_LABEL
@@ -38,6 +61,7 @@ const PromptHistoryTraceNode = (props: {
 
   return (
     <div
+      ref={currentPromptRef}
       className={`group mb-2 flex w-full cursor-pointer flex-col gap-1 rounded-sm p-2 hover:bg-primary-foreground ${
         props.currentPromptVersion === prompt.version ? "bg-muted" : ""
       }`}
@@ -58,20 +82,44 @@ const PromptHistoryTraceNode = (props: {
         {badges}
       </div>
       <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
-        <div>
+        <div className="min-w-0">
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground">
               {prompt.createdAt.toLocaleString()}
             </span>
           </div>
+          {prompt.commitMessage && (
+            <div className="flex flex-1 flex-nowrap gap-2">
+              <span
+                className="min-w-0 max-w-full truncate text-xs text-muted-foreground"
+                title={prompt.commitMessage}
+              >
+                {prompt.commitMessage}
+              </span>
+            </div>
+          )}
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground">
               by {prompt.creator || prompt.createdBy}
             </span>
           </div>
         </div>
-        {(isHovered || props.currentPromptVersion === prompt.version) && (
+        {(isHovered ||
+          props.currentPromptVersion === prompt.version ||
+          isPromptDiffOpen) && (
           <div className="flex flex-row justify-end space-x-1">
+            {props.currentPrompt &&
+            props.currentPromptVersion !== prompt.version ? (
+              <PromptVersionDiffDialog
+                isOpen={isPromptDiffOpen}
+                setIsOpen={(open) => {
+                  setIsPromptDiffOpen(open);
+                  if (!open) setIsHovered(false);
+                }}
+                leftPrompt={prompt}
+                rightPrompt={props.currentPrompt}
+              />
+            ) : null}
             <SetPromptVersionLabels
               prompt={prompt}
               isOpen={isLabelPopoverOpen}
@@ -100,6 +148,10 @@ export const PromptHistoryNode = (props: {
 }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const currentPrompt = props.prompts.find(
+    (p) => p.version === props.currentPromptVersion,
+  );
+
   return (
     <div className="w-full flex-1">
       {props.prompts.map((prompt, index) => (
@@ -107,6 +159,7 @@ export const PromptHistoryNode = (props: {
           key={prompt.id}
           index={index}
           prompt={prompt}
+          currentPrompt={currentPrompt}
           currentPromptVersion={props.currentPromptVersion}
           setCurrentPromptVersion={props.setCurrentPromptVersion}
           router={router}

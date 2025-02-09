@@ -98,6 +98,7 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:delete",
       });
 
+      // count soft and hard deleted projects
       const countProjects = await ctx.prisma.project.count({
         where: {
           orgId: input.orgId,

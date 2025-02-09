@@ -29,13 +29,15 @@ export default async function handler(
       const projects = await prisma.project.findMany({
         where: {
           id: authCheck.scope.projectId,
+          // deletedAt: null, // here we want to include deleted projects and grey them in the UI.
         },
       });
 
-      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-        authCheck.scope,
-        "public-api",
-      );
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "public-api",
+        );
 
       if (rateLimitCheck?.isRateLimited()) {
         return rateLimitCheck.sendRestResponseIfLimited(res);

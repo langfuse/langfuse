@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonSchema } from "@langfuse/shared";
 import type { Prompt } from "@langfuse/shared";
+import { COMMIT_MESSAGE_MAX_LENGTH } from "@/src/features/prompts/constants";
 
 export const ChatMessageSchema = z.object({
   role: z.string(),
@@ -21,7 +22,7 @@ export const PromptLabelSchema = z
     "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
   );
 
-export const CreateTextPromptSchema = z.object({
+const BaseCreateTextPromptSchema = z.object({
   name: z.string(),
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Text).optional(),
@@ -30,13 +31,25 @@ export const CreateTextPromptSchema = z.object({
   tags: z.array(z.string()).nullish(),
 });
 
-export const CreateChatPromptSchema = z.object({
+const LegacyCreateTextPromptSchema = BaseCreateTextPromptSchema;
+
+export const CreateTextPromptSchema = BaseCreateTextPromptSchema.extend({
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
+});
+
+const BaseCreateChatPromptSchema = z.object({
   name: z.string(),
   labels: z.array(PromptLabelSchema).default([]),
   type: z.literal(PromptType.Chat),
   prompt: z.array(ChatMessageSchema),
   config: jsonSchema.nullable().default({}),
   tags: z.array(z.string()).nullish(),
+});
+
+const LegacyCreateChatPromptSchema = BaseCreateChatPromptSchema;
+
+export const CreateChatPromptSchema = BaseCreateChatPromptSchema.extend({
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
 });
 
 export const CreatePromptSchema = z.union([
@@ -84,7 +97,7 @@ export const GetPromptByNameSchema = z.object({
   label: z.string().optional(),
 });
 
-export const TextPromptSchema = z.object({
+const BaseTextPromptSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -99,12 +112,18 @@ export const TextPromptSchema = z.object({
   config: jsonSchema,
 });
 
+const LegacyTextPromptSchema = BaseTextPromptSchema;
+
+export const TextPromptSchema = BaseTextPromptSchema.extend({
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
+});
+
 export type TextPromptType =
   z.infer<typeof TextPromptSchema> extends Prompt
     ? z.infer<typeof TextPromptSchema>
     : never;
 
-export const ChatPromptSchema = z.object({
+export const BaseChatPromptSchema = z.object({
   id: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -119,6 +138,12 @@ export const ChatPromptSchema = z.object({
   config: jsonSchema,
 });
 
+const LegacyChatPromptSchema = BaseChatPromptSchema;
+
+export const ChatPromptSchema = BaseChatPromptSchema.extend({
+  commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
+});
+
 export type ChatPromptType =
   z.infer<typeof ChatPromptSchema> extends Prompt
     ? z.infer<typeof ChatPromptSchema>
@@ -129,11 +154,11 @@ export type ValidatedPrompt = z.infer<typeof PromptSchema>;
 
 // Backward compat for V1 prompts endpoint
 export const LegacyCreatePromptSchema = z.union([
-  CreateTextPromptSchema.extend({ isActive: z.boolean() }),
-  CreateChatPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyCreateTextPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyCreateChatPromptSchema.extend({ isActive: z.boolean() }),
 ]);
 export const LegacyPromptSchema = z.union([
-  TextPromptSchema.extend({ isActive: z.boolean() }),
-  ChatPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyTextPromptSchema.extend({ isActive: z.boolean() }),
+  LegacyChatPromptSchema.extend({ isActive: z.boolean() }),
 ]);
 export type LegacyValidatedPrompt = z.infer<typeof LegacyPromptSchema>;

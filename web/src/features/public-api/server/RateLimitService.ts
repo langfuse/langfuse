@@ -12,6 +12,8 @@ import {
   recordIncrement,
   type ApiAccessScope,
   logger,
+  createNewRedisInstance,
+  redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 import { type NextApiResponse } from "next";
 
@@ -22,10 +24,28 @@ import { type NextApiResponse } from "next";
 // - isRateLimited returns false for self-hosters
 // - sendRestResponseIfLimited sends a 429 response with headers if the rate limit is exceeded. Return this from the route handler.
 export class RateLimitService {
-  private redis: Redis | null;
+  private static redis: Redis | null;
+  private static instance: RateLimitService | null = null;
 
-  constructor(redis: Redis | null) {
-    this.redis = redis;
+  public static getInstance(redis: Redis | null = null) {
+    if (!RateLimitService.instance) {
+      RateLimitService.redis =
+        redis ??
+        createNewRedisInstance({
+          enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
+          enableOfflineQueue: false,
+          lazyConnect: true, // Connect when first command is sent
+          ...redisQueueRetryOptions,
+        });
+      RateLimitService.instance = new RateLimitService();
+    }
+    return RateLimitService.instance;
+  }
+
+  public static shutdown() {
+    if (RateLimitService.redis && RateLimitService.redis.status !== "end") {
+      RateLimitService.redis.disconnect();
+    }
   }
 
   async rateLimitRequest(
@@ -41,7 +61,7 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
-    if (!this.redis) {
+    if (!RateLimitService.redis) {
       logger.warn("Rate limiting not available without Redis");
       return new RateLimitHelper(undefined);
     }
@@ -64,13 +84,22 @@ export class RateLimitService {
       return;
     }
 
+    // Connect Redis if not initialized
+    if (RateLimitService?.redis?.status !== "ready") {
+      try {
+        await RateLimitService?.redis?.connect();
+      } catch (err) {
+        // Do nothing here. We will fail open if Redis is not available.
+      }
+    }
+
     const rateLimiter = new RateLimiterRedis({
       // Basic options
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
       keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
-      storeClient: this.redis,
+      storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });
 
@@ -100,9 +129,9 @@ export class RateLimitService {
           isFirstInDuration: err.isFirstInDuration,
         };
       } else {
-        // Some other error occurred, rethrow it
+        // Some other error occurred, return undefined to fail open
         logger.error("Internal Rate limit error", err);
-        throw err;
+        return undefined;
       }
     }
 
@@ -157,9 +186,9 @@ export const sendRateLimitResponse = (
   res.status(429).end("429 - rate limit exceeded");
 };
 
-const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
+export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
   return {
-    "Retry-After": res.msBeforeNext / 1000,
+    "Retry-After": Math.ceil(res.msBeforeNext / 1000),
     "X-RateLimit-Limit": res.points,
     "X-RateLimit-Remaining": res.remainingPoints,
     "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
@@ -197,7 +226,7 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
-            points: 2000,
+            points: 4000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -233,7 +262,7 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
-            points: 10000,
+            points: 20000,
             durationInSec: 60,
           };
         case "legacy-ingestion":

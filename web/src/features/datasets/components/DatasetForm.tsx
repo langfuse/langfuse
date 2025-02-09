@@ -13,10 +13,11 @@ import {
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import { Input } from "@/src/components/ui/input";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Label } from "@/src/components/ui/label";
+import { useRouter } from "next/router";
 
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
@@ -96,6 +97,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
   });
 
   const utils = api.useUtils();
+  const router = useRouter();
   const createMutation = api.datasets.createDataset.useMutation();
   const renameMutation = api.datasets.updateDataset.useMutation();
   const deleteMutation = api.datasets.deleteDataset.useMutation();
@@ -113,10 +115,13 @@ export const DatasetForm = (props: DatasetFormProps) => {
           ...trimmedValues,
           projectId: props.projectId,
         })
-        .then(() => {
+        .then((dataset) => {
           void utils.datasets.invalidate();
           props.onFormSuccess?.();
           form.reset();
+          router.push(
+            `/project/${props.projectId}/datasets/${dataset.id}/items`,
+          );
         })
         .catch((error: Error) => {
           setFormError(error.message);
@@ -224,11 +229,13 @@ export const DatasetForm = (props: DatasetFormProps) => {
                   <FormItem>
                     <FormLabel>Metadata (optional)</FormLabel>
                     <FormControl>
-                      <JsonEditor
-                        defaultValue={field.value}
+                      <CodeMirrorEditor
+                        mode="json"
+                        value={field.value}
                         onChange={(v) => {
                           field.onChange(v);
                         }}
+                        minHeight="none"
                       />
                     </FormControl>
                     <FormMessage />

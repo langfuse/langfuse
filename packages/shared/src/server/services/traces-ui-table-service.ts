@@ -24,6 +24,7 @@ import {
 } from "../repositories/constants";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
+import { reduceUsageOrCostDetails } from "../repositories";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -67,6 +68,12 @@ export type TracesMetricsUiReturnType = {
   calculatedInputCost: Decimal | null;
   calculatedOutputCost: Decimal | null;
   scores: ScoreAggregate;
+  usageDetails: Record<string, number>;
+  costDetails: Record<string, number>;
+  errorCount: bigint;
+  warningCount: bigint;
+  defaultCount: bigint;
+  debugCount: bigint;
 };
 
 export const convertToUiTableRows = (
@@ -90,13 +97,27 @@ export const convertToUiTableRows = (
 export const convertToUITableMetrics = (
   row: TracesTableMetricsClickhouseReturnType,
 ): Omit<TracesMetricsUiReturnType, "scores"> => {
+  const usageDetails = reduceUsageOrCostDetails(row.usage_details);
+
   return {
     id: row.id,
     projectId: row.project_id,
     latency: Number(row.latency),
-    promptTokens: BigInt(row.usage_details?.input ?? 0),
-    completionTokens: BigInt(row.usage_details?.output ?? 0),
-    totalTokens: BigInt(row.usage_details?.total ?? 0),
+    promptTokens: BigInt(usageDetails.input ?? 0),
+    completionTokens: BigInt(usageDetails.output ?? 0),
+    totalTokens: BigInt(usageDetails.total ?? 0),
+    usageDetails: Object.fromEntries(
+      Object.entries(row.usage_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
+    costDetails: Object.fromEntries(
+      Object.entries(row.cost_details).map(([key, value]) => [
+        key,
+        Number(value),
+      ]),
+    ),
     observationCount: BigInt(row.observation_count ?? 0),
     calculatedTotalCost: row.cost_details?.total
       ? new Decimal(row.cost_details.total)
@@ -108,6 +129,10 @@ export const convertToUITableMetrics = (
       ? new Decimal(row.cost_details.output)
       : null,
     level: row.level,
+    debugCount: BigInt(row.debug_count ?? 0),
+    warningCount: BigInt(row.warning_count ?? 0),
+    errorCount: BigInt(row.error_count ?? 0),
+    defaultCount: BigInt(row.default_count ?? 0),
   };
 };
 
@@ -121,6 +146,10 @@ export type TracesTableMetricsClickhouseReturnType = {
   usage_details: Record<string, number>;
   cost_details: Record<string, number>;
   scores_avg: Array<{ name: string; avg_value: number }>;
+  error_count: number | null;
+  warning_count: number | null;
+  default_count: number | null;
+  debug_count: number | null;
 };
 
 export type FetchTracesTableProps = {
@@ -208,7 +237,11 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         os.latency_milliseconds / 1000 as latency,
         os.cost_details as cost_details,
         os.usage_details as usage_details,
-        os.level as level,
+        os.aggregated_level as level,
+        os.error_count as error_count,
+        os.warning_count as warning_count,
+        os.default_count as default_count,
+        os.debug_count as debug_count,
         os.observation_count as observation_count,
         s.scores_avg as scores_avg,
         t.public as public`;
@@ -228,7 +261,6 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         t.public as public`;
       break;
     default:
-      const exhaustiveCheckDefault: never = select;
       throw new Error(`Unknown select type: ${select}`);
   }
 
@@ -305,19 +337,29 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       clickhouseSelect: "toDate(t.timestamp)",
       uiTableName: "timestamp_to_date",
       uiTableId: "timestamp_to_date",
-      clickhouseTableName: "observations",
+      clickhouseTableName: "traces",
+    },
+    {
+      clickhouseSelect: "t.event_ts",
+      uiTableName: "event_ts",
+      uiTableId: "event_ts",
+      clickhouseTableName: "traces",
     },
   ];
   const chOrderBy = orderByToClickhouseSql(
     [
       defaultOrder
-        ? {
-            column: "timestamp_to_date",
-            order: orderBy.order,
-          }
+        ? [
+            {
+              column: "timestamp_to_date",
+              order: orderBy.order,
+            },
+            { column: "timestamp", order: orderBy.order },
+            { column: "event_ts", order: "DESC" as "DESC" },
+          ]
         : null,
       orderBy ?? null,
-    ],
+    ].flat(),
     orderByCols,
   );
 
@@ -325,7 +367,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
   // - we only join scores and observations if we really need them to speed up default views
   // - we use FINAL on traces only in case we not need to order by something different than time. Otherwise we cannot guarantee correct reads.
   // - we filter the observations and scores as much as possible before joining them to traces.
-  // - we order by todate(timestamp), timestamp per default and do not use FINAL.
+  // - we order by todate(timestamp), event_ts desc per default and do not use FINAL.
   //   In this case, CH is able to read the data only from the latest date from disk and filtering them in memory. No need to read all data e.g. for 1 month from disk.
 
   const query = `
@@ -334,13 +376,17 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         COUNT(*) AS observation_count,
           sumMap(usage_details) as usage_details,
           SUM(total_cost) AS total_cost,
-          date_diff('milliseconds', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+          date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+          countIf(level = 'ERROR') as error_count,
+          countIf(level = 'WARNING') as warning_count,
+          countIf(level = 'DEFAULT') as default_count,
+          countIf(level = 'DEBUG') as debug_count,
           multiIf(
             arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
             arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
             arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
             'DEBUG'
-          ) AS level,
+          ) AS aggregated_level,
           sumMap(cost_details) as cost_details,
           trace_id,
           project_id

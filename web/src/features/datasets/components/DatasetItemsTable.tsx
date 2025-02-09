@@ -10,13 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-
 import { Archive, ListTree, MoreVertical } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -25,6 +24,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
+import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
+import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type RowData = {
   id: string;
@@ -33,7 +36,7 @@ type RowData = {
     observationId?: string;
   };
   status: DatasetItem["status"];
-  createdAt: string;
+  createdAt: Date;
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
@@ -51,6 +54,8 @@ export function DatasetItemsTable({
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -150,6 +155,10 @@ export function DatasetItemsTable({
       id: "createdAt",
       size: 150,
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: RowData["createdAt"] = row.getValue("createdAt");
+        return <LocalIsoDate date={value} />;
+      },
     },
     {
       accessorKey: "input",
@@ -256,7 +265,7 @@ export function DatasetItemsTable({
           }
         : undefined,
       status: item.status,
-      createdAt: item.createdAt.toLocaleString(),
+      createdAt: item.createdAt,
       input: item.input,
       expectedOutput: item.expectedOutput,
       metadata: item.metadata,
@@ -272,6 +281,35 @@ export function DatasetItemsTable({
     "datasetItemsColumnOrder",
     columns,
   );
+
+  if (items.data?.totalDatasetItems === 0 && hasAccess) {
+    return (
+      <>
+        <DataTableToolbar
+          columns={columns}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          actionButtons={menuItems}
+        />
+        {preview ? (
+          <PreviewCsvImport
+            preview={preview}
+            csvFile={csvFile}
+            projectId={projectId}
+            datasetId={datasetId}
+            setCsvFile={setCsvFile}
+            setPreview={setPreview}
+          />
+        ) : (
+          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
+        )}
+      </>
+    );
+  }
 
   return (
     <>

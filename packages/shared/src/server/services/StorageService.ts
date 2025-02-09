@@ -1,5 +1,6 @@
 import { Readable } from "stream";
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -30,7 +31,7 @@ export interface StorageService {
 
   download(path: string): Promise<string>;
 
-  listFiles(prefix: string): Promise<string[]>;
+  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
 
   getSignedUrl(
     fileName: string,
@@ -45,6 +46,8 @@ export interface StorageService {
     contentType: string;
     contentLength: number;
   }): Promise<string>;
+
+  deleteFiles(paths: string[]): Promise<void>;
 }
 
 export class StorageServiceFactory {
@@ -201,7 +204,28 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
-  public async listFiles(prefix: string): Promise<string[]> {
+  public async deleteFiles(paths: string[]): Promise<void> {
+    try {
+      await this.createContainerIfNotExists();
+
+      await Promise.all(
+        paths.map(async (path) => {
+          const blobClient = this.client.getBlobClient(path);
+          await blobClient.deleteIfExists();
+        }),
+      );
+    } catch (err) {
+      logger.error(
+        `Failed to delete files from Azure Blob Storage ${paths}`,
+        err,
+      );
+      throw Error("Failed to delete files from Azure Blob Storage");
+    }
+  }
+
+  public async listFiles(
+    prefix: string,
+  ): Promise<{ file: string; createdAt: Date }[]> {
     try {
       await this.createContainerIfNotExists();
 
@@ -209,7 +233,10 @@ class AzureBlobStorageService implements StorageService {
       const files = [];
       for await (const blob of result) {
         if (blob.name.startsWith(prefix)) {
-          files.push(blob.name);
+          files.push({
+            file: blob.name,
+            createdAt: blob?.properties?.createdOn ?? new Date(),
+          });
         }
       }
       return files;
@@ -364,7 +391,9 @@ class S3StorageService implements StorageService {
     }
   }
 
-  public async listFiles(prefix: string): Promise<string[]> {
+  public async listFiles(
+    prefix: string,
+  ): Promise<{ file: string; createdAt: Date }[]> {
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: prefix,
@@ -373,7 +402,11 @@ class S3StorageService implements StorageService {
     try {
       const response = await this.client.send(listCommand);
       return (
-        response.Contents?.flatMap((file) => (file.Key ? [file.Key] : [])) ?? []
+        response.Contents?.flatMap((file) =>
+          file.Key
+            ? [{ file: file.Key, createdAt: file.LastModified ?? new Date() }]
+            : [],
+        ) ?? []
       );
     } catch (err) {
       logger.error(`Failed to list files from S3 ${prefix}`, err);
@@ -401,6 +434,37 @@ class S3StorageService implements StorageService {
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
+    }
+  }
+
+  public async deleteFiles(paths: string[]): Promise<void> {
+    const chunkSize = 900;
+    const chunks = [];
+
+    for (let i = 0; i < paths.length; i += chunkSize) {
+      chunks.push(paths.slice(i, i + chunkSize));
+    }
+
+    try {
+      for (const chunk of chunks) {
+        const command = new DeleteObjectsCommand({
+          Bucket: this.bucketName,
+          Delete: {
+            Objects: chunk.map((path) => ({ Key: path })),
+            Quiet: true,
+          },
+        });
+        const result = await this.client.send(command);
+        if (result?.Errors && result?.Errors?.length > 0) {
+          logger.error("Failed to delete files from S3", {
+            errors: result.Errors,
+          });
+          throw new Error("Failed to delete files from S3");
+        }
+      }
+    } catch (err) {
+      logger.error(`Failed to delete files from S3`, err);
+      throw new Error("Failed to delete files from S3");
     }
   }
 

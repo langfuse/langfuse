@@ -38,6 +38,9 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { InfoIcon } from "lucide-react";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export const TracePreview = ({
   trace,
@@ -47,7 +50,11 @@ export const TracePreview = ({
   viewType = "detailed",
   className,
 }: {
-  trace: Trace & { latency?: number };
+  trace: Omit<Trace, "input" | "output"> & {
+    latency?: number;
+    input: string | undefined;
+    output: string | undefined;
+  };
   observations: ObservationReturnType[];
   scores: APIScore[];
   commentCounts?: Map<string, number>;
@@ -80,6 +87,7 @@ export const TracePreview = ({
       projectId: trace.projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -124,7 +132,7 @@ export const TracePreview = ({
               <span>{trace.name}</span>
             </CardTitle>
             <CardDescription>
-              {trace.timestamp.toLocaleString()}
+              <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
             </CardDescription>
             {viewType === "detailed" && (
               <div className="flex flex-wrap gap-2">
@@ -133,7 +141,16 @@ export const TracePreview = ({
                     {formatIntervalSeconds(trace.latency)}
                   </Badge>
                 )}
-                <AggUsageBadge observations={observations} />
+                <BreakdownTooltip
+                  details={observations
+                    .filter((o) => o.type === "GENERATION")
+                    .map((o) => o.usageDetails)}
+                >
+                  <AggUsageBadge
+                    observations={observations}
+                    rightIcon={<InfoIcon className="h-3 w-3" />}
+                  />
+                </BreakdownTooltip>
                 {!!trace.release && (
                   <Badge variant="outline">Release: {trace.release}</Badge>
                 )}
@@ -141,49 +158,62 @@ export const TracePreview = ({
                   <Badge variant="outline">Version: {trace.version}</Badge>
                 )}
                 {totalCost && (
-                  <Badge variant="outline">
-                    ∑ {usdFormatter(totalCost.toNumber())}
-                  </Badge>
+                  <BreakdownTooltip
+                    details={observations
+                      .filter((o) => o.type === "GENERATION")
+                      .map((o) => o.costDetails)}
+                    isCost
+                  >
+                    <Badge variant="outline">
+                      <span className="flex items-center gap-1">
+                        Total Cost: {usdFormatter(totalCost.toNumber())}
+                        <InfoIcon className="h-3 w-3" />
+                      </span>
+                    </Badge>
+                  </BreakdownTooltip>
                 )}
               </div>
             )}
           </div>
-          {viewType === "detailed" && (
-            <div className="flex flex-wrap gap-2">
-              <CommentDrawerButton
-                projectId={trace.projectId}
-                objectId={trace.id}
-                objectType="TRACE"
-                count={commentCounts?.get(trace.id)}
-              />
-              <div className="flex items-start">
-                <AnnotateDrawer
-                  key={"annotation-drawer" + trace.id}
+
+          <div className="flex flex-wrap gap-2">
+            {viewType === "detailed" && (
+              <>
+                <CommentDrawerButton
                   projectId={trace.projectId}
-                  traceId={trace.id}
-                  scores={scores}
-                  emptySelectedConfigIds={emptySelectedConfigIds}
-                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  hasGroupedButton={hasEntitlement}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={commentCounts?.get(trace.id)}
                 />
-                {hasEntitlement && (
-                  <CreateNewAnnotationQueueItem
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + trace.id}
                     projectId={trace.projectId}
-                    objectId={trace.id}
-                    objectType={AnnotationQueueObjectType.TRACE}
+                    traceId={trace.id}
+                    scores={scores}
+                    emptySelectedConfigIds={emptySelectedConfigIds}
+                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                    hasGroupedButton={hasEntitlement}
                   />
-                )}
-              </div>
-              <NewDatasetItemFromTrace
-                traceId={trace.id}
-                projectId={trace.projectId}
-                input={trace.input}
-                output={trace.output}
-                metadata={trace.metadata}
-                key={trace.id}
-              />
-            </div>
-          )}
+                  {hasEntitlement && (
+                    <CreateNewAnnotationQueueItem
+                      projectId={trace.projectId}
+                      objectId={trace.id}
+                      objectType={AnnotationQueueObjectType.TRACE}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+            <NewDatasetItemFromTrace
+              traceId={trace.id}
+              projectId={trace.projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
+            />
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {selectedTab === "preview" && (

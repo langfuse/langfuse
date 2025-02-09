@@ -1,26 +1,33 @@
-import { api } from "@/src/utils/api";
-
-import { type FilterState } from "@langfuse/shared";
-
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { env } from "@/src/env.mjs";
+import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
-  getAllModels,
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
+import { api } from "@/src/utils/api";
 import {
-  dashboardDateRangeAggregationSettings,
   type DashboardDateRangeAggregationOption,
+  dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
-import { env } from "@/src/env.mjs";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { compactNumberFormatter } from "@/src/utils/numbers";
+import { type FilterState } from "@langfuse/shared";
+import {
+  ModelSelectorPopover,
+  useModelSelection,
+} from "@/src/features/dashboard/components/ModelSelector";
+
+type ModelUsageReturnType = {
+  startTime: string;
+  units: Record<string, number>;
+  cost: Record<string, number>;
+  model: string;
+};
 
 export const ModelUsageChart = ({
   className,
@@ -33,7 +40,16 @@ export const ModelUsageChart = ({
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
 }) => {
-  const tokens = api.dashboard.chart.useQuery(
+  const {
+    allModels,
+    selectedModels,
+    setSelectedModels,
+    isAllSelected,
+    buttonText,
+    handleSelectAll,
+  } = useModelSelection(projectId, globalFilterState);
+
+  const queryResult = api.dashboard.chart.useQuery(
     {
       projectId,
       from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
@@ -47,6 +63,12 @@ export const ModelUsageChart = ({
       filter: [
         ...globalFilterState,
         { type: "string", column: "type", operator: "=", value: "GENERATION" },
+        {
+          type: "stringOptions",
+          column: "model",
+          operator: "any of",
+          value: selectedModels,
+        } as const,
       ],
       groupBy: [
         {
@@ -62,10 +84,10 @@ export const ModelUsageChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "observations-usage-timeseries",
     },
     {
+      enabled: selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -74,41 +96,141 @@ export const ModelUsageChart = ({
     },
   );
 
-  const allModels = getAllModels(projectId, globalFilterState, useClickhouse());
+  const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
 
-  const transformedTotalTokens =
-    tokens.data && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(tokens.data, "startTime", [
+  const allUsageUnits = [
+    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
+  ];
+
+  const dates = typedData.flatMap((r) => new Date(r.startTime));
+
+  const usageTypeMap = new Map<
+    string,
+    {
+      units: number;
+      cost: number;
+      usageType: string;
+      model: string;
+    }[]
+  >();
+
+  dates?.forEach((d) => {
+    selectedModels.forEach((m) => {
+      allUsageUnits.forEach((uu) => {
+        const existingEntry = typedData.find(
+          (td) =>
+            new Date(td.startTime).getTime() === d.getTime() && td.model === m,
+        );
+
+        if (!existingEntry) {
+          const newEntry = {
+            startTime: d.toString(),
+            model: m,
+            units: { [uu]: 0 },
+            cost: { [uu]: 0 },
+          };
+          typedData.push(newEntry);
+
+          // Add the new entry to usageTypeMap
+          usageTypeMap.set(uu, [
+            ...(usageTypeMap.get(uu) ?? []),
             {
-              uniqueIdentifierColumns: [{ accessor: "model" }],
-              valueColumn: "sumTotalTokens",
+              ...newEntry,
+              units: 0,
+              cost: 0,
+              usageType: uu,
+            },
+          ]);
+        }
+
+        if (existingEntry) {
+          usageTypeMap.set(uu, [
+            ...(usageTypeMap.get(uu) ?? []),
+            {
+              ...existingEntry,
+              units: existingEntry.units[uu],
+              cost: existingEntry.cost[uu],
+              usageType: uu,
+            },
+          ]);
+        }
+      });
+    });
+  });
+
+  const usageData = Array.from(usageTypeMap.values()).flat();
+  const currentModels = [
+    ...new Set(usageData.map((row) => row.model).filter(Boolean)),
+  ];
+
+  const unitsByType =
+    usageData && allModels.length > 0
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(usageData, "startTime", [
+            {
+              uniqueIdentifierColumns: [{ accessor: "usageType" }],
+              valueColumn: "units",
             },
           ]),
-          allModels,
+          Array.from(usageTypeMap.keys()),
         )
       : [];
 
-  const transformedModelCost =
-    tokens.data && allModels.length > 0
+  const unitsByModel =
+    usageData && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(tokens.data, "startTime", [
+          extractTimeSeriesData(usageData, "startTime", [
             {
               uniqueIdentifierColumns: [{ accessor: "model" }],
-              valueColumn: "sumCalculatedTotalCost",
+              valueColumn: "units",
             },
           ]),
-          allModels,
+          currentModels,
         )
       : [];
 
-  const totalCost = tokens.data?.reduce(
-    (acc, curr) => acc + (curr.sumCalculatedTotalCost as number),
+  const costByType =
+    usageData && allModels.length > 0
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(usageData, "startTime", [
+            {
+              uniqueIdentifierColumns: [{ accessor: "usageType" }],
+              valueColumn: "cost",
+            },
+          ]),
+          Array.from(usageTypeMap.keys()),
+        )
+      : [];
+
+  const costByModel =
+    usageData && allModels.length > 0
+      ? fillMissingValuesAndTransform(
+          extractTimeSeriesData(usageData, "startTime", [
+            {
+              uniqueIdentifierColumns: [{ accessor: "model" }],
+              valueColumn: "cost",
+            },
+          ]),
+          currentModels,
+        )
+      : [];
+  console.log("costByModel", costByModel.length);
+
+  const totalCost = usageData?.reduce(
+    (acc, curr) =>
+      acc +
+      (curr.usageType === "total" && !isNaN(curr.cost as number)
+        ? (curr.cost as number)
+        : 0),
     0,
   );
 
-  const totalTokens = tokens.data?.reduce(
-    (acc, curr) => acc + (curr.sumTotalTokens as number),
+  const totalTokens = usageData?.reduce(
+    (acc, curr) =>
+      acc +
+      (curr.usageType === "total" && !isNaN(curr.units as number)
+        ? (curr.units as number)
+        : 0),
     0,
   );
 
@@ -120,19 +242,34 @@ export const ModelUsageChart = ({
 
   const data = [
     {
-      tabTitle: "Total cost",
-      data: transformedModelCost,
+      tabTitle: "Cost by model",
+      data: costByModel,
       totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: `Token cost`,
+      metricDescription: `Cost`,
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Total tokens",
-      data: transformedTotalTokens,
+      tabTitle: "Cost by type",
+      data: costByType,
+      totalMetric: totalCostDashboardFormatted(totalCost),
+      metricDescription: `Cost`,
+      formatter: oneValueUsdFormatter,
+    },
+    {
+      tabTitle: "Units by model",
+      data: unitsByModel,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
-      metricDescription: `Token count`,
+      metricDescription: `Units`,
+    },
+    {
+      tabTitle: "Units by type",
+      data: unitsByType,
+      totalMetric: totalTokens
+        ? compactNumberFormatter(totalTokens)
+        : compactNumberFormatter(0),
+      metricDescription: `Units`,
     },
   ];
 
@@ -140,7 +277,19 @@ export const ModelUsageChart = ({
     <DashboardCard
       className={className}
       title="Model Usage"
-      isLoading={tokens.isLoading}
+      isLoading={queryResult.isLoading && selectedModels.length > 0}
+      headerRight={
+        <div className="flex items-center justify-end">
+          <ModelSelectorPopover
+            allModels={allModels}
+            selectedModels={selectedModels}
+            setSelectedModels={setSelectedModels}
+            buttonText={buttonText}
+            isAllSelected={isAllSelected}
+            handleSelectAll={handleSelectAll}
+          />
+        </div>
+      }
     >
       <TabComponent
         tabs={data.map((item) => {
@@ -153,13 +302,15 @@ export const ModelUsageChart = ({
                   description={item.metricDescription}
                   className="mb-4"
                 />
-                {isEmptyTimeSeries({ data: item.data }) || tokens.isLoading ? (
-                  <NoDataOrLoading isLoading={tokens.isLoading} />
+                {isEmptyTimeSeries({ data: item.data }) ||
+                queryResult.isLoading ? (
+                  <NoDataOrLoading isLoading={queryResult.isLoading} />
                 ) : (
                   <BaseTimeSeriesChart
                     agg={agg}
                     data={item.data}
                     showLegend={true}
+                    connectNulls={true}
                     valueFormatter={item.formatter}
                   />
                 )}

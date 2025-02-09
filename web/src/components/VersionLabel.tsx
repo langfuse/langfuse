@@ -1,4 +1,5 @@
 import {
+  ArrowUp10,
   BadgeCheck,
   Github,
   HardDriveDownload,
@@ -23,8 +24,20 @@ import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 
 export const VersionLabel = ({ className }: { className?: string }) => {
+  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
+    undefined,
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
+      onError: (error) => console.error("checkUpdate error", error), // do not render default error message
+    },
+  );
+
   const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -32,6 +45,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     enabled: !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, // do not check for updates on Langfuse Cloud
     onError: (error) => console.error("checkUpdate error", error), // do not render default error message
   });
+
   const plan = usePlan();
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -50,10 +64,13 @@ export const VersionLabel = ({ className }: { className?: string }) => {
     : // null on cloud
       null;
 
+  const showBackgroundMigrationStatus =
+    !isLangfuseCloud &&
+    backgroundMigrationStatus.data &&
+    backgroundMigrationStatus.data.status !== "FINISHED";
+
   const hasUpdate =
-    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-    checkUpdate.data &&
-    checkUpdate.data.updateType;
+    !isLangfuseCloud && checkUpdate.data && checkUpdate.data.updateType;
 
   const color =
     checkUpdate.data?.updateType === "major"
@@ -68,7 +85,16 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         <Button variant="ghost" size="xs" className={cn("text-xs", className)}>
           {VERSION}
           {selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : null}
-          {hasUpdate && <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />}
+          {showBackgroundMigrationStatus && (
+            <StatusBadge
+              type={backgroundMigrationStatus.data?.status.toLowerCase()}
+              showText={false}
+              className="bg-transparent"
+            />
+          )}
+          {hasUpdate && !showBackgroundMigrationStatus && (
+            <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
@@ -104,6 +130,21 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             Releases
           </Link>
         </DropdownMenuItem>
+        {!isLangfuseCloud && (
+          <DropdownMenuItem asChild>
+            <Link href="/background-migrations">
+              <ArrowUp10 size={16} className="mr-2" />
+              Background Migrations
+              {showBackgroundMigrationStatus && (
+                <StatusBadge
+                  type={backgroundMigrationStatus.data?.status.toLowerCase()}
+                  showText={false}
+                  className="bg-transparent"
+                />
+              )}
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="https://langfuse.com/changelog" target="_blank">
             <Newspaper size={16} className="mr-2" />

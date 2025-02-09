@@ -545,7 +545,6 @@ export const InnerEvalTemplateForm = (props: {
                 modelParamsDescription:
                   "Select a model which supports function calling.",
               }}
-              evalModelsOnly
               formDisabled={!props.isEditing}
             />
           </div>

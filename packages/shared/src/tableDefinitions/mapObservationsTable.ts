@@ -27,6 +27,12 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMapping[] = [
 export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
   ...observationsTableTraceUiColumnDefinitions,
   {
+    uiTableName: "type",
+    uiTableId: "type",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."type"',
+  },
+  {
     uiTableName: "ID",
     uiTableId: "id",
     clickhouseTableName: "observations",
@@ -68,7 +74,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "timeToFirstToken",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(isNull(completion_start_time), NULL,  date_diff('milliseconds', start_time, completion_start_time))",
+      "if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time) / 1000)",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
@@ -77,7 +83,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "latency",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(isNull(end_time), NULL, date_diff('milliseconds', start_time, end_time))",
+      "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000)",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
@@ -86,21 +92,21 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "tokensPerSecond",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "(usage_details['input'] / date_diff('milliseconds', start_time, end_time))",
+      "(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details))) / (date_diff('millisecond', start_time, end_time) / 1000))",
   },
   {
     uiTableName: "Input Cost ($)",
     uiTableId: "inputCost",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'input'), cost_details), cost_details['input'], NULL)",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
   {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'output'), cost_details), cost_details['output'], NULL)",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details)))",
   },
   {
     uiTableName: "Total Cost ($)",
@@ -128,18 +134,24 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseSelect: 'o."provided_model_name"',
   },
   {
+    uiTableName: "Model ID",
+    uiTableId: "modelId",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."internal_model_id"',
+  },
+  {
     uiTableName: "Input Tokens",
     uiTableId: "inputTokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'input'), usage_details), usage_details['input'], NULL)",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
   },
   {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'output'), usage_details), usage_details['output'], NULL)",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
   },
   {
     uiTableName: "Total Tokens",

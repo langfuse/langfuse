@@ -226,6 +226,14 @@ export const recordHistogram = (
   dd.dogstatsd.histogram(stat, value, tags);
 };
 
+export const recordDistribution = (
+  stat: string,
+  value?: number | undefined,
+  tags?: { [tag: string]: string | number } | undefined,
+) => {
+  dd.dogstatsd.distribution(stat, value, tags);
+};
+
 /**
  * Converts a queue name to the matching datadog metric name.
  * Consumer only needs to append the relevant suffix.

@@ -8,7 +8,6 @@ import {
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   dashboardDateRangeAggregationSettings,
@@ -56,7 +55,6 @@ export function ChartScores(props: {
         { type: "string", column: "scoreDataType" },
         { type: "string", column: "scoreSource" },
       ],
-      queryClickhouse: useClickhouse(),
       queryName: "scores-aggregate-timeseries",
     },
     {

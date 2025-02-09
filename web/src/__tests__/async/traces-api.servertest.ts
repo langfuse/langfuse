@@ -1,12 +1,12 @@
-import {
-  createObservation,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+} from "@langfuse/shared/src/server";
+import {
+  makeZodVerifiedAPICall,
+  makeZodVerifiedAPICallSilent,
+} from "@/src/__tests__/test-utils";
 import {
   GetTracesV1Response,
   GetTraceV1Response,
@@ -60,7 +60,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.externalId).toBeNull();
     expect(trace.body.version).toBe("2.0.0");
     expect(trace.body.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    expect(trace.body.latency).toBe(100);
+    expect(trace.body.latency).toBeCloseTo(100, 2);
     expect(trace.body.observations.length).toBe(2);
     expect(trace.body.scores.length).toBe(0);
     expect(trace.body.observations).toEqual(
@@ -80,9 +80,11 @@ describe("/api/public/traces API Endpoint", () => {
   });
 
   it("should fetch all traces", async () => {
+    const timestamp = new Date();
     const createdTrace = createTrace({
       name: "trace-name",
       user_id: "user-1",
+      timestamp: timestamp.getTime(),
       project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       metadata: { key: "value", jsonKey: JSON.stringify({ foo: "bar" }) },
       release: "1.0.0",
@@ -94,8 +96,8 @@ describe("/api/public/traces API Endpoint", () => {
         trace_id: createdTrace.id,
         project_id: createdTrace.project_id,
         name: "observation-name",
-        end_time: new Date().getTime(),
-        start_time: new Date().getTime() - 1000,
+        end_time: timestamp.getTime(),
+        start_time: timestamp.getTime() - 1000,
         input: "input",
         output: "output",
       }),
@@ -103,8 +105,8 @@ describe("/api/public/traces API Endpoint", () => {
         trace_id: createdTrace.id,
         project_id: createdTrace.project_id,
         name: "observation-name-2",
-        end_time: new Date().getTime(),
-        start_time: new Date().getTime() - 100000,
+        end_time: timestamp.getTime(),
+        start_time: timestamp.getTime() - 100000,
         input: "input-2",
         output: "output-2",
       }),
@@ -136,6 +138,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.latency).toBe(100);
     expect(trace.observations.length).toBe(2);
     expect(trace.scores.length).toBe(0);
+    expect(trace.timestamp).toBe(timestamp.toISOString());
   });
 
   it.each([
@@ -257,5 +260,87 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace1.name).toBe("trace-name2");
     const trace2 = traces.body.data[1];
     expect(trace2.name).toBe("trace-name1");
+  });
+
+  it("should return 400 error when page=0", async () => {
+    const response = await makeZodVerifiedAPICallSilent(
+      GetTracesV1Response,
+      "GET",
+      "/api/public/traces?page=0&limit=10",
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("LFE-3699: should fetch a single trace with unescaped metadata via traces list", async () => {
+    const traceId = randomUUID();
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: JSON.stringify({ foo: "bar" }) },
+      input: JSON.stringify({
+        args: [
+          {
+            foo: "bar",
+          },
+        ],
+      }),
+    });
+
+    await createTracesCh([trace]);
+
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
+      "GET",
+      `/api/public/traces`,
+    );
+
+    const traceResponse = traces.body.data.find((t) => t.id === traceId);
+    expect(traceResponse).toBeDefined();
+    expect(traceResponse!.name).toBe("trace-name1");
+    expect(traceResponse!.metadata).toEqual({ key: { foo: "bar" } });
+    expect(traceResponse!.input).toEqual({
+      args: [
+        {
+          foo: "bar",
+        },
+      ],
+    });
+  });
+
+  it("LFE-3699: should fetch a single trace with unescaped metadata via single trace endpoint", async () => {
+    const traceId = randomUUID();
+    const trace = createTrace({
+      id: traceId,
+      name: "trace-name1",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: JSON.stringify({ foo: "bar" }) },
+      input: JSON.stringify({
+        args: [
+          {
+            foo: "bar",
+          },
+        ],
+      }),
+    });
+
+    await createTracesCh([trace]);
+
+    const traceResponse = await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      `/api/public/traces/${traceId}`,
+    );
+
+    expect(traceResponse.body.name).toBe("trace-name1");
+    expect(traceResponse.body.metadata).toEqual({ key: { foo: "bar" } });
+    expect(traceResponse.body.input).toEqual({
+      args: [
+        {
+          foo: "bar",
+        },
+      ],
+    });
   });
 });

@@ -256,8 +256,22 @@ export const QuickstartExamples = ({
         >
           FAQ post
         </a>{" "}
-        for common resolutions or{" "}
-        <Link className="underline" href="/support">
+        for common resolutions,{" "}
+        <Link
+          className="underline"
+          href="https://langfuse.com/docs/ask-ai"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Ask AI
+        </Link>{" "}
+        or{" "}
+        <Link
+          className="underline"
+          href="https://langfuse.com/support"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           get support
         </Link>
         .

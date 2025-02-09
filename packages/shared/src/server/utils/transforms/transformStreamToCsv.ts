@@ -12,7 +12,7 @@ export function transformStreamToCsv(): Transform {
     transform(
       row: Record<string, any>,
       encoding: BufferEncoding,
-      callback: TransformCallback
+      callback: TransformCallback,
     ): void {
       if (isFirstChunk) {
         // Extract headers from the first object
@@ -23,7 +23,7 @@ export function transformStreamToCsv(): Transform {
 
       // Convert the object to a CSV line and push it
       const csvRow = headers.map((header) => {
-        const field = row[header];
+        const field = row[header] ?? "";
         let str = stringify(field);
 
         // escape and format fields that contain commas

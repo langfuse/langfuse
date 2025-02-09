@@ -11,12 +11,12 @@ import {
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { ExperimentCreateEventSchema } from "@langfuse/shared/src/server";
 import {
-  ForbiddenError,
-  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   Prisma,
   extractVariables,
+  datasetItemMatchesVariable,
+  stringifyValue,
 } from "@langfuse/shared";
 import { backOff } from "exponential-backoff";
 import { callLLM } from "../../features/utilities";
@@ -24,6 +24,7 @@ import { QueueJobs, redis } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { v4 } from "uuid";
 import { compileHandlebarString } from "../../features/utilities";
+import { DatasetStatus } from "../../../../packages/shared/dist/prisma/generated/types";
 
 const isValidPrismaJsonObject = (
   input: Prisma.JsonValue,
@@ -39,12 +40,17 @@ const replaceVariablesInPrompt = (
   variables: string[],
 ): { role: string; content: string }[] => {
   const processContent = (content: string) => {
-    // Only include the variables that are in the variables array
+    // Extract only relevant variables from itemInput
     const filteredContext = Object.fromEntries(
       Object.entries(itemInput).filter(([key]) => variables.includes(key)),
     );
 
-    return compileHandlebarString(content, filteredContext);
+    // Apply Handlebars ONLY if the content contains `{{variable}}` pattern
+    if (content.includes("{{")) {
+      return compileHandlebarString(content, filteredContext);
+    }
+
+    return content; // Return original content if no placeholders are found
   };
 
   if (typeof prompt === "string") {
@@ -64,11 +70,47 @@ const validateDatasetItem = (
   if (!isValidPrismaJsonObject(itemInput)) {
     return false;
   }
-  return variables.some(
-    (variable) =>
-      Object.keys(itemInput).includes(variable) &&
-      typeof itemInput[variable] === "string",
+  return variables.some((variable) =>
+    datasetItemMatchesVariable(itemInput, variable),
   );
+};
+
+const parseDatasetItemInput = (
+  itemInput: Prisma.JsonObject,
+  variables: string[],
+): Prisma.JsonObject => {
+  try {
+    const filteredInput = Object.fromEntries(
+      Object.entries(itemInput)
+        .filter(([key]) => variables.includes(key))
+        .map(([key, value]) => [
+          key,
+          value === null ? null : stringifyValue(value),
+        ]),
+    );
+    return filteredInput;
+  } catch (error) {
+    logger.info("Error parsing dataset item input:", error);
+    return itemInput;
+  }
+};
+
+const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
+  return await kyselyPrisma.$kysely
+    .selectFrom("dataset_runs")
+    .selectAll()
+    .where("id", "=", datasetRunId)
+    .where("project_id", "=", projectId)
+    .executeTakeFirst();
+};
+
+const fetchPrompt = async (promptId: string, projectId: string) => {
+  return await kyselyPrisma.$kysely
+    .selectFrom("prompts")
+    .selectAll()
+    .where("id", "=", promptId)
+    .where("project_id", "=", projectId)
+    .executeTakeFirst();
 };
 
 export const createExperimentJob = async ({
@@ -83,112 +125,126 @@ export const createExperimentJob = async ({
    * INPUT VALIDATION *
    ********************/
 
-  // first, fetch all the context required for the experiment
-  const datasetRun = await kyselyPrisma.$kysely
-    .selectFrom("dataset_runs")
-    .selectAll()
-    .where("id", "=", runId)
-    .where("project_id", "=", projectId)
-    .executeTakeFirstOrThrow();
+  const datasetRun = await fetchDatasetRun(runId, projectId);
+  if (!datasetRun) {
+    throw new LangfuseNotFoundError(`Dataset run ${runId} not found`);
+  }
 
-  if (!datasetRun.metadata) {
-    throw new ForbiddenError(
-      "Langfuse in-app experiments can only be run with available model and prompt configurations.",
+  const validatedRunMetadata = ExperimentMetadataSchema.safeParse(
+    datasetRun.metadata,
+  );
+  if (!validatedRunMetadata.success) {
+    throw new InvalidRequestError(
+      "Langfuse in-app experiments can only be run with prompt and model configurations in metadata.",
     );
   }
 
-  const metadata = ExperimentMetadataSchema.safeParse(datasetRun.metadata);
-  if (!metadata.success) {
-    throw new ForbiddenError(
-      "Langfuse in-app experiments can only be run with available model and prompt configurations.",
-    );
-  }
-
-  // validate the prompt
-  const { prompt_id, provider, model, model_params } = metadata.data;
-
-  const prompt = await kyselyPrisma.$kysely
-    .selectFrom("prompts")
-    .selectAll()
-    .where("id", "=", prompt_id)
-    .where("project_id", "=", event.projectId)
-    .executeTakeFirstOrThrow();
+  const { prompt_id, provider, model, model_params } =
+    validatedRunMetadata.data;
+  const prompt = await fetchPrompt(prompt_id, projectId);
 
   if (!prompt) {
-    logger.error(`Prompt ${prompt_id} not found for project ${projectId}`);
+    throw new LangfuseNotFoundError(`Prompt ${prompt_id} not found`);
+  }
+
+  const validatedPrompt = PromptContentSchema.safeParse(prompt.prompt);
+  if (!validatedPrompt.success) {
     throw new InvalidRequestError(
-      `Prompt ${prompt_id} not found for project ${projectId}`,
+      `Prompt ${prompt_id} not found in expected format`,
     );
   }
 
-  const validatePromptContent = PromptContentSchema.safeParse(prompt.prompt);
-
-  if (!validatePromptContent.success) {
-    logger.error(
-      `Prompt content not in expected format ${prompt_id} not found for project ${projectId}`,
-    );
-    throw new InternalServerError(
-      `Prompt ${prompt_id} not found in expected format for project ${projectId}`,
-    );
-  }
-
-  const extractedVariables = extractVariables(
-    prompt?.type === "text"
-      ? (prompt.prompt?.toString() ?? "")
-      : JSON.stringify(prompt.prompt),
-  );
-
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
-      projectId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  const validatedDatasetItems = datasetItems.filter(({ input }) =>
-    validateDatasetItem(input, extractedVariables),
-  );
-
-  if (!validatedDatasetItems.length) {
-    logger.error(
-      `No Dataset ${datasetId} item input matches expected prompt variable format`,
-    );
-    throw new InvalidRequestError(
-      `No Dataset ${datasetId} item input matches expected prompt variable format`,
-    );
-  }
-
+  // fetch and validate API key
   const apiKey = await prisma.llmApiKeys.findFirst({
     where: {
       projectId: event.projectId,
       provider,
     },
   });
-  const parsedKey = LLMApiKeySchema.safeParse(apiKey);
+  if (!apiKey) {
+    throw new LangfuseNotFoundError(
+      `API key for provider ${provider} not found`,
+    );
+  }
+  const validatedApiKey = LLMApiKeySchema.safeParse(apiKey);
+  if (!validatedApiKey.success) {
+    throw new InvalidRequestError(
+      `API key for provider ${provider} not found.`,
+    );
+  }
+
+  // fetch dataset items
+  const datasetItems = await prisma.datasetItem.findMany({
+    where: {
+      datasetId,
+      projectId,
+      status: DatasetStatus.ACTIVE,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  // extract variables from prompt
+  const extractedVariables = extractVariables(
+    prompt?.type === "text"
+      ? (prompt.prompt?.toString() ?? "")
+      : JSON.stringify(prompt.prompt),
+  );
+
+  // validate dataset items against prompt configuration
+  const validatedDatasetItems = datasetItems
+    .filter(({ input }) => validateDatasetItem(input, extractedVariables))
+    .map((datasetItem) => ({
+      ...datasetItem,
+      input: parseDatasetItemInput(
+        datasetItem.input as Prisma.JsonObject, // this is safe because we already filtered for valid input
+        extractedVariables,
+      ),
+    }));
+
+  if (!validatedDatasetItems.length) {
+    throw new InvalidRequestError(
+      `No Dataset ${datasetId} item input matches expected prompt variable format`,
+    );
+  }
 
   for (const datasetItem of validatedDatasetItems) {
-    if (!parsedKey.success) {
-      // this will fail the eval execution if a user deletes the API key.
-      logger.error(
-        `Job ${datasetItem.id} did not find API key for provider ${provider} and project ${event.projectId}. Eval will fail. ${parsedKey.error}`,
+    // dedupe and skip if dataset run item already exists
+    const existingRunItem = await kyselyPrisma.$kysely
+      .selectFrom("dataset_run_items")
+      .selectAll()
+      .where("project_id", "=", projectId)
+      .where("dataset_item_id", "=", datasetItem.id)
+      .where("dataset_run_id", "=", runId)
+      .executeTakeFirst();
+
+    if (existingRunItem) {
+      logger.info(
+        `Dataset run item ${existingRunItem.id} already exists, skipping`,
       );
-      throw new LangfuseNotFoundError(
-        `API key for provider ${provider} and project ${event.projectId} not found.`,
-      );
+      continue;
     }
 
     /********************
      * VARIABLE EXTRACTION *
      ********************/
 
-    const messages = replaceVariablesInPrompt(
-      validatePromptContent.data,
-      datasetItem.input as Prisma.JsonObject, // validated format
-      extractedVariables,
-    );
+    let messages: { role: string; content: string }[] = [];
+    try {
+      messages = replaceVariablesInPrompt(
+        validatedPrompt.data,
+        datasetItem.input, // validated format
+        extractedVariables,
+      );
+    } catch (error) {
+      // skip this dataset item if there is an error replacing variables
+      logger.error(
+        `Error replacing variables in prompt for dataset item ${datasetItem.id}`,
+        error,
+      );
+      continue;
+    }
 
     /********************
      * RUN ITEM CREATION *
@@ -226,8 +282,7 @@ export const createExperimentJob = async ({
     await backOff(
       async () =>
         await callLLM(
-          datasetItem.id,
-          parsedKey.data,
+          validatedApiKey.data,
           messages,
           model_params,
           provider,
@@ -235,7 +290,7 @@ export const createExperimentJob = async ({
           traceParams,
         ),
       {
-        numOfAttempts: 5, // turn off retries as Langchain is doing that for us already.
+        numOfAttempts: 1, // turn off retries as Langchain is doing that for us already.
       },
     );
 

@@ -12,7 +12,7 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Level",
     uiTableId: "level",
     clickhouseTableName: "observations",
-    clickhouseSelect: "level",
+    clickhouseSelect: "aggregated_level",
   },
   {
     uiTableName: "ID",
@@ -69,18 +69,42 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseSelect: "tags",
   },
   {
+    uiTableName: "Warning Level Count",
+    uiTableId: "warningCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "warning_count",
+  },
+  {
+    uiTableName: "Error Level Count",
+    uiTableId: "errorCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "error_count",
+  },
+  {
+    uiTableName: "Default Level Count",
+    uiTableId: "defaultCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "default_count",
+  },
+  {
+    uiTableName: "Debug Level Count",
+    uiTableId: "debugCount",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "debug_count",
+  },
+  {
     uiTableName: "Input Tokens",
     uiTableId: "inputTokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'input'), usage_details), usage_details['input'], NULL)",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
   },
   {
     uiTableName: "Output Tokens",
     uiTableId: "outputTokens",
     clickhouseTableName: "observations",
     clickhouseSelect:
-      "if(mapExists((k, v) -> (k = 'output'), usage_details), usage_details['output'], NULL)",
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
   },
   {
     uiTableName: "Total Tokens",
@@ -114,13 +138,15 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableName: "Input Cost ($)",
     uiTableId: "inputCost",
     clickhouseTableName: "observations",
-    clickhouseSelect: "cost_details['input']",
+    clickhouseSelect:
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
   {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "observations",
-    clickhouseSelect: "cost_details['output']",
+    clickhouseSelect:
+      "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details)))",
   },
   {
     uiTableName: "Total Cost ($)",

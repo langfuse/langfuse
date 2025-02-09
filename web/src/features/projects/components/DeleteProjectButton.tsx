@@ -22,6 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { env } from "@/src/env.mjs";
 
 export function DeleteProjectButton() {
   const capture = usePostHogClientCapture();
@@ -61,7 +62,7 @@ export function DeleteProjectButton() {
         projectId: project.id,
       })
       .then(() => {
-        window.location.href = "/"; // browser reload to refresh jwt
+        window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/"; // browser reload to refresh jwt
       })
       .catch((error) => {
         console.error(error);
@@ -77,7 +78,7 @@ export function DeleteProjectButton() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold  ">
+          <DialogTitle className="text-lg font-semibold">
             Delete Project
           </DialogTitle>
           <DialogDescription className=" ">

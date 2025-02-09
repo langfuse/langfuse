@@ -1,5 +1,5 @@
+import { ActionButton } from "@/src/components/ActionButton";
 import { BadgeCheck, X } from "lucide-react";
-import Link from "next/link";
 
 export type SuccessNotificationProps = {
   title: string;
@@ -28,13 +28,18 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
         </div>
         {description && (
           <div className="text-sm leading-tight text-primary-foreground">
-            {description}{" "}
-            {!!link && (
-              <Link href={link.href}>
-                <span className="hover:underline">{link.text}</span>
-              </Link>
-            )}
+            {description}
           </div>
+        )}
+        {link && (
+          <ActionButton
+            href={link.href}
+            size="sm"
+            variant="secondary"
+            className="self-start"
+          >
+            {link.text}
+          </ActionButton>
         )}
       </div>
       <button

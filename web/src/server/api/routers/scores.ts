@@ -1,10 +1,6 @@
 import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  type ScoreOptions,
-  scoresTableCols,
-} from "@/src/server/api/definitions/scoresTable";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -24,16 +20,15 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
+  LangfuseNotFoundError,
+  InvalidRequestError,
+  InternalServerError,
 } from "@langfuse/shared";
-import { Prisma, type Score } from "@langfuse/shared/src/db";
+import { type Score } from "@langfuse/shared/src/db";
 import {
-  datetimeFilterToPrisma,
-  datetimeFilterToPrismaSql,
   getScoresGroupedByNameSourceType,
   getScoresUiCount,
   getScoresUiTable,
-  orderByToPrismaSql,
-  tableColumnsToSqlFilterAndPrefix,
   getScoreNames,
   getTracesGroupedByTags,
   deleteScore,
@@ -44,8 +39,8 @@ import {
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
 } from "@langfuse/shared/src/server";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { env } from "@/src/env.mjs";
+import { v4 } from "uuid";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -67,236 +62,100 @@ type AllScoresReturnType = Score & {
 
 export const scoresRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(
-      ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
-    )
+    .input(ScoreAllOptions)
     .query(async ({ input, ctx }) => {
-      return await measureAndReturnApi({
-        input,
-        operation: "scores.all",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          const { filterCondition, orderByCondition } =
-            parseScoresGetAllOptions(input);
-
-          const scores = await ctx.prisma.$queryRaw<Array<AllScoresReturnType>>(
-            generateScoresQuery(
-              Prisma.sql` 
-          s.id,
-          s.name,
-          s.value,
-          s.string_value AS "stringValue",
-          s.timestamp,
-          s.source,
-          s.data_type AS "dataType",
-          s.comment,
-          s.trace_id AS "traceId",
-          s.observation_id AS "observationId",
-          s.author_user_id AS "authorUserId",
-          t.user_id AS "traceUserId",
-          t.name AS "traceName",
-          t.tags AS "traceTags",
-          je.job_configuration_id AS "jobConfigurationId",
-          u.image AS "authorUserImage", 
-          u.name AS "authorUserName"
-          `,
-              input.projectId,
-              ctx.session.orgId,
-              filterCondition,
-              orderByCondition,
-              input.limit,
-              input.page,
-            ),
-          );
-
-          return {
-            scores,
-          };
-        },
-        clickhouseExecution: async () => {
-          const clickhouseScoreData = await getScoresUiTable({
-            projectId: input.projectId,
-            filter: input.filter ?? [],
-            orderBy: input.orderBy,
-            limit: input.limit,
-            offset: input.page * input.limit,
-          });
-
-          const [jobExecutions, users] = await Promise.all([
-            ctx.prisma.jobExecution.findMany({
-              where: {
-                projectId: input.projectId,
-                jobOutputScoreId: {
-                  in: clickhouseScoreData.map((score) => score.id),
-                },
-              },
-              select: {
-                id: true,
-                jobConfigurationId: true,
-                jobOutputScoreId: true,
-              },
-            }),
-            ctx.prisma.user.findMany({
-              where: {
-                id: {
-                  in: clickhouseScoreData
-                    .map((score) => score.authorUserId)
-                    .filter((s): s is string => Boolean(s)),
-                },
-              },
-              select: {
-                id: true,
-                name: true,
-                image: true,
-              },
-            }),
-          ]);
-
-          return {
-            scores: clickhouseScoreData.map<AllScoresReturnType>((score) => {
-              const jobExecution = jobExecutions.find(
-                (je) => je.jobOutputScoreId === score.id,
-              );
-
-              const user = users.find((u) => u.id === score.authorUserId);
-
-              return {
-                ...score,
-                jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
-                authorUserImage: user?.image ?? null,
-                authorUserName: user?.name ?? null,
-              };
-            }),
-          };
-        },
+      const clickhouseScoreData = await getScoresUiTable({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        limit: input.limit,
+        offset: input.page * input.limit,
       });
+
+      const [jobExecutions, users] = await Promise.all([
+        ctx.prisma.jobExecution.findMany({
+          where: {
+            projectId: input.projectId,
+            jobOutputScoreId: {
+              in: clickhouseScoreData.map((score) => score.id),
+            },
+          },
+          select: {
+            id: true,
+            jobConfigurationId: true,
+            jobOutputScoreId: true,
+          },
+        }),
+        ctx.prisma.user.findMany({
+          where: {
+            id: {
+              in: clickhouseScoreData
+                .map((score) => score.authorUserId)
+                .filter((s): s is string => Boolean(s)),
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        }),
+      ]);
+
+      return {
+        scores: clickhouseScoreData.map<AllScoresReturnType>((score) => {
+          const jobExecution = jobExecutions.find(
+            (je) => je.jobOutputScoreId === score.id,
+          );
+          const user = users.find((u) => u.id === score.authorUserId);
+          return {
+            ...score,
+            jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
+            authorUserImage: user?.image ?? null,
+            authorUserName: user?.name ?? null,
+          };
+        }),
+      };
     }),
   countAll: protectedProjectProcedure
-    .input(
-      ScoreAllOptions.extend({ queryClickhouse: z.boolean().default(false) }),
-    )
-    .query(async ({ input, ctx }) => {
-      return await measureAndReturnApi({
-        input,
-        operation: "scores.countAll",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          const { filterCondition } = parseScoresGetAllOptions(input);
-
-          const scoresCount = await ctx.prisma.$queryRaw<
-            Array<{ totalCount: bigint }>
-          >(
-            generateScoresQuery(
-              Prisma.sql` count(*) AS "totalCount"`,
-              input.projectId,
-              ctx.session.orgId,
-              filterCondition,
-              Prisma.empty,
-              1, // limit
-              0, // page
-            ),
-          );
-
-          return {
-            totalCount:
-              scoresCount.length > 0 ? Number(scoresCount[0]?.totalCount) : 0,
-          };
-        },
-        clickhouseExecution: async () => {
-          const clickhouseScoreData = await getScoresUiCount({
-            projectId: input.projectId,
-            filter: input.filter ?? [],
-            orderBy: input.orderBy,
-            limit: 1,
-            offset: 0,
-          });
-
-          return {
-            totalCount: clickhouseScoreData,
-          };
-        },
+    .input(ScoreAllOptions)
+    .query(async ({ input }) => {
+      const clickhouseScoreData = await getScoresUiCount({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        limit: 1,
+        offset: 0,
       });
+
+      return {
+        totalCount: clickhouseScoreData,
+      };
     }),
   filterOptions: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         timestampFilter: timeFilter.optional(),
-        queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { timestampFilter } = input;
-      return await measureAndReturnApi({
-        input,
-        operation: "scores.filterOptions",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          const prismaTimestampFilter = timestampFilter
-            ? datetimeFilterToPrisma(timestampFilter)
-            : {};
+      const [names, tags] = await Promise.all([
+        getScoreNames(
+          input.projectId,
+          timestampFilter ? [timestampFilter] : [],
+        ),
+        getTracesGroupedByTags({
+          projectId: input.projectId,
+          filter: timestampFilter ? [timestampFilter] : [],
+        }),
+      ]);
 
-          const rawTimestampFilter =
-            timestampFilter && timestampFilter.type === "datetime"
-              ? datetimeFilterToPrismaSql(
-                  "timestamp",
-                  timestampFilter.operator,
-                  timestampFilter.value,
-                )
-              : Prisma.empty;
-          const [names, tags] = await Promise.all([
-            ctx.prisma.score.groupBy({
-              where: {
-                projectId: input.projectId,
-                timestamp: prismaTimestampFilter,
-              },
-              by: ["name"],
-              _count: {
-                _all: true,
-              },
-              take: 1000,
-              orderBy: {
-                _count: {
-                  id: "desc",
-                },
-              },
-            }),
-            ctx.prisma.$queryRaw<{ value: string }[]>`
-        SELECT tags.tag as value
-        FROM traces, UNNEST(traces.tags) AS tags(tag)
-        WHERE traces.project_id = ${input.projectId} ${rawTimestampFilter}
-        GROUP BY tags.tag
-        ORDER BY tags.tag ASC
-        LIMIT 1000
-      `,
-          ]);
-
-          const res: ScoreOptions = {
-            name: names.map((i) => ({ value: i.name, count: i._count._all })),
-            tags: tags,
-          };
-
-          return res;
-        },
-        clickhouseExecution: async () => {
-          const [names, tags] = await Promise.all([
-            getScoreNames(
-              input.projectId,
-              timestampFilter ? [timestampFilter] : [],
-            ),
-            getTracesGroupedByTags({
-              projectId: input.projectId,
-              filter: timestampFilter ? [timestampFilter] : [],
-            }),
-          ]);
-
-          const res: ScoreOptions = {
-            name: names.map((i) => ({ value: i.name, count: i.count })),
-            tags: tags,
-          };
-          return res;
-        },
-      });
+      return {
+        name: names.map((i) => ({ value: i.name, count: i.count })),
+        tags: tags,
+      };
     }),
   createAnnotationScore: protectedProjectProcedure
     .input(CreateAnnotationScoreData)
@@ -307,70 +166,40 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const trace = await ctx.prisma.trace.findFirst({
-        where: {
-          id: input.traceId,
-          projectId: input.projectId,
-        },
-      });
-      if (!trace) {
-        throw new Error("No trace with this id in this project.");
-      }
+      const score = {
+        id: v4(),
+        projectId: input.projectId,
+        traceId: input.traceId,
+        observationId: input.observationId ?? null,
+        value: input.value ?? null,
+        stringValue: input.stringValue ?? null,
+        dataType: input.dataType ?? null,
+        configId: input.configId ?? null,
+        name: input.name,
+        comment: input.comment ?? null,
+        authorUserId: ctx.session.user.id,
+        source: ScoreSource.ANNOTATION,
+        queueId: input.queueId ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        timestamp: new Date(),
+      };
 
-      const existingScore = await ctx.prisma.score.findFirst({
-        where: {
-          projectId: input.projectId,
-          traceId: input.traceId,
-          observationId: input.observationId ?? null,
-          source: "ANNOTATION",
-          // configId functions as unique constraint for scores with source ANNOTATION
-          configId: input.configId,
-        },
-      });
+      const hasClickhouseConfigured = env.CLICKHOUSE_URL;
 
-      if (existingScore) {
-        throw new Error(
-          `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
-        );
-      }
-
-      const score = await ctx.prisma.score.create({
-        data: {
-          projectId: input.projectId,
-          traceId: input.traceId,
-          observationId: input.observationId,
-          value: input.value,
-          stringValue: input.stringValue,
-          dataType: input.dataType,
-          configId: input.configId,
-          name: input.name,
-          comment: input.comment,
-          authorUserId: ctx.session.user.id,
-          source: "ANNOTATION",
-          queueId: input.queueId,
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "create",
-        after: score,
-      });
-
-      if (env.CLICKHOUSE_URL) {
+      if (hasClickhouseConfigured) {
         const clickhouseTrace = await getTraceById(
           input.traceId,
           input.projectId,
         );
 
         if (!clickhouseTrace) {
-          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
           );
-          return validateDbScore(score);
+          throw new LangfuseNotFoundError(
+            `No trace with id ${input.traceId} in project ${input.projectId} in Clickhouse`,
+          );
         }
 
         const clickhouseScore = await searchExistingAnnotationScore(
@@ -382,11 +211,12 @@ export const scoresRouter = createTRPCRouter({
         );
 
         if (clickhouseScore) {
-          // Fail silently while Postgres is in lead and return early.
           logger.error(
             `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
           );
-          return validateDbScore(score);
+          throw new InvalidRequestError(
+            `Score for name ${input.name} already exists for trace ${input.traceId} in project ${input.projectId}`,
+          );
         }
 
         await upsertScore({
@@ -407,6 +237,14 @@ export const scoresRouter = createTRPCRouter({
         });
       }
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: score.id,
+        action: "create",
+        after: score,
+      });
+
       return validateDbScore(score);
     }),
   updateAnnotationScore: protectedProjectProcedure
@@ -418,72 +256,63 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      if (env.CLICKHOUSE_URL) {
-        // Fetch the current score from Clickhouse
-        const clickhouseScore = await getScoreById(
-          input.projectId,
-          input.id,
-          ScoreSource.ANNOTATION,
-        );
-        if (!clickhouseScore) {
-          // Continue processing the update in Postgres
-          logger.warn(
-            `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
-          );
-        } else {
-          await upsertScore({
-            id: input.id,
-            project_id: input.projectId,
-            timestamp: convertDateToClickhouseDateTime(
-              clickhouseScore.timestamp,
-            ),
-            value: input.value !== null ? input.value : undefined,
-            string_value: input.stringValue,
-            comment: input.comment,
-            author_user_id: ctx.session.user.id,
-            queue_id: input.queueId,
-            source: ScoreSource.ANNOTATION,
-            name: clickhouseScore.name,
-            data_type: clickhouseScore.dataType,
-            config_id: clickhouseScore.configId,
-            trace_id: clickhouseScore.traceId,
-            observation_id: clickhouseScore.observationId,
-          });
-        }
-      }
+      let updatedScore: Score | null | undefined = null;
 
-      const score = await ctx.prisma.score.findFirst({
-        where: {
-          id: input.id,
-          projectId: input.projectId,
-          source: "ANNOTATION",
-        },
-      });
+      // Fetch the current score from Clickhouse
+      const score = await getScoreById(
+        input.projectId,
+        input.id,
+        ScoreSource.ANNOTATION,
+      );
       if (!score) {
-        throw new Error("No annotation score with this id in this project.");
-      }
-      const updatedScore = await ctx.prisma.score.update({
-        where: {
-          id: score.id,
-          projectId: input.projectId,
-        },
-        data: {
-          value: input.value,
-          stringValue: input.stringValue,
+        logger.warn(
+          `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+        );
+        throw new LangfuseNotFoundError(
+          `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+        );
+      } else {
+        await upsertScore({
+          id: input.id,
+          project_id: input.projectId,
+          timestamp: convertDateToClickhouseDateTime(score.timestamp),
+          value: input.value !== null ? input.value : undefined,
+          string_value: input.stringValue,
           comment: input.comment,
-          authorUserId: ctx.session.user.id,
-          queueId: input.queueId,
-        },
-      });
+          author_user_id: ctx.session.user.id,
+          queue_id: input.queueId,
+          source: ScoreSource.ANNOTATION,
+          name: score.name,
+          data_type: score.dataType,
+          config_id: score.configId,
+          trace_id: score.traceId,
+          observation_id: score.observationId,
+        });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "update",
-        before: score,
-        after: updatedScore,
-      });
+        updatedScore = {
+          ...score,
+          value: input.value ?? null,
+          stringValue: input.stringValue ?? null,
+          comment: input.comment ?? null,
+          authorUserId: ctx.session.user.id,
+          queueId: input.queueId ?? null,
+        };
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: input.id,
+          action: "update",
+          before: score,
+          after: updatedScore,
+        });
+      }
+
+      if (!updatedScore) {
+        throw new InternalServerError(
+          `Annotation score could not be updated in project ${input.projectId}`,
+        );
+      }
 
       return validateDbScore(updatedScore);
     }),
@@ -496,121 +325,58 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      const score = await ctx.prisma.score.findFirst({
-        where: {
-          id: input.id,
-          source: "ANNOTATION",
-          projectId: input.projectId,
-        },
-      });
-      if (!score) {
-        throw new Error("No annotation score with this id in this project.");
-      }
+      let score: Score | null | undefined = null;
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "score",
-        resourceId: score.id,
-        action: "delete",
-        before: score,
-      });
+      // Fetch the current score from Clickhouse
+      const clickhouseScore = await getScoreById(
+        input.projectId,
+        input.id,
+        ScoreSource.ANNOTATION,
+      );
+      if (!clickhouseScore) {
+        logger.warn(
+          `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+        );
+        throw new LangfuseNotFoundError(
+          `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
+        );
+      } else {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "score",
+          resourceId: input.id,
+          action: "delete",
+          before: clickhouseScore,
+        });
 
-      if (env.CLICKHOUSE_URL) {
         // Delete the score from Clickhouse
-        await deleteScore(input.projectId, score.id);
+        await deleteScore(input.projectId, clickhouseScore.id);
+        score = clickhouseScore;
       }
 
-      // Delete the score from Postgres
-      return await ctx.prisma.score.delete({
-        where: {
-          id: score.id,
-          projectId: input.projectId,
-        },
-      });
+      if (!score) {
+        throw new InternalServerError(
+          `Annotation score could not be deleted in project ${input.projectId}`,
+        );
+      }
+
+      return validateDbScore(score);
     }),
   getScoreKeysAndProps: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         selectedTimeOption: SelectedTimeOptionSchema,
-        queryClickhouse: z.boolean().default(false),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const date = getDateFromOption(input.selectedTimeOption);
-
-      return await measureAndReturnApi({
-        input,
-        operation: "scores.getScoreKeysAndProps",
-        user: ctx.session.user,
-        pgExecution: async () => {
-          const scores = await ctx.prisma.score.groupBy({
-            where: {
-              projectId: input.projectId,
-              ...(date ? { timestamp: { gte: date } } : {}),
-            },
-            take: 1000,
-            orderBy: {
-              _count: {
-                id: "desc",
-              },
-            },
-            by: ["name", "source", "dataType"],
-          });
-
-          if (scores.length === 0) return [];
-          return scores.map(({ name, source, dataType }) => ({
-            key: composeAggregateScoreKey({ name, source, dataType }),
-            name: name,
-            source: source,
-            dataType: dataType,
-          }));
-        },
-        clickhouseExecution: async () => {
-          const res = await getScoresGroupedByNameSourceType(input.projectId);
-
-          return res.map(({ name, source, dataType }) => ({
-            key: composeAggregateScoreKey({ name, source, dataType }),
-            name: name,
-            source: source,
-            dataType: dataType,
-          }));
-        },
-      });
+      const res = await getScoresGroupedByNameSourceType(input.projectId, date);
+      return res.map(({ name, source, dataType }) => ({
+        key: composeAggregateScoreKey({ name, source, dataType }),
+        name: name,
+        source: source,
+        dataType: dataType,
+      }));
     }),
 });
-
-const parseScoresGetAllOptions = (input: z.infer<typeof ScoreAllOptions>) => {
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    input.filter,
-    scoresTableCols,
-    "traces_scores",
-  );
-
-  const orderByCondition = orderByToPrismaSql(input.orderBy, scoresTableCols);
-  return { filterCondition, orderByCondition };
-};
-
-const generateScoresQuery = (
-  select: Prisma.Sql,
-  projectId: string,
-  orgId: string,
-  filterCondition: Prisma.Sql,
-  orderCondition: Prisma.Sql,
-  limit: number,
-  page: number,
-) => {
-  return Prisma.sql`
-  SELECT
-   ${select}
-  FROM scores s
-  LEFT JOIN traces t ON t.id = s.trace_id AND t.project_id = ${projectId}
-  LEFT JOIN job_executions je ON je.job_output_score_id = s.id AND je.project_id = ${projectId}
-  LEFT JOIN users u ON u.id = s.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${orgId})
-  WHERE s.project_id = ${projectId}
-  ${filterCondition}
-  ${orderCondition}
-  LIMIT ${limit}
-  OFFSET ${page * limit}
-`;
-};

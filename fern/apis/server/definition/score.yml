@@ -59,7 +59,7 @@ service:
             type: optional<commons.ScoreDataType>
             docs: Retrieve only scores with a specific dataType.
           traceTags:
-            type: optional<list<string>>
+            type: optional<string>
             allow-multiple: true
             docs: Only scores linked to traces that include all of these tags will be returned.
       response: GetScoresResponse

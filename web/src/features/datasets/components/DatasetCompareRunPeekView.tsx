@@ -1,4 +1,3 @@
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import PeekView from "@/src/components/layouts/peek-view";
 import { IOPreview } from "@/src/components/trace/IOPreview";
@@ -55,7 +54,6 @@ export function DatasetCompareRunPeekView({
       traceId: traceAndObservationId?.traceId as string,
       projectId,
       timestamp,
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled: !!traceAndObservationId,

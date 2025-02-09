@@ -6,7 +6,7 @@ import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBa
 import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
 import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
 import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { TracesTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
+import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
 import { UserChart } from "@/src/features/dashboard/components/UserChart";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { api } from "@/src/utils/api";
@@ -27,7 +27,6 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 export default function Dashboard() {
@@ -47,7 +46,6 @@ export default function Dashboard() {
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
-      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -176,7 +174,6 @@ export default function Dashboard() {
           <FeedbackButtonWrapper
             title="Request Chart"
             description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
-            type="dashboard"
             className="hidden lg:flex"
           >
             <Button
@@ -213,7 +210,7 @@ export default function Dashboard() {
           projectId={projectId}
           globalFilterState={mergedFilterState}
         />
-        <TracesTimeSeriesChart
+        <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}

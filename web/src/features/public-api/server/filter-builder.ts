@@ -119,6 +119,5 @@ export function convertApiProvidedFilterToClickhouseFilter(
     }
   });
 
-  console.log("filterList", filterList);
   return filterList;
 }

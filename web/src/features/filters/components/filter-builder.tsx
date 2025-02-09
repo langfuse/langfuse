@@ -29,13 +29,13 @@ import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/components/ui/input-command";
 
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
@@ -227,6 +227,14 @@ export function InlineFilterBuilder({
   );
 }
 
+const getOperator = (
+  type: NonNullable<WipFilterCondition["type"]>,
+): WipFilterCondition["operator"] => {
+  return filterOperators[type]?.length > 0
+    ? filterOperators[type][0]
+    : undefined;
+};
+
 function FilterBuilderForm({
   columns,
   filterState,
@@ -295,36 +303,45 @@ function FilterBuilderForm({
                         <ChevronDown className="h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="max-w-fit p-0">
-                      <Command>
-                        <CommandInput
+                    <PopoverContent
+                      className="max-w-fit p-0"
+                      onWheel={(e) => {
+                        e.stopPropagation();
+                      }}
+                      onTouchMove={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <InputCommand>
+                        <InputCommandInput
                           placeholder="Search for column"
                           onFocus={(e) => (e.target.style.border = "none")}
                         />
-                        <CommandList>
-                          <CommandEmpty>No options found.</CommandEmpty>
-                          <CommandGroup>
+                        <InputCommandList>
+                          <InputCommandEmpty>
+                            No options found.
+                          </InputCommandEmpty>
+                          <InputCommandGroup>
                             {columns.map((option) => (
-                              <CommandItem
+                              <InputCommandItem
                                 key={option.id}
                                 value={option.id}
                                 onSelect={(value) => {
                                   const col = columns.find(
                                     (c) => c.id === value,
                                   );
+                                  const defaultOperator = col?.type
+                                    ? getOperator(col.type)
+                                    : undefined;
+
                                   handleFilterChange(
                                     {
                                       column: col?.name,
                                       type: col?.type,
-                                      operator:
-                                        // does not work as expected on eval-template form when embedded into form via InlineFilterBuilder
-                                        // col?.type !== undefined &&
-                                        // filterOperators[col.type]?.length > 0
-                                        //   ? (filterOperators[col.type][0] as any) // operator matches type
-                                        undefined,
+                                      operator: defaultOperator,
                                       value: undefined,
                                       key: undefined,
-                                    },
+                                    } as WipFilterCondition,
                                     i,
                                   );
                                 }}
@@ -338,11 +355,11 @@ function FilterBuilderForm({
                                   )}
                                 />
                                 {option.name}
-                              </CommandItem>
+                              </InputCommandItem>
                             ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
+                          </InputCommandGroup>
+                        </InputCommandList>
+                      </InputCommand>
                     </PopoverContent>
                   </Popover>
                   {filter.type &&
@@ -391,6 +408,8 @@ function FilterBuilderForm({
                   <Select
                     disabled={!filter.column || disabled}
                     onValueChange={(value) => {
+                      // protect against invalid empty operator values
+                      if (value === "") return;
                       handleFilterChange(
                         {
                           ...filter,

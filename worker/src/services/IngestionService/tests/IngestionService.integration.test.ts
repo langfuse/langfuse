@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -14,6 +14,7 @@ import {
   TraceEventType,
   traceRecordReadSchema,
   TraceRecordReadType,
+  ingestionEvent,
 } from "@langfuse/shared/src/server";
 import { pruneDatabase } from "../../../__tests__/utils";
 
@@ -22,6 +23,7 @@ import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const IngestionEventBatchSchema = z.array(ingestionEvent);
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -71,6 +73,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(timestamp),
       traceEventList: eventList,
     });
     await clickhouseWriter.flushAll(true);
@@ -108,29 +111,29 @@ describe("Ingestion end-to-end tests", () => {
         outputCost: 456,
         totalCost: 789,
       },
-      expectedInputUnits: 100,
-      expectedOutputUnits: 200,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        input: 100,
+        output: 200,
+        total: 100,
+      },
     },
     {
       usage: {
         total: 100,
         unit: ModelUsageUnit.Characters,
       },
-
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        total: 100,
+      },
     },
     {
       usage: {
         total: 100,
         unit: ModelUsageUnit.Milliseconds,
       },
-
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        total: 100,
+      },
     },
     {
       usage: {
@@ -138,10 +141,11 @@ describe("Ingestion end-to-end tests", () => {
         output: 2,
         unit: ModelUsageUnit.Images,
       },
-
-      expectedInputUnits: 1,
-      expectedOutputUnits: 2,
-      expectedTotalUnits: 3,
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
     },
     {
       usage: {
@@ -149,10 +153,11 @@ describe("Ingestion end-to-end tests", () => {
         output: 2,
         unit: ModelUsageUnit.Requests,
       },
-
-      expectedInputUnits: 1,
-      expectedOutputUnits: 2,
-      expectedTotalUnits: 3,
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
     },
     {
       usage: {
@@ -160,37 +165,183 @@ describe("Ingestion end-to-end tests", () => {
         output: 10,
         unit: ModelUsageUnit.Seconds,
       },
-
-      expectedInputUnits: 30,
-      expectedOutputUnits: 10,
-      expectedTotalUnits: 40,
+      expectedUsageDetails: {
+        input: 30,
+        output: 10,
+        total: 40,
+      },
     },
     {
       usage: {
         total: 100,
       },
-
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: 100,
+      expectedUsageDetails: {
+        total: 100,
+      },
     },
     {
       usage: undefined,
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: undefined,
+      expectedUsageDetails: {},
     },
     {
       usage: null,
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: undefined,
+      expectedUsageDetails: {},
     },
     {
       usage: {},
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
-      expectedTotalUnits: undefined,
+      expectedUsageDetails: {},
+    },
+    {
+      usage: {},
+      usageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+        cached: 1,
+      },
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+        cached: 1,
+      },
+    },
+    {
+      usage: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
+      usageDetails: {
+        cached: 1,
+      },
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+        cached: 1,
+      },
+    },
+    {
+      usage: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
+      usageDetails: {
+        input: 2,
+        output: 3,
+        total: 5,
+        cached: 1,
+      },
+      expectedUsageDetails: {
+        input: 2,
+        output: 3,
+        total: 5,
+        cached: 1,
+      },
+    },
+    {
+      usage: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
+      costDetails: {
+        input: 123,
+        output: 456,
+        total: 789,
+      },
+      expectedUsageDetails: {
+        input: 1,
+        output: 2,
+        total: 3,
+      },
+      expectedCostDetails: {
+        input: 123,
+        output: 456,
+        total: 789,
+      },
+    },
+    {
+      usage: {},
+      usageDetails: {},
+      costDetails: {},
+      expectedUsageDetails: {},
+      expectedCostDetails: {},
+    },
+    {
+      usage: null,
+      usageDetails: null,
+      costDetails: null,
+      expectedUsageDetails: {},
+      expectedCostDetails: {},
+    },
+    {
+      usage: undefined,
+      usageDetails: undefined,
+      costDetails: undefined,
+      expectedUsageDetails: {},
+      expectedCostDetails: {},
+    },
+    {
+      usage: { input: 1 },
+      usageDetails: { input: 2 },
+      costDetails: { input: 3 },
+      expectedUsageDetails: { input: 2, total: 2 },
+      expectedCostDetails: { input: 3, total: 3 },
+    },
+    {
+      usage: { input: 1 },
+      usageDetails: {
+        input: 1,
+        cached: 2,
+        reasoning: 3,
+      },
+      expectedUsageDetails: { input: 1, cached: 2, reasoning: 3, total: 6 },
+    },
+    {
+      usage: {},
+      usageDetails: {
+        input: 1,
+        output: null,
+        total: undefined,
+      },
+      expectedUsageDetails: { input: 1, total: 1 },
+      costDetails: {
+        input: 123,
+        output: null,
+        cached: undefined,
+      },
+      expectedCostDetails: { input: 123, total: 123 },
+    },
+    // OpenAI format
+    {
+      usage: null,
+      usageDetails: {
+        prompt_tokens: 5,
+        completion_tokens: 11,
+        total_tokens: 16,
+        prompt_tokens_details: {
+          cached_tokens: 2,
+          audio_tokens: 3,
+        },
+        completion_tokens_details: {
+          text_tokens: 3,
+          audio_tokens: 4,
+          reasoning_tokens: 4,
+        },
+      },
+      expectedUsageDetails: {
+        input: 0,
+        output: 0,
+        total: 16,
+        input_cached_tokens: 2,
+        input_audio_tokens: 3,
+        output_text_tokens: 3,
+        output_audio_tokens: 4,
+        output_reasoning_tokens: 4,
+      },
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
@@ -221,36 +372,37 @@ describe("Ingestion end-to-end tests", () => {
         },
       ];
 
-      const generationEventList: ObservationEvent[] = [
-        {
-          id: randomUUID(),
-          type: "observation-create",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            traceId: traceId,
-            type: "GENERATION",
-            name: "generation-name",
-            startTime: "2021-01-01T00:00:00.000Z",
-            endTime: "2021-01-01T00:00:00.000Z",
-            modelParameters: { key: "value" },
-            input: { key: "value" },
-            metadata: { key: "value" },
-            version: "2.0.0",
+      const generationEventList: ObservationEvent[] =
+        IngestionEventBatchSchema.parse([
+          {
+            id: randomUUID(),
+            type: "generation-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              traceId: traceId,
+              name: "generation-name",
+              startTime: "2021-01-01T00:00:00.000Z",
+              endTime: "2021-01-01T00:00:00.000Z",
+              modelParameters: { key: "value" },
+              input: { key: "value" },
+              metadata: { key: "value" },
+              version: "2.0.0",
+            },
           },
-        },
-        {
-          id: randomUUID(),
-          type: "observation-update",
-          timestamp: new Date().toISOString(),
-          body: {
-            id: generationId,
-            type: "GENERATION",
-            output: { key: "this is a great gpt output" },
-            usage: testConfig.usage,
+          {
+            id: randomUUID(),
+            type: "generation-update",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: generationId,
+              output: { key: "this is a great gpt output" },
+              usage: testConfig.usage,
+              usageDetails: testConfig.usageDetails,
+              costDetails: testConfig.costDetails,
+            },
           },
-        },
-      ];
+        ]);
 
       const spanEventList: ObservationEvent[] = [
         {
@@ -291,21 +443,25 @@ describe("Ingestion end-to-end tests", () => {
         ingestionService.processTraceEventList({
           projectId,
           entityId: traceId,
+          createdAtTimestamp: new Date(),
           traceEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: spanId,
+          createdAtTimestamp: new Date(),
           observationEventList: spanEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: generationId,
+          createdAtTimestamp: new Date(),
           observationEventList: generationEventList,
         }),
         ingestionService.processScoreEventList({
           projectId,
           entityId: scoreId,
+          createdAtTimestamp: new Date(),
           scoreEventList,
         }),
       ]);
@@ -340,14 +496,8 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.metadata).toEqual({ key: "value" });
       expect(generation.version).toBe("2.0.0");
       expect(generation.internal_model_id).toBeNull();
-      expect(generation.usage_details.input).toEqual(
-        testConfig.expectedInputUnits,
-      );
-      expect(generation.usage_details.output).toEqual(
-        testConfig.expectedOutputUnits,
-      );
-      expect(generation.usage_details.total).toEqual(
-        testConfig.expectedTotalUnits,
+      expect(generation.usage_details).toMatchObject(
+        testConfig.expectedUsageDetails,
       );
       expect(generation.output).toEqual(
         JSON.stringify({
@@ -383,8 +533,10 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedInputUnits: 5,
-      expectedOutputUnits: 7,
+      expectedUsageDetails: {
+        input: 5,
+        output: 7,
+      },
       models: [
         {
           id: "custom-model-id",
@@ -401,8 +553,10 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedInputUnits: 5,
-      expectedOutputUnits: 7,
+      expectedUsageDetails: {
+        input: 5,
+        output: 7,
+      },
       models: [
         {
           id: "custom-model-id",
@@ -419,8 +573,10 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id",
-      expectedInputUnits: 5,
-      expectedOutputUnits: 7,
+      expectedUsageDetails: {
+        input: 5,
+        output: 7,
+      },
       models: [
         {
           id: "custom-model-id",
@@ -437,8 +593,10 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-2",
-      expectedInputUnits: 5,
-      expectedOutputUnits: 7,
+      expectedUsageDetails: {
+        input: 5,
+        output: 7,
+      },
       models: [
         {
           id: "custom-model-id-1",
@@ -464,8 +622,10 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-02T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-2",
-      expectedInputUnits: 5,
-      expectedOutputUnits: 7,
+      expectedUsageDetails: {
+        input: 5,
+        output: 7,
+      },
       models: [
         {
           id: "custom-model-id-1",
@@ -491,8 +651,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-1",
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id-1",
@@ -509,8 +668,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2022-01-01T10:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: "custom-model-id-1",
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id-1",
@@ -527,8 +685,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: null,
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id-1",
@@ -545,8 +702,7 @@ describe("Ingestion end-to-end tests", () => {
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Characters,
       expectedInternalModelId: null,
-      expectedInputUnits: undefined,
-      expectedOutputUnits: undefined,
+      expectedUsageDetails: {},
       models: [
         {
           id: "custom-model-id-1",
@@ -627,11 +783,13 @@ describe("Ingestion end-to-end tests", () => {
         ingestionService.processTraceEventList({
           projectId,
           entityId: traceId,
+          createdAtTimestamp: new Date(),
           traceEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: generationId,
+          createdAtTimestamp: new Date(),
           observationEventList: generationEventList,
         }),
       ]);
@@ -652,10 +810,10 @@ describe("Ingestion end-to-end tests", () => {
         testConfig.observationExternalModel,
       );
       expect(generation.usage_details.input).toBe(
-        testConfig.expectedInputUnits,
+        testConfig.expectedUsageDetails.input,
       );
       expect(generation.usage_details.output).toBe(
-        testConfig.expectedOutputUnits,
+        testConfig.expectedUsageDetails.output,
       );
       expect(generation.internal_model_id).toBe(
         testConfig.expectedInternalModelId,
@@ -767,26 +925,31 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: spanId,
+        createdAtTimestamp: new Date(),
         observationEventList: spanEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: eventId,
+        createdAtTimestamp: new Date(),
         observationEventList: eventEventList,
       }),
       ingestionService.processScoreEventList({
         projectId,
         entityId: scoreId,
+        createdAtTimestamp: new Date(),
         scoreEventList,
       }),
     ]);
@@ -858,6 +1021,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList: traceEventList1,
     });
 
@@ -881,6 +1045,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList: traceEventList2,
     });
 
@@ -937,6 +1102,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList,
     });
 
@@ -984,6 +1150,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList,
     });
 
@@ -994,122 +1161,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.name).toBe("trace-name");
     expect(trace.user_id).toBe("user-1");
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-  });
-
-  it("should merge scores from postgres and event list", async () => {
-    const traceId = randomUUID();
-    const scoreId = randomUUID();
-    const observationId = randomUUID();
-
-    const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
-
-    await prisma.score.create({
-      data: {
-        id: scoreId,
-        name: "score-name",
-        value: 100.5,
-        observationId,
-        traceId,
-        projectId,
-        source: ScoreSource.API,
-        timestamp: new Date(oldEvent),
-      },
-    });
-
-    const scoreEventList: ScoreEventType[] = [
-      {
-        id: randomUUID(),
-        type: "score-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: scoreId,
-          dataType: "NUMERIC",
-          name: "score-name",
-          traceId: traceId,
-          value: 100.5,
-          observationId,
-        },
-      },
-    ];
-
-    await ingestionService.processScoreEventList({
-      projectId,
-      entityId: scoreId,
-      scoreEventList,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    const score = await getClickhouseRecord(TableName.Scores, scoreId);
-
-    expect(score.name).toBe("score-name");
-    expect(score.value).toBe(100.5);
-    expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-  });
-
-  it("should merge observations from postgres and event list", async () => {
-    const traceId = randomUUID();
-    const observationId = randomUUID();
-
-    const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
-
-    await prisma.observation.create({
-      data: {
-        id: observationId,
-        type: "GENERATION",
-        traceId,
-        name: "generation-name",
-        input: { key: "value" },
-        output: "should be overwritten",
-        model: "gpt-3.5",
-        projectId,
-        startTime: new Date(oldEvent),
-        completionTokens: 5,
-        // Validates that numbers are parsed correctly. Since there is no usage, no effect on result
-        calculatedTotalCost: "0.273330000000000000000000000000",
-        modelParameters: { hello: "world" },
-      },
-    });
-
-    const observationEventList: ObservationEvent[] = [
-      {
-        id: randomUUID(),
-        type: "generation-create",
-        timestamp: new Date().toISOString(),
-        body: {
-          id: observationId,
-          traceId: traceId,
-          output: "overwritten",
-          usage: undefined,
-        },
-      },
-    ];
-
-    await ingestionService.processObservationEventList({
-      projectId,
-      entityId: observationId,
-      observationEventList,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    const observation = await getClickhouseRecord(
-      TableName.Observations,
-      observationId,
-    );
-
-    expect(observation.name).toBe("generation-name");
-    expect(observation.input).toBe(JSON.stringify({ key: "value" }));
-    expect(observation.output).toBe("overwritten");
-    expect(observation.model_parameters).toBe('{"hello":"world"}');
-    expect(observation.usage_details.output).toBe(5);
-    expect(observation.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
   it("should merge observations and set negative tokens and cost to null", async () => {
@@ -1222,6 +1273,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList,
     });
 
@@ -1238,6 +1290,7 @@ describe("Ingestion end-to-end tests", () => {
     });
     expect(observation.usage_details).toStrictEqual({
       input: 4,
+      total: 4,
     });
     expect(observation.provided_cost_details).toStrictEqual({});
     expect(observation.cost_details).toStrictEqual({
@@ -1360,6 +1413,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList,
     });
 
@@ -1413,6 +1467,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList: observationEventList1,
     });
     await clickhouseWriter.flushAll(true);
@@ -1434,6 +1489,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: observationId,
+      createdAtTimestamp: new Date(),
       observationEventList: observationEventList2,
     });
     await clickhouseWriter.flushAll(true);
@@ -1483,6 +1539,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: generationEventList,
     });
 
@@ -1544,11 +1601,13 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList1,
       }),
     ]);
@@ -1589,6 +1648,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processObservationEventList({
       projectId,
       entityId: generationId,
+      createdAtTimestamp: new Date(),
       observationEventList: generationEventList2,
     });
 
@@ -1680,11 +1740,13 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
     ]);
@@ -1780,11 +1842,13 @@ describe("Ingestion end-to-end tests", () => {
       ingestionService.processTraceEventList({
         projectId,
         entityId: traceId,
+        createdAtTimestamp: new Date(),
         traceEventList,
       }),
       ingestionService.processObservationEventList({
         projectId,
         entityId: generationId,
+        createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
     ]);
@@ -1811,7 +1875,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.usage_details.output).toEqual(11);
   });
 
-  it("null does not override set values", async () => {
+  it("null does override set values, undefined doesn't", async () => {
     const traceId = randomUUID();
     const timestamp = Date.now();
 
@@ -1837,10 +1901,10 @@ describe("Ingestion end-to-end tests", () => {
         body: {
           id: traceId,
           name: "trace-name",
-          userId: "user-1",
           metadata: { key: "value" },
+          // Do not set user_id here to validate behaviour for missing fields
           release: null,
-          version: null,
+          version: undefined,
         },
       },
     ];
@@ -1848,6 +1912,7 @@ describe("Ingestion end-to-end tests", () => {
     await ingestionService.processTraceEventList({
       projectId,
       entityId: traceId,
+      createdAtTimestamp: new Date(),
       traceEventList,
     });
 
@@ -1855,8 +1920,25 @@ describe("Ingestion end-to-end tests", () => {
 
     const trace = await getClickhouseRecord(TableName.Traces, traceId);
 
-    expect(trace.release).toBe("1.0.0");
+    expect(trace.release).toBe(null);
     expect(trace.version).toBe("2.0.0");
+    expect(trace.user_id).toBe("user-1");
+  });
+
+  it("should skip clickhouse read for recently created projects", async () => {
+    const projectId = randomUUID();
+    await prisma.project.create({
+      data: {
+        id: projectId,
+        name: randomUUID(),
+        orgId: "seed-org-id",
+      },
+    });
+    const shouldSkip = await ingestionService.shouldSkipClickHouseRead(
+      projectId,
+      "2024-01-01", // Use some date in the past
+    );
+    expect(shouldSkip).toBe(true);
   });
 
   [
@@ -1961,11 +2043,13 @@ describe("Ingestion end-to-end tests", () => {
         ingestionService.processTraceEventList({
           projectId,
           entityId: traceId,
+          createdAtTimestamp: new Date(),
           traceEventList,
         }),
         ingestionService.processObservationEventList({
           projectId,
           entityId: generationId,
+          createdAtTimestamp: new Date(),
           observationEventList: generationEventList,
         }),
       ]);

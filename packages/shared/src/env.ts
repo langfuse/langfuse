@@ -5,6 +5,7 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+  NEXTAUTH_URL: z.string().url().optional(),
   REDIS_HOST: z.string().nullish(),
   REDIS_PORT: z.coerce
     .number({
@@ -28,18 +29,10 @@ const EnvSchema = z.object({
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
   CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
+  CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_PASSWORD: z.string(),
-  LANGFUSE_SDK_CI_SYNC_PROCESSING_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_CLICKHOUSE_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
-  // TODO: Disable Postgres before go-live
-  LANGFUSE_POSTGRES_INGESTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("true"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -51,6 +44,9 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_LOG_FORMAT: z.enum(["text", "json"]).default("text"),
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_EVENT_UPLOAD_POSTGRES_LOG_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
@@ -66,6 +62,13 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   STRIPE_SECRET_KEY: z.string().optional(),
+
+  LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

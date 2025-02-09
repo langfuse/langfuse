@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
 import { api } from "@/src/utils/api";
 
@@ -12,7 +13,7 @@ import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
 import Layout from "@/src/components/layouts/layout";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
 import posthog from "posthog-js";
@@ -62,6 +63,7 @@ if (
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
     autocapture: false,
+    enable_heatmaps: false,
   });
 }
 
@@ -90,30 +92,33 @@ const MyApp: AppType<{ session: Session | null }> = ({
   return (
     <QueryParamProvider adapter={NextAdapterPages}>
       <TooltipProvider>
-        <PostHogProvider client={posthog}>
-          <SessionProvider
-            session={session}
-            refetchOnWindowFocus={true}
-            refetchInterval={5 * 60} // 5 minutes
-            basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
-          >
-            <DetailPageListsProvider>
-              <MarkdownContextProvider>
-                <ThemeProvider
-                  attribute="class"
-                  enableSystem
-                  disableTransitionOnChange
-                >
-                  <Layout>
-                    <Component {...pageProps} />
-                    <UserTracking />
-                  </Layout>
-                </ThemeProvider>
-              </MarkdownContextProvider>
-              <CrispWidget />
-            </DetailPageListsProvider>
-          </SessionProvider>
-        </PostHogProvider>
+        <CommandMenuProvider>
+          <PostHogProvider client={posthog}>
+            <SessionProvider
+              session={session}
+              refetchOnWindowFocus={true}
+              refetchInterval={5 * 60} // 5 minutes
+              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+            >
+              <DetailPageListsProvider>
+                <MarkdownContextProvider>
+                  <ThemeProvider
+                    attribute="class"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <Layout>
+                      <Component {...pageProps} />
+                      <UserTracking />
+                    </Layout>
+                    <BetterStackUptimeStatusMessage />
+                  </ThemeProvider>{" "}
+                </MarkdownContextProvider>
+                <CrispWidget />
+              </DetailPageListsProvider>
+            </SessionProvider>
+          </PostHogProvider>
+        </CommandMenuProvider>
       </TooltipProvider>
     </QueryParamProvider>
   );
@@ -126,8 +131,16 @@ function UserTracking() {
   const sessionUser = session.data?.user;
   const { organization, project } = useQueryProjectOrOrganization();
 
+  // dedupe the event via useRef, otherwise we'll capture the event multiple times on session refresh
+  const lastIdentifiedUser = useRef<string | null>(null);
+
   useEffect(() => {
-    if (sessionUser) {
+    if (
+      session.status === "authenticated" &&
+      sessionUser &&
+      lastIdentifiedUser.current !== JSON.stringify(sessionUser)
+    ) {
+      lastIdentifiedUser.current = JSON.stringify(sessionUser);
       // PostHog
       if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST)
         posthog.identify(sessionUser.id ?? undefined, {
@@ -171,7 +184,8 @@ function UserTracking() {
             : "undefined",
         },
       });
-    } else {
+    } else if (session.status === "unauthenticated") {
+      lastIdentifiedUser.current = null;
       // PostHog
       if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
         posthog.reset();
@@ -180,7 +194,7 @@ function UserTracking() {
       // Sentry
       setUser(null);
     }
-  }, [sessionUser]);
+  }, [sessionUser, session.status]);
 
   // update crisp segments
   const plan = organization?.plan;
@@ -193,7 +207,6 @@ function UserTracking() {
   useEffect(() => {
     let segments = [];
     if (plan && !currentOrgIsDemoOrg) {
-      console.log("setting chat segments", plan);
       segments.push("plan:" + plan);
     }
     if (currentOrgIsDemoOrg) {
@@ -238,4 +251,16 @@ if (
     console.log("Signal: ", signal);
     return await shutdown(signal);
   });
+}
+
+function BetterStackUptimeStatusMessage() {
+  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+  return (
+    <script
+      src="https://uptime.betterstack.com/widgets/announcement.js"
+      data-id="189328"
+      async={true}
+      type="text/javascript"
+    ></script>
+  );
 }

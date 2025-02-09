@@ -53,23 +53,30 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/src/components/ui/command";
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+  InputCommandSeparator,
+} from "@/src/components/ui/input-command";
 import { cn } from "@/src/utils/tailwind";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
+export const fieldHasJsonSelectorOption = (
+  selectedColumnId: string | undefined | null,
+): boolean =>
+  selectedColumnId === "input" ||
+  selectedColumnId === "output" ||
+  selectedColumnId === "expected_output";
+
 const formSchema = z.object({
   scoreName: z.string(),
   target: z.string(),
-  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().optional().default(10),
@@ -146,17 +153,17 @@ export const EvaluatorForm = (props: {
               className="w-[--radix-popover-trigger-width] overflow-auto p-0"
               align="start"
             >
-              <Command>
-                <CommandInput
+              <InputCommand>
+                <InputCommandInput
                   placeholder="Search templates..."
                   className="h-9"
                 />
-                <CommandList>
-                  <CommandEmpty>No template found.</CommandEmpty>
-                  <CommandGroup>
+                <InputCommandList>
+                  <InputCommandEmpty>No template found.</InputCommandEmpty>
+                  <InputCommandGroup>
                     {Object.entries(templatesByName).map(
                       ([name, templateData]) => (
-                        <CommandItem
+                        <InputCommandItem
                           key={name}
                           onSelect={() => {
                             setSelectedTemplateName(name);
@@ -175,19 +182,21 @@ export const EvaluatorForm = (props: {
                                 : "opacity-0",
                             )}
                           />
-                        </CommandItem>
+                        </InputCommandItem>
                       ),
                     )}
-                  </CommandGroup>
-                  <CommandSeparator alwaysRender />
-                  <CommandGroup forceMount>
-                    <CommandItem onSelect={() => setIsCreateTemplateOpen(true)}>
+                  </InputCommandGroup>
+                  <InputCommandSeparator alwaysRender />
+                  <InputCommandGroup forceMount>
+                    <InputCommandItem
+                      onSelect={() => setIsCreateTemplateOpen(true)}
+                    >
                       Create new template
                       <ExternalLink className="ml-auto h-4 w-4" />
-                    </CommandItem>
-                  </CommandGroup>
-                </CommandList>
-              </Command>
+                    </InputCommandItem>
+                  </InputCommandGroup>
+                </InputCommandList>
+              </InputCommand>
             </PopoverContent>
           </Popover>
 
@@ -213,14 +222,14 @@ export const EvaluatorForm = (props: {
               className="w-[--radix-popover-trigger-width] overflow-auto p-0"
               align="start"
             >
-              <Command>
-                <CommandList>
-                  <CommandEmpty>No version found.</CommandEmpty>
-                  <CommandGroup>
+              <InputCommand>
+                <InputCommandList>
+                  <InputCommandEmpty>No version found.</InputCommandEmpty>
+                  <InputCommandGroup>
                     {selectedTemplateName &&
                     templatesByName[selectedTemplateName] ? (
                       templatesByName[selectedTemplateName].map((template) => (
-                        <CommandItem
+                        <InputCommandItem
                           key={template.id}
                           onSelect={() => {
                             setSelectedTemplateVersion(template.version);
@@ -236,14 +245,16 @@ export const EvaluatorForm = (props: {
                                 : "opacity-0",
                             )}
                           />
-                        </CommandItem>
+                        </InputCommandItem>
                       ))
                     ) : (
-                      <CommandItem disabled>No versions available</CommandItem>
+                      <InputCommandItem disabled>
+                        No versions available
+                      </InputCommandItem>
                     )}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
+                  </InputCommandGroup>
+                </InputCommandList>
+              </InputCommand>
             </PopoverContent>
           </Popover>
         </div>
@@ -799,6 +810,39 @@ export const InnerEvalConfigForm = (props: {
                               </div>
                             )}
                           />
+                          {fieldHasJsonSelectorOption(
+                            form.watch(`mapping.${index}.selectedColumnId`),
+                          ) ? (
+                            <FormField
+                              control={form.control}
+                              key={`${mappingField.id}-jsonSelector`}
+                              name={`mapping.${index}.jsonSelector`}
+                              render={({ field }) => (
+                                <div className="flex items-center gap-2">
+                                  <VariableMappingDescription
+                                    title={"JsonPath"}
+                                    description={
+                                      "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                    }
+                                    href={
+                                      "https://langfuse.com/docs/scores/model-based-evals"
+                                    }
+                                  />
+                                  <FormItem className="w-2/3">
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        disabled={props.disabled}
+                                        placeholder="Optional"
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                </div>
+                              )}
+                            />
+                          ) : undefined}
                         </Card>
                       ))}
                     </div>

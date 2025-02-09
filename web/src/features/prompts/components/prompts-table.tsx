@@ -1,6 +1,5 @@
 import { PlusIcon } from "lucide-react";
 import { useEffect } from "react";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -23,6 +22,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type PromptTableRow = {
   name: string;
@@ -79,7 +79,6 @@ export function PromptTable() {
     {
       projectId: projectId as string,
       promptNames: prompts.data?.prompts.map((p) => p.name) ?? [],
-      queryClickhouse: useClickhouse(),
     },
     {
       enabled:
@@ -183,11 +182,11 @@ export function PromptTable() {
       size: 200,
       cell: (row) => {
         const createdAt = row.getValue();
-        return createdAt.toLocaleString();
+        return <LocalIsoDate date={createdAt} />;
       },
     }),
     columnHelper.accessor("numberOfObservations", {
-      header: "Number of Generations",
+      header: "Number of Observations",
       size: 170,
       cell: (row) => {
         const numberOfObservations = row.getValue();
@@ -200,7 +199,7 @@ export function PromptTable() {
         }
         return (
           <TableLink
-            path={`/project/${projectId}/generations?filter=${numberOfObservations ? filter : ""}`}
+            path={`/project/${projectId}/observations?filter=${numberOfObservations ? filter : ""}`}
             value={numberOfObservations.toLocaleString()}
           />
         );

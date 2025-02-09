@@ -113,7 +113,9 @@ model Project {
   orgId               String                 @map("org_id")
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+  deletedAt           DateTime?              @map("deleted_at")
   name                String
+  retentionDays       Int?                   @map("retention_days")
   projectMembers      ProjectMembership[]
   organization        Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   traces              Trace[]
@@ -139,6 +141,7 @@ model Project {
   TraceMedia          TraceMedia[]
   Media               Media[]
   ObservationMedia    ObservationMedia[]
+  EventLog            EventLog[]
 
   @@index([orgId])
   @@map("projects")
@@ -191,6 +194,8 @@ model LlmApiKeys {
   baseURL           String?  @map("base_url")
   customModels      String[] @default([]) @map("custom_models")
   withDefaultModels Boolean  @default(true) @map("with_default_models")
+  extraHeaders      String?  @map("extra_headers")
+  extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
 
   projectId String  @map("project_id")
@@ -271,7 +276,6 @@ model TraceSession {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   bookmarked Boolean  @default(false)
   public     Boolean  @default(false)
-  traces     Trace[]
 
   @@id([id, projectId])
   @@index([projectId])
@@ -283,25 +287,24 @@ model TraceSession {
 // Update TraceView below when making changes to this model!
 
 model Trace {
-  id         String        @id @default(cuid())
-  externalId String?       @map("external_id")
-  timestamp  DateTime      @default(now())
+  id         String   @id @default(cuid())
+  externalId String?  @map("external_id")
+  timestamp  DateTime @default(now())
   name       String?
-  userId     String?       @map("user_id")
+  userId     String?  @map("user_id")
   metadata   Json?
   release    String?
   version    String?
-  projectId  String        @map("project_id")
-  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  public     Boolean       @default(false)
-  bookmarked Boolean       @default(false)
-  tags       String[]      @default([])
+  projectId  String   @map("project_id")
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  public     Boolean  @default(false)
+  bookmarked Boolean  @default(false)
+  tags       String[] @default([])
   input      Json?
   output     Json?
-  sessionId  String?       @map("session_id")
-  session    TraceSession? @relation(fields: [sessionId, projectId], references: [id, projectId])
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at")
+  sessionId  String?  @map("session_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([projectId, timestamp])
   @@index([sessionId])
@@ -468,25 +471,24 @@ enum ObservationLevel {
 }
 
 model Score {
-  id            String         @id @default(cuid())
-  timestamp     DateTime       @default(now())
-  projectId     String         @map("project_id")
-  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  timestamp     DateTime      @default(now())
+  projectId     String        @map("project_id")
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name          String
   value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
   source        ScoreSource
-  authorUserId  String?        @map("author_user_id")
+  authorUserId  String?       @map("author_user_id")
   comment       String?
-  traceId       String         @map("trace_id")
-  observationId String?        @map("observation_id")
-  configId      String?        @map("config_id")
-  stringValue   String?        @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
-  queueId       String?        @map("queue_id")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
-  dataType      ScoreDataType  @default(NUMERIC) @map("data_type")
-  JobExecution  JobExecution[]
-  scoreConfig   ScoreConfig?   @relation(fields: [configId], references: [id], onDelete: SetNull)
+  traceId       String        @map("trace_id")
+  observationId String?       @map("observation_id")
+  configId      String?       @map("config_id")
+  stringValue   String?       @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
+  queueId       String?       @map("queue_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at")
+  dataType      ScoreDataType @default(NUMERIC) @map("data_type")
+  scoreConfig   ScoreConfig?  @relation(fields: [configId], references: [id], onDelete: SetNull)
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index(timestamp)
@@ -705,6 +707,29 @@ model Events {
   @@map("events")
 }
 
+model EventLog {
+  id String @id @default(cuid())
+
+  bucketName String  @map("bucket_name")
+  bucketPath String  @map("bucket_path")
+  projectId  String  @map("project_id")
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entityType String  @map("entity_type")
+  entityId   String  @map("entity_id")
+  eventId    String  @map("event_id")
+
+  // traceId is only optional, because we cannot guarantee its presence for observations.
+  // We use it to support deletions on traces as we cannot cascade it down to scores and observations otherwise.
+  // We expect a traceId to be present in most cases.
+  traceId String? @map("trace_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([projectId, entityType, entityId])
+  @@map("event_log")
+}
+
 model Comment {
   id           String            @id @default(cuid())
   projectId    String            @map("project_id")
@@ -737,14 +762,15 @@ model Prompt {
 
   createdBy String @map("created_by")
 
-  prompt   Json
-  name     String
-  version  Int
-  type     String   @default("text")
-  isActive Boolean? @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
-  config   Json     @default("{}") @db.Json
-  tags     String[] @default([])
-  labels   String[] @default([])
+  prompt        Json
+  name          String
+  version       Int
+  type          String   @default("text")
+  isActive      Boolean? @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
+  config        Json     @default("{}") @db.Json
+  tags          String[] @default([])
+  labels        String[] @default([])
+  commitMessage String?  @map("commit_message")
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -900,10 +926,9 @@ model JobExecution {
 
   jobInputObservationId String? @map("job_input_observation_id") // no fk constraint - observations in ClickHouse, deletion handled via project cascade
 
-  jobInputDatasetItemId String?      @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
+  jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
   jobOutputScoreId String? @map("job_output_score_id")
-  score            Score?  @relation(fields: [jobOutputScoreId], references: [id], onDelete: SetNull) // job remains when scores are deleted
 
   @@index([projectId, status])
   @@index([projectId, id])
@@ -1017,4 +1042,38 @@ model ObservationMedia {
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, observationId])
   @@map("observation_media")
+}
+
+model QueueBackUp {
+  id        String  @id @default(cuid())
+  projectId String? @map("project_id")
+  queueName String  @map("queue_name")
+  content   Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("queue_backups")
+}
+
+model BillingMeterBackup {
+  // unique
+  stripeCustomerId String   @map("stripe_customer_id")
+  meterId          String   @map("meter_id")
+  startTime        DateTime @map("start_time")
+  endTime          DateTime @map("end_time")
+
+  // value
+  aggregatedValue Int @map("aggregated_value")
+
+  // labels
+  eventName String @map("event_name")
+  orgId     String @map("org_id")
+
+  // ts
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([stripeCustomerId, meterId, startTime, endTime])
+  @@index([stripeCustomerId, meterId, startTime, endTime])
+  @@map("billing_meter_backups")
 }

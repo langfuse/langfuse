@@ -3,9 +3,13 @@ name: Codespell
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "main"
+    tags:
+      - "v*"
   pull_request:
-    branches: [main]
+    branches:
+      - "**"
   merge_group:
 
 permissions:

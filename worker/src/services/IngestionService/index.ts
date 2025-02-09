@@ -2,16 +2,19 @@ import { Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
-import { Model, Price, PrismaClient, Prompt } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  Model,
+  Price,
+  PrismaClient,
+  Prompt,
+} from "@langfuse/shared";
 import {
   ClickhouseClientType,
   IngestionEntityTypes,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
-  convertPostgresObservationToInsert,
-  convertPostgresScoreToInsert,
-  convertPostgresTraceToInsert,
   eventTypes,
   findModel,
   IngestionEventType,
@@ -35,12 +38,18 @@ import {
   convertDateToClickhouseDateTime,
   TraceUpsertQueue,
   QueueJobs,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
-import { convertJsonSchemaToRecord, overwriteObject } from "./utils";
+import {
+  convertJsonSchemaToRecord,
+  convertRecordValuesToString,
+  overwriteObject,
+} from "./utils";
 import { randomUUID } from "crypto";
+import { env } from "../../env";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -85,6 +94,7 @@ export class IngestionService {
     eventType: IngestionEntityTypes,
     projectId: string,
     eventBodyId: string,
+    createdAtTimestamp: Date,
     events: IngestionEventType[],
   ): Promise<void> {
     logger.debug(
@@ -96,18 +106,21 @@ export class IngestionService {
         return await this.processTraceEventList({
           projectId,
           entityId: eventBodyId,
+          createdAtTimestamp,
           traceEventList: events as TraceEventType[],
         });
       case "observation":
         return await this.processObservationEventList({
           projectId,
           entityId: eventBodyId,
+          createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
         });
       case "score": {
         return await this.processScoreEventList({
           projectId,
           entityId: eventBodyId,
+          createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
         });
       }
@@ -117,9 +130,10 @@ export class IngestionService {
   private async processScoreEventList(params: {
     projectId: string;
     entityId: string;
+    createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
   }) {
-    const { projectId, entityId, scoreEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -134,59 +148,61 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
-    const [postgresScoreRecord, clickhouseScoreRecord, scoreRecords] =
-      await Promise.all([
-        this.getPostgresRecord({
-          projectId,
-          entityId,
-          table: TableName.Scores,
-        }),
-        this.getClickhouseRecord({
-          projectId,
-          entityId,
-          table: TableName.Scores,
-          additionalFilters: {
-            whereCondition: timestamp
-              ? " AND timestamp >= {timestamp: DateTime64(3)} "
-              : "",
-            params: { timestamp },
-          },
-        }),
-        Promise.all(
-          timeSortedEvents.map(async (scoreEvent) => {
-            const validatedScore = await validateAndInflateScore({
-              body: scoreEvent.body,
-              scoreId: entityId,
-              projectId,
-            });
+    const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
+      this.getClickhouseRecord({
+        projectId,
+        entityId,
+        table: TableName.Scores,
+        additionalFilters: {
+          whereCondition: timestamp
+            ? " AND timestamp >= {timestamp: DateTime64(3)} "
+            : "",
+          params: { timestamp },
+        },
+      }),
+      Promise.all(
+        timeSortedEvents.map(async (scoreEvent) => {
+          const validatedScore = await validateAndInflateScore({
+            body: scoreEvent.body,
+            scoreId: entityId,
+            projectId,
+          });
 
-            return {
-              id: entityId,
-              project_id: projectId,
-              timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
-              name: validatedScore.name,
-              value: validatedScore.value,
-              source: validatedScore.source,
-              trace_id: validatedScore.traceId,
-              data_type: validatedScore.dataType,
-              observation_id: validatedScore.observationId,
-              comment: validatedScore.comment,
-              string_value: validatedScore.stringValue,
-              created_at: Date.now(),
-              updated_at: Date.now(),
-              event_ts: new Date(scoreEvent.timestamp).getTime(),
-              is_deleted: 0,
-            };
-          }),
-        ),
-      ]);
+          return {
+            id: entityId,
+            project_id: projectId,
+            timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
+            name: validatedScore.name,
+            value: validatedScore.value,
+            source: validatedScore.source,
+            trace_id: validatedScore.traceId,
+            data_type: validatedScore.dataType,
+            observation_id: validatedScore.observationId,
+            comment: validatedScore.comment,
+            string_value: validatedScore.stringValue,
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            event_ts: new Date(scoreEvent.timestamp).getTime(),
+            is_deleted: 0,
+          };
+        }),
+      ),
+    ]);
+
+    if (clickhouseScoreRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "score",
+      });
+    }
 
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
         clickhouseScoreRecord,
-        postgresScoreRecord,
         scoreRecords,
       });
+    finalScoreRecord.created_at =
+      clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
   }
@@ -194,9 +210,10 @@ export class IngestionService {
   private async processTraceEventList(params: {
     projectId: string;
     entityId: string;
+    createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
   }) {
-    const { projectId, entityId, traceEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, traceEventList } = params;
     if (traceEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -217,30 +234,43 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
-    const [postgresTraceRecord, clickhouseTraceRecord] = await Promise.all([
-      this.getPostgresRecord({
-        projectId,
-        entityId,
-        table: TableName.Traces,
-      }),
-      this.getClickhouseRecord({
-        projectId,
-        entityId,
-        table: TableName.Traces,
-        additionalFilters: {
-          whereCondition: timestamp
-            ? " AND timestamp >= {timestamp: DateTime64(3)} "
-            : "",
-          params: { timestamp },
-        },
-      }),
-    ]);
+    const clickhouseTraceRecord = await this.getClickhouseRecord({
+      projectId,
+      entityId,
+      table: TableName.Traces,
+      additionalFilters: {
+        whereCondition: timestamp
+          ? " AND timestamp >= {timestamp: DateTime64(3)} "
+          : "",
+        params: { timestamp },
+      },
+    });
+
+    if (clickhouseTraceRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "trace",
+      });
+    }
 
     const finalTraceRecord = await this.mergeTraceRecords({
       clickhouseTraceRecord,
-      postgresTraceRecord,
       traceRecords,
     });
+    finalTraceRecord.created_at =
+      clickhouseTraceRecord?.created_at ?? createdAtTimestamp.getTime();
+
+    // Search for the first non-null input and output in the trace events and set them on the merged result.
+    // Fallback to the ClickHouse input/output if none are found within the events list.
+    const reversedRawRecords = timeSortedEvents.slice().reverse();
+    finalTraceRecord.input = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
+        clickhouseTraceRecord?.input,
+    );
+    finalTraceRecord.output = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
+        clickhouseTraceRecord?.output,
+    );
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     if (finalTraceRecord.session_id) {
@@ -294,9 +324,11 @@ export class IngestionService {
   private async processObservationEventList(params: {
     projectId: string;
     entityId: string;
+    createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
   }) {
-    const { projectId, entityId, observationEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, observationEventList } =
+      params;
     if (observationEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -313,27 +345,28 @@ export class IngestionService {
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minStartTime));
 
-    const [postgresObservationRecord, clickhouseObservationRecord, prompt] =
-      await Promise.all([
-        this.getPostgresRecord({
-          projectId,
-          entityId,
-          table: TableName.Observations,
-        }),
-        this.getClickhouseRecord({
-          projectId,
-          entityId,
-          table: TableName.Observations,
-          additionalFilters: {
-            whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
-            params: {
-              type,
-              startTime,
-            },
+    const [clickhouseObservationRecord, prompt] = await Promise.all([
+      this.getClickhouseRecord({
+        projectId,
+        entityId,
+        table: TableName.Observations,
+        additionalFilters: {
+          whereCondition: `AND type = {type: String} ${startTime ? "AND start_time >= {startTime: DateTime64(3)} " : ""}`,
+          params: {
+            type,
+            startTime,
           },
-        }),
-        this.getPrompt(projectId, observationEventList),
-      ]);
+        },
+      }),
+      this.getPrompt(projectId, observationEventList),
+    ]);
+
+    if (clickhouseObservationRecord) {
+      recordIncrement("langfuse.ingestion.lookup.hit", 1, {
+        store: "clickhouse",
+        object: "observation",
+      });
+    }
 
     const observationRecords = this.mapObservationEventsToRecords({
       observationEventList: timeSortedEvents,
@@ -342,12 +375,35 @@ export class IngestionService {
       prompt,
     });
 
-    const finalObservationRecord = await this.mergeObservationRecords({
+    const mergedObservationRecord = await this.mergeObservationRecords({
       projectId,
       observationRecords,
-      postgresObservationRecord,
       clickhouseObservationRecord,
     });
+    mergedObservationRecord.created_at =
+      clickhouseObservationRecord?.created_at ?? createdAtTimestamp.getTime();
+    mergedObservationRecord.level = mergedObservationRecord.level ?? "DEFAULT";
+
+    // Search for the first non-null input and output in the observation events and set them on the merged result.
+    // Fallback to the ClickHouse input/output if none are found within the events list.
+    const reversedRawRecords = timeSortedEvents.slice().reverse();
+    mergedObservationRecord.input = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
+        clickhouseObservationRecord?.input,
+    );
+    mergedObservationRecord.output = this.stringify(
+      reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
+        clickhouseObservationRecord?.output,
+    );
+
+    const generationUsage = await this.getGenerationUsage({
+      projectId,
+      observationRecord: mergedObservationRecord,
+    });
+    const finalObservationRecord = {
+      ...mergedObservationRecord,
+      ...generationUsage,
+    };
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {
@@ -377,17 +433,14 @@ export class IngestionService {
 
   private async mergeScoreRecords(params: {
     scoreRecords: ScoreRecordInsertType[];
-    postgresScoreRecord?: ScoreRecordInsertType | null;
     clickhouseScoreRecord?: ScoreRecordInsertType | null;
   }): Promise<ScoreRecordInsertType> {
-    const { scoreRecords, postgresScoreRecord, clickhouseScoreRecord } = params;
+    const { scoreRecords, clickhouseScoreRecord } = params;
 
     // Set clickhouse first as this is the baseline for immutable fields
-    const recordsToMerge = [
-      clickhouseScoreRecord,
-      postgresScoreRecord,
-      ...scoreRecords,
-    ].filter(Boolean) as ScoreRecordInsertType[];
+    const recordsToMerge = [clickhouseScoreRecord, ...scoreRecords].filter(
+      Boolean,
+    ) as ScoreRecordInsertType[];
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
@@ -399,21 +452,23 @@ export class IngestionService {
 
   private async mergeTraceRecords(params: {
     traceRecords: TraceRecordInsertType[];
-    postgresTraceRecord?: TraceRecordInsertType | null;
     clickhouseTraceRecord?: TraceRecordInsertType | null;
   }): Promise<TraceRecordInsertType> {
-    const { traceRecords, postgresTraceRecord, clickhouseTraceRecord } = params;
+    const { traceRecords, clickhouseTraceRecord } = params;
 
     // Set clickhouse first as this is the baseline for immutable fields
-    const recordsToMerge = [
-      clickhouseTraceRecord,
-      postgresTraceRecord,
-      ...traceRecords,
-    ].filter(Boolean) as TraceRecordInsertType[];
+    const recordsToMerge = [clickhouseTraceRecord, ...traceRecords].filter(
+      Boolean,
+    ) as TraceRecordInsertType[];
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
       immutableEntityKeys[TableName.Traces],
+    );
+
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
 
     return traceRecordInsertSchema.parse(mergedRecord);
@@ -422,26 +477,25 @@ export class IngestionService {
   private async mergeObservationRecords(params: {
     projectId: string;
     observationRecords: ObservationRecordInsertType[];
-    postgresObservationRecord?: ObservationRecordInsertType | null;
     clickhouseObservationRecord?: ObservationRecordInsertType | null;
   }): Promise<ObservationRecordInsertType> {
-    const {
-      projectId,
-      observationRecords,
-      postgresObservationRecord,
-      clickhouseObservationRecord,
-    } = params;
+    const { projectId, observationRecords, clickhouseObservationRecord } =
+      params;
 
     // Set clickhouse first as this is the baseline for immutable fields
     const recordsToMerge = [
       clickhouseObservationRecord,
-      postgresObservationRecord,
       ...observationRecords,
     ].filter(Boolean) as ObservationRecordInsertType[];
 
     const mergedRecord = this.mergeRecords(
       recordsToMerge,
       immutableEntityKeys[TableName.Observations],
+    );
+
+    // If metadata exists, it is an object due to previous parsing
+    mergedRecord.metadata = convertRecordValuesToString(
+      (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
 
     const parsedObservationRecord =
@@ -455,23 +509,7 @@ export class IngestionService {
       parsedObservationRecord.end_time = parsedObservationRecord.start_time;
     }
 
-    const generationUsage = await this.getGenerationUsage({
-      projectId,
-      observationRecord: parsedObservationRecord,
-    });
-
-    if (
-      "usage_details" in generationUsage &&
-      Object.keys(generationUsage.usage_details).length === 0
-    ) {
-      generationUsage.usage_details =
-        postgresObservationRecord?.usage_details ?? {};
-    }
-
-    return {
-      ...parsedObservationRecord,
-      ...generationUsage,
-    };
+    return parsedObservationRecord;
   }
 
   private mergeRecords<T extends InsertRecord>(
@@ -647,8 +685,16 @@ export class IngestionService {
       return { usage_details, provided_usage_details: providedUsageDetails };
     }
 
+    const usageDetails = { ...providedUsageDetails };
+    if (Object.keys(usageDetails).length > 0 && !("total" in usageDetails)) {
+      usageDetails.total = Object.values(providedUsageDetails).reduce(
+        (acc, value) => acc + value,
+        0,
+      );
+    }
+
     return {
-      usage_details: providedUsageDetails,
+      usage_details: usageDetails,
       provided_usage_details: providedUsageDetails,
     };
   }
@@ -721,6 +767,57 @@ export class IngestionService {
     };
   }
 
+  private skipClickhouseReadProjectsCache = new Map<string, boolean>();
+
+  private async shouldSkipClickHouseRead(
+    projectId: string,
+    minProjectCreateDate: string | undefined = undefined,
+  ): Promise<boolean> {
+    if (
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS &&
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS.split(
+        ",",
+      ).includes(projectId)
+    ) {
+      return true;
+    }
+
+    if (
+      !env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE &&
+      !minProjectCreateDate
+    ) {
+      return false;
+    }
+
+    if (this.skipClickhouseReadProjectsCache.has(projectId)) {
+      return this.skipClickhouseReadProjectsCache.get(projectId) ?? false;
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: {
+        id: projectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+      },
+    });
+
+    if (!project) {
+      throw new LangfuseNotFoundError(`Project ${projectId} not found`);
+    }
+
+    const cutoffDate = new Date(
+      env.LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE ??
+        minProjectCreateDate ??
+        new Date(), // Fallback to today. Should never apply.
+    );
+    const result = project.createdAt >= cutoffDate;
+    this.skipClickhouseReadProjectsCache.set(projectId, result);
+    return result;
+  }
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -757,6 +854,18 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }) {
+    if (await this.shouldSkipClickHouseRead(params.projectId)) {
+      recordIncrement("langfuse.ingestion.clickhouse_read_for_update", 1, {
+        skipped: "true",
+        table: params.table,
+      });
+      return null;
+    }
+    recordIncrement("langfuse.ingestion.clickhouse_read_for_update", 1, {
+      skipped: "false",
+      table: params.table,
+    });
+
     const recordParser = {
       traces: traceRecordReadSchema,
       scores: scoreRecordReadSchema,
@@ -766,7 +875,8 @@ export class IngestionService {
 
     return await instrumentAsync(
       { name: `get-clickhouse-${table}` },
-      async () => {
+      async (span) => {
+        span.setAttribute("projectId", projectId);
         const queryResult = await this.clickhouseClient.query({
           query: `
             SELECT *
@@ -796,63 +906,11 @@ export class IngestionService {
     );
   }
 
-  private async getPostgresRecord(params: {
-    projectId: string;
-    entityId: string;
-    table: TableName.Traces;
-  }): Promise<TraceRecordInsertType | null>;
-  private async getPostgresRecord(params: {
-    projectId: string;
-    entityId: string;
-    table: TableName.Scores;
-  }): Promise<ScoreRecordInsertType | null>;
-  private async getPostgresRecord(params: {
-    projectId: string;
-    entityId: string;
-    table: TableName.Observations;
-  }): Promise<ObservationRecordInsertType | null>;
-  private async getPostgresRecord(params: {
-    projectId: string;
-    entityId: string;
-    table: TableName;
-  }) {
-    const recordParser = {
-      traces: convertPostgresTraceToInsert,
-      scores: convertPostgresScoreToInsert,
-      observations: convertPostgresObservationToInsert,
-    };
-    const { projectId, entityId, table } = params;
-
-    const query =
-      table === TableName.Observations
-        ? Prisma.sql`
-          SELECT o.*,
-                 o."modelParameters" as model_parameters,
-                 p.name as prompt_name,
-                 p.version as prompt_version
-          FROM observations o
-          LEFT JOIN prompts p ON o.prompt_id = p.id
-          WHERE o.project_id = ${projectId}
-          AND o.id = ${entityId}
-          LIMIT 1;`
-        : Prisma.sql`
-          SELECT *
-          FROM ${Prisma.raw(table)}
-          WHERE project_id = ${projectId}
-          AND id = ${entityId}
-          LIMIT 1;`;
-
-    const result =
-      await this.prisma.$queryRaw<Array<Record<string, unknown>>>(query);
-
-    return result.length === 0 ? null : recordParser[table](result[0]);
-  }
-
   private mapTraceEventsToRecords(params: {
     traceEventList: TraceEventType[];
     projectId: string;
     entityId: string;
-  }): TraceRecordInsertType[] {
+  }) {
     const { traceEventList, projectId, entityId } = params;
 
     return traceEventList.map((trace) => {
@@ -881,8 +939,10 @@ export class IngestionService {
         public: trace.body.public ?? false,
         bookmarked: false,
         tags: trace.body.tags ?? [],
-        input: this.stringify(trace.body.input),
-        output: this.stringify(trace.body.output), // convert even json to string
+        // We skip the processing here as stringifying is an expensive operation on large objects.
+        // Instead, we only take the last truthy value and apply it on the merge step.
+        // input: this.stringify(trace.body.input),
+        // output: this.stringify(trace.body.output), // convert even json to string
         session_id: trace.body.sessionId,
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -931,21 +991,33 @@ export class IngestionService {
 
       const newTotalCount =
         ("usage" in obs.body ? obs.body.usage?.total : undefined) ||
-        (newInputCount !== undefined &&
-        newOutputCount !== undefined &&
-        newInputCount &&
-        newOutputCount
-          ? newInputCount + newOutputCount
-          : (newInputCount ?? newOutputCount));
+        (Object.keys(
+          "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
+        ).length === 0
+          ? newInputCount && newOutputCount
+            ? newInputCount + newOutputCount
+            : (newInputCount ?? newOutputCount)
+          : undefined);
 
-      const provided_usage_details: Record<string, number> = {};
+      let provided_usage_details: Record<string, number> = {};
 
       if (newInputCount != null) provided_usage_details.input = newInputCount;
       if (newOutputCount != null)
         provided_usage_details.output = newOutputCount;
       if (newTotalCount != null) provided_usage_details.total = newTotalCount;
 
-      const provided_cost_details: Record<string, number> = {};
+      provided_usage_details = {
+        ...provided_usage_details,
+        ...("usageDetails" in obs.body
+          ? (Object.fromEntries(
+              Object.entries(obs.body.usageDetails ?? {}).filter(
+                ([_, val]) => val != null,
+              ),
+            ) as Record<string, number>)
+          : {}),
+      };
+
+      let provided_cost_details: Record<string, number> = {};
 
       if ("usage" in obs.body) {
         const { inputCost, outputCost, totalCost } = obs.body.usage ?? {};
@@ -954,6 +1026,17 @@ export class IngestionService {
         if (outputCost != null) provided_cost_details.output = outputCost;
         if (totalCost != null) provided_cost_details.total = totalCost;
       }
+
+      provided_cost_details = {
+        ...provided_cost_details,
+        ...("costDetails" in obs.body
+          ? (Object.fromEntries(
+              Object.entries(obs.body.costDetails ?? {}).filter(
+                ([_, val]) => val != null,
+              ),
+            ) as Record<string, number>)
+          : {}),
+      };
 
       if (obs.type?.endsWith("-create") && !obs.body?.startTime) {
         logger.warn(
@@ -990,13 +1073,15 @@ export class IngestionService {
               ? JSON.stringify(obs.body.modelParameters)
               : undefined
             : undefined,
-        input: this.stringify(obs.body.input),
-        output: this.stringify(obs.body.output),
+        // We skip the processing here as stringifying is an expensive operation on large objects.
+        // Instead, we only take the last truthy value and apply it on the merge step.
+        // input: this.stringify(obs.body.input),
+        // output: this.stringify(obs.body.output),
         provided_usage_details,
         provided_cost_details,
         usage_details: provided_usage_details,
         cost_details: provided_cost_details,
-        level: obs.body.level ?? "DEFAULT",
+        level: obs.body.level,
         status_message: obs.body.statusMessage ?? undefined,
         parent_observation_id: obs.body.parentObservationId ?? undefined,
         version: obs.body.version ?? undefined,

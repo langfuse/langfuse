@@ -249,7 +249,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />
-      <Card className="mb-4 flex max-h-[calc(100dvh-30rem)] flex-col overflow-hidden">
+      <Card className="mb-4 flex max-h-[60dvh] flex-col overflow-hidden">
         <DataTable
           columns={columns}
           data={

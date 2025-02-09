@@ -29,7 +29,7 @@ export class EvalExecutionQueue {
               attempts: 10,
               backoff: {
                 type: "exponential",
-                delay: 5000,
+                delay: 1000,
               },
             },
           },

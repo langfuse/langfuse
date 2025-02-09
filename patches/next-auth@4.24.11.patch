@@ -1,0 +1,26 @@
+diff --git a/core/lib/oauth/client.js b/core/lib/oauth/client.js
+index 52c51eb6ff422dc0899ccec31baf3fa39e42eeae..bc50c35bb617d0e86b68ca42f64d44b475ba4abb 100644
+--- a/core/lib/oauth/client.js
++++ b/core/lib/oauth/client.js
+@@ -1,5 +1,7 @@
+ "use strict";
+ 
++var HttpsProxyAgent = require('https-proxy-agent').HttpsProxyAgent;
++
+ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+@@ -7,7 +9,12 @@ exports.openidClient = openidClient;
+ var _openidClient = require("openid-client");
+ async function openidClient(options) {
+   const provider = options.provider;
+-  if (provider.httpOptions) _openidClient.custom.setHttpOptionsDefaults(provider.httpOptions);
++  let httpOptions = {};
++  if (provider.httpOptions) httpOptions = { ...provider.httpOptions };
++  if (process.env.AUTH_HTTPS_PROXY || process.env.AUTH_HTTP_PROXY) {
++    httpOptions.agent = new HttpsProxyAgent(process.env.AUTH_HTTPS_PROXY || process.env.AUTH_HTTP_PROXY);
++  }
++  _openidClient.custom.setHttpOptionsDefaults(httpOptions);
+   let issuer;
+   if (provider.wellKnown) {
+     issuer = await _openidClient.Issuer.discover(provider.wellKnown);

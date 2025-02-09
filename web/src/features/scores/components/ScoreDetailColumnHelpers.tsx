@@ -1,6 +1,6 @@
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type GenerationsTableRow } from "@/src/components/table/use-cases/generations";
+import { type ObservationsTableRow } from "@/src/components/table/use-cases/observations";
 import { type TracesTableRow } from "@/src/components/table/use-cases/traces";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type DatasetRunItemRowData } from "@/src/features/datasets/components/DatasetRunItemsTable";
@@ -11,17 +11,13 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/[promptName]/metrics";
-import { type ScoreDataType, type ScoreSource } from "@langfuse/shared";
+import { type ScoreDataType } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
 import React from "react";
-import { type TableRowTypesWithIndividualScoreColumns } from "@/src/features/scores/lib/types";
-
-type ScoreDetailColumnProps = {
-  key: string;
-  name: string;
-  dataType: ScoreDataType;
-  source: ScoreSource;
-};
+import {
+  type ScoreData,
+  type TableRowTypesWithIndividualScoreColumns,
+} from "@/src/features/scores/lib/types";
 
 const prefixScoreColKey = (
   key: string,
@@ -43,12 +39,12 @@ export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
 const parseScoreColumn = <
   T extends
     | TracesTableRow
-    | GenerationsTableRow
+    | ObservationsTableRow
     | DatasetRunRowData
     | DatasetRunItemRowData
     | PromptVersionTableRow,
 >(
-  col: ScoreDetailColumnProps,
+  col: ScoreData,
   prefix?: "Trace" | "Generation",
 ): LangfuseColumnDef<T> => {
   const { key, name, source, dataType } = col;
@@ -73,7 +69,7 @@ const parseScoreColumn = <
 };
 
 export function verifyAndPrefixScoreDataAgainstKeys(
-  scoreKeys: ScoreDetailColumnProps[],
+  scoreKeys: ScoreData[],
   scoreData: ScoreAggregate,
   prefix?: "Trace" | "Generation",
 ): ScoreAggregate {
@@ -101,7 +97,7 @@ export const constructIndividualScoreColumns = <
   scoreColumnPrefix,
   cellsLoading = false,
 }: {
-  scoreColumnProps: ScoreDetailColumnProps[];
+  scoreColumnProps: ScoreData[];
   scoreColumnKey: keyof T & string;
   showAggregateViewOnly?: boolean;
   scoreColumnPrefix?: "Trace" | "Generation";

@@ -1,8 +1,8 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
-import { logger } from "@azure/storage-blob";
 import { QueueName, QueueJobs } from "../queues";
 import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import { logger } from "../logger";
 
 export class CloudUsageMeteringQueue {
   private static instance: Queue | null = null;
@@ -45,6 +45,7 @@ export class CloudUsageMeteringQueue {
         QueueJobs.CloudUsageMeteringJob,
         {},
         {
+          // Run at minute 5 of every hour (e.g. 1:05, 2:05, 3:05, etc)
           repeat: { pattern: "5 * * * *" },
         },
       );

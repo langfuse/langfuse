@@ -31,7 +31,6 @@ import {
 import { api } from "@/src/utils/api";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CommandItem } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -39,6 +38,7 @@ import {
   useEntitlementLimit,
 } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -257,7 +257,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                           };
                         })}
                         controlButtons={
-                          <CommandItem
+                          <DropdownMenuItem
                             onSelect={() => {
                               capture(
                                 "score_configs:manage_configs_item_click",
@@ -269,7 +269,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                             }}
                           >
                             Manage score configs
-                          </CommandItem>
+                          </DropdownMenuItem>
                         }
                       />
                     </FormControl>

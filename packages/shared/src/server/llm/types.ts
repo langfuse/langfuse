@@ -1,6 +1,8 @@
 import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
+import { TokenCountDelegate } from "../ingestion/processEventBatch";
+import { AuthHeaderValidVerificationResult } from "../auth/types";
 
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
 
@@ -16,7 +18,7 @@ export enum LLMAdapter {
   OpenAI = "openai",
   Azure = "azure",
   Bedrock = "bedrock",
-  VertexAI = "vertex-ai",
+  VertexAI = "google-vertex-ai",
 }
 
 export enum ChatMessageRole {
@@ -71,6 +73,7 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    error: z.string().optional(),
   })
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
@@ -82,6 +85,8 @@ export const openAIModels = [
   "gpt-4o-2024-05-13",
   "gpt-4o-mini",
   "gpt-4o-mini-2024-07-18",
+  "o3-mini",
+  "o3-mini-2025-01-31",
   "o1-preview",
   "o1-preview-2024-09-12",
   "o1-mini",
@@ -116,6 +121,10 @@ export const anthropicModels = [
 ] as const;
 
 export const vertexAIModels = [
+  "gemini-2.0-pro-exp-02-05",
+  "gemini-2.0-flash-001",
+  "gemini-2.0-flash-lite-preview-02-05",
+  "gemini-2.0-flash-exp",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-1.0-pro",
@@ -147,6 +156,8 @@ export const LLMApiKeySchema = z
     provider: z.string(),
     displaySecretKey: z.string(),
     secretKey: z.string(),
+    extraHeaders: z.string().nullish(),
+    extraHeaderKeys: z.array(z.string()),
     baseURL: z.string().nullable(),
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
@@ -160,3 +171,12 @@ export type LLMApiKey =
   z.infer<typeof LLMApiKeySchema> extends LlmApiKeys
     ? z.infer<typeof LLMApiKeySchema>
     : never;
+
+export type TraceParams = {
+  traceName: string;
+  traceId: string;
+  projectId: string;
+  tags: string[];
+  tokenCountDelegate: TokenCountDelegate;
+  authCheck: AuthHeaderValidVerificationResult;
+};

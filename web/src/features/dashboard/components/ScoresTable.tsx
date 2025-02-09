@@ -15,7 +15,6 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDeta
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
 
 const dropValuesForCategoricalScores = (
   value: number,
@@ -47,7 +46,6 @@ export const ScoresTable = ({
     "scoreTimestamp",
   );
 
-  const useCh = useClickhouse();
   const metrics = api.dashboard.chart.useQuery(
     {
       projectId,
@@ -72,7 +70,6 @@ export const ScoresTable = ({
         },
       ],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-      queryClickhouse: useCh,
       queryName: "score-aggregate",
     },
     {
@@ -116,7 +113,6 @@ export const ScoresTable = ({
           },
         ],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
-        queryClickhouse: useCh,
         queryName: "score-aggregate",
       },
       {

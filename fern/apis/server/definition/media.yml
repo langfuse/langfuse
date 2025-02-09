@@ -99,5 +99,63 @@ types:
         docs: The unique langfuse identifier of a media record
 
   MediaContentType:
-    type: literal<"image/png","image/jpeg","image/jpg","image/webp","image/gif","image/svg+xml","image/tiff","image/bmp","audio/mpeg","audio/mp3","audio/wav","audio/ogg","audio/oga","audio/aac","audio/mp4","audio/flac","video/mp4","video/webm","text/plain","text/html","text/css","text/csv","application/pdf","application/msword","application/vnd.ms-excel","application/zip","application/json","application/xml","application/octet-stream">
+    enum:
+      - value: image/png
+        name: IMAGE_PNG
+      - value: image/jpeg
+        name: IMAGE_JPEG
+      - value: image/jpg
+        name: IMAGE_JPG
+      - value: image/webp
+        name: IMAGE_WEBP
+      - value: image/gif
+        name: IMAGE_GIF
+      - value: image/svg+xml
+        name: IMAGE_SVG_XML
+      - value: image/tiff
+        name: IMAGE_TIFF
+      - value: image/bmp
+        name: IMAGE_BMP
+      - value: audio/mpeg
+        name: AUDIO_MPEG
+      - value: audio/mp3
+        name: AUDIO_MP3
+      - value: audio/wav
+        name: AUDIO_WAV
+      - value: audio/ogg
+        name: AUDIO_OGG
+      - value: audio/oga
+        name: AUDIO_OGA
+      - value: audio/aac
+        name: AUDIO_AAC
+      - value: audio/mp4
+        name: AUDIO_MP4
+      - value: audio/flac
+        name: AUDIO_FLAC
+      - value: video/mp4
+        name: VIDEO_MP4
+      - value: video/webm
+        name: VIDEO_WEBM
+      - value: text/plain
+        name: TEXT_PLAIN
+      - value: text/html
+        name: TEXT_HTML
+      - value: text/css
+        name: TEXT_CSS
+      - value: text/csv
+        name: TEXT_CSV
+      - value: application/pdf
+        name: APPLICATION_PDF
+      - value: application/msword
+        name: APPLICATION_MSWORD
+      - value: application/vnd.ms-excel
+        name: APPLICATION_MS_EXCEL
+      - value: application/zip
+        name: APPLICATION_ZIP
+      - value: application/json
+        name: APPLICATION_JSON
+      - value: application/xml
+        name: APPLICATION_XML
+      - value: application/octet-stream
+        name: APPLICATION_OCTET_STREAM
     docs: The MIME type of the media record

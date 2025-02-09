@@ -17,7 +17,6 @@ import {
 } from "@langfuse/shared";
 import { instrumentSync, processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import { tokenCount } from "@/src/features/ingest/usage";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
@@ -81,10 +80,11 @@ export default async function handler(
     }
 
     try {
-      const rateLimitCheck = await new RateLimitService(redis).rateLimitRequest(
-        authCheck.scope,
-        "ingestion",
-      );
+      const rateLimitCheck =
+        await RateLimitService.getInstance().rateLimitRequest(
+          authCheck.scope,
+          "ingestion",
+        );
 
       if (rateLimitCheck?.isRateLimited()) {
         return rateLimitCheck.sendRestResponseIfLimited(res);
@@ -115,11 +115,7 @@ export default async function handler(
 
     await telemetry();
 
-    const result = await processEventBatch(
-      parsedSchema.data.batch,
-      authCheck,
-      tokenCount,
-    );
+    const result = await processEventBatch(parsedSchema.data.batch, authCheck);
     return res.status(207).json(result);
   } catch (error: unknown) {
     if (!(error instanceof UnauthorizedError)) {

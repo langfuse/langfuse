@@ -20,7 +20,9 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
+  decryptAndParseExtraHeaders,
   fetchLLMCompletion,
+  getScoresByIds,
   LLMApiKeySchema,
   logger,
 } from "@langfuse/shared/src/server";
@@ -28,6 +30,7 @@ import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
+import { isNotNullOrUndefined } from "@/src/utils/types";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -35,7 +38,7 @@ const APIEvaluatorSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string(),
   targetObject: z.string(),
-  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
@@ -91,7 +94,7 @@ const CreateEvalJobSchema = z.object({
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
   target: z.string(),
-  filter: z.array(singleFilter).nullable(), // re-using the filter type from the tables
+  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
@@ -534,14 +537,11 @@ export const evalRouter = createTRPCRouter({
           await fetchLLMCompletion({
             streaming: false,
             apiKey: decrypt(parsedKey.data.secretKey), // decrypt the secret key
+            extraHeaders: decryptAndParseExtraHeaders(
+              parsedKey.data.extraHeaders,
+            ),
             baseURL: parsedKey.data.baseURL ?? undefined,
-            messages: [
-              {
-                role: ChatMessageRole.System,
-                content: "You are an expert at evaluating LLM outputs.",
-              },
-              { role: ChatMessageRole.User, content: input.prompt },
-            ],
+            messages: [{ role: ChatMessageRole.User, content: input.prompt }],
             modelParams: {
               provider: input.provider,
               model: input.model,
@@ -695,7 +695,7 @@ export const evalRouter = createTRPCRouter({
           endTime: true,
           error: true,
           jobInputTraceId: true,
-          score: true,
+          jobOutputScoreId: true,
           jobConfiguration: {
             select: {
               evalTemplateId: true,
@@ -720,8 +720,21 @@ export const evalRouter = createTRPCRouter({
             : undefined),
         },
       });
+
+      const scoreIds = jobExecutions
+        .map((je) => je.jobOutputScoreId)
+        .filter(isNotNullOrUndefined);
+
+      const scores =
+        scoreIds.length > 0
+          ? await getScoresByIds(input.projectId, scoreIds)
+          : [];
+
       return {
-        data: jobExecutions,
+        data: jobExecutions.map((je) => ({
+          ...je,
+          score: scores.find((s) => s?.id === je.jobOutputScoreId),
+        })),
         totalCount: count,
       };
     }),

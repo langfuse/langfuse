@@ -123,7 +123,7 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
 test("Unauthenticated user should be redirected to relative URL after login", async ({
   page,
 }) => {
-  const relativeUrl = "/support";
+  const relativeUrl = "/setup";
   await page.goto(
     `/auth/sign-in?targetPath=${encodeURIComponent(relativeUrl)}`,
   );

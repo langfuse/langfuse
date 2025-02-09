@@ -49,6 +49,10 @@ export function LlmApiKeyList(props: { projectId: string }) {
     },
   );
 
+  const hasExtraHeaderKeys = apiKeys.data?.data.some(
+    (key) => key.extraHeaderKeys.length > 0,
+  );
+
   if (!isAvailable) return null;
 
   if (!hasAccess) {
@@ -89,6 +93,9 @@ export function LlmApiKeyList(props: { projectId: string }) {
                 Base URL
               </TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
+              {hasExtraHeaderKeys ? (
+                <TableHead className="text-primary">Extra headers</TableHead>
+              ) : null}
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -116,6 +123,9 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   <TableCell className="font-mono">
                     {apiKey.displaySecretKey}
                   </TableCell>
+                  {hasExtraHeaderKeys ? (
+                    <TableCell> {apiKey.extraHeaderKeys.join(", ")} </TableCell>
+                  ) : null}
                   <TableCell>
                     <DeleteApiKeyButton
                       projectId={props.projectId}

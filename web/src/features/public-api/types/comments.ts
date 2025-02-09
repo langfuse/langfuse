@@ -1,7 +1,7 @@
 import {
   CommentObjectType,
   CreateCommentData,
-  paginationZod,
+  publicApiPaginationZod,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -17,7 +17,7 @@ const APIComment = z
     updatedAt: z.coerce.date(),
     objectType: z.nativeEnum(CommentObjectType),
     objectId: z.string(),
-    content: z.string().min(1).max(500),
+    content: z.string().min(1).max(3000),
     authorUserId: z.string().nullish(),
   })
   .strict();
@@ -38,7 +38,7 @@ export const GetCommentsV1Query = z
     objectType: z.nativeEnum(CommentObjectType).nullish(),
     objectId: z.string().nullish(),
     authorUserId: z.string().nullish(),
-    ...paginationZod,
+    ...publicApiPaginationZod,
   })
   .strict()
   .refine(

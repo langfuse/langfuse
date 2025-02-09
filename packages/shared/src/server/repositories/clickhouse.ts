@@ -4,30 +4,12 @@ import {
   convertDateToClickhouseDateTime,
 } from "../clickhouse/client";
 import { logger } from "../logger";
-import { instrumentAsync } from "../instrumentation";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
+import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
+import { context, trace } from "@opentelemetry/api";
+import { uploadEventToS3 } from "../utils/eventLog";
 
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
@@ -40,9 +22,6 @@ export async function upsertClickhouse<
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
 
-    const s3Client = getS3StorageServiceClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    );
     await Promise.all(
       opts.records.map((record) => {
         // drop trailing s and pretend it's always a create.
@@ -52,11 +31,19 @@ export async function upsertClickhouse<
           // @ts-ignore - If it's an observation we now that `type` is a string
           eventType = `${record["type"].toLowerCase()}-create`;
         }
-        s3Client.uploadJson(
-          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
+
+        const eventId = randomUUID();
+        return uploadEventToS3(
+          {
+            projectId: record.project_id as string,
+            entityType: getClickhouseEntityType(eventType),
+            entityId: record.id as string,
+            eventId,
+            traceId: record?.trace_id as string,
+          },
           [
             {
-              id: randomUUID(),
+              id: eventId,
               timestamp: new Date().toISOString(),
               type: eventType,
               body: opts.eventBodyMapper(record),
@@ -99,6 +86,64 @@ export async function upsertClickhouse<
       }
     }
   });
+}
+
+export async function* queryClickhouseStream<T>(opts: {
+  query: string;
+  params?: Record<string, unknown> | undefined;
+  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+}): AsyncGenerator<T> {
+  const tracer = getTracer("clickhouse-query-stream");
+  const span = tracer.startSpan("clickhouse-query-stream");
+
+  try {
+    const res = await context.with(
+      trace.setSpan(context.active(), span),
+      async () => {
+        // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
+        span.setAttribute("ch.query.text", opts.query);
+
+        const res = await clickhouseClient(opts.clickhouseConfigs).query({
+          query: opts.query,
+          format: "JSONEachRow",
+          query_params: opts.params,
+        });
+        // same logic as for prisma. we want to see queries in development
+        if (env.NODE_ENV === "development") {
+          logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
+        }
+
+        span.setAttribute("ch.queryId", res.query_id);
+
+        // add summary headers to the span. Helps to tune performance
+        const summaryHeader = res.response_headers["x-clickhouse-summary"];
+        if (summaryHeader) {
+          try {
+            const summary = Array.isArray(summaryHeader)
+              ? JSON.parse(summaryHeader[0])
+              : JSON.parse(summaryHeader);
+            for (const key in summary) {
+              span.setAttribute(`ch.${key}`, summary[key]);
+            }
+          } catch (error) {
+            logger.debug(
+              `Failed to parse clickhouse summary header ${summaryHeader}`,
+              error,
+            );
+          }
+        }
+        return res;
+      },
+    );
+
+    for await (const rows of res.stream<T>()) {
+      for (const row of rows) {
+        yield row.json();
+      }
+    }
+  } finally {
+    span.end();
+  }
 }
 
 export async function queryClickhouse<T>(opts: {

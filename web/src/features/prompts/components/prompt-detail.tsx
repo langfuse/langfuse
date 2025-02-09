@@ -12,10 +12,9 @@ import { PromptType } from "@/src/features/prompts/server/utils/validation";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { extractVariables } from "@langfuse/shared";
-import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { PromptHistoryNode } from "./prompt-history";
-import Generations from "@/src/components/table/use-cases/generations";
+import Generations from "@/src/components/table/use-cases/observations";
 import {
   Accordion,
   AccordionContent,
@@ -29,19 +28,17 @@ import { Lock, Plus, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -141,7 +138,7 @@ export const PromptDetail = () => {
   }
 
   return (
-    <ScrollScreenPage>
+    <FullScreenPage>
       <Header
         title={prompt.name}
         help={{
@@ -162,6 +159,12 @@ export const PromptDetail = () => {
         ]}
         actionButtons={
           <>
+            <JumpToPlaygroundButton
+              source="prompt"
+              prompt={prompt}
+              analyticsEventName="prompt_detail:test_in_playground_button_click"
+              variant="outline"
+            />
             {hasAccess ? (
               <>
                 {hasEntitlement && (
@@ -171,29 +174,15 @@ export const PromptDetail = () => {
                   >
                     <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                       <Button
-                        variant="secondary"
+                        variant="outline"
                         disabled={!hasExperimentWriteAccess}
+                        onClick={() => capture("dataset_run:new_form_open")}
                       >
                         <FlaskConical className="h-4 w-4" />
-                        <span className="ml-2">New experiment</span>
+                        <span className="ml-2">Experiment</span>
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Set up experiment</DialogTitle>
-                        <DialogDescription>
-                          Create an experiment to test a prompt version on a
-                          dataset. See{" "}
-                          <Link
-                            href="https://langfuse.com/docs/datasets/prompt-experiments"
-                            target="_blank"
-                            className="underline"
-                          >
-                            documentation
-                          </Link>{" "}
-                          to learn more.
-                        </DialogDescription>
-                      </DialogHeader>
                       <CreateExperimentsForm
                         key={`create-experiment-form-${prompt.id}`}
                         projectId={projectId as string}
@@ -212,7 +201,7 @@ export const PromptDetail = () => {
                 )}
 
                 <Button
-                  variant="secondary"
+                  variant="default"
                   onClick={() => {
                     capture("prompts:update_form_open");
                   }}
@@ -235,12 +224,14 @@ export const PromptDetail = () => {
                 </div>
               </Button>
             )}
-            <JumpToPlaygroundButton
-              source="prompt"
-              prompt={prompt}
-              analyticsEventName="prompt_detail:test_in_playground_button_click"
-              variant="outline"
-            />
+            {projectId && (
+              <DuplicatePromptButton
+                promptId={prompt.id}
+                projectId={projectId}
+                promptName={prompt.name}
+                promptVersion={prompt.version}
+              />
+            )}
             <DetailPageNav
               key="nav"
               currentId={promptName}
@@ -262,7 +253,7 @@ export const PromptDetail = () => {
           </>
         }
       />
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4 overflow-hidden">
         <div className="col-span-3">
           <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground">
             <div className="flex flex-row items-center gap-3 px-3 py-1">
@@ -278,9 +269,13 @@ export const PromptDetail = () => {
             </div>
           </div>
         </div>
-        <div className="col-span-2 md:h-full">
+        <div className="col-span-2 overflow-y-auto">
           {prompt.type === PromptType.Chat && chatMessages ? (
-            <OpenAiMessageView title="Chat prompt" messages={chatMessages} />
+            <OpenAiMessageView
+              title="Chat prompt"
+              messages={chatMessages}
+              collapseLongHistory={false}
+            />
           ) : typeof prompt.prompt === "string" ? (
             <CodeView content={prompt.prompt} title="Text prompt" />
           ) : (
@@ -306,6 +301,18 @@ export const PromptDetail = () => {
           {prompt.config && JSON.stringify(prompt.config) !== "{}" && (
             <JSONView className="mt-5" json={prompt.config} title="Config" />
           )}
+
+          {prompt.commitMessage && (
+            <div className="mx-auto mt-5 w-full rounded-lg border text-base">
+              <div className="border-b px-3 py-1 text-xs font-medium">
+                Commit message
+              </div>
+              <div className="flex flex-wrap gap-2 p-2 text-xs">
+                {prompt.commitMessage}
+              </div>
+            </div>
+          )}
+
           <p className="mt-6 text-xs text-muted-foreground">
             Fetch prompts via Python or JS/TS SDKs. See{" "}
             <a
@@ -343,19 +350,15 @@ export const PromptDetail = () => {
             cardView
           />
         </div>
-        <div className="flex flex-col">
-          <div className="text-m px-3 font-medium">
-            <ScrollArea className="flex border-l pl-2">
-              <PromptHistoryNode
-                prompts={promptHistory.data.promptVersions}
-                currentPromptVersion={prompt.version}
-                setCurrentPromptVersion={setCurrentPromptVersion}
-                totalCount={promptHistory.data.totalCount}
-              />
-            </ScrollArea>
-          </div>
+        <div className="text-m flex flex-col overflow-y-auto border-l px-3 pl-2 font-medium">
+          <PromptHistoryNode
+            prompts={promptHistory.data.promptVersions}
+            currentPromptVersion={prompt.version}
+            setCurrentPromptVersion={setCurrentPromptVersion}
+            totalCount={promptHistory.data.totalCount}
+          />
         </div>
       </div>
-    </ScrollScreenPage>
+    </FullScreenPage>
   );
 };

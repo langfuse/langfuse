@@ -27,12 +27,12 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export type ScoresTableRow = {
   id: string;
   traceId: string;
-  timestamp: string;
+  timestamp: Date;
   source: string;
   name: string;
   dataType: ScoreDataType;
@@ -132,7 +132,6 @@ export default function ScoresTable({
     page: 0,
     limit: 1,
     orderBy: null,
-    queryClickhouse: useClickhouse(),
   };
 
   const getAllPayload = {
@@ -140,7 +139,6 @@ export default function ScoresTable({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
     orderBy: orderByState,
-    queryClickhouse: useClickhouse(),
   };
 
   const scores = api.scores.all.useQuery(getAllPayload);
@@ -154,7 +152,6 @@ export default function ScoresTable({
         dateRangeFilter[0]?.type === "datetime"
           ? dateRangeFilter[0]
           : undefined,
-      queryClickhouse: useClickhouse(),
     },
     {
       trpc: {
@@ -258,6 +255,10 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 150,
+      cell: ({ row }) => {
+        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
     },
     {
       accessorKey: "source",
@@ -395,7 +396,7 @@ export default function ScoresTable({
   ): ScoresTableRow => {
     return {
       id: score.id,
-      timestamp: score.timestamp.toLocaleString(),
+      timestamp: score.timestamp,
       source: score.source,
       name: score.name,
       dataType: score.dataType,

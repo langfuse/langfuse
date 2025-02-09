@@ -103,7 +103,10 @@ export function DeleteButton({
               variant="destructive"
               loading={traceMutation.isLoading || isDeleted}
               onClick={() => {
-                if (deleteConfirmationInput !== deleteConfirmation) {
+                if (
+                  deleteConfirmation &&
+                  deleteConfirmationInput !== deleteConfirmation
+                ) {
                   alert("Please type the correct confirmation");
                   return;
                 }
@@ -124,7 +127,10 @@ export function DeleteButton({
               variant="destructive"
               loading={datasetMutation.isLoading || isDeleted}
               onClick={() => {
-                if (deleteConfirmationInput !== deleteConfirmation) {
+                if (
+                  deleteConfirmation &&
+                  deleteConfirmationInput !== deleteConfirmation
+                ) {
                   alert("Please type the correct confirmation");
                   return;
                 }

@@ -155,4 +155,3 @@ volumes:
     driver: local
   langfuse_minio_data:
     driver: local
-

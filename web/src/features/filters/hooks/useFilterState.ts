@@ -95,6 +95,22 @@ export const useQueryFilterState = (
       !!projectId ? `${table}FilterState-${projectId}` : `${table}FilterState`,
       initialState,
     );
+  // Merge initial state with session state if filter elements don't exist
+  const mergedInitialState = initialState.reduce(
+    (acc, filter) => {
+      const exists = sessionFilterState.some((f) => f.column === filter.column);
+      if (!exists) {
+        acc.push(filter);
+      }
+      return acc;
+    },
+    [...sessionFilterState],
+  );
+
+  // Update session storage with merged state
+  if (mergedInitialState.length !== sessionFilterState.length) {
+    setSessionFilterState(mergedInitialState);
+  }
 
   // Note: `use-query-params` library does not automatically update the URL with the default value
   const [filterState, setFilterState] = useQueryParam(

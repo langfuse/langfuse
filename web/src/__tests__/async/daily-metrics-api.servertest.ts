@@ -1,11 +1,8 @@
-import {
-  createObservation,
-  createTrace,
-} from "@/src/__tests__/fixtures/tracing-factory";
+import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createTracesCh,
-} from "@/src/__tests__/async/repositories/clickhouse-helpers";
+} from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { randomUUID } from "crypto";
 import { GetMetricsDailyV1Response } from "@/src/features/public-api/types/metrics";
@@ -26,11 +23,9 @@ describe("/api/public/metrics/daily API Endpoint", () => {
       createObservation({
         trace_id: createdTrace.id,
         project_id: createdTrace.project_id,
-        name: "observation-name",
+        name: "observation-name-1",
         end_time: new Date().getTime(),
         start_time: new Date().getTime() - 1000,
-        input: "input",
-        output: "output",
         provided_model_name: "model-1",
       }),
       createObservation({
@@ -38,9 +33,23 @@ describe("/api/public/metrics/daily API Endpoint", () => {
         project_id: createdTrace.project_id,
         name: "observation-name-2",
         end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 1000,
+        provided_model_name: "model-1",
+      }),
+      createObservation({
+        trace_id: createdTrace.id,
+        project_id: createdTrace.project_id,
+        name: "observation-name-3",
+        end_time: new Date().getTime(),
         start_time: new Date().getTime() - 100000,
-        input: "input-2",
-        output: "output-2",
+        provided_model_name: "model-2",
+      }),
+      createObservation({
+        trace_id: createdTrace.id,
+        project_id: createdTrace.project_id,
+        name: "observation-name-4",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 100000,
         provided_model_name: "model-2",
       }),
     ];
@@ -59,17 +68,17 @@ describe("/api/public/metrics/daily API Endpoint", () => {
 
     const metric = metrics.body.data[0];
     expect(metric.countTraces).toBe(1);
-    expect(metric.countObservations).toBe(2);
+    expect(metric.countObservations).toBe(4);
     expect(metric.usage).toHaveLength(2);
-    expect(metric.totalCost).toBe(600);
+    expect(metric.totalCost).toBe(1200);
     for (const usage of metric.usage) {
       expect(usage.model).toMatch(/model-\d/g);
-      expect(usage.inputUsage).toBe(1234);
-      expect(usage.outputUsage).toBe(5678);
-      expect(usage.totalUsage).toBe(6912);
-      expect(usage.countObservations).toBe(1);
+      expect(usage.inputUsage).toBe(1234 * 2);
+      expect(usage.outputUsage).toBe(5678 * 2);
+      expect(usage.totalUsage).toBe(6912 * 2);
+      expect(usage.countObservations).toBe(2);
       expect(usage.countTraces).toBe(1);
-      expect(usage.totalCost).toBe(300);
+      expect(usage.totalCost).toBe(600);
     }
   });
 });

@@ -1,4 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+
+function isClient() {
+  return typeof window !== "undefined";
+}
 
 /**
  * useSessionStorage is a hook for managing data with the sessionStorage API.
@@ -22,18 +26,18 @@ function useSessionStorage<T>(
   sessionStorageKey: string,
   initialValue: T,
 ): [T, React.Dispatch<React.SetStateAction<T>>, () => void] {
-  const [value, setValue] = useState<T>(() => {
-    if (typeof window === "undefined") {
-      return initialValue;
-    }
+  const readValue = useCallback((): T => {
+    if (!isClient()) return initialValue; // Fallback for SSR
     try {
       const storedValue = sessionStorage.getItem(sessionStorageKey);
-      return storedValue ? (JSON.parse(storedValue) as T) : initialValue;
+      return storedValue ? JSON.parse(storedValue) : initialValue;
     } catch (error) {
       console.error("Error reading from session storage", error);
       return initialValue;
     }
-  });
+  }, [sessionStorageKey, initialValue]);
+
+  const [storedValue, setStoredValue] = useState<T>(readValue);
 
   const clearValue = () => {
     try {
@@ -44,15 +48,38 @@ function useSessionStorage<T>(
     }
   };
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(sessionStorageKey, JSON.stringify(value));
-    } catch (error) {
-      console.error("Error writing to session storage", error);
-    }
-  }, [sessionStorageKey, value]);
+  const setValue = useCallback(
+    (value: T | ((prev: T) => T)) => {
+      try {
+        const newValue = value instanceof Function ? value(storedValue) : value;
+        setStoredValue(newValue);
+        if (isClient()) {
+          sessionStorage.setItem(sessionStorageKey, JSON.stringify(newValue));
+          window.dispatchEvent(new Event("session-storage"));
+        }
+      } catch (error) {
+        console.error("Error reading from session storage", error);
+      }
+    },
+    [sessionStorageKey, storedValue],
+  );
 
-  return [value, setValue, clearValue] as const;
+  // Sync state with sessionStorage changes across tabs
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setStoredValue(readValue());
+    };
+
+    window.addEventListener("session-storage", handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("session-storage", handleStorageChange);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [readValue]);
+
+  return [storedValue, setValue, clearValue] as const;
 }
 
 export default useSessionStorage;

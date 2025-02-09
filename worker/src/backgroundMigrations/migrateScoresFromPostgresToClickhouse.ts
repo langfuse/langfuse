@@ -19,13 +19,44 @@ export default class MigrateScoresFromPostgresToClickhouse
 
   async validate(
     args: Record<string, unknown>,
+    attempts = 5,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    if (!env.CLICKHOUSE_URL) {
+    // Check if Clickhouse credentials are configured
+    if (
+      !env.CLICKHOUSE_URL ||
+      !env.CLICKHOUSE_USER ||
+      !env.CLICKHOUSE_PASSWORD
+    ) {
       return {
         valid: false,
-        invalidReason: "Clickhouse URL must be configured to perform migration",
+        invalidReason:
+          "Clickhouse credentials must be configured to perform migration",
       };
     }
+
+    // Check if ClickHouse scores table exists
+    const tables = await clickhouseClient().query({
+      query: "SHOW TABLES",
+    });
+    const tableNames = (await tables.json()).data as { name: string }[];
+    if (!tableNames.some((r) => r.name === "scores")) {
+      // Retry if the table does not exist as this may mean migrations are still pending
+      if (attempts > 0) {
+        logger.info(
+          `ClickHouse scores table does not exist. Retrying in 10s...`,
+        );
+        return new Promise((resolve) => {
+          setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
+        });
+      }
+
+      // If all retries are exhausted, return as invalid
+      return {
+        valid: false,
+        invalidReason: "ClickHouse scores table does not exist",
+      };
+    }
+
     return { valid: true, invalidReason: undefined };
   }
 

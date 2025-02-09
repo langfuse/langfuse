@@ -1,9 +1,9 @@
 import {
   filterAndValidateDbScoreList,
-  paginationZod,
   Prisma,
   type PrismaClient,
   type DatasetRunItems,
+  optionalPaginationZod,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
@@ -25,14 +25,13 @@ import {
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import Decimal from "decimal.js";
-import { measureAndReturnApi } from "@/src/server/utils/checkClickhouseAccess";
 import { env } from "@/src/env.mjs";
 
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  queryClickhouse: z.boolean().optional().default(false),
-  ...paginationZod,
+  runIds: z.array(z.string()).optional(),
+  ...optionalPaginationZod,
 });
 
 type PostgresRunItem = {
@@ -70,8 +69,8 @@ export const createDatasetRunsTableWithoutMetrics = async (
     createdAt: run.run_created_at,
     updatedAt: run.run_updated_at,
     // return metric fields as undefined
-    avgTotalCost: undefined,
-    avgLatency: undefined,
+    avgTotalCost: undefined as Decimal | undefined,
+    avgLatency: undefined as number | undefined,
     scores: undefined,
   }));
 };
@@ -99,9 +98,6 @@ export const createDatasetRunsTable = async (input: DatasetRunsTableInput) => {
       input,
       tableName,
       clickhouseSession,
-    );
-    logger.info(
-      `Fetched ${scores.length} scores for dataset runs with ids ${scores.map((s) => JSON.stringify({ id: s.id, runId: s.run_id, v: s.value, tr: s.traceId })).join(", ")}`,
     );
 
     const obsAgg = await getObservationLatencyAndCostForDataset(
@@ -178,7 +174,7 @@ export const createTempTableInClickhouse = async (
   clickhouseSession: string,
 ) => {
   const query = `
-      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER default" : ""}
+      CREATE TABLE IF NOT EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
       (
           project_id String,    
           run_id String,  
@@ -189,8 +185,6 @@ export const createTempTableInClickhouse = async (
       )  
       ENGINE = ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ReplicatedMergeTree()" : "MergeTree()"} 
       PRIMARY KEY (project_id, dataset_id, run_id, trace_id)
-
-
   `;
   await commandClickhouse({
     query,
@@ -204,7 +198,7 @@ export const deleteTempTableInClickhouse = async (
   sessionId: string,
 ) => {
   const query = `
-      DROP TABLE IF EXISTS ${tableName}
+      DROP TABLE IF EXISTS ${tableName} ${env.CLICKHOUSE_CLUSTER_ENABLED === "true" ? "ON CLUSTER " + env.CLICKHOUSE_CLUSTER_NAME : ""}
   `;
   await commandClickhouse({
     query,
@@ -238,10 +232,11 @@ export const getDatasetRunsFromPostgres = async (
       WHERE
         d.id = ${input.datasetId}
         AND d.project_id = ${input.projectId}
+        ${input.runIds?.length ? Prisma.sql`AND runs.id IN (${Prisma.join(input.runIds)})` : Prisma.empty}
       GROUP BY runs.id, runs.name, runs.description, runs.metadata, runs.created_at, runs.updated_at
       ORDER BY runs.created_at DESC
-      LIMIT ${input.limit}
-      OFFSET ${input.page * input.limit}
+      ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
+      ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
     `,
   );
 };
@@ -264,7 +259,7 @@ const getScoresFromTempTable = async (
       AND tmp.project_id = {projectId: String}
       AND tmp.dataset_id = {datasetId: String}
       ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
+      LIMIT 1 BY s.id, s.project_id, tmp.run_id
       SETTINGS select_sequential_consistency = 1;
   `;
 
@@ -290,7 +285,7 @@ const getObservationLatencyAndCostForDataset = async (
   const query = `
     WITH agg AS (
       SELECT
-          dateDiff('milliseconds', start_time, end_time) AS latency_ms,
+          dateDiff('millisecond', start_time, end_time) AS latency_ms,
           total_cost AS cost,
           run_id
       FROM observations AS o
@@ -343,7 +338,7 @@ const getTraceLatencyAndCostForDataset = async (
       SELECT
         o.trace_id,
         run_id,
-        dateDiff('milliseconds', min(start_time), max(end_time)) AS latency_ms,
+        dateDiff('millisecond', min(start_time), max(end_time)) AS latency_ms,
         sum(total_cost) AS cost
       FROM observations o JOIN ${tableName} tmp
         ON tmp.project_id = o.project_id 
@@ -426,65 +421,27 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   });
 
   // check in clickhouse if the traces already exist. They arrive delayed.
-  const tracingData = await measureAndReturnApi({
-    input: { queryClickhouse: false, projectId: input.projectId },
-    operation: "datasets.itemsByDatasetId",
-    user: null,
-    pgExecution: async () => {
-      const traces = await input.prisma.trace.findMany({
-        where: {
-          id: {
-            in: datasetItems
-              .map((item) => item.sourceTraceId)
-              .filter((id): id is string => Boolean(id)),
-          },
-          projectId: input.projectId,
-        },
-      });
+  const traces = await getTracesByIds(
+    datasetItems
+      .map((item) => item.sourceTraceId)
+      .filter((id): id is string => Boolean(id)),
+    input.projectId,
+  );
 
-      const observations = await input.prisma.observation.findMany({
-        where: {
-          id: {
-            in: datasetItems
-              .map((item) => item.sourceObservationId)
-              .filter((id): id is string => Boolean(id)),
-          },
-          projectId: input.projectId,
-        },
-      });
+  const observations = await getObservationsById(
+    datasetItems
+      .map((item) => item.sourceObservationId)
+      .filter((id): id is string => Boolean(id)),
+    input.projectId,
+  );
 
-      return {
-        traceIds: traces.map((t) => t.id),
-        observationIds: observations.map((o) => ({
-          id: o.id,
-          traceId: o.traceId,
-        })),
-      };
-    },
-    clickhouseExecution: async () => {
-      const traces = await getTracesByIds(
-        datasetItems
-          .map((item) => item.sourceTraceId)
-          .filter((id): id is string => Boolean(id)),
-        input.projectId,
-      );
-
-      const observations = await getObservationsById(
-        datasetItems
-          .map((item) => item.sourceObservationId)
-          .filter((id): id is string => Boolean(id)),
-        input.projectId,
-      );
-
-      return {
-        traceIds: traces.map((t) => t.id),
-        observationIds: observations.map((o) => ({
-          id: o.id,
-          traceId: o.traceId,
-        })),
-      };
-    },
-  });
+  const tracingData = {
+    traceIds: traces.map((t) => t.id),
+    observationIds: observations.map((o) => ({
+      id: o.id,
+      traceId: o.traceId,
+    })),
+  };
 
   return {
     totalDatasetItems,
@@ -532,10 +489,10 @@ export const getRunItemsByRunIdOrItemId = async (
 ) => {
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
-      getScoresForTraces(
+      getScoresForTraces({
         projectId,
-        runItems.map((ri) => ri.traceId),
-      ),
+        traceIds: runItems.map((ri) => ri.traceId),
+      }),
       getLatencyAndTotalCostForObservations(
         projectId,
         runItems

@@ -23,18 +23,18 @@ type Json = Root | { [key: string]: JsonNested } | JsonNested[];
 // Here, you define the schema recursively
 export const jsonSchemaNullable: z.ZodType<JsonNested> = z.lazy(() =>
   z.union([
-    nestedLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
+    nestedLiteralSchema,
   ]),
 );
 
 // Root schema that does not allow nulls at the root level
 export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
-    rootLiteralSchema,
     z.array(jsonSchemaNullable),
     z.record(jsonSchemaNullable),
+    rootLiteralSchema,
   ]),
 );
 
@@ -42,6 +42,17 @@ export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
     z.coerce.number().default(1),
+  ),
+  limit: z.preprocess(
+    (x) => (x === "" ? undefined : x),
+    z.coerce.number().lte(100).default(50),
+  ),
+};
+
+export const publicApiPaginationZod = {
+  page: z.preprocess(
+    (x) => (x === "" ? undefined : x),
+    z.coerce.number().gt(0).default(1),
   ),
   limit: z.preprocess(
     (x) => (x === "" ? undefined : x),

@@ -172,6 +172,7 @@ export const membersRouter = createTRPCRouter({
             where: {
               id: input.projectId,
               orgId: input.orgId,
+              deletedAt: null,
             },
           })
         : null;

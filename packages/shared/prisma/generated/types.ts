@@ -170,6 +170,17 @@ export type BatchExport = {
     url: string | null;
     log: string | null;
 };
+export type BillingMeterBackup = {
+    stripe_customer_id: string;
+    meter_id: string;
+    start_time: Timestamp;
+    end_time: Timestamp;
+    aggregated_value: number;
+    event_name: string;
+    org_id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type Comment = {
     id: string;
     project_id: string;
@@ -242,6 +253,18 @@ export type EvalTemplate = {
     vars: Generated<string[]>;
     output_schema: unknown;
 };
+export type EventLog = {
+    id: string;
+    bucket_name: string;
+    bucket_path: string;
+    project_id: string;
+    entity_type: string;
+    entity_id: string;
+    event_id: string;
+    trace_id: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type Events = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -293,6 +316,8 @@ export type LlmApiKeys = {
     base_url: string | null;
     custom_models: Generated<string[]>;
     with_default_models: Generated<boolean>;
+    extra_headers: string | null;
+    extra_header_keys: Generated<string[]>;
     config: unknown | null;
     project_id: string;
 };
@@ -453,7 +478,9 @@ export type Project = {
     org_id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
+    deleted_at: Timestamp | null;
     name: string;
+    retention_days: number | null;
 };
 export type ProjectMembership = {
     org_membership_id: string;
@@ -477,6 +504,14 @@ export type Prompt = {
     config: Generated<unknown>;
     tags: Generated<string[]>;
     labels: Generated<string[]>;
+    commit_message: string | null;
+};
+export type QueueBackUp = {
+    id: string;
+    project_id: string | null;
+    queue_name: string;
+    content: unknown;
+    created_at: Generated<Timestamp>;
 };
 export type Score = {
     id: string;
@@ -603,6 +638,7 @@ export type DB = {
     audit_logs: AuditLog;
     background_migrations: BackgroundMigration;
     batch_exports: BatchExport;
+    billing_meter_backups: BillingMeterBackup;
     comments: Comment;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;
@@ -610,6 +646,7 @@ export type DB = {
     dataset_runs: DatasetRuns;
     datasets: Dataset;
     eval_templates: EvalTemplate;
+    event_log: EventLog;
     events: Events;
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
@@ -627,6 +664,7 @@ export type DB = {
     project_memberships: ProjectMembership;
     projects: Project;
     prompts: Prompt;
+    queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
     scores: Score;
     Session: Session;

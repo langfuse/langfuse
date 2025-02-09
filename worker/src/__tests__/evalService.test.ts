@@ -10,7 +10,7 @@ import {
   createEvalJobs,
   evaluate,
   extractVariablesFromTracingData,
-} from "../features/evaluation/evalService";
+} from "../ee/evaluation/evalService";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
@@ -20,17 +20,16 @@ import {
   LLMAdapter,
   LangfuseNotFoundError,
   variableMappingList,
+  ApiError,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { OpenAIServer } from "./network";
 import { afterEach } from "node:test";
 import {
   convertDateToClickhouseDateTime,
-  QueueName,
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
-import { Worker, Job, ConnectionOptions } from "bullmq";
 import { compileHandlebarString } from "../features/utilities";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -761,23 +760,12 @@ describe("eval service tests", () => {
       openAIServer.respondWithDefault();
       const traceId = randomUUID();
 
-      await kyselyPrisma.$kysely
-        .insertInto("traces")
-        .values({
-          id: traceId,
-          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-          user_id: "a",
-          input: { input: "This is a great prompt" },
-          output: { output: "This is a great response" },
-        })
-        .execute();
-
       await upsertTrace({
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
-        input: { input: "This is a great prompt" },
-        output: { output: "This is a great response" },
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -871,18 +859,7 @@ describe("eval service tests", () => {
       expect(jobs[0].status.toString()).toBe("COMPLETED");
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
-
-      const scores = await kyselyPrisma.$kysely
-        .selectFrom("scores")
-        .selectAll()
-        .where("trace_id", "=", traceId)
-        .execute();
-
-      expect(scores.length).toBe(1);
-      expect(scores[0].trace_id).toBe(traceId);
-      expect(scores[0].comment).not.toBeNull();
-      expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    }, 20_000);
+    }, 50_000);
 
     test("fails to eval without llm api key", async () => {
       const traceId = randomUUID();
@@ -962,6 +939,118 @@ describe("eval service tests", () => {
       await expect(evaluate({ event: payload })).rejects.toThrowError(
         new LangfuseNotFoundError(
           "API key for provider openai and project 7a88fb47-b4e2-43b8-a06c-a5ce950dc53a not found.",
+        ),
+      );
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      expect(jobs.length).toBe(1);
+      expect(jobs[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+      expect(jobs[0].job_input_trace_id).toBe(traceId);
+      // the job will be failed when the exception is caught in the worker consumer
+      expect(jobs[0].status.toString()).toBe("PENDING");
+    }, 10_000);
+
+    test("fails to eval on openai error", async () => {
+      openAIServer.respondWithError(401, "Not authorized");
+
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      const templateId = randomUUID();
+      await kyselyPrisma.$kysely
+        .insertInto("eval_templates")
+        .values({
+          id: templateId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          model_params: {},
+          output_schema: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        })
+        .executeTakeFirst();
+
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "User ID",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          evalTemplateId: templateId,
+        },
+      });
+
+      const jobExecutionId = randomUUID();
+
+      await kyselyPrisma.$kysely
+        .insertInto("job_executions")
+        .values({
+          id: jobExecutionId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          job_configuration_id: jobConfiguration.id,
+          status: sql`'PENDING'::"JobExecutionStatus"`,
+          start_time: new Date(),
+          job_input_trace_id: traceId,
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
+      const payload = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        jobExecutionId: jobExecutionId,
+        delay: 1000,
+      };
+
+      await expect(evaluate({ event: payload })).rejects.toThrowError(
+        new ApiError(
+          "Failed to call LLM: Error: 401 status code (no body)\n" +
+            "\n" +
+            "Troubleshooting URL: https://js.langchain.com/docs/troubleshooting/errors/MODEL_AUTHENTICATION/\n",
+          401,
         ),
       );
 
@@ -1166,35 +1255,6 @@ describe("eval service tests", () => {
       expect(jobs[0].status.toString()).toBe("COMPLETED");
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
-
-      const scores = await kyselyPrisma.$kysely
-        .selectFrom("scores")
-        .selectAll()
-        .where("trace_id", "=", traceId)
-        .execute();
-
-      expect(scores.length).toBe(1);
-      expect(scores[0].trace_id).toBe(traceId);
-      expect(scores[0].comment).not.toBeNull();
-      expect(scores[0].project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-
-      await new Promise<void>((resolve, reject) => {
-        new Worker(
-          QueueName.IngestionQueue,
-          async (job: Job) => {
-            try {
-              expect(job.name).toBe("ingestion-job");
-              expect(job.data.payload.data.type).toBe("score-create");
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
-          },
-          {
-            connection: redis as ConnectionOptions,
-          },
-        );
-      });
     }, 20_000);
   });
 
@@ -1286,8 +1346,8 @@ describe("eval service tests", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
-        input: { input: "This is a great prompt" },
-        output: { output: "This is a great response" },
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -1343,8 +1403,8 @@ describe("eval service tests", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
-        input: { input: "This is a great prompt" },
-        output: { output: "This is a great response" },
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -1369,8 +1429,8 @@ describe("eval service tests", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         name: "great-llm-name",
         type: "GENERATION",
-        input: { huhu: "This is a great prompt" },
-        output: { haha: "This is a great response" },
+        input: JSON.stringify({ huhu: "This is a great prompt" }),
+        output: JSON.stringify({ haha: "This is a great response" }),
         start_time: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -1471,8 +1531,8 @@ describe("eval service tests", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
-        input: { input: "This is a great prompt" },
-        output: { output: "This is a great response" },
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -1553,8 +1613,8 @@ describe("eval service tests", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
-        input: { input: "This is a great prompt" },
-        output: { output: "This is a great response" },
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
         timestamp: convertDateToClickhouseDateTime(new Date()),
         created_at: convertDateToClickhouseDateTime(new Date()),
         updated_at: convertDateToClickhouseDateTime(new Date()),
@@ -1580,8 +1640,8 @@ describe("eval service tests", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         name: "great-llm-name",
         type: "GENERATION",
-        input: { huhu: "This is a great prompt" },
-        output: { haha: "This is a great response" },
+        input: JSON.stringify({ huhu: "This is a great prompt" }),
+        output: JSON.stringify({ haha: "This is a great response" }),
         start_time: convertDateToClickhouseDateTime(
           new Date("2022-01-01T00:00:00.000Z"),
         ),
@@ -1609,8 +1669,8 @@ describe("eval service tests", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         name: "great-llm-name",
         type: "GENERATION",
-        input: { huhu: "This is a great prompt again" },
-        output: { haha: "This is a great response again" },
+        input: JSON.stringify({ huhu: "This is a great prompt again" }),
+        output: JSON.stringify({ haha: "This is a great response again" }),
         start_time: convertDateToClickhouseDateTime(
           new Date("2022-01-02T00:00:00.000Z"),
         ),

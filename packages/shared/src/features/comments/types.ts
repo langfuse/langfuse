@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const MAX_COMMENT_LENGTH = 3000;
+
 const COMMENT_OBJECT_TYPES = [
   "TRACE",
   "OBSERVATION",
@@ -9,7 +11,7 @@ const COMMENT_OBJECT_TYPES = [
 
 export const CreateCommentData = z.object({
   projectId: z.string(),
-  content: z.string().trim().min(1).max(500),
+  content: z.string().trim().min(1).max(MAX_COMMENT_LENGTH),
   objectId: z.string(),
   objectType: z.enum(COMMENT_OBJECT_TYPES),
 });

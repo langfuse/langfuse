@@ -323,17 +323,19 @@ function getFinalMessages(
   }
 
   // Dynamically replace variables in the prompt
-  const finalMessages = messages.map((m) => {
-    let content = m.content;
-    for (const variable of promptVariables) {
-      content = content.replace(
-        new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
-        variable.value,
-      );
-    }
+  const finalMessages = messages
+    .filter((m) => m.content.length > 0)
+    .map((m) => {
+      let content = m.content;
+      for (const variable of promptVariables) {
+        content = content.replace(
+          new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
+          variable.value,
+        );
+      }
 
-    return { ...m, content };
-  });
+      return { ...m, content };
+    });
   return finalMessages;
 }
 

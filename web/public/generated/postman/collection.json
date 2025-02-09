@@ -558,7 +558,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nNotes:\n\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -689,7 +689,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"traceId\": \"example\",\n    \"observationId\": \"example\",\n    \"contentType\": \"example\",\n    \"contentLength\": 0,\n    \"sha256Hash\": \"example\",\n    \"field\": \"example\"\n}",
+              "raw": "{\n    \"traceId\": \"example\",\n    \"observationId\": \"example\",\n    \"contentType\": \"image/png\",\n    \"contentLength\": 0,\n    \"sha256Hash\": \"example\",\n    \"field\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1060,6 +1060,61 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Prompt Version",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update labels for a specific prompt version",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:name/versions/:version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts",
+                ":name",
+                "versions",
+                ":version"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": "The name of the prompt"
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Version of the prompt to update"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"newLabels\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Prompts",
       "item": [
         {
@@ -1192,7 +1247,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ],\n    \"tags\": [\n        \"example\"\n    ]\n}",
+              "raw": "{\n    \"type\": \"chat\",\n    \"name\": \"example\",\n    \"prompt\": [\n        {\n            \"role\": \"example\",\n            \"content\": \"example\"\n        }\n    ],\n    \"config\": \"UNKNOWN\",\n    \"labels\": [\n        \"example\"\n    ],\n    \"tags\": [\n        \"example\"\n    ],\n    \"commitMessage\": \"example\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

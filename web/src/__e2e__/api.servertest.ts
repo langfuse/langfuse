@@ -1,7 +1,8 @@
 import { v4 } from "uuid";
 import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
-  clickhouseClient,
+  getObservationById,
+  getTraceById,
   OrgEnrichedApiKey,
   redis,
 } from "@langfuse/shared/src/server";
@@ -15,6 +16,7 @@ const generateAuth = (username: string, password: string) => {
 const workerAdminAuth = generateAuth("admin", "myworkerpassword");
 
 const userApiKeyAuth = generateAuth("pk-lf-1234567890", "sk-lf-1234567890");
+const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 describe("Health endpoints", () => {
   it("web container returns healthy", async () => {
@@ -61,6 +63,7 @@ describe("Ingestion Pipeline", () => {
           timestamp: new Date().toISOString(),
           body: {
             name: "test trace",
+            timestamp: new Date().toISOString(),
             id: traceId,
             userId: "user-1", // triggers the eval
           },
@@ -73,6 +76,7 @@ describe("Ingestion Pipeline", () => {
             id: spanId,
             traceId: traceId,
             name: "test span",
+            startTime: new Date().toISOString(),
           },
         },
       ],
@@ -103,31 +107,19 @@ describe("Ingestion Pipeline", () => {
           },
         });
 
-        const traces = await clickhouseClient().query({
-          query: "SELECT * FROM traces",
-          format: "JSONEachRow",
-        });
-        console.log("traces", await traces.text());
         expect(traceResponse.status).toBe(200);
         expect(traceResponse.body).not.toBeNull();
         expect((await traceResponse.json()).id).toBe(traceId);
 
-        const trace = await prisma.trace.findUnique({
-          where: {
-            id: traceId,
-          },
-        });
+        const trace = await getTraceById(traceId, projectId);
         expect(trace).not.toBeNull();
         expect(trace?.name).toBe("test trace");
 
-        const observation = await prisma.observation.findUnique({
-          where: {
-            id: spanId,
-            traceId: traceId,
-          },
-        });
+        const observation = await getObservationById(spanId, projectId);
         expect(observation).not.toBeNull();
         expect(observation?.name).toBe("test span");
+
+        console.log("observationFounds", observation);
 
         expect(redis).not.toBeNull();
 
@@ -153,6 +145,7 @@ describe("Ingestion Pipeline", () => {
             projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
           },
         });
+        console.log("evalExecution", evalExecution);
 
         expect(evalExecution).not.toBeNull();
 
@@ -163,12 +156,12 @@ describe("Ingestion Pipeline", () => {
         // failure due to missing openai key in the pipeline. Expected
         expect(evalExecution.status).toBe(JobExecutionStatus.ERROR);
       },
-      50000,
+      60000,
       10000,
     );
 
     expect(response.status).toBe(207);
-  }, 60000);
+  }, 70000);
 
   it("rate limit ingestion", async () => {
     // update the org in the database and set the rate limit to 1 for ingestion

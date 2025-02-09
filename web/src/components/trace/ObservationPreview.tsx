@@ -37,7 +37,10 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { useClickhouse } from "@/src/components/layouts/ClickhouseAdminToggle";
+import { BreakdownTooltip } from "./BreakdownToolTip";
+import { InfoIcon, PlusCircle } from "lucide-react";
+import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export const ObservationPreview = ({
   observations,
@@ -69,11 +72,15 @@ export const ObservationPreview = ({
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
 
+  const currentObservation = observations.find(
+    (o) => o.id === currentObservationId,
+  );
+
   const observationWithInputAndOutput = api.observations.byId.useQuery({
     observationId: currentObservationId,
+    startTime: currentObservation?.startTime,
     traceId: traceId,
     projectId: projectId,
-    queryClickhouse: useClickhouse(),
   });
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
@@ -83,6 +90,7 @@ export const ObservationPreview = ({
       projectId: projectId,
     },
     {
+      enabled: isAuthenticatedAndProjectMember,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
@@ -144,14 +152,17 @@ export const ObservationPreview = ({
       <div className="flex w-full flex-col overflow-y-auto">
         <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <CardTitle>
-              <span className="mr-2 rounded-sm bg-input p-1 text-xs">
+            <CardTitle className="flex flex-row items-center gap-2">
+              <span className="rounded-sm bg-input p-1 text-xs">
                 {preloadedObservation.type}
               </span>
               <span>{preloadedObservation.name}</span>
             </CardTitle>
             <CardDescription className="flex gap-2">
-              {preloadedObservation.startTime.toLocaleString()}
+              <LocalIsoDate
+                date={preloadedObservation.startTime}
+                accuracy="millisecond"
+              />
             </CardDescription>
             {viewType === "detailed" && (
               <div className="flex flex-wrap gap-2">
@@ -180,11 +191,22 @@ export const ObservationPreview = ({
                   </Badge>
                 ) : null}
                 {preloadedObservation.type === "GENERATION" && (
-                  <Badge variant="outline">
-                    {preloadedObservation.promptTokens} prompt →{" "}
-                    {preloadedObservation.completionTokens} completion (∑{" "}
-                    {preloadedObservation.totalTokens})
-                  </Badge>
+                  <BreakdownTooltip
+                    details={preloadedObservation.usageDetails}
+                    isCost={false}
+                  >
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      <span>
+                        {preloadedObservation.promptTokens} prompt →{" "}
+                        {preloadedObservation.completionTokens} completion (∑{" "}
+                        {preloadedObservation.totalTokens})
+                      </span>
+                      <InfoIcon className="h-3 w-3" />
+                    </Badge>
+                  </BreakdownTooltip>
                 )}
                 {preloadedObservation.version ? (
                   <Badge variant="outline">
@@ -192,12 +214,61 @@ export const ObservationPreview = ({
                   </Badge>
                 ) : undefined}
                 {preloadedObservation.model ? (
-                  <Badge variant="outline">{preloadedObservation.model}</Badge>
+                  preloadedObservation.modelId ? (
+                    <Badge>
+                      <Link
+                        href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
+                        className="flex items-center"
+                        title="View model details"
+                      >
+                        {preloadedObservation.model}
+                      </Link>
+                    </Badge>
+                  ) : (
+                    <UpsertModelFormDrawer
+                      action="create"
+                      projectId={preloadedObservation.projectId}
+                      prefilledModelData={{
+                        modelName: preloadedObservation.model,
+                        prices:
+                          Object.keys(preloadedObservation.usageDetails)
+                            .length > 0
+                            ? Object.keys(preloadedObservation.usageDetails)
+                                .filter((key) => key != "total")
+                                .reduce(
+                                  (acc, key) => {
+                                    acc[key] = 0.000001;
+                                    return acc;
+                                  },
+                                  {} as Record<string, number>,
+                                )
+                            : undefined,
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Badge
+                        variant="outline"
+                        className="flex items-center gap-1"
+                      >
+                        <span>{preloadedObservation.model}</span>
+                        <PlusCircle className="h-3 w-3" />
+                      </Badge>
+                    </UpsertModelFormDrawer>
+                  )
                 ) : null}
                 {thisCost ? (
-                  <Badge variant="outline">
-                    {usdFormatter(thisCost.toNumber())}
-                  </Badge>
+                  <BreakdownTooltip
+                    details={preloadedObservation.costDetails}
+                    isCost={true}
+                  >
+                    <Badge
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      <span>{usdFormatter(thisCost.toNumber())}</span>
+                      <InfoIcon className="h-3 w-3" />
+                    </Badge>
+                  </BreakdownTooltip>
                 ) : undefined}
                 {totalCost && totalCost !== thisCost ? (
                   <Badge variant="outline">
@@ -222,55 +293,58 @@ export const ObservationPreview = ({
               </div>
             )}
           </div>
-          {viewType === "detailed" && (
-            <div className="flex flex-wrap gap-2">
-              <CommentDrawerButton
-                projectId={preloadedObservation.projectId}
-                objectId={preloadedObservation.id}
-                objectType="OBSERVATION"
-                count={commentCounts?.get(preloadedObservation.id)}
-              />
-              <div className="flex items-start">
-                <AnnotateDrawer
-                  key={"annotation-drawer" + preloadedObservation.id}
-                  projectId={projectId}
-                  traceId={traceId}
-                  observationId={preloadedObservation.id}
-                  scores={scores}
-                  emptySelectedConfigIds={emptySelectedConfigIds}
-                  setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                  type="observation"
-                  hasGroupedButton={hasEntitlement}
+
+          <div className="flex flex-wrap gap-2">
+            {viewType === "detailed" && (
+              <>
+                <CommentDrawerButton
+                  projectId={preloadedObservation.projectId}
+                  objectId={preloadedObservation.id}
+                  objectType="OBSERVATION"
+                  count={commentCounts?.get(preloadedObservation.id)}
                 />
-                {hasEntitlement && (
-                  <CreateNewAnnotationQueueItem
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + preloadedObservation.id}
                     projectId={projectId}
-                    objectId={preloadedObservation.id}
-                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                    traceId={traceId}
+                    observationId={preloadedObservation.id}
+                    scores={scores}
+                    emptySelectedConfigIds={emptySelectedConfigIds}
+                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                    type="observation"
+                    hasGroupedButton={hasEntitlement}
+                  />
+                  {hasEntitlement && (
+                    <CreateNewAnnotationQueueItem
+                      projectId={projectId}
+                      objectId={preloadedObservation.id}
+                      objectType={AnnotationQueueObjectType.OBSERVATION}
+                    />
+                  )}
+                </div>
+
+                {observationWithInputAndOutput.data?.type === "GENERATION" && (
+                  <JumpToPlaygroundButton
+                    source="generation"
+                    generation={observationWithInputAndOutput.data}
+                    analyticsEventName="trace_detail:test_in_playground_button_click"
                   />
                 )}
-              </div>
-
-              {observationWithInputAndOutput.data?.type === "GENERATION" && (
-                <JumpToPlaygroundButton
-                  source="generation"
-                  generation={observationWithInputAndOutput.data}
-                  analyticsEventName="trace_detail:test_in_playground_button_click"
-                />
-              )}
-              {observationWithInputAndOutput.data ? (
-                <NewDatasetItemFromTrace
-                  traceId={preloadedObservation.traceId}
-                  observationId={preloadedObservation.id}
-                  projectId={projectId}
-                  input={observationWithInputAndOutput.data.input}
-                  output={observationWithInputAndOutput.data.output}
-                  metadata={observationWithInputAndOutput.data.metadata}
-                  key={preloadedObservation.id}
-                />
-              ) : null}
-            </div>
-          )}
+              </>
+            )}
+            {observationWithInputAndOutput.data ? (
+              <NewDatasetItemFromTrace
+                traceId={preloadedObservation.traceId}
+                observationId={preloadedObservation.id}
+                projectId={projectId}
+                input={observationWithInputAndOutput.data.input}
+                output={observationWithInputAndOutput.data.output}
+                metadata={observationWithInputAndOutput.data.metadata}
+                key={preloadedObservation.id}
+              />
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {selectedTab === "preview" && (

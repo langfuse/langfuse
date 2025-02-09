@@ -57,6 +57,8 @@ const events = {
     "apply_labels",
     "version_delete_open",
     "version_delete_submit",
+    "duplicate_button_click",
+    "duplicate_form_submit",
   ],
   session_detail: ["publish_button_click"],
   eval_config: [
@@ -100,8 +102,22 @@ const events = {
     "new_form_submit",
     "new_from_trace_form_submit",
     "new_from_trace_form_open",
+    "upload_csv_button_click",
+    "upload_csv_form_submit",
   ],
-  dataset_run: ["delete_form_open"],
+  dataset_run: [
+    "delete_form_open",
+    "delete_form_submit",
+    "new_form_open",
+    "new_form_submit",
+    "view_prompt_experiment_docs",
+    "view_custom_experiment_docs",
+    "compare_view_click",
+    "charts_view_added",
+    "charts_view_removed",
+    "compare_run_added",
+    "compare_run_removed",
+  ],
   notification: ["click_link", "dismiss_notification"],
   tag: [
     "add_existing_tag",
@@ -114,6 +130,7 @@ const events = {
   project_settings: [
     "project_delete",
     "rename_form_submit",
+    "retention_form_submit",
     "project_transfer",
     "api_key_delete",
     "api_key_create",
@@ -135,6 +152,7 @@ const events = {
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
   support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
+  cmd_k_menu: ["opened", "search_entered", "navigated"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

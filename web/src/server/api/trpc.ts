@@ -83,8 +83,6 @@ import {
   getTraceById,
   logger,
 } from "@langfuse/shared/src/server";
-import { isClickhouseAdminEligible } from "@/src/server/utils/checkClickhouseAccess";
-import { env } from "@/src/env.mjs";
 
 setUpSuperjson();
 
@@ -220,6 +218,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(
           },
           where: {
             id: projectId,
+            deletedAt: null,
           },
         });
         if (!dbProject) {
@@ -328,7 +327,6 @@ const inputTraceSchema = z.object({
   traceId: z.string(),
   projectId: z.string(),
   timestamp: z.date().nullish(),
-  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
@@ -346,29 +344,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
 
-  let trace;
-
-  // first check clickhoue for admin use case if sent via the API accordingly
-  if (
-    result.data.queryClickhouse === true &&
-    isClickhouseAdminEligible(ctx.session?.user) // basically checks if user exists and admin
-  ) {
-    trace = await getTraceById(traceId, projectId, timestamp ?? undefined);
-    // check from postgres for non admins when env is set accordingly
-  } else if (env.LANGFUSE_READ_FROM_POSTGRES_ONLY === "true") {
-    trace = await prisma.trace.findFirst({
-      where: {
-        id: traceId,
-        projectId: projectId,
-      },
-      select: {
-        public: true,
-      },
-    });
-    // check clickhouse otherwise
-  } else {
-    trace = await getTraceById(traceId, projectId, timestamp ?? undefined);
-  }
+  const trace = await getTraceById(traceId, projectId, timestamp ?? undefined);
 
   if (!trace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
@@ -382,7 +358,26 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
-  if (!trace.public && !sessionProject && ctx.session?.user?.admin !== true) {
+  const traceSession = !!trace.sessionId
+    ? await ctx.prisma.traceSession.findFirst({
+        where: {
+          id: trace.sessionId,
+          projectId,
+        },
+        select: {
+          public: true,
+        },
+      })
+    : null;
+
+  const isSessionPublic = traceSession?.public === true;
+
+  if (
+    !trace.public &&
+    !sessionProject &&
+    !isSessionPublic &&
+    ctx.session?.user?.admin !== true
+  ) {
     logger.error(
       `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
     );
@@ -399,6 +394,7 @@ const enforceTraceAccess = t.middleware(async ({ ctx, rawInput, next }) => {
         projectRole:
           ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
+      trace: trace, // pass the trace to the next middleware so we do not need to fetch it again
     },
   });
 });
@@ -416,7 +412,6 @@ export const protectedGetTraceProcedure = withOtelTracingProcedure
 const inputSessionSchema = z.object({
   sessionId: z.string(),
   projectId: z.string(),
-  queryClickhouse: z.boolean().nullish(),
 });
 
 const enforceSessionAccess = t.middleware(async ({ ctx, rawInput, next }) => {

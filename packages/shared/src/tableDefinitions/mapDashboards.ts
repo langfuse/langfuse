@@ -85,4 +85,10 @@ export const dashboardColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "version",
     uiTableName: "Version",
   },
+  {
+    clickhouseTableName: "observations",
+    clickhouseSelect: "provided_model_name",
+    uiTableId: "model",
+    uiTableName: "Model",
+  },
 ];

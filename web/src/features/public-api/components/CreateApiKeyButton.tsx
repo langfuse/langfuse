@@ -20,7 +20,7 @@ export function CreateApiKeyButton(props: { projectId: string }) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "apiKeys:create",
+    scope: "apiKeys:CUD",
   });
 
   const mutCreateApiKey = api.apiKeys.create.useMutation({

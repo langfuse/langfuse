@@ -513,6 +513,9 @@ export async function createDatasets(
               Math.floor(Math.random() * relevantObservations.length)
             ];
 
+          if (!observation) {
+            continue;
+          }
           await prisma.datasetRunItems.create({
             data: {
               projectId,

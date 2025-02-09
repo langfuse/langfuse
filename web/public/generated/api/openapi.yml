@@ -723,6 +723,9 @@ paths:
         Notes:
 
 
+        - Introduction to data model:
+        https://langfuse.com/docs/tracing-data-model
+
         - Batch sizes are limited to 3.5 MB in total. You need to adjust the
         number of events per batch accordingly.
 
@@ -734,7 +737,7 @@ paths:
         - Ingestion
       parameters: []
       responses:
-        '200':
+        '207':
           description: ''
           content:
             application/json:
@@ -1423,6 +1426,76 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/v2/prompts/{name}/versions/{version}:
+    patch:
+      description: Update labels for a specific prompt version
+      operationId: promptVersion_update
+      tags:
+        - PromptVersion
+      parameters:
+        - name: name
+          in: path
+          description: The name of the prompt
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          description: Version of the prompt to update
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newLabels:
+                  type: array
+                  items:
+                    type: string
+                  description: >-
+                    New labels for the prompt version. Labels are unique across
+                    versions. The "latest" label is reserved and managed by
+                    Langfuse.
+              required:
+                - newLabels
   /api/public/v2/prompts/{promptName}:
     get:
       description: Get a prompt
@@ -2389,7 +2462,7 @@ components:
           type: string
           description: >-
             The content of the comment. May include markdown. Currently limited
-            to 500 characters.
+            to 3000 characters.
         authorUserId:
           type: string
           nullable: true
@@ -2627,7 +2700,9 @@ components:
         usage:
           $ref: '#/components/schemas/Usage'
           nullable: true
-          description: The usage data of the observation
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The usage
+            data of the observation
         level:
           $ref: '#/components/schemas/ObservationLevel'
           description: The level of the observation
@@ -2643,6 +2718,25 @@ components:
           type: string
           nullable: true
           description: The prompt ID associated with the observation
+        usageDetails:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+          description: >-
+            The usage details of the observation. Key is the name of the usage
+            metric, value is the number of units consumed. The total key is the
+            sum of all (non-total) usage metrics or the total value ingested.
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
+          description: >-
+            The cost details of the observation. Key is the name of the cost
+            metric, value is the cost in USD. The total key is the sum of all
+            (non-total) cost metrics or the total value ingested.
       required:
         - id
         - type
@@ -2683,17 +2777,23 @@ components:
           type: number
           format: double
           nullable: true
-          description: The calculated cost of the input in USD
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The
+            calculated cost of the input in USD
         calculatedOutputCost:
           type: number
           format: double
           nullable: true
-          description: The calculated cost of the output in USD
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The
+            calculated cost of the output in USD
         calculatedTotalCost:
           type: number
           format: double
           nullable: true
-          description: The calculated total cost in USD
+          description: >-
+            (Deprecated. Use usageDetails and costDetails instead.) The
+            calculated total cost in USD
         latency:
           type: number
           format: double
@@ -2709,7 +2809,9 @@ components:
     Usage:
       title: Usage
       type: object
-      description: Standard interface for usage and cost
+      description: >-
+        (Deprecated. Use usageDetails and costDetails instead.) Standard
+        interface for usage and cost
       properties:
         input:
           type: integer
@@ -3154,11 +3256,12 @@ components:
             to exact match, use `(?i)^modelname$`
         startDate:
           type: string
-          format: date
+          format: date-time
           nullable: true
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
+          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -3194,7 +3297,6 @@ components:
         - id
         - modelName
         - matchPattern
-        - unit
         - isLangfuseManaged
     ModelUsageUnit:
       title: ModelUsageUnit
@@ -3608,6 +3710,15 @@ components:
         usage:
           $ref: '#/components/schemas/IngestionUsage'
           nullable: true
+        usageDetails:
+          $ref: '#/components/schemas/UsageDetails'
+          nullable: true
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
         promptName:
           type: string
           nullable: true
@@ -3637,6 +3748,15 @@ components:
           nullable: true
         promptName:
           type: string
+          nullable: true
+        usageDetails:
+          $ref: '#/components/schemas/UsageDetails'
+          nullable: true
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
           nullable: true
         promptVersion:
           type: integer
@@ -3955,6 +4075,37 @@ components:
       required:
         - successes
         - errors
+    OpenAIUsageSchema:
+      title: OpenAIUsageSchema
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        prompt_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+        completion_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+      required:
+        - prompt_tokens
+        - completion_tokens
+        - total_tokens
+    UsageDetails:
+      title: UsageDetails
+      oneOf:
+        - type: object
+          additionalProperties:
+            type: integer
+        - $ref: '#/components/schemas/OpenAIUsageSchema'
     GetMediaResponse:
       title: GetMediaResponse
       type: object
@@ -4058,8 +4209,35 @@ components:
       title: MediaContentType
       type: string
       enum:
-        - >-
-          image/png","image/jpeg","image/jpg","image/webp","image/gif","image/svg+xml","image/tiff","image/bmp","audio/mpeg","audio/mp3","audio/wav","audio/ogg","audio/oga","audio/aac","audio/mp4","audio/flac","video/mp4","video/webm","text/plain","text/html","text/css","text/csv","application/pdf","application/msword","application/vnd.ms-excel","application/zip","application/json","application/xml","application/octet-stream
+        - image/png
+        - image/jpeg
+        - image/jpg
+        - image/webp
+        - image/gif
+        - image/svg+xml
+        - image/tiff
+        - image/bmp
+        - audio/mpeg
+        - audio/mp3
+        - audio/wav
+        - audio/ogg
+        - audio/oga
+        - audio/aac
+        - audio/mp4
+        - audio/flac
+        - video/mp4
+        - video/webm
+        - text/plain
+        - text/html
+        - text/css
+        - text/csv
+        - application/pdf
+        - application/msword
+        - application/vnd.ms-excel
+        - application/zip
+        - application/json
+        - application/xml
+        - application/octet-stream
       description: The MIME type of the media record
     DailyMetrics:
       title: DailyMetrics
@@ -4171,6 +4349,7 @@ components:
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
+          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -4203,7 +4382,6 @@ components:
       required:
         - modelName
         - matchPattern
-        - unit
     Observations:
       title: Observations
       type: object
@@ -4345,6 +4523,10 @@ components:
             type: string
           nullable: true
           description: List of tags to apply to all versions of this prompt.
+        commitMessage:
+          type: string
+          nullable: true
+          description: Commit message for this prompt version.
       required:
         - name
         - prompt
@@ -4370,6 +4552,10 @@ components:
             type: string
           nullable: true
           description: List of tags to apply to all versions of this prompt.
+        commitMessage:
+          type: string
+          nullable: true
+          description: Commit message for this prompt version.
       required:
         - name
         - prompt
@@ -4419,6 +4605,10 @@ components:
           description: >-
             List of tags. Used to filter via UI and API. The same across
             versions of a prompt.
+        commitMessage:
+          type: string
+          nullable: true
+          description: Commit message for this prompt version.
       required:
         - name
         - version
