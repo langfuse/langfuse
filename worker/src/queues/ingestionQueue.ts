@@ -13,6 +13,7 @@ import {
   getCurrentSpan,
   getQueue,
   recordDistribution,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -61,6 +62,35 @@ export const ingestionQueueProcessorBuilder = (
           "messaging.bullmq.job.input.type",
           job.data.payload.data.type,
         );
+        span.setAttribute(
+          "messaging.bullmq.job.input.fileKey",
+          job.data.payload.data.fileKey ?? "",
+        );
+      }
+
+      // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
+      if (
+        env.LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE === "true" &&
+        redis &&
+        job.data.payload.data.fileKey
+      ) {
+        const key = `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${job.data.payload.data.fileKey}`;
+        const exists = await redis.exists(key);
+        if (exists) {
+          recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
+            type: job.data.payload.data.type,
+            skipped: "true",
+          });
+          logger.debug(
+            `Skipping ingestion event ${job.data.payload.data.fileKey} for project ${job.data.payload.authCheck.scope.projectId}`,
+          );
+          return;
+        } else {
+          recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
+            type: job.data.payload.data.type,
+            skipped: "false",
+          });
+        }
       }
 
       if (
@@ -175,6 +205,21 @@ export const ingestionQueueProcessorBuilder = (
           `No events found for project ${job.data.payload.authCheck.scope.projectId} and event ${job.data.payload.data.eventBodyId}`,
         );
         return;
+      }
+
+      // Set "seen" keys in Redis to avoid reprocessing for fast updates.
+      if (env.LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE === "true" && redis) {
+        const pipeline = redis.pipeline();
+        for (const event of eventFiles) {
+          const key = event.file.split("/").pop() ?? "";
+          pipeline.set(
+            `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${key?.replace(".json", "")}`,
+            "1",
+            "EX",
+            60 * 5, // 5 minutes
+          );
+        }
+        await pipeline.exec();
       }
 
       // Perform merge of those events
