@@ -161,26 +161,14 @@ export const ModelUsageChart = ({
         )
       : [];
 
-  console.log(
-    "usageData",
-    JSON.stringify(
-      usageData.filter(
-        (d) => d.usageType === "total" && !isNaN(d.cost as number),
-      ),
-      null,
-      2,
-    ),
+  const totalCost = usageData?.reduce(
+    (acc, curr) =>
+      acc +
+      (curr.usageType === "total" && !isNaN(curr.cost as number)
+        ? (curr.cost as number)
+        : 0),
+    0,
   );
-  const totalCost = usageTypeMap
-    .get("total")
-    ?.reduce(
-      (acc, curr) =>
-        acc +
-        (curr.usageType === "total" && !isNaN(curr.cost as number)
-          ? (curr.cost as number)
-          : 0),
-      0,
-    );
 
   const totalTokens = usageData?.reduce(
     (acc, curr) =>
