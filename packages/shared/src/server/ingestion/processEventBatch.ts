@@ -225,6 +225,7 @@ export const processEventBatch = async (
                 data: {
                   type: sortedBatchByEventBodyId[id].type,
                   eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
+                  fileKey: sortedBatchByEventBodyId[id].key,
                 },
                 authCheck,
               },
