@@ -104,7 +104,6 @@ export const ModelUsageChart = ({
       (d) => d.model && Object.values(d.cost).some((value) => value > 0),
     ),
   );
-  console.log("selectedModels", selectedModels);
 
   const usageTypeMap = prepareUsageDataForTimeseriesChart(
     selectedModels,
@@ -291,7 +290,6 @@ export function prepareUsageDataForTimeseriesChart(
   selectedModels: string[],
   typedData: ModelUsageReturnType[],
 ) {
-  console.log("typedData", typedData);
   const usageTypeMap = new Map<
     string,
     {
@@ -305,8 +303,6 @@ export function prepareUsageDataForTimeseriesChart(
   const allUsageUnits = [
     ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
   ];
-
-  console.log("allUsageUnits", allUsageUnits);
 
   const dates = [...new Set(typedData.flatMap((r) => r.startTime))];
 
