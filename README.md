@@ -11,7 +11,7 @@
          </a> · 
          <a href="https://langfuse.com/demo">
             <strong>Demo</strong>
-         </a> · 
+         </a>
       </h3>
    </div>
 
@@ -213,6 +213,10 @@ _[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj
 
 > [!TIP]
 > [Learn more](https://langfuse.com/docs/tracing) about tracing in Langfuse or play with the [interactive demo](https://langfuse.com/docs/demo).
+
+## ⭐️ Star Us
+
+![Star Langfuse](https://langfuse.com/images/docs/github-readme/github-star-howto.gif)
 
 ## 💭 Support
 
