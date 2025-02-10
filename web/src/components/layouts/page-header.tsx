@@ -1,4 +1,5 @@
 import { EnvLabel } from "@/src/components/EnvLabel";
+import { ItemBadge, LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
@@ -9,14 +10,12 @@ export type PageHeaderProps = {
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
   help?: { description: string; href?: string; className?: string };
-  itemType?: string;
-  itemLabel?: string;
+  itemType?: LangfuseItemType;
 };
 
 const PageHeader = ({
   title,
   itemType,
-  itemLabel,
   actionButtonsLeft,
   actionButtonsRight,
   breadcrumb,
@@ -37,7 +36,7 @@ const PageHeader = ({
         {/* Bottom Row */}
         <div className="flex h-16 items-center justify-between bg-sidebar p-3">
           <div className="flex items-center gap-2">
-            {/* <ItemTypeLabel type={itemType} label={itemLabel} /> */}
+            {itemType && <ItemBadge type={itemType} showLabel />}
             <h1 className="text-lg font-semibold leading-7">{title}</h1>
             {help && (
               <DocPopup description={help.description} href={help.href} />
