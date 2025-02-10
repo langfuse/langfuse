@@ -1,8 +1,9 @@
+import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { Link, LockIcon } from "lucide-react";
+import { Link, LockIcon, LockOpenIcon } from "lucide-react";
 import { useState } from "react";
 
 export const PublishTraceSwitch = (props: {
@@ -78,43 +79,26 @@ const Base = (props: {
   isPublic: boolean;
   disabled?: boolean;
 }) => {
-  const [isCopied, setIsCopied] = useState(false);
-
-  const copyUrl = () => {
-    setIsCopied(true);
-    void navigator.clipboard.writeText(window.location.href);
-    setTimeout(() => setIsCopied(false), 1500);
-  };
-
   return (
     <div className="flex items-center gap-3">
       <div className="text-sm font-semibold">
-        {props.isLoading ? (
-          "Loading.."
-        ) : props.isPublic ? (
-          <div
-            className="flex cursor-pointer items-center gap-1 text-dark-green"
-            onClick={() => copyUrl()}
-          >
-            {isCopied ? "Link copied ..." : "Public"}
-            <Link size={16} />
-          </div>
-        ) : (
-          <div className="flex items-center gap-1">
-            Private
-            <LockIcon size={16} />
-          </div>
-        )}
+        <Button
+          id="publish-trace"
+          variant="ghost"
+          size="icon"
+          disabled={props.disabled}
+          onClick={() => {
+            if (props.isLoading) return;
+            props.onChange(!props.isPublic);
+          }}
+        >
+          {props.isPublic ? (
+            <LockOpenIcon className="h-4 w-4" />
+          ) : (
+            <LockIcon className="h-4 w-4" />
+          )}
+        </Button>
       </div>
-      <Switch
-        id="publish-trace"
-        checked={props.isPublic}
-        onCheckedChange={() => {
-          if (props.isLoading) return;
-          props.onChange(!props.isPublic);
-        }}
-        disabled={props.disabled}
-      />
     </div>
   );
 };
