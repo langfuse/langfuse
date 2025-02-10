@@ -8,7 +8,7 @@ export const batchActionQueueProcessor = async (
 ) => {
   try {
     logger.info(`Executing Batch Action jon ${JSON.stringify(job)}`);
-    await handleBatchActionJob(job);
+    await handleBatchActionJob(job.data);
     logger.info("Finished Batch Action Job", job.data.payload);
 
     return true;

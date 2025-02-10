@@ -84,10 +84,11 @@ const assertIsTracesTableArray = (
 };
 
 export const handleBatchActionJob = async (
-  batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>,
+  batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>["data"],
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
-    batchActionJob.data.payload;
+    batchActionJob.payload;
+
   const { actionId } = batchActionEvent;
   logger.info(`Processing batch action job ${batchActionJob.id}`);
   if (
@@ -224,6 +225,6 @@ export const handleBatchActionJob = async (
   }
 
   logger.info(
-    `Batch action job completed, projectId: ${batchActionJob.data.payload.projectId}, actionId: ${actionId}`,
+    `Batch action job completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
   );
 };

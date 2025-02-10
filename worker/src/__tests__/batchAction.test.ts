@@ -7,7 +7,10 @@ import {
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { Decimal } from "decimal.js";
 
 describe("select all test suite", () => {
   it("should process items in chunks", async () => {
@@ -25,17 +28,15 @@ describe("select all test suite", () => {
     await createTracesCh(traces);
 
     const selectAllJob = {
-      data: {
-        payload: {
-          projectId,
-          actionId: "trace-delete",
-          tableName: BatchExportTableName.Traces,
-          query: {
-            filter: [],
-            orderBy: { column: "timestamp", order: "DESC" },
-          },
-          cutoffCreatedAt: new Date("2024-01-02"),
+      payload: {
+        projectId,
+        actionId: "trace-delete",
+        tableName: BatchExportTableName.Traces,
+        query: {
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" },
         },
+        cutoffCreatedAt: new Date("2024-01-02"),
       },
     } as any;
 
@@ -78,24 +79,22 @@ describe("select all test suite", () => {
     await createTracesCh(traces);
 
     const selectAllJob = {
-      data: {
-        payload: {
-          projectId,
-          actionId: "trace-delete",
-          tableName: BatchExportTableName.Traces,
-          query: {
-            filter: [
-              {
-                type: "string",
-                operator: "=",
-                column: "User ID",
-                value: "user1",
-              },
-            ],
-            orderBy: { column: "timestamp", order: "DESC" },
-          },
-          cutoffCreatedAt: new Date("2024-01-02"),
+      payload: {
+        projectId,
+        actionId: "trace-delete",
+        tableName: BatchExportTableName.Traces,
+        query: {
+          filter: [
+            {
+              type: "string",
+              operator: "=",
+              column: "User ID",
+              value: "user1",
+            },
+          ],
+          orderBy: { column: "timestamp", order: "DESC" },
         },
+        cutoffCreatedAt: new Date("2024-01-02"),
       },
     } as any;
 
@@ -118,5 +117,107 @@ describe("select all test suite", () => {
     expect(remainingRows[0].userId).toBe("user2");
   });
 
-  it("should create eval jobs for historic traces", async () => {});
+  it.only("should create eval jobs for historic traces", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId1 = randomUUID();
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: traceId1,
+        user_id: "user1",
+        timestamp: new Date().getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: randomUUID(),
+        user_id: "user2",
+        timestamp: new Date().getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const templateId = randomUUID();
+
+    await prisma.evalTemplate.create({
+      data: {
+        id: templateId,
+        projectId,
+        name: "test-template",
+        version: 1,
+        prompt: "Please evaluate toxicity {{input}} {{output}}",
+        model: "gpt-3.5-turbo",
+        provider: "openai",
+        modelParams: {},
+        outputSchema: {
+          reasoning: "Please explain your reasoning",
+          score: "Please provide a score between 0 and 1",
+        },
+      },
+    });
+
+    const configId = randomUUID();
+    await prisma.jobConfiguration.create({
+      data: {
+        id: configId,
+        projectId,
+        filter: [
+          {
+            type: "string",
+            value: "1",
+            column: "User ID",
+            operator: "contains",
+          },
+        ],
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: "trace",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+        evalTemplateId: templateId,
+      },
+    });
+
+    const payload = {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "eval-create" as const,
+        target: "traces" as const,
+        configId,
+        cutoffCreatedAt: new Date(),
+        query: {
+          filter: [
+            {
+              type: "string" as const,
+              value: "1",
+              column: "User ID",
+              operator: "contains" as const,
+            },
+          ],
+          orderBy: {
+            column: "timestamp",
+            order: "DESC" as const,
+          },
+        },
+      },
+    };
+
+    await handleBatchActionJob(payload);
+
+    const evalExecutions = await prisma.jobExecution.findMany({
+      where: {
+        projectId,
+        jobConfigurationId: configId,
+      },
+    });
+
+    expect(evalExecutions).toHaveLength(1);
+    expect(evalExecutions[0].jobInputTraceId).toBe(traceId1);
+    expect(evalExecutions[0].status).toBe("PENDING");
+  });
 });
