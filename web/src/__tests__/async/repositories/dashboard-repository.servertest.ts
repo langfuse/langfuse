@@ -1,3 +1,4 @@
+import { prepareUsageDataForTimeseriesChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { orderByTimeSeries } from "@langfuse/shared/src/server";
 
 describe("orderByTimeSeries", () => {
@@ -59,5 +60,57 @@ describe("orderByTimeSeries", () => {
     expect(() => orderByTimeSeries([], "timestamp")).toThrow(
       "Time Filter is required for time series queries",
     );
+  });
+
+  describe("aggregate time series for model cost and usage", () => {
+    it("should aggregate time series for model cost and usage", async () => {
+      const metricHistory = prepareUsageDataForTimeseriesChart(
+        ["gpt-4o-mini", "text-embedding-ada-002"],
+        [
+          {
+            startTime: "2025-02-10T13:30:00.000Z",
+            units: {
+              input: 422,
+              output: 61,
+              total: 483,
+            },
+            cost: {
+              input: 0.0000633,
+              output: 0.0000366,
+              total: 0.0000999,
+            },
+            model: "gpt-4o-mini",
+          },
+          {
+            startTime: "2025-02-10T13:30:00.000Z",
+            units: {
+              input: 6,
+              total: 6,
+            },
+            cost: {
+              total: 6e-7,
+            },
+            model: "text-embedding-ada-002",
+          },
+        ],
+      );
+
+      expect(metricHistory.get("total")).toEqual([
+        {
+          startTime: "2025-02-10T13:30:00.000Z",
+          units: 483,
+          cost: 0.0000999,
+          model: "gpt-4o-mini",
+          usageType: "total",
+        },
+        {
+          startTime: "2025-02-10T13:30:00.000Z",
+          units: 6,
+          cost: 6e-7,
+          model: "text-embedding-ada-002",
+          usageType: "total",
+        },
+      ]);
+    });
   });
 });

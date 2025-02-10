@@ -98,67 +98,13 @@ export const ModelUsageChart = ({
 
   const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
 
-  const allUsageUnits = [
-    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
-  ];
-
-  const dates = typedData.flatMap((r) => new Date(r.startTime));
-
-  const usageTypeMap = new Map<
-    string,
-    {
-      units: number;
-      cost: number;
-      usageType: string;
-      model: string;
-    }[]
-  >();
-
-  dates?.forEach((d) => {
-    selectedModels.forEach((m) => {
-      allUsageUnits.forEach((uu) => {
-        const existingEntry = typedData.find(
-          (td) =>
-            new Date(td.startTime).getTime() === d.getTime() && td.model === m,
-        );
-
-        if (!existingEntry) {
-          const newEntry = {
-            startTime: d.toString(),
-            model: m,
-            units: { [uu]: 0 },
-            cost: { [uu]: 0 },
-          };
-          typedData.push(newEntry);
-
-          // Add the new entry to usageTypeMap
-          usageTypeMap.set(uu, [
-            ...(usageTypeMap.get(uu) ?? []),
-            {
-              ...newEntry,
-              units: 0,
-              cost: 0,
-              usageType: uu,
-            },
-          ]);
-        }
-
-        if (existingEntry) {
-          usageTypeMap.set(uu, [
-            ...(usageTypeMap.get(uu) ?? []),
-            {
-              ...existingEntry,
-              units: existingEntry.units[uu],
-              cost: existingEntry.cost[uu],
-              usageType: uu,
-            },
-          ]);
-        }
-      });
-    });
-  });
+  const usageTypeMap = prepareUsageDataForTimeseriesChart(
+    selectedModels,
+    typedData,
+  );
 
   const usageData = Array.from(usageTypeMap.values()).flat();
+
   const currentModels = [
     ...new Set(usageData.map((row) => row.model).filter(Boolean)),
   ];
@@ -214,7 +160,6 @@ export const ModelUsageChart = ({
           currentModels,
         )
       : [];
-  console.log("costByModel", costByModel.length);
 
   const totalCost = usageData?.reduce(
     (acc, curr) =>
@@ -322,3 +267,63 @@ export const ModelUsageChart = ({
     </DashboardCard>
   );
 };
+
+export function prepareUsageDataForTimeseriesChart(
+  selectedModels: string[],
+  typedData: ModelUsageReturnType[],
+) {
+  const usageTypeMap = new Map<
+    string,
+    {
+      startTime: string;
+      units: number;
+      cost: number;
+      usageType: string;
+      model: string;
+    }[]
+  >();
+
+  const allUsageUnits = [
+    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
+  ];
+
+  const uniqueDates = [
+    ...new Set(typedData.flatMap((r) => new Date(r.startTime).getTime())),
+  ];
+
+  const uniqueModels = [...new Set(selectedModels)];
+
+  allUsageUnits.forEach((uu) => {
+    const unitEntries: {
+      startTime: string;
+      units: number;
+      cost: number;
+      usageType: string;
+      model: string;
+    }[] = [];
+
+    uniqueDates.forEach((d) => {
+      uniqueModels.forEach((m) => {
+        const existingEntry = typedData.find(
+          (td) =>
+            new Date(td.startTime).getTime() === new Date(d).getTime() &&
+            td.model === m,
+        );
+
+        const entry = {
+          startTime: new Date(d).toISOString(),
+          model: m,
+          units: existingEntry ? existingEntry.units[uu] || 0 : 0,
+          cost: existingEntry ? existingEntry.cost[uu] || 0 : 0,
+          usageType: uu,
+        };
+
+        unitEntries.push(entry);
+      });
+    });
+
+    usageTypeMap.set(uu, unitEntries);
+  });
+
+  return usageTypeMap;
+}
