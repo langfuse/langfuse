@@ -98,13 +98,6 @@ export const ModelUsageChart = ({
 
   const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
 
-  console.log(
-    "typedData",
-    typedData.filter(
-      (d) => d.model && Object.values(d.cost).some((value) => value > 0),
-    ),
-  );
-
   const usageTypeMap = prepareUsageDataForTimeseriesChart(
     selectedModels,
     typedData,
