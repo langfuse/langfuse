@@ -72,7 +72,7 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="icon"
+              className="p-2"
               disabled={!previousPageEntry}
               onClick={() => {
                 if (previousPageEntry) {
@@ -87,6 +87,9 @@ export const DetailPageNav = (props: {
               }}
             >
               <ChevronUp className="h-4 w-4" />
+              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-white shadow-sm">
+                K
+              </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -101,7 +104,7 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="icon"
+              className="p-2"
               disabled={!nextPageEntry}
               onClick={() => {
                 if (nextPageEntry) {
@@ -116,6 +119,9 @@ export const DetailPageNav = (props: {
               }}
             >
               <ChevronDown className="h-4 w-4" />
+              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-white shadow-sm">
+                J
+              </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
