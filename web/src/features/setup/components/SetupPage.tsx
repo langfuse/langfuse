@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import PageContainer from "@/src/components/layouts/page-container";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -72,14 +72,15 @@ export function SetupPage() {
   }, [hasAnyTrace, capture]);
 
   return (
-    <ScrollScreenPage>
-      <Header
-        title="Setup"
-        help={{
+    <PageContainer
+      headerProps={{
+        title: "Setup",
+        help: {
           description:
             "Create a new organization. This will be used to manage your projects and teams.",
-        }}
-      />
+        },
+      }}
+    >
       <div className="mt-3 md:container md:mx-auto">
         <Breadcrumb className="mb-3">
           <BreadcrumbList>
@@ -233,7 +234,7 @@ export function SetupPage() {
           )
         }
       </div>
-    </ScrollScreenPage>
+    </PageContainer>
   );
 }
 

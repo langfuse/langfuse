@@ -215,7 +215,7 @@ export const PromptDetail = () => {
                 </Button>
               </>
             ) : (
-              <Button variant="secondary" disabled>
+              <Button variant="outline" disabled>
                 <div className="flex flex-row items-center">
                   <Lock className="h-3 w-3" />
                   <span className="ml-2">New version</span>

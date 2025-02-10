@@ -13,6 +13,7 @@ import {
   ListTodo,
   WandSparkles,
   Cog,
+  TestTubeDiagonal,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
 import { ObservationType } from "@langfuse/shared";
@@ -24,6 +25,7 @@ export type LangfuseItemType =
   | "SESSION"
   | "USER"
   | "QUEUE_ITEM"
+  | "DATASET"
   | "DATASET_RUN"
   | "DATASET_ITEM"
   | "ANNOTATION_QUEUE"
@@ -39,8 +41,9 @@ const iconMap: Record<LangfuseItemType, React.ElementType> = {
   SESSION: Shell,
   USER: User,
   QUEUE_ITEM: ClipboardPen,
+  DATASET: Database,
   DATASET_RUN: FlaskConical,
-  DATASET_ITEM: Database,
+  DATASET_ITEM: TestTubeDiagonal,
   ANNOTATION_QUEUE: ListTodo,
   PROMPT: FileText,
   EVALUATOR: WandSparkles,

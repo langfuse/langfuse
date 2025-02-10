@@ -25,6 +25,7 @@ import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditL
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import { env } from "@/src/env.mjs";
+import SettingsContainer from "@/src/components/layouts/settings-container";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -33,118 +34,123 @@ export default function SettingsPage() {
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   if (!project || !organization) return null;
   return (
-    <div className="lg:container">
-      <Header title="Project Settings" />
-      <PagedSettingsContainer
-        activeSlug={router.query.page as string | undefined}
-        pages={[
-          {
-            title: "General",
-            slug: "index",
-            content: (
-              <div className="flex flex-col gap-6">
-                <HostNameProject />
-                <RenameProject />
-                {isLangfuseCloud && <ConfigureRetention />}
-                <div>
-                  <Header title="Debug Information" level="h3" />
-                  <JSONView
-                    title="Metadata"
-                    json={{
-                      project: { name: project.name, id: project.id },
-                      org: { name: organization.name, id: organization.id },
-                    }}
+    <SettingsContainer
+      headerProps={{
+        title: "Project Settings",
+      }}
+    >
+      <div className="lg:container">
+        <PagedSettingsContainer
+          activeSlug={router.query.page as string | undefined}
+          pages={[
+            {
+              title: "General",
+              slug: "index",
+              content: (
+                <div className="flex flex-col gap-6">
+                  <HostNameProject />
+                  <RenameProject />
+                  {isLangfuseCloud && <ConfigureRetention />}
+                  <div>
+                    <Header title="Debug Information" level="h3" />
+                    <JSONView
+                      title="Metadata"
+                      json={{
+                        project: { name: project.name, id: project.id },
+                        org: { name: organization.name, id: organization.id },
+                      }}
+                    />
+                  </div>
+                  <SettingsDangerZone
+                    items={[
+                      {
+                        title: "Transfer ownership",
+                        description:
+                          "Transfer this project to another organization where you have the ability to create projects.",
+                        button: <TransferProjectButton />,
+                      },
+                      {
+                        title: "Delete this project",
+                        description:
+                          "Once you delete a project, there is no going back. Please be certain.",
+                        button: <DeleteProjectButton />,
+                      },
+                    ]}
                   />
                 </div>
-                <SettingsDangerZone
-                  items={[
-                    {
-                      title: "Transfer ownership",
-                      description:
-                        "Transfer this project to another organization where you have the ability to create projects.",
-                      button: <TransferProjectButton />,
-                    },
-                    {
-                      title: "Delete this project",
-                      description:
-                        "Once you delete a project, there is no going back. Please be certain.",
-                      button: <DeleteProjectButton />,
-                    },
-                  ]}
-                />
-              </div>
-            ),
-          },
-          {
-            title: "API Keys",
-            slug: "api-keys",
-            content: (
-              <div className="flex flex-col gap-6">
-                <ApiKeyList projectId={project.id} />
-                <LlmApiKeyList projectId={project.id} />
-              </div>
-            ),
-          },
-          {
-            title: "Models",
-            slug: "models",
-            content: <ModelsSettings projectId={project.id} />,
-          },
-          {
-            title: "Scores / Evaluation",
-            slug: "scores",
-            content: <ScoreConfigSettings projectId={project.id} />,
-          },
-          {
-            title: "Members",
-            slug: "members",
-            content: (
-              <div>
-                <Header title="Project Members" level="h3" />
-                <div>
-                  <MembersTable
-                    orgId={organization.id}
-                    project={{ id: project.id, name: project.name }}
-                  />
+              ),
+            },
+            {
+              title: "API Keys",
+              slug: "api-keys",
+              content: (
+                <div className="flex flex-col gap-6">
+                  <ApiKeyList projectId={project.id} />
+                  <LlmApiKeyList projectId={project.id} />
                 </div>
+              ),
+            },
+            {
+              title: "Models",
+              slug: "models",
+              content: <ModelsSettings projectId={project.id} />,
+            },
+            {
+              title: "Scores / Evaluation",
+              slug: "scores",
+              content: <ScoreConfigSettings projectId={project.id} />,
+            },
+            {
+              title: "Members",
+              slug: "members",
+              content: (
                 <div>
-                  <MembershipInvitesPage
-                    orgId={organization.id}
-                    projectId={project.id}
-                  />
+                  <Header title="Project Members" level="h3" />
+                  <div>
+                    <MembersTable
+                      orgId={organization.id}
+                      project={{ id: project.id, name: project.name }}
+                    />
+                  </div>
+                  <div>
+                    <MembershipInvitesPage
+                      orgId={organization.id}
+                      projectId={project.id}
+                    />
+                  </div>
                 </div>
-              </div>
-            ),
-          },
-          {
-            title: "Integrations",
-            slug: "integrations",
-            content: <Integrations projectId={project.id} />,
-          },
-          {
-            title: "Exports",
-            slug: "exports",
-            content: <BatchExportsSettingsPage projectId={project.id} />,
-          },
-          {
-            title: "Audit Logs",
-            slug: "audit-logs",
-            content: <AuditLogsSettingsPage projectId={project.id} />,
-          },
-          {
-            title: "Billing",
-            slug: "billing",
-            href: `/organization/${organization.id}/settings/billing`,
-            show: showBillingSettings,
-          },
-          {
-            title: "Organization Settings",
-            slug: "organization",
-            href: `/organization/${organization.id}/settings`,
-          },
-        ]}
-      />
-    </div>
+              ),
+            },
+            {
+              title: "Integrations",
+              slug: "integrations",
+              content: <Integrations projectId={project.id} />,
+            },
+            {
+              title: "Exports",
+              slug: "exports",
+              content: <BatchExportsSettingsPage projectId={project.id} />,
+            },
+            {
+              title: "Audit Logs",
+              slug: "audit-logs",
+              content: <AuditLogsSettingsPage projectId={project.id} />,
+            },
+            {
+              title: "Billing",
+              slug: "billing",
+              href: `/organization/${organization.id}/settings/billing`,
+              show: showBillingSettings,
+            },
+            {
+              title: "Organization Settings",
+              slug: "organization",
+              href: `/organization/${organization.id}/settings`,
+            },
+          ]}
+        />
+      </div>
+    </SettingsContainer>
   );
 }
 

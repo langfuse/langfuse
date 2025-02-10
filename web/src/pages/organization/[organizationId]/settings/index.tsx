@@ -10,7 +10,7 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import PageContainer from "@/src/components/layouts/page-container";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
@@ -21,8 +21,11 @@ const OrgSettingsPage = () => {
   if (!organization) return null;
 
   return (
-    <ScrollScreenPage>
-      <Header title="Organization Settings" />
+    <PageContainer
+      headerProps={{
+        title: "Organization Settings",
+      }}
+    >
       <PagedSettingsContainer
         activeSlug={page as string | undefined}
         pages={[
@@ -80,7 +83,7 @@ const OrgSettingsPage = () => {
           },
         ]}
       />
-    </ScrollScreenPage>
+    </PageContainer>
   );
 };
 

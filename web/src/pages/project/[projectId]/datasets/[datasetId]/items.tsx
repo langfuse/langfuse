@@ -34,6 +34,7 @@ export default function DatasetItems() {
     <PageContainer
       headerProps={{
         title: dataset.data?.name ?? "",
+        itemType: "DATASET",
         help: dataset.data?.description
           ? {
               description: dataset.data.description,
@@ -41,13 +42,6 @@ export default function DatasetItems() {
           : undefined,
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
-          {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
-          },
-          {
-            name: "Items",
-          },
         ],
         actionButtonsRight: [
           <>

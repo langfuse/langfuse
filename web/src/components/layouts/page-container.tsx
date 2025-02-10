@@ -5,7 +5,7 @@ import { cn } from "@/src/utils/tailwind";
 
 type PageContainerProps = {
   children: React.ReactNode;
-  headerProps: PageHeaderProps;
+  headerProps: Omit<PageHeaderProps, "container">;
   scrollable?: boolean;
 };
 
@@ -17,7 +17,7 @@ const PageContainer = ({
   return (
     <div className={cn("h-full", !scrollable && "flex flex-col")}>
       <header className="sticky top-0 z-50 w-full">
-        <PageHeader {...headerProps} />
+        <PageHeader {...headerProps} container={false} />
       </header>
       <main
         className={`flex flex-1 flex-col p-3 ${

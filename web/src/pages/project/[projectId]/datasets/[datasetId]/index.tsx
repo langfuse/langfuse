@@ -109,9 +109,9 @@ export default function Dataset() {
     <PageContainer
       headerProps={{
         title: dataset.data?.name ?? "",
+        itemType: "DATASET",
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
-          { name: dataset.data?.name ?? datasetId },
         ],
         help: dataset.data?.description
           ? {
