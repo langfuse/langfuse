@@ -105,15 +105,6 @@ export const ModelUsageChart = ({
 
   const usageData = Array.from(usageTypeMap.values()).flat();
 
-  console.log(
-    "usageData",
-    JSON.stringify(
-      usageData.filter((u) => u.cost > 0 || u.units > 0),
-      null,
-      2,
-    ),
-  );
-
   const currentModels = [
     ...new Set(usageData.map((row) => row.model).filter(Boolean)),
   ];
@@ -301,9 +292,6 @@ export function prepareUsageDataForTimeseriesChart(
   ];
 
   const uniqueModels = [...new Set(selectedModels)];
-  console.log("allUsageUnits", allUsageUnits);
-  console.log("uniqueModels", uniqueModels);
-  console.log("uniqueDates", uniqueDates);
 
   allUsageUnits.forEach((uu) => {
     const unitEntries: {
@@ -336,8 +324,6 @@ export function prepareUsageDataForTimeseriesChart(
 
     usageTypeMap.set(uu, unitEntries);
   });
-
-  console.log("usageTypeMap", usageTypeMap);
 
   return usageTypeMap;
 }
