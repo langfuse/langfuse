@@ -1,4 +1,4 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-integrations.png)
+![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
 
 <div align="center">
    <div>
