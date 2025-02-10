@@ -1,116 +1,132 @@
-![Langfuse GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
-
-<div align="center"><h1>Langfuse: Open Source LLM Engineering Platform</h1></div>
-<div align="center"><h4>LLM Observability, Prompt Management, LLM Evaluations,<br/>Datasets, LLM Metrics, and Prompt Playground</h4></div>
+![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-integrations.png)
 
 <div align="center">
    <div>
       <h3>
          <a href="https://cloud.langfuse.com">
-            <strong>Sign up</strong>
+            <strong>Langfuse Cloud</strong>
          </a> · 
          <a href="https://langfuse.com/docs/deployment/self-host">
             <strong>Self Host</strong>
          </a> · 
          <a href="https://langfuse.com/demo">
-            <strong>Demo (live data)</strong>
+            <strong>Demo</strong>
+         </a> · 
+         <a href="https://langfuse.com/enterprise">
+            <strong>Enterprise Inquiry</strong>
          </a>
       </h3>
    </div>
+
    <div>
       <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
       <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
       <a href="https://langfuse.com/ideas"><strong>Feature Request</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>Changelog</strong></a> ·
       <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
-      <a href="https://langfuse.com/discord"><strong>Discord</strong></a> 
    </div>
+   <br/>
    <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.</span>
    <br/>
-   <span>We're hiring. <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in Product Engineering and Developer Relations.</span>
+   <span>We're hiring. <a href="https://langfuse.com/careers"><strong>Join us</strong></a> across the board for engineering and technical go-to-market roles.</span>
    <br/>
    <br/>
    <div>
-      <a href="https://github.com/langfuse/langfuse/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-red.svg?style=flat-square" alt="MIT License"></a>
-      <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange?style=flat-square" alt="Y Combinator W23"></a>
-      <a href="https://github.com/langfuse/langfuse/pkgs/container/langfuse"><img alt="Docker Image" src="https://img.shields.io/badge/docker-langfuse-blue?logo=Docker&logoColor=white&style=flat-square"></a>
-      <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/dm/langfuse?style=flat-square&logo=python&logoColor=white&label=pypi%20langfuse&color=blue" alt="langfuse Python package on PyPi"></a>
-      <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/dm/langfuse?style=flat-square&logo=npm&logoColor=white&label=npm%20langfuse&color=blue" alt="langfuse npm package"></a>
    </div>
 </div>
-</br>
 
-## Langfuse Overview
+<p align="center">
+   <a href="https://github.com/langfuse/langfuse/blob/main/LICENSE">
+   <img src="https://img.shields.io/badge/License-MIT-E11311.svg" alt="MIT License">
+   </a>
+   <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange" alt="Y Combinator W23"></a>
+   <a href="https://hub.docker.com/u/langfuse" target="_blank">
+   <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/langfuse/langfuse?labelColor=%20%23FDB062&logo=Docker&labelColor=%20%23528bff"></a>
+   <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/dm/langfuse?logo=python&logoColor=white&label=pypi%20langfuse&color=blue" alt="langfuse Python package on PyPi"></a>
+   <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/dm/langfuse?logo=npm&logoColor=white&label=npm%20langfuse&color=blue" alt="langfuse npm package"></a>
+   <br/>
+   <a href="https://discord.com/invite/7NXusRtqYU" target="_blank">
+   <img src="https://img.shields.io/discord/1111061815649124414?logo=discord&labelColor=%20%235462eb&logoColor=%20%23f5f5f5&color=%20%235462eb"
+      alt="chat on Discord"></a>
+   <a href="https://twitter.com/intent/follow?screen_name=langfuse" target="_blank">
+   <img src="https://img.shields.io/twitter/follow/langfuse?logo=X&color=%20%23f5f5f5"
+      alt="follow on X(Twitter)"></a>
+   <a href="https://www.linkedin.com/company/langfuse/" target="_blank">
+   <img src="https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff"
+      alt="follow on LinkedIn"></a>
+   <a href="https://github.com/langfuse/langfuse/graphs/commit-activity" target="_blank">
+   <img alt="Commits last month" src="https://img.shields.io/github/commit-activity/m/langfuse/langfuse?labelColor=%20%2332b583&color=%20%2312b76a"></a>
+   <a href="https://github.com/langfuse/langfuse/" target="_blank">
+   <img alt="Issues closed" src="https://img.shields.io/github/issues-search?query=repo%3Alangfuse%2Flangfuse%20is%3Aclosed&label=issues%20closed&labelColor=%20%237d89b0&color=%20%235d6b98"></a>
+   <a href="https://github.com/langfuse/langfuse/discussions/" target="_blank">
+   <img alt="Discussion posts" src="https://img.shields.io/github/discussions/langfuse/langfuse?labelColor=%20%239b8afb&color=%20%237a5af8"></a>
+</p>
+
+Langfuse is an **open source LLM engineering** platform. It helps teams collaboratively 
+**develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested** and used in production by thousands of users from YC startups to large companies like Khan Academy or Twilio. 
+
 
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
 
-### Develop
+## ✨ Core Features
 
-- **LLM Observability:** Instrument your app and start ingesting traces to Langfuse ([Quickstart](https://langfuse.com/docs/get-started), [Integrations](https://langfuse.com/docs/integrations) [Tracing](https://langfuse.com/docs/tracing))
-- **Langfuse UI:** Inspect and debug complex logs ([Demo](https://langfuse.com/docs/demo), [Tracing](https://langfuse.com/docs/tracing))
-- **Prompt Management:** Manage, version and deploy prompts from within Langfuse ([Prompt Management](https://langfuse.com/docs/prompts/get-started))
-- **Prompt Engineering:** Test and iterate on your prompts with the [LLM Playground](https://langfuse.com/docs/playground)
+- **LLM Application Observability:** Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions.
 
-### Monitor
+   [Learn more](https://langfuse.com/docs/tracing) about tracing in Langfuse or play with the interactive [demo](https://langfuse.com/docs/demo).
 
-- **LLM Analytics:** Track metrics (cost, latency, quality) and gain insights from dashboards & data exports ([Analytics](https://langfuse.com/docs/analytics))
-- **LLM Evaluations:** Collect and calculate scores for your LLM completions ([Scores & Evaluations](https://langfuse.com/docs/scores))
-  - Run ([Model-based evaluations](https://langfuse.com/docs/scores/model-based-evals)) and LLM-as-a-Judge within Langfuse
-  - Collect user feedback ([User Feedback](https://langfuse.com/docs/scores/user-feedback))
-  - Manually score LLM outputs in Langfuse ([Manual Scores](https://langfuse.com/docs/scores/manually))
+- **Prompt Management:** [Langfuse Prompt Management](https://langfuse.com/docs/prompts/get-started) helps you centrally manage, version control, and collaboratively iterate on your prompts.
 
-### Test
+- **Evaluations:** [Evaluations](https://langfuse.com/docs/scores/overview) are key to the LLM application development workflow, and Langfuse adapts to your needs. It supports LLM-as-a-judge, user feedback collection, manual labeling, and custom evaluation pipelines via APIs/SDKs.
 
-- **Experiments:** Track and test app behaviour before deploying a new version
-  - Datasets let you test expected in and output pairs and benchmark performance before deploying ([Datasets](https://langfuse.com/docs/datasets))
-  - Track versions and releases in your application ([Experimentation](https://langfuse.com/docs/experimentation), [Prompt Management](https://langfuse.com/docs/prompts))
+   Evaluations are key to the LLM application development workflow, and Langfuse adapts to your needs. It supports LLM-as-a-judge, user feedback collection, manual labeling, and custom evaluation pipelines via APIs/SDKs.
 
-## Get started
+- **Datasets:** [Langfuse Datasets](https://langfuse.com/docs/datasets/overview) enable test sets and benchmarks for evaluating your LLM application. They support continuous improvement, pre-deployment testing, structured experiments, flexible evaluation, and seamless integration with frameworks like LangChain and LlamaIndex.
+
+- **Playground:** The [LLM Playground](https://langfuse.com/docs/playground) is a tool for testing and iterating on your prompts and model configurations, shortening the feedback loop and accelerating development.
+
+
+## 📦 Deploy Langfuse
+
+![Langfuse Deployment Options](https://langfuse.com/images/docs/github-readme/github-deployment-options.png)
 
 ### Langfuse Cloud
 
-Managed deployment by the Langfuse team, generous free-tier (hobby plan), no credit card required.
+Managed deployment by the Langfuse team, generous free-tier (hobby plan), no credit card required. 
 
-**[» Langfuse Cloud](https://cloud.langfuse.com)**
+<div align="center">
+    <a href="https://cloud.langfuse.com" target="_blank">
+        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=orange">
+    </a>
+</div>
 
-## Self-Hosting Open Source LLM Observability with Langfuse
+### Self-Host Langfuse
 
-### Localhost (docker)
+Run Langfuse on your own infrastructure: 
 
-```bash
-# Clone repository
-git clone https://github.com/langfuse/langfuse.git
-cd langfuse
+- [Local (docker)](https://langfuse.com/self-hosting/local): Run Langfuse on your own machine in 5 minutes using Docker Compose.
 
-# Run server and database
-docker compose up -d
-```
+   ```bash
+   # Get a copy of the latest Langfuse repository
+   git clone https://github.com/langfuse/langfuse.git
+   cd langfuse
 
-[→ Learn more about deploying locally](https://langfuse.com/docs/deployment/local)
+   # Run the langfuse docker compose
+   docker compose up
+   ```
 
-### Self-host (docker)
+- [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
+- [Docker](https://langfuse.com/self-hosting/docker): Deploy the application container to your infrastructure. 
+- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm.
+- Planned: Cloud-specific deployment guides, please upvote and comment on the following threads: [AWS](https://github.com/orgs/langfuse/discussions/4645), [Google Cloud](https://github.com/orgs/langfuse/discussions/4646), [Azure](https://github.com/orgs/langfuse/discussions/4647).
 
-Langfuse is simple to self-host and keep updated. It currently requires only a single docker container and a postgres database.
-[→ Self Hosting Instructions](https://langfuse.com/docs/deployment/self-host)
+## 🔌 Integrations
 
-Templated deployments: [Railway, GCP, AWS, Azure, Kubernetes and others](https://langfuse.com/docs/deployment/self-host#platform-specific-information)
+![Langfuse Integrations](https://langfuse.com/images/docs/github-readme/github-integrations.png)
 
-## Get Started
+### Main Integrations:
 
-### API Keys
-
-You need a Langfuse public and secret key to get started. Sign up [here](https://cloud.langfuse.com) and find them in your project settings.
-
-### Ingesting Data · Instrumenting Your Application · LLM Observability with Langfuse
-
-Note: We recommend using our fully async, typed [SDKs](https://langfuse.com/docs/sdk) that allow you to instrument any LLM application with any underlying model. They are available in [Python (Decorators)](https://langfuse.com/docs/sdk/python) & [JS/TS](https://langfuse.com/docs/sdk/typescript). The SDKs will always be the most fully featured and stable way to ingest data into Langfuse.
-
-See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Langfuse.
-
-### LLM Observability Integrations
-
-| Integration                                                                  | Supports                   | Description                                                                                                                                      |
-| ---------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Integration                                              | Supports                   | Description                                                                                                                                      |
+| -------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | Manual instrumentation using the SDKs for full flexibility.                                                                                      |
 | [OpenAI](https://langfuse.com/docs/integrations/openai)                      | Python, JS/TS              | Automated instrumentation using drop-in replacement of OpenAI SDK.                                                                               |
 | [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS              | Automated instrumentation by passing callback handler to Langchain application.                                                                  |
@@ -120,79 +136,134 @@ See the [→ Quickstart](https://langfuse.com/docs/get-started) to integrate Lan
 | [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                      | TypeScript toolkit designed to help developers build AI-powered applications with React, Next.js, Vue, Svelte, Node.js.                          |
 | [API](https://langfuse.com/docs/api)                                         |                            | Directly call the public API. OpenAPI spec available.                                                                                            |
 
-Packages integrated with Langfuse:
+### Packages integrated with Langfuse:
 
-| Name                                                            | Description                                                                                                             |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [Instructor](https://langfuse.com/docs/integrations/instructor) | Library to get structured LLM outputs (JSON, Pydantic)                                                                  |
-| [Dify](https://langfuse.com/docs/integrations/dify)             | Open source LLM app development platform with no-code builder.                                                          |
-| [Ollama](https://langfuse.com/docs/integrations/ollama)         | Easily run open source LLMs on your own machine.                                                                        |
-| [Mirascope](https://langfuse.com/docs/integrations/mirascope)   | Python toolkit for building LLM applications.                                                                           |
-| [Flowise](https://langfuse.com/docs/integrations/flowise)       | JS/TS no-code builder for customized LLM flows.                                                                         |
-| [Langflow](https://langfuse.com/docs/integrations/langflow)     | Python-based UI for LangChain, designed with react-flow to provide an effortless way to experiment and prototype flows. |
+| Name                                                | Type               | Description                                                                                                             |
+| --------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| [Instructor](https://langfuse.com/docs/integrations/instructor)         | Library            | Library to get structured LLM outputs (JSON, Pydantic)                                                                  |
+| [DSPy](https://langfuse.com/docs/integrations/dspy)                     | Library            | Framework that systematically optimizes language model prompts and weights                                              |
+| [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | Library            | Python toolkit for building LLM applications.                                                                           |
+| [Ollama](https://langfuse.com/docs/integrations/ollama)                 | Model (local)      | Easily run open source LLMs on your own machine.                                                                        |
+| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | Model              | Run foundation and fine-tuned models on AWS.                                                                            |
+| [AutoGen](https://langfuse.com/docs/integrations/autogen)               | Agent Framework    | Open source LLM platform for building distributed agents.                                                               |
+| [Flowise](https://langfuse.com/docs/integrations/flowise)               | Chat/Agent&nbsp;UI | JS/TS no-code builder for customized LLM flows.                                                                         |
+| [Langflow](https://langfuse.com/docs/integrations/langflow)             | Chat/Agent&nbsp;UI | Python-based UI for LangChain, designed with react-flow to provide an effortless way to experiment and prototype flows. |
+| [Dify](https://langfuse.com/docs/integrations/dify)                     | Chat/Agent&nbsp;UI | Open source LLM app development platform with no-code builder.                                                          |
+| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)           | Chat/Agent&nbsp;UI | Self-hosted LLM Chat web ui supporting various LLM runners including self-hosted and local models.                      |
+| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)           | Tool               | Open source LLM testing platform.                                                                                       |
+| [LobeChat](https://langfuse.com/docs/integrations/lobechat)             | Chat/Agent&nbsp;UI | Open source chatbot platform.                                                                                           |
+| [Vapi](https://langfuse.com/docs/integrations/vapi)                     | Platform           | Open source voice AI platform.                                                                                          |
+| [Inferable](https://langfuse.com/docs/integrations/other/inferable)     | Agents             | Open source LLM platform for building distributed agents.                                                               |
+| [Gradio](https://langfuse.com/docs/integrations/other/gradio)           | Chat/Agent&nbsp;UI | Open source Python library to build web interfaces like Chat UI.                                                        |
+| [Goose](https://langfuse.com/docs/integrations/goose)                   | Agents             | Open source LLM platform for building distributed agents.                                                               |
+| [smolagents](https://langfuse.com/docs/integrations/smolagents)         | Agents             | Open source AI agents framework.                                                                                           |
+| [CrewAI](https://langfuse.com/docs/integrations/crewai)                 | Agents             | Multi agent framework for agent collaboration and tool use. |
 
-## Questions and feedback
+## 🚀 Quickstart
 
-### Ideas and roadmap
+Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions.
 
-- [Roadmap](https://langfuse.com/roadmap)
-- [GitHub Discussions](https://github.com/orgs/langfuse/discussions)
-- [Feature Requests](https://langfuse.com/ideas)
+### 1️⃣ Create new project
 
-### Support and feedback
+1.  [Create Langfuse account](https://cloud.langfuse.com/auth/sign-up) or [self-host](https://langfuse.com/self-hosting)
+2.  Create a new project
+3.  Create new API credentials in the project settings
 
-In order of preference the best way to communicate with us:
+### 2️⃣ Log your first LLM call
 
-- [GitHub Discussions](https://github.com/orgs/langfuse/discussions) (preferred): Contribute [ideas](https://langfuse.com/ideas), [support requests](https://langfuse.com/gh-support) and [report bugs](https://langfuse.com/issues)
-- [Discord](https://langfuse.com/discord): community support
-- Privately: contact at langfuse dot com
+The [`@observe()` decorator](https://langfuse.com/docs/sdk/python/decorators) makes it easy to trace any Python LLM application. In this quickstart we also use the Langfuse [OpenAI integration](https://langfuse.com/docs/integrations/openai) to automatically capture all model parameters.
 
-## Contributing to Langfuse
+> [!TIP]
+> Not using OpenAI? Visit [our documentation](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse) to learn how to log other models and frameworks.
 
-- Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas)
-- Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues)
+```bash
+pip install langfuse openai
+```
+
+```bash filename=".env"
+LANGFUSE_SECRET_KEY="sk-lf-..."
+LANGFUSE_PUBLIC_KEY="pk-lf-..."
+LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EU region
+# LANGFUSE_HOST="https://us.cloud.langfuse.com" # 🇺🇸 US region
+```
+
+
+```python /@observe()/ /from langfuse.openai import openai/ filename="main.py"
+from langfuse.decorators import observe
+from langfuse.openai import openai # OpenAI integration
+
+@observe()
+def story():
+    return openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "What is Langfuse?"}],
+    ).choices[0].message.content
+
+@observe()
+def main():
+    return story()
+
+main()
+```
+
+### 3️⃣ See traces in Langfuse
+
+See your language model calls and other application logic in Langfuse.
+
+![Example trace in Langfuse](https://langfuse.com/images/docs/github-readme/github-example-trace.png)
+
+_[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
+
+> [!TIP]
+> [Learn more](https://langfuse.com/docs/tracing) about tracing in Langfuse or play with the [interactive demo](https://langfuse.com/docs/demo).
+
+## 💭 Support
+
+Finding an answer to your question:
+
+- Our [documentation](https://langfuse.com/docs) is the best place to start looking for answers. It is comprehensive, and we invest significant time into maintaining it. You can also suggest edits to the docs via GitHub.
+- [Langfuse FAQs](https://langfuse.com/faq) where the most common questions are answered.
+- Use "[Ask AI](https://langfuse.com/docs/ask-ai)" to get instant answers to your questions.
+
+Support Channels:
+
+- **Ask any question in our [public Q&A](https://github.com/orgs/langfuse/discussions/categories/support) on GitHub Discussions.** Please include as much detail as possible (e.g. code snippets, screenshots, background information) to help us understand your question.
+- [Request a feature](https://github.com/orgs/langfuse/discussions/categories/ideas) on GitHub Discussions.
+- [Report a Bug](https://github.com/langfuse/langfuse/issues) on GitHub Issues.
+- For time-sensitive queries, ping us via the in-app chat widget.
+
+
+## 🤝 Contributing
+
+Your contributions are welcome!
+
+- Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas) in GitHub Discussions.
+- Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues).
 - Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
 
-## License
+## 🥇 License
 
 This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
-## Misc
 
-### GET API to export your data
-
-[**GET routes**](https://langfuse.com/docs/integrations/api) to use data in downstream applications (e.g. embedded analytics). You can also access them conveniently via the SDKs ([docs](https://langfuse.com/docs/query-traces)).
-
-### Security & Privacy
-
-We take data security and privacy seriously. Please refer to our [Security and Privacy](https://langfuse.com/security) page for more information.
-
-### Telemetry
-
-By default, Langfuse automatically reports basic usage statistics of self-hosted instances to a centralized server (PostHog).
-
-This helps us to:
-
-1. Understand how Langfuse is used and improve the most relevant features.
-2. Track overall usage for internal and external (e.g. fundraising) reporting.
-
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/web/src/features/telemetry/index.ts).
-
-You can opt-out by setting `TELEMETRY_ENABLED=false`.
-
-### Star History
+## ⭐️ Star History
 
 <a href="https://star-history.com/#langfuse/langfuse&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date&theme=dark" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
  </picture>
 </a>
 
-### Open Source Projects Using Langfuse
+## ❤️ Open Source Projects Using Langfuse
 
 Top open-source Python projects that use Langfuse, ranked by stars ([Source](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents)):
+
+[![Generated by github-dependents-info](https://img.shields.io/static/v1?label=Used%20by&message=98&color=informational&logo=slickpic)](https://github.com/langfuse/langfuse-python/network/dependents)
+[![Generated by github-dependents-info](https://img.shields.io/static/v1?label=Used%20by%20(public)&message=98&color=informational&logo=slickpic)](https://github.com/langfuse/langfuse-python/network/dependents)
+[![Generated by github-dependents-info](https://img.shields.io/static/v1?label=Used%20by%20(private)&message=-98&color=informational&logo=slickpic)](https://github.com/langfuse/langfuse-python/network/dependents)
+[![Generated by github-dependents-info](https://img.shields.io/static/v1?label=Used%20by%20(stars)&message=110&color=informational&logo=slickpic)](https://github.com/langfuse/langfuse-python/network/dependents)
 
 | Repository                                                                                                                                                                                                                                                          | Stars |
 | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----: |
@@ -240,3 +311,20 @@ Top open-source Python projects that use Langfuse, ranked by stars ([Source](htt
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/15125613?s=40&v=4" width="20" height="20" alt=""> &nbsp; [souzatharsis](https://github.com/souzatharsis) / [tamingLLMs](https://github.com/souzatharsis/tamingLLMs)                           |   129 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/169401942?s=40&v=4" width="20" height="20" alt=""> &nbsp; [LibreChat-AI](https://github.com/LibreChat-AI) / [librechat.ai](https://github.com/LibreChat-AI/librechat.ai)                      |   128 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/51827949?s=40&v=4" width="20" height="20" alt=""> &nbsp; [deepset-ai](https://github.com/deepset-ai) / [haystack-core-integrations](https://github.com/deepset-ai/haystack-core-integrations) |   126 |
+
+## 🔒 Security & Privacy
+
+We take data security and privacy seriously. Please refer to our [Security and Privacy](https://langfuse.com/security) page for more information.
+
+### Telemetry
+
+By default, Langfuse automatically reports basic usage statistics of self-hosted instances to a centralized server (PostHog).
+
+This helps us to:
+
+1. Understand how Langfuse is used and improve the most relevant features.
+2. Track overall usage for internal and external (e.g. fundraising) reporting.
+
+None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/web/src/features/telemetry/index.ts).
+
+You can opt-out by setting `TELEMETRY_ENABLED=false`.
