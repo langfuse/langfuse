@@ -40,7 +40,10 @@ export async function callStructuredLLM<T extends ZodSchema>(
 
     return structuredOutputSchema.parse(completion);
   } catch (e) {
-    if (e instanceof Error && e.name === "InsufficientQuotaError") {
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
       throw new ApiError(e.name, 429);
     }
     logger.error(`Job ${jeId} failed to call LLM. Eval will fail.`, e);

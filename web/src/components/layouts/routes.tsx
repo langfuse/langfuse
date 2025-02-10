@@ -23,6 +23,7 @@ import { type OrganizationScope } from "@/src/features/rbac/constants/organizati
 import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type Route = {
   title: string;
@@ -173,10 +174,16 @@ export const ROUTES: Route[] = [
 
 function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();
+  const capture = usePostHogClientCapture();
 
   return (
     <SidebarMenuButton
-      onClick={() => setOpen(true)}
+      onClick={() => {
+        capture("cmd_k_menu:opened", {
+          source: "main_navigation",
+        });
+        setOpen(true);
+      }}
       className="whitespace-nowrap"
     >
       <Search className="h-4 w-4" />

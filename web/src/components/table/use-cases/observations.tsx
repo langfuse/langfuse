@@ -45,6 +45,7 @@ import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { ColorCodedObservationType } from "@/src/components/trace/ObservationTree";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export type ObservationsTableRow = {
   id: string;
@@ -52,7 +53,7 @@ export type ObservationsTableRow = {
   startTime: Date;
   level?: ObservationLevel;
   statusMessage?: string;
-  endTime?: string;
+  endTime?: Date;
   completionStartTime?: Date;
   latency?: number;
   timeToFirstToken?: number;
@@ -314,7 +315,7 @@ export default function ObservationsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
-        return value.toLocaleString();
+        return <LocalIsoDate date={value} />;
       },
     },
     {
@@ -324,6 +325,10 @@ export default function ObservationsTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: Date | undefined = row.getValue("endTime");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
     },
     {
       accessorKey: "timeToFirstToken",
@@ -763,7 +768,7 @@ export default function ObservationsTable({
             type: generation.type ?? undefined,
             traceName: generation.traceName ?? "",
             startTime: generation.startTime,
-            endTime: generation.endTime?.toLocaleString() ?? undefined,
+            endTime: generation.endTime ?? undefined,
             timeToFirstToken: generation.timeToFirstToken ?? undefined,
             scores: verifyAndPrefixScoreDataAgainstKeys(
               scoreKeysAndProps,

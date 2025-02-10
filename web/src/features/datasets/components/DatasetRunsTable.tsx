@@ -45,11 +45,12 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export type DatasetRunRowData = {
   id: string;
   name: string;
-  createdAt: string;
+  createdAt: Date;
   countRunItems: string;
   avgLatency: number | undefined;
   avgTotalCost: string | undefined;
@@ -316,6 +317,10 @@ export function DatasetRunsTable(props: {
       id: "createdAt",
       size: 150,
       enableHiding: true,
+      cell: ({ row }) => {
+        const value: DatasetRunRowData["createdAt"] = row.getValue("createdAt");
+        return <LocalIsoDate date={value} />;
+      },
     },
     {
       accessorKey: "metadata",
@@ -367,7 +372,7 @@ export function DatasetRunsTable(props: {
     return {
       id: item.id,
       name: item.name,
-      createdAt: item.createdAt.toLocaleString(),
+      createdAt: item.createdAt,
       countRunItems: item.countRunItems.toString(),
       avgLatency: item.avgLatency,
       avgTotalCost: item.avgTotalCost
@@ -396,7 +401,7 @@ export function DatasetRunsTable(props: {
     <>
       {Boolean(props.selectedMetrics.length) &&
         Boolean(runAggregatedMetrics?.size) && (
-          <Card className="my-4 max-h-[25dvh] md:max-h-[30dvh]">
+          <Card className="my-4 max-h-64">
             <CardContent className="mt-2 h-full">
               <div className="flex h-full w-full gap-4 overflow-x-auto">
                 {props.selectedMetrics.map((key) => {

@@ -5,30 +5,11 @@ import {
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { context, trace } from "@opentelemetry/api";
-
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
-  }
-  return s3StorageServiceClient;
-};
+import { uploadEventToS3 } from "../utils/eventLog";
 
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
@@ -41,9 +22,6 @@ export async function upsertClickhouse<
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.table", opts.table);
 
-    const s3Client = getS3StorageServiceClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    );
     await Promise.all(
       opts.records.map((record) => {
         // drop trailing s and pretend it's always a create.
@@ -53,11 +31,19 @@ export async function upsertClickhouse<
           // @ts-ignore - If it's an observation we now that `type` is a string
           eventType = `${record["type"].toLowerCase()}-create`;
         }
-        s3Client.uploadJson(
-          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${randomUUID()}.json`,
+
+        const eventId = randomUUID();
+        return uploadEventToS3(
+          {
+            projectId: record.project_id as string,
+            entityType: getClickhouseEntityType(eventType),
+            entityId: record.id as string,
+            eventId,
+            traceId: record?.trace_id as string,
+          },
           [
             {
-              id: randomUUID(),
+              id: eventId,
               timestamp: new Date().toISOString(),
               type: eventType,
               body: opts.eventBodyMapper(record),

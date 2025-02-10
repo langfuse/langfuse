@@ -15,6 +15,7 @@ import { CoreDataS3ExportQueue } from "./coreDataS3ExportQueue";
 import { MeteringDataPostgresExportQueue } from "./meteringDataPostgresExportQueue";
 import { DataRetentionQueue } from "./dataRetentionQueue";
 import { DataRetentionProcessingQueue } from "./dataRetentionProcessingQueue";
+import { BatchActionQueue } from "./batchActionQueue";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -50,6 +51,8 @@ export function getQueue(queueName: QueueName): Queue | null {
       return DataRetentionQueue.getInstance();
     case QueueName.DataRetentionProcessingQueue:
       return DataRetentionProcessingQueue.getInstance();
+    case QueueName.BatchActionQueue:
+      return BatchActionQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

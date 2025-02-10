@@ -63,7 +63,9 @@ export function CommandMenu({
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (!open) {
-          capture("cmd_k_menu:opened");
+          capture("cmd_k_menu:opened", {
+            source: "cmd_k",
+          });
         }
         setOpen(!open);
       }

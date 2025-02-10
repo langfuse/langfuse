@@ -8,7 +8,7 @@ export function getIsCharOrUnderscore(value: string): boolean {
 export const VARIABLE_REGEX = /^[a-zA-Z][a-zA-Z_]*$/;
 
 // Regex to find variables in mustache syntax
-export const MUSTACHE_REGEX = /{{([^}]*)}}/g;
+export const MUSTACHE_REGEX = /{{([^{}]*)}}+/g;
 
 // Regex to find multiline variables
 export const MULTILINE_VARIABLE_REGEX = /{{[^}]*\n[^}]*}}/g;

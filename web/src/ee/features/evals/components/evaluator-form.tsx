@@ -66,6 +66,13 @@ import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
+export const fieldHasJsonSelectorOption = (
+  selectedColumnId: string | undefined | null,
+): boolean =>
+  selectedColumnId === "input" ||
+  selectedColumnId === "output" ||
+  selectedColumnId === "expected_output";
+
 const formSchema = z.object({
   scoreName: z.string(),
   target: z.string(),
@@ -803,6 +810,39 @@ export const InnerEvalConfigForm = (props: {
                               </div>
                             )}
                           />
+                          {fieldHasJsonSelectorOption(
+                            form.watch(`mapping.${index}.selectedColumnId`),
+                          ) ? (
+                            <FormField
+                              control={form.control}
+                              key={`${mappingField.id}-jsonSelector`}
+                              name={`mapping.${index}.jsonSelector`}
+                              render={({ field }) => (
+                                <div className="flex items-center gap-2">
+                                  <VariableMappingDescription
+                                    title={"JsonPath"}
+                                    description={
+                                      "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                    }
+                                    href={
+                                      "https://langfuse.com/docs/scores/model-based-evals"
+                                    }
+                                  />
+                                  <FormItem className="w-2/3">
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        disabled={props.disabled}
+                                        placeholder="Optional"
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                </div>
+                              )}
+                            />
+                          ) : undefined}
                         </Card>
                       ))}
                     </div>

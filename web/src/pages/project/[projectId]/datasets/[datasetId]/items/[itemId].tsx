@@ -81,6 +81,7 @@ export default function Dataset() {
           className="!overflow-y-auto"
         >
           <EditDatasetItem
+            key={item.data?.id}
             projectId={projectId}
             datasetItem={item.data ?? null}
           />

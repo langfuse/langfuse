@@ -28,8 +28,8 @@ export const NewDatasetItemFromTrace = (props: {
   projectId: string;
   traceId: string;
   observationId?: string;
-  input: string | null;
-  output: string | null;
+  input: string | undefined;
+  output: string | undefined;
   metadata: Prisma.JsonValue;
 }) => {
   const parsedInput =
