@@ -4,6 +4,8 @@ export const FullScreenPage: React.FC<React.PropsWithChildren<{}>> = ({
   children,
 }) => {
   return (
-    <div className={cn("flex h-full flex-col overflow-hidden")}>{children}</div>
+    <div className={cn("flex h-full flex-col overflow-hidden p-3")}>
+      {children}
+    </div>
   );
 };

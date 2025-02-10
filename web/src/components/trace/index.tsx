@@ -51,6 +51,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import PageContainer from "@/src/components/layouts/page-container";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -377,17 +378,17 @@ export function TracePage({
   if (!trace.data) return <div>loading...</div>;
 
   return (
-    <FullScreenPage>
-      <Header
-        title="Trace Detail"
-        breadcrumb={[
+    <PageContainer
+      headerProps={{
+        title: "Trace Detail",
+        breadcrumb: [
           {
             name: "Traces",
             href: `/project/${router.query.projectId as string}/traces`,
           },
           { name: traceId },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsLeft: (
           <>
             <StarTraceDetailsToggle
               traceId={trace.data.id}
@@ -399,6 +400,10 @@ export function TracePage({
               projectId={trace.data.projectId}
               isPublic={trace.data.public}
             />
+          </>
+        ),
+        actionButtonsRight: (
+          <>
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
@@ -432,8 +437,9 @@ export function TracePage({
               />
             )}
           </>
-        }
-      />
+        ),
+      }}
+    >
       <div className="flex flex-wrap gap-2">
         {trace.data.sessionId ? (
           <Link
@@ -513,6 +519,6 @@ export function TracePage({
           />
         </TabsBarContent>
       </TabsBar>
-    </FullScreenPage>
+    </PageContainer>
   );
 }

@@ -4,7 +4,7 @@ export const ScrollScreenPage: React.FC<React.PropsWithChildren<{}>> = ({
   children,
 }) => {
   return (
-    <div className={cn("relative flex min-h-svh flex-1 flex-col pb-3")}>
+    <div className={cn("relative flex min-h-svh flex-1 flex-col p-3")}>
       {children}
     </div>
   );
