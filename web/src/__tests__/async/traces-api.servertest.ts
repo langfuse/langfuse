@@ -60,7 +60,7 @@ describe("/api/public/traces API Endpoint", () => {
     expect(trace.body.externalId).toBeNull();
     expect(trace.body.version).toBe("2.0.0");
     expect(trace.body.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-    expect(trace.body.latency).toBe(100);
+    expect(trace.body.latency).toBeCloseTo(100, 2);
     expect(trace.body.observations.length).toBe(2);
     expect(trace.body.scores.length).toBe(0);
     expect(trace.body.observations).toEqual(

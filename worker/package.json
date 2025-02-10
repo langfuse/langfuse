@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.23.0",
+  "version": "3.25.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -49,6 +49,7 @@
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
+    "jsonpath-plus": "10.2.0",
     "kysely": "^0.27.4",
     "lodash": "^4.17.21",
     "pg": "^8.13.0",
@@ -86,7 +87,7 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.7"
+      "jsonpath-plus": "10.2.0"
     }
   }
 }

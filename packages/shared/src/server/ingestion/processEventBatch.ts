@@ -21,36 +21,48 @@ import { logger } from "../logger";
 import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { redis } from "../redis/redis";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
+import { uploadEventToS3 } from "../utils/eventLog";
 
 export type TokenCountDelegate = (p: {
   model: Model;
   text: unknown;
 }) => number | undefined;
 
-let s3StorageServiceClient: StorageService;
-
-const getS3StorageServiceClient = (bucketName: string): StorageService => {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-    });
+/**
+ * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
+ * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
+ * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
+ * @param delay - Delay overwrite. Used if non-null.
+ */
+const getDelay = (delay: number | null) => {
+  if (delay !== null) {
+    return delay;
   }
-  return s3StorageServiceClient;
+  const now = new Date();
+  const hours = now.getUTCHours();
+  const minutes = now.getUTCMinutes();
+
+  if ((hours === 23 && minutes >= 45) || (hours === 0 && minutes <= 15)) {
+    return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
+  }
+
+  // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
+  // we use this instead.
+  // Values should be revisited based on a cost/performance trade-off.
+  return Math.min(5000, env.LANGFUSE_INGESTION_QUEUE_DELAY_MS);
 };
 
+/**
+ * Processes a batch of events.
+ * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
+ * @param authCheck - AuthHeaderValidVerificationResult
+ * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
+ */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResult,
+  delay: number | null = null,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -153,9 +165,6 @@ export const processEventBatch = async (
    ********************/
   let s3UploadErrored = false;
   await instrumentAsync({ name: "s3-upload-events" }, async () => {
-    const s3Client = getS3StorageServiceClient(
-      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    );
     // S3 Event Upload is blocking, but non-failing.
     // If a promise rejects, we log it below, but do not throw an error.
     // In this case, we upload the full batch into the Redis queue.
@@ -165,8 +174,21 @@ export const processEventBatch = async (
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        return s3Client.uploadJson(
-          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`,
+        return uploadEventToS3(
+          {
+            projectId: authCheck.scope.projectId,
+            entityType: getClickhouseEntityType(type),
+            entityId: eventBodyId,
+            eventId: key,
+            traceId:
+              data // Use the first truthy traceId for the event log.
+                .flatMap((event) =>
+                  "traceId" in event.body && event.body.traceId
+                    ? [event.body.traceId]
+                    : [],
+                )
+                .shift() ?? null,
+          },
           data,
         );
       }),
@@ -206,13 +228,12 @@ export const processEventBatch = async (
                 data: {
                   type: sortedBatchByEventBodyId[id].type,
                   eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
+                  fileKey: sortedBatchByEventBodyId[id].key,
                 },
                 authCheck,
               },
             },
-            {
-              delay: env.LANGFUSE_INGESTION_QUEUE_DELAY_MS,
-            },
+            { delay: getDelay(delay) },
           )
         : Promise.reject("Failed to instantiate queue"),
     ),

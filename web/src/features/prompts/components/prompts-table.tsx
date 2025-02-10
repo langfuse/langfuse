@@ -22,6 +22,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type PromptTableRow = {
   name: string;
@@ -181,7 +182,7 @@ export function PromptTable() {
       size: 200,
       cell: (row) => {
         const createdAt = row.getValue();
-        return createdAt.toLocaleString();
+        return <LocalIsoDate date={createdAt} />;
       },
     }),
     columnHelper.accessor("numberOfObservations", {

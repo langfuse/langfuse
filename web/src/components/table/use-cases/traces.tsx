@@ -1,12 +1,10 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
-import { TraceTableMultiSelectAction } from "@/src/components/table/data-table-multi-select-actions/trace-table-multi-select-action";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import { Checkbox } from "@/src/components/ui/checkbox";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
@@ -38,6 +36,8 @@ import {
   tracesTableColsWithOptions,
   type ObservationLevel,
   BatchExportTableName,
+  AnnotationQueueObjectType,
+  BatchActionType,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
@@ -58,6 +58,12 @@ import { InfoIcon } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { Separator } from "@/src/components/ui/separator";
 import React from "react";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { type TableAction } from "@/src/features/table/types";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -155,6 +161,7 @@ export default function TracesTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
   const tracesAllCountFilter = {
     projectId,
@@ -251,42 +258,108 @@ export default function TracesTable({
 
   const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
 
-  const columns: LangfuseColumnDef<TracesTableRow>[] = [
-    {
-      id: "select",
-      accessorKey: "select",
-      size: 30,
-      isPinned: true,
-      header: ({ table }) => (
-        <div className="flex h-full items-center">
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected()
-                ? true
-                : table.getIsSomePageRowsSelected()
-                  ? "indeterminate"
-                  : false
-            }
-            onCheckedChange={(value) => {
-              table.toggleAllPageRowsSelected(!!value);
-              if (!value) {
-                setSelectedRows({});
-              }
-            }}
-            aria-label="Select all"
-            className="opacity-60"
-          />
-        </div>
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          className="opacity-60"
-        />
-      ),
+  const { selectActionColumn } = TableSelectionManager<TracesTableRow>({
+    projectId,
+    tableName: "traces",
+    setSelectedRows,
+  });
+
+  const traceDeleteMutation = api.traces.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Traces deleted",
+        description: "Selected traces will be deleted. This may take a minute.",
+      });
     },
+    onSettled: () => {
+      void utils.traces.all.invalidate();
+    },
+  });
+
+  const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
+    onSuccess: (data) => {
+      showSuccessToast({
+        title: "Traces added to queue",
+        description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,
+        link: {
+          href: `/project/${projectId}/annotation-queues/${data.queueId}`,
+          text: `View queue "${data.queueName}"`,
+        },
+      });
+    },
+  });
+
+  const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
+    const selectedTraceIds = Object.keys(selectedRows).filter((traceId) =>
+      traces.data?.traces.map((t) => t.id).includes(traceId),
+    );
+
+    await traceDeleteMutation.mutateAsync({
+      projectId,
+      traceIds: selectedTraceIds,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
+      isBatchAction: selectAll,
+    });
+    setSelectedRows({});
+  };
+
+  const handleAddToAnnotationQueue = async ({
+    projectId,
+    targetId,
+  }: {
+    projectId: string;
+    targetId: string;
+  }) => {
+    const selectedTraceIds = Object.keys(selectedRows).filter((traceId) =>
+      traces.data?.traces.map((t) => t.id).includes(traceId),
+    );
+
+    await addToQueueMutation.mutateAsync({
+      projectId,
+      objectIds: selectedTraceIds,
+      objectType: AnnotationQueueObjectType.TRACE,
+      queueId: targetId,
+      isBatchAction: selectAll,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
+    });
+    setSelectedRows({});
+  };
+
+  const tableActions: TableAction[] = [
+    {
+      id: "trace-delete",
+      type: BatchActionType.Delete,
+      label: "Delete Traces",
+      description:
+        "This action permanently deletes traces and cannot be undone.",
+      accessCheck: {
+        scope: "traces:delete",
+        entitlement: "trace-deletion",
+      },
+      execute: handleDeleteTraces,
+    },
+    {
+      id: "trace-add-to-annotation-queue",
+      type: BatchActionType.Create,
+      label: "Add to Annotation Queue",
+      description: "Add selected traces to an annotation queue.",
+      targetLabel: "Annotation Queue",
+      execute: handleAddToAnnotationQueue,
+      accessCheck: {
+        scope: "annotationQueues:CUD",
+        entitlement: "annotation-queues",
+      },
+    },
+  ];
+
+  const columns: LangfuseColumnDef<TracesTableRow>[] = [
+    selectActionColumn,
     {
       accessorKey: "bookmarked",
       header: undefined,
@@ -339,7 +412,7 @@ export default function TracesTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? new Date(value).toLocaleString() : undefined;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {
@@ -838,15 +911,11 @@ export default function TracesTable({
           Object.keys(selectedRows).filter((traceId) =>
             traces.data?.traces.map((t) => t.id).includes(traceId),
           ).length > 0 ? (
-            <TraceTableMultiSelectAction
-              // Exclude traces that are not in the current page
-              selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
-                traces.data?.traces.map((t) => t.id).includes(traceId),
-              )}
+            <TableActionMenu
+              key="traces-multi-select-actions"
               projectId={projectId}
-              onDeleteSuccess={() => {
-                setSelectedRows({});
-              }}
+              actions={tableActions}
+              tableName={BatchExportTableName.Traces}
             />
           ) : null,
           <BatchExportTableButton
@@ -863,6 +932,16 @@ export default function TracesTable({
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
+        multiSelect={{
+          selectAll,
+          setSelectAll,
+          selectedRowIds: Object.keys(selectedRows).filter((traceId) =>
+            traces.data?.traces.map((t) => t.id).includes(traceId),
+          ),
+          setRowSelection: setSelectedRows,
+          totalCount,
+          ...paginationState,
+        }}
       />
       <DataTable
         columns={columns}

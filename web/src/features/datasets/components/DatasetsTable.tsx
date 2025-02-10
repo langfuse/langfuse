@@ -21,6 +21,7 @@ import { type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type RowData = {
   key: {
@@ -28,8 +29,8 @@ type RowData = {
     name: string;
   };
   description?: string;
-  createdAt: string;
-  lastRunAt?: string;
+  createdAt: Date;
+  lastRunAt?: Date;
   countItems: number;
   countRuns: number;
   metadata: Prisma.JsonValue;
@@ -109,6 +110,10 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "createdAt",
       enableHiding: true,
       size: 150,
+      cell: ({ row }) => {
+        const value: RowData["createdAt"] = row.getValue("createdAt");
+        return <LocalIsoDate date={value} />;
+      },
     },
     {
       accessorKey: "lastRunAt",
@@ -116,6 +121,10 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "lastRunAt",
       enableHiding: true,
       size: 150,
+      cell: ({ row }) => {
+        const value: RowData["lastRunAt"] = row.getValue("lastRunAt");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
     },
     {
       accessorKey: "metadata",
@@ -173,8 +182,8 @@ export function DatasetsTable(props: { projectId: string }) {
     return {
       key: { id: item.id, name: item.name },
       description: item.description ?? "",
-      createdAt: item.createdAt.toLocaleString(),
-      lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
+      createdAt: item.createdAt,
+      lastRunAt: item.lastRunAt ?? undefined,
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
       metadata: item.metadata,

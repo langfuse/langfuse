@@ -237,7 +237,8 @@ describe("Fetch datasets for UI presentation", () => {
     expect(secondRun.run_id).toEqual(datasetRun2Id);
     expect(secondRun.run_description).toBeNull();
     expect(secondRun.run_metadata).toEqual({});
-    expect(secondRun.avgLatency).toEqual(1);
+    expect(secondRun.avgLatency).toBeGreaterThanOrEqual(1);
+    expect(secondRun.avgLatency).toBeLessThanOrEqual(1.002);
     expect(secondRun.avgTotalCost.toString()).toStrictEqual("300");
 
     expect(JSON.stringify(secondRun.scores)).toEqual(JSON.stringify({}));

@@ -29,10 +29,11 @@ import TagList from "@/src/features/tag/components/TagList";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export type SessionTableRow = {
   id: string;
-  createdAt: string;
+  createdAt: Date;
   bookmarked: boolean;
   userIds: string[] | undefined;
   countTraces: number | undefined;
@@ -219,6 +220,10 @@ export default function SessionsTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+      cell: ({ row }) => {
+        const value: SessionTableRow["createdAt"] = row.getValue("createdAt");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
     },
     {
       accessorKey: "sessionDuration",
@@ -503,7 +508,7 @@ export default function SessionsTable({
                     (session) => ({
                       id: session.id,
                       bookmarked: session.bookmarked,
-                      createdAt: session.createdAt.toLocaleString(),
+                      createdAt: session.createdAt,
                       userIds: session.userIds,
                       countTraces: session.countTraces,
                       sessionDuration: session.sessionDuration,

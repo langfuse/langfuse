@@ -54,7 +54,8 @@ export default withMiddlewares({
       const events: IngestionEventType[] = resourceSpans.flatMap(
         convertOtelSpanToIngestionEvent,
       );
-      return processEventBatch(events, auth);
+      // We set a delay of 0 for OTel, as we never expect updates.
+      return processEventBatch(events, auth, 0);
     },
   }),
 });

@@ -71,6 +71,7 @@ export const getObservationsCostGroupedByName = async (
     AND ${appliedFilter.query}
     GROUP BY provided_model_name
     ORDER BY sumMap(cost_details)['total'] DESC
+    LIMIT 50
     `;
 
   const result = await queryClickhouse<{
@@ -280,12 +281,15 @@ export const getDistinctModels = async (
 
   // No need for final as duplicates are caught by distinct anyway.
   const query = `
-    SELECT distinct(provided_model_name) as model
+    SELECT distinct(provided_model_name) as model, count(*) as count
     FROM observations o
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    GROUP BY provided_model_name
+    ORDER BY count(*) DESC
+    LIMIT 1000
     `;
 
   const result = await queryClickhouse<{ model: string }>({

@@ -31,6 +31,7 @@ import {
   logger,
   getSessionsWithMetrics,
 } from "@langfuse/shared/src/server";
+import { chunk } from "lodash";
 
 const SessionFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -276,25 +277,30 @@ export const sessionRouter = createTRPCRouter({
           input.sessionId,
         );
 
-        const traceIds = clickhouseTraces.map((t) => t.id);
-        const chunkSize = 500;
-        const chunks = [];
+        const chunks = chunk(clickhouseTraces, 500);
 
-        for (let i = 0; i < traceIds.length; i += chunkSize) {
-          chunks.push(traceIds.slice(i, i + chunkSize));
-        }
-
+        // in the below queries, take the lowest timestamp as a filter condition
+        // to improve performance
         const [scores, costs] = await Promise.all([
           Promise.all(
             chunks.map((chunk) =>
               getScoresForTraces({
                 projectId: input.projectId,
-                traceIds: chunk,
+                traceIds: chunk.map((t) => t.id),
+                timestamp: new Date(
+                  Math.min(...chunk.map((t) => t.timestamp.getTime())),
+                ),
               }),
             ),
           ).then((results) => results.flat()),
           Promise.all(
-            chunks.map((chunk) => getCostForTraces(input.projectId, chunk)),
+            chunks.map((chunk) =>
+              getCostForTraces(
+                input.projectId,
+                new Date(Math.min(...chunk.map((t) => t.timestamp.getTime()))),
+                chunk.map((t) => t.id),
+              ),
+            ),
           ).then((results) =>
             results.reduce((sum, cost) => (sum ?? 0) + (cost ?? 0), 0),
           ),
