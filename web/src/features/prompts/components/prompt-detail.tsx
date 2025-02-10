@@ -2,7 +2,6 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
-import Header from "@/src/components/layouts/header";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
@@ -28,7 +27,6 @@ import { Lock, Plus, FlaskConical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +37,7 @@ import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
+import PageContainer from "@/src/components/layouts/page-container";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -134,30 +133,29 @@ export const PromptDetail = () => {
   ).map((t) => t.value);
 
   if (!promptHistory.data || !prompt) {
-    return <div>Loading...</div>;
+    return <div className="p-3">Loading...</div>;
   }
-
   return (
-    <FullScreenPage>
-      <Header
-        title={prompt.name}
-        help={{
+    <PageContainer
+      headerProps={{
+        title: prompt.name,
+        itemType: "PROMPT",
+        help: {
           description:
             "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
           href: "https://langfuse.com/docs/prompts",
-        }}
-        breadcrumb={[
+        },
+        breadcrumb: [
           {
             name: "Prompts",
             href: `/project/${projectId}/prompts/`,
           },
           {
-            name: prompt.name,
+            name: `${prompt.name} (latest)`,
             href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
           },
-          { name: `Version ${prompt.version}` },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsRight: (
           <>
             <JumpToPlaygroundButton
               source="prompt"
@@ -251,8 +249,9 @@ export const PromptDetail = () => {
               </TabsList>
             </Tabs>
           </>
-        }
-      />
+        ),
+      }}
+    >
       <div className="grid grid-cols-3 gap-4 overflow-hidden">
         <div className="col-span-3">
           <div className="mb-5 rounded-lg border bg-card font-semibold text-card-foreground">
@@ -359,6 +358,6 @@ export const PromptDetail = () => {
           />
         </div>
       </div>
-    </FullScreenPage>
+    </PageContainer>
   );
 };

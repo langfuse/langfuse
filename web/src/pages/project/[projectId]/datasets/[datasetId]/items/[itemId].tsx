@@ -1,5 +1,5 @@
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import Header from "@/src/components/layouts/header";
+import PageContainer from "@/src/components/layouts/page-container";
 import { Button } from "@/src/components/ui/button";
 import {
   ResizableHandle,
@@ -36,10 +36,11 @@ export default function Dataset() {
   );
 
   return (
-    <FullScreenPage>
-      <Header
-        title={`Dataset Item`}
-        breadcrumb={[
+    <PageContainer
+      headerProps={{
+        title: itemId,
+        itemType: "DATASET_ITEM",
+        breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
@@ -49,9 +50,8 @@ export default function Dataset() {
             name: "Items",
             href: `/project/${projectId}/datasets/${datasetId}/items`,
           },
-          { name: itemId },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsLeft: [
           <>
             {item.data?.sourceTraceId && (
               <Button variant="outline" asChild>
@@ -63,17 +63,19 @@ export default function Dataset() {
                 </Link>
               </Button>
             )}
-            <DetailPageNav
-              currentId={itemId}
-              path={(entry) =>
-                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
-              }
-              listKey="datasetItems"
-            />
-          </>
-        }
-      />
-
+          </>,
+        ],
+        actionButtonsRight: [
+          <DetailPageNav
+            currentId={itemId}
+            path={(entry) =>
+              `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
+            }
+            listKey="datasetItems"
+          />,
+        ],
+      }}
+    >
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel
           minSize={10}
@@ -96,6 +98,6 @@ export default function Dataset() {
           />
         </ResizablePanel>
       </ResizablePanelGroup>
-    </FullScreenPage>
+    </PageContainer>
   );
 }

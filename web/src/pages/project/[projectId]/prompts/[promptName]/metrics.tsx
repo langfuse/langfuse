@@ -19,7 +19,7 @@ import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/compo
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import PageContainer from "@/src/components/layouts/page-container";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -374,15 +374,15 @@ export default function PromptVersionTable() {
       : [];
 
   return (
-    <FullScreenPage>
-      <Header
-        title={promptName}
-        help={{
+    <PageContainer
+      headerProps={{
+        title: promptName,
+        help: {
           description:
             "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
           href: "https://langfuse.com/docs/prompts",
-        }}
-        breadcrumb={[
+        },
+        breadcrumb: [
           {
             name: "Prompts",
             href: `/project/${projectId}/prompts/`,
@@ -392,8 +392,8 @@ export default function PromptVersionTable() {
             href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
           },
           { name: `Metrics` },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsLeft: (
           <>
             <Tabs value="metrics">
               <TabsList>
@@ -408,8 +408,9 @@ export default function PromptVersionTable() {
               </TabsList>
             </Tabs>
           </>
-        }
-      />
+        ),
+      }}
+    >
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
@@ -451,6 +452,6 @@ export default function PromptVersionTable() {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
-    </FullScreenPage>
+    </PageContainer>
   );
 }

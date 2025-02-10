@@ -25,7 +25,7 @@ const PageHeader = ({
     <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
       <div className="flex flex-col justify-center">
         {/* Top Row */}
-        <div className="flex h-12 items-center gap-3 border-b px-3 py-2">
+        <div className="flex min-h-12 items-center gap-3 border-b px-3 py-2 md:max-h-12">
           <SidebarTrigger />
           <div>
             <EnvLabel />
@@ -34,8 +34,8 @@ const PageHeader = ({
         </div>
 
         {/* Bottom Row */}
-        <div className="flex h-16 items-center justify-between bg-muted p-3">
-          <div className="flex items-center gap-2">
+        <div className="flex min-h-16 items-center justify-between bg-muted p-3 md:max-h-16">
+          <div className="flex flex-wrap items-center gap-2">
             {itemType && <ItemBadge type={itemType} showLabel />}
             <h1 className="text-lg font-semibold leading-7">{title}</h1>
             {help && (
@@ -49,7 +49,9 @@ const PageHeader = ({
             )}
             <div className="flex items-center gap-1">{actionButtonsLeft}</div>
           </div>
-          <div className="flex items-center gap-1">{actionButtonsRight}</div>
+          <div className="flex flex-wrap items-center gap-1">
+            {actionButtonsRight}
+          </div>
         </div>
       </div>
     </div>

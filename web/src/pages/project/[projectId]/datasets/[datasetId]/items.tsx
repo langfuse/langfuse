@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
@@ -8,7 +7,6 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
@@ -19,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { FolderKanban } from "lucide-react";
+import PageContainer from "@/src/components/layouts/page-container";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -32,17 +31,15 @@ export default function DatasetItems() {
   });
 
   return (
-    <FullScreenPage>
-      <Header
-        title={dataset.data?.name ?? ""}
-        help={
-          dataset.data?.description
-            ? {
-                description: dataset.data.description,
-              }
-            : undefined
-        }
-        breadcrumb={[
+    <PageContainer
+      headerProps={{
+        title: dataset.data?.name ?? "",
+        help: dataset.data?.description
+          ? {
+              description: dataset.data.description,
+            }
+          : undefined,
+        breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
@@ -51,8 +48,8 @@ export default function DatasetItems() {
           {
             name: "Items",
           },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsRight: [
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <UploadDatasetCsvButton
@@ -113,10 +110,10 @@ export default function DatasetItems() {
               redirectUrl={`/project/${projectId}/datasets`}
               deleteConfirmation={dataset.data?.name}
             />
-          </>
-        }
-      />
-
+          </>,
+        ],
+      }}
+    >
       <DatasetItemsTable
         projectId={projectId}
         datasetId={datasetId}
@@ -133,6 +130,6 @@ export default function DatasetItems() {
           </Tabs>
         }
       />
-    </FullScreenPage>
+    </PageContainer>
   );
 }

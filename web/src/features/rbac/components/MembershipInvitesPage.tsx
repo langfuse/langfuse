@@ -185,7 +185,7 @@ export function MembershipInvitesPage({
       orgRole: invite.orgRole,
       projectRole:
         invite.projectId === projectId
-          ? invite.projectRole ?? undefined
+          ? (invite.projectRole ?? undefined)
           : undefined,
       invitedByUser: invite.invitedByUser,
     };

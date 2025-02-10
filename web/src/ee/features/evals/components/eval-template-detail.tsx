@@ -1,5 +1,4 @@
 import * as React from "react";
-import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
@@ -17,7 +16,7 @@ import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import PageContainer from "@/src/components/layouts/page-container";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -47,42 +46,42 @@ export const EvalTemplateDetail = () => {
   );
 
   return (
-    <ScrollScreenPage>
-      <Header
-        title={template.data?.name ?? "Loading..."}
-        actionButtons={
-          template.data && (
-            <>
-              {!isEditing && (
-                <UpdateTemplate
-                  projectId={projectId}
-                  isLoading={template.isLoading}
-                  setIsEditing={setIsEditing}
-                />
-              )}
-              <EvalVersionDropdown
-                disabled={allTemplates.isLoading}
-                options={allTemplates.data?.templates ?? []}
-                defaultOption={template.data ?? undefined}
-                onSelect={(template) => {
-                  router.push(
-                    `/project/${projectId}/evals/templates/${template.id}`,
-                  );
-                }}
-              />
-            </>
-          )
-        }
-        breadcrumb={[
+    <PageContainer
+      scrollable
+      headerProps={{
+        title: `${template.data?.name}: ${templateId}`,
+        itemType: "EVAL_TEMPLATE",
+        breadcrumb: [
           {
             name: "Eval Templates",
             href: `/project/${router.query.projectId as string}/evals/templates`,
           },
-          { name: template.data?.name ?? "Loading..." },
-        ]}
-      />
+        ],
+        actionButtonsRight: (
+          <>
+            {!isEditing && (
+              <UpdateTemplate
+                projectId={projectId}
+                isLoading={template.isLoading}
+                setIsEditing={setIsEditing}
+              />
+            )}
+            <EvalVersionDropdown
+              disabled={allTemplates.isLoading}
+              options={allTemplates.data?.templates ?? []}
+              defaultOption={template.data ?? undefined}
+              onSelect={(template) => {
+                router.push(
+                  `/project/${projectId}/evals/templates/${template.id}`,
+                );
+              }}
+            />
+          </>
+        ),
+      }}
+    >
       {allTemplates.isLoading || !allTemplates.data ? (
-        <div>Loading...</div>
+        <div className="p-3">Loading...</div>
       ) : (
         <EvalTemplateForm
           projectId={projectId}
@@ -91,7 +90,7 @@ export const EvalTemplateDetail = () => {
           setIsEditing={setIsEditing}
         />
       )}
-    </ScrollScreenPage>
+    </PageContainer>
   );
 };
 
@@ -156,7 +155,7 @@ export function UpdateTemplate({
 
   return (
     <Button
-      variant="secondary"
+      variant="outline"
       onClick={() => handlePromptEdit()}
       disabled={!hasAccess}
       loading={isLoading}

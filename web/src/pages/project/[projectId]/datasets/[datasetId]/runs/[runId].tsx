@@ -1,5 +1,3 @@
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import Header from "@/src/components/layouts/header";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -10,6 +8,7 @@ import { api } from "@/src/utils/api";
 import { Columns3 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import PageContainer from "@/src/components/layouts/page-container";
 
 export default function Dataset() {
   const router = useRouter();
@@ -28,32 +27,20 @@ export default function Dataset() {
   });
 
   return (
-    <FullScreenPage>
-      <Header
-        title={`Dataset Run`}
-        breadcrumb={[
+    <PageContainer
+      headerProps={{
+        title: run.data?.name ?? runId,
+        itemType: "DATASET_RUN",
+        breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
           { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
-          { name: run.data?.name ?? "" },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsRight: [
           <>
-            <DeleteDatasetRunButton
-              projectId={projectId}
-              datasetRunId={runId}
-              redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
-            />
-            <DetailPageNav
-              currentId={runId}
-              path={(entry) =>
-                `/project/${projectId}/datasets/${datasetId}/runs/${entry.id}`
-              }
-              listKey="datasetRuns"
-            />
             <Link
               href={{
                 pathname: `/project/${projectId}/datasets/${datasetId}/compare`,
@@ -65,9 +52,22 @@ export default function Dataset() {
                 <span>Compare</span>
               </Button>
             </Link>
-          </>
-        }
-      />
+            <DetailPageNav
+              currentId={runId}
+              path={(entry) =>
+                `/project/${projectId}/datasets/${datasetId}/runs/${entry.id}`
+              }
+              listKey="datasetRuns"
+            />
+            <DeleteDatasetRunButton
+              projectId={projectId}
+              datasetRunId={runId}
+              redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+            />
+          </>,
+        ],
+      }}
+    >
       {run.data?.description || run.data?.metadata ? (
         <TableWithMetadataWrapper
           tableComponent={
@@ -106,6 +106,6 @@ export default function Dataset() {
           datasetRunId={runId}
         />
       )}
-    </FullScreenPage>
+    </PageContainer>
   );
 }

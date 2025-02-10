@@ -51,7 +51,7 @@ const DuplicatePromptForm: React.FC<{
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: promptName,
+      name: promptName + "-copy",
       isCopySingleVersion: CopySettings.SINGLE_VERSION,
     },
   });
@@ -205,7 +205,7 @@ export const DuplicatePromptButton: React.FC<{
         <ActionButton
           icon={<Copy className="mr-1 h-4 w-4" aria-hidden="true" />}
           hasAccess={hasAccess}
-          variant="secondary"
+          variant="outline"
           limit={promptLimit}
           title="Duplicate prompt"
           limitValue={allPromptNames.data?.length ?? undefined}

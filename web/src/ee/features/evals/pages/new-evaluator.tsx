@@ -1,4 +1,4 @@
-import Header from "@/src/components/layouts/header";
+import PageContainer from "@/src/components/layouts/page-container";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { api } from "@/src/utils/api";
 
@@ -15,19 +15,21 @@ export default function NewEvaluatorPage() {
   });
 
   return (
-    <div>
-      <Header
-        title="New evaluator"
-        help={{
+    <PageContainer
+      scrollable
+      headerProps={{
+        title: "Create evaluator",
+        help: {
           description:
             "Select a template defining the evaluation prompt and a model as judge to evaluate incoming traces.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
-        }}
-      />
+        },
+      }}
+    >
       <EvaluatorForm
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}
       />
-    </div>
+    </PageContainer>
   );
 }

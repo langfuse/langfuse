@@ -375,7 +375,7 @@ export function TracePage({
       />
     );
 
-  if (!trace.data) return <div>loading...</div>;
+  if (!trace.data) return <div className="p-3">Loading...</div>;
 
   return (
     <PageContainer
