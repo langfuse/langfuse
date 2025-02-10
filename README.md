@@ -62,10 +62,11 @@
 Langfuse is an **open source LLM engineering** platform. It helps teams collaboratively 
 **develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested**.
 
-
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
 
 ## ✨ Core Features
+
+![Langfuse Overview](https://langfuse.com/images/docs/github-readme/github-feature-overview.png)
 
 - **LLM Application Observability:** Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions.
 
