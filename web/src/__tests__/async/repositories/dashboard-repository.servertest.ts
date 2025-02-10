@@ -1,5 +1,5 @@
 import { prepareUsageDataForTimeseriesChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { logger, orderByTimeSeries } from "@langfuse/shared/src/server";
+import { orderByTimeSeries } from "@langfuse/shared/src/server";
 
 describe("orderByTimeSeries", () => {
   test("should return correct bucket size and query for 1 hour time range", () => {
