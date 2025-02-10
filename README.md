@@ -12,9 +12,6 @@
          <a href="https://langfuse.com/demo">
             <strong>Demo</strong>
          </a> · 
-         <a href="https://langfuse.com/enterprise">
-            <strong>Enterprise Inquiry</strong>
-         </a>
       </h3>
    </div>
 
@@ -28,7 +25,7 @@
    <br/>
    <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.</span>
    <br/>
-   <span>We're hiring. <a href="https://langfuse.com/careers"><strong>Join us</strong></a> across the board for engineering and technical go-to-market roles.</span>
+   <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>Join us</strong></a> across the board for engineering and technical go-to-market roles.</span>
    <br/>
    <br/>
    <div>
@@ -63,7 +60,7 @@
 </p>
 
 Langfuse is an **open source LLM engineering** platform. It helps teams collaboratively 
-**develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested** and used in production by thousands of users from YC startups to large companies like Khan Academy or Twilio. 
+**develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested**.
 
 
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
