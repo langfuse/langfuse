@@ -100,7 +100,9 @@ export const ModelUsageChart = ({
 
   console.log(
     "typedData",
-    typedData.filter((d) => d.model && d.cost["input"] > 0),
+    typedData.filter(
+      (d) => d.model && Object.values(d.cost).some((value) => value > 0),
+    ),
   );
   console.log("selectedModels", selectedModels);
 
@@ -289,6 +291,7 @@ export function prepareUsageDataForTimeseriesChart(
   selectedModels: string[],
   typedData: ModelUsageReturnType[],
 ) {
+  console.log("typedData", typedData);
   const usageTypeMap = new Map<
     string,
     {
@@ -303,13 +306,17 @@ export function prepareUsageDataForTimeseriesChart(
     ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
   ];
 
-  const dates = typedData.flatMap((r) => new Date(r.startTime));
+  console.log("allUsageUnits", allUsageUnits);
+
+  const dates = [...new Set(typedData.flatMap((r) => r.startTime))];
+
   dates?.forEach((d) => {
     selectedModels.forEach((m) => {
       allUsageUnits.forEach((uu) => {
         const existingEntry = typedData.find(
           (td) =>
-            new Date(td.startTime).getTime() === d.getTime() && td.model === m,
+            new Date(td.startTime).getTime() === new Date(d).getTime() &&
+            td.model === m,
         );
 
         if (!existingEntry) {
@@ -319,7 +326,6 @@ export function prepareUsageDataForTimeseriesChart(
             units: { [uu]: 0 },
             cost: { [uu]: 0 },
           };
-          typedData.push(newEntry);
 
           // Add the new entry to usageTypeMap
           usageTypeMap.set(uu, [
