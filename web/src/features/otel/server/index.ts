@@ -5,11 +5,15 @@ import { ObservationLevel } from "@prisma/client";
 const convertNanoTimestampToISO = (
   timestamp:
     | number
+    | string
     | {
         high: number;
         low: number;
       },
 ) => {
+  if (typeof timestamp === "string") {
+    return new Date(parseInt(timestamp, 10) / 1e6).toISOString();
+  }
   if (typeof timestamp === "number") {
     return new Date(timestamp / 1e6).toISOString();
   }
