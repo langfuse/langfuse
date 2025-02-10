@@ -22,7 +22,7 @@ const PageHeader = ({
   help,
 }: PageHeaderProps) => {
   return (
-    <div className="sticky top-0 z-30 w-full border-b bg-white shadow-sm">
+    <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
       <div className="flex flex-col justify-center">
         {/* Top Row */}
         <div className="flex h-12 items-center gap-3 border-b px-3 py-2">
@@ -30,16 +30,22 @@ const PageHeader = ({
           <div>
             <EnvLabel />
           </div>
-          {breadcrumb && <BreadcrumbComponent items={breadcrumb} />}
+          <BreadcrumbComponent items={breadcrumb} />
         </div>
 
         {/* Bottom Row */}
-        <div className="flex h-16 items-center justify-between bg-sidebar p-3">
+        <div className="flex h-16 items-center justify-between bg-muted p-3">
           <div className="flex items-center gap-2">
             {itemType && <ItemBadge type={itemType} showLabel />}
             <h1 className="text-lg font-semibold leading-7">{title}</h1>
             {help && (
-              <DocPopup description={help.description} href={help.href} />
+              <div className="-ml-2 -mt-2">
+                <DocPopup
+                  description={help.description}
+                  href={help.href}
+                  className={help.className}
+                />
+              </div>
             )}
             <div className="flex items-center gap-1">{actionButtonsLeft}</div>
           </div>

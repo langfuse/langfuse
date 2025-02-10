@@ -2,8 +2,6 @@ import { type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
-
-import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Select,
@@ -15,7 +13,10 @@ import {
 } from "@/src/components/ui/select";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
+import {
+  CopyUrlButton,
+  PublishTraceSwitch,
+} from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -41,7 +42,6 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore, ObservationLevel } from "@langfuse/shared";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
@@ -380,13 +380,13 @@ export function TracePage({
   return (
     <PageContainer
       headerProps={{
-        title: "Trace Detail",
+        title: `${trace.data.name}: ${trace.data.id}`,
+        itemType: "TRACE",
         breadcrumb: [
           {
             name: "Traces",
             href: `/project/${router.query.projectId as string}/traces`,
           },
-          { name: traceId },
         ],
         actionButtonsLeft: (
           <>
@@ -404,6 +404,7 @@ export function TracePage({
         ),
         actionButtonsRight: (
           <>
+            {trace.data.public && <CopyUrlButton />}
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {

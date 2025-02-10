@@ -14,12 +14,12 @@ const PageContainer = ({
   scrollable = false,
 }: PageContainerProps) => {
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-full flex-col">
       <header className="sticky top-0 z-50 w-full">
         <PageHeader {...headerProps} />
       </header>
       <main
-        className={`flex-1 p-3 ${scrollable ? "overflow-auto" : "overflow-hidden"}`}
+        className={`flex h-full flex-1 flex-col p-3 ${scrollable ? "overflow-auto" : "overflow-hidden"}`}
       >
         {children}
       </main>

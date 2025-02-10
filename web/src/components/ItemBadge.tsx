@@ -43,7 +43,7 @@ export function ItemBadge(props: {
     <Badge
       variant="outline"
       className={cn(
-        "flex max-w-fit items-center gap-1 bg-white",
+        "flex max-w-fit items-center gap-1 bg-background",
         props.isSmall && "h-4",
       )}
     >
