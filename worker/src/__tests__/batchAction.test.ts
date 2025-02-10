@@ -117,4 +117,6 @@ describe("select all test suite", () => {
     expect(remainingRows).toHaveLength(1);
     expect(remainingRows[0].userId).toBe("user2");
   });
+
+  it("should create eval jobs for historic traces", async () => {});
 });

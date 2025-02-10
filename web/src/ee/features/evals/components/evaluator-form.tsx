@@ -480,6 +480,7 @@ export const InnerEvalConfigForm = (props: {
           mapping,
           sampling,
           delay,
+          applyToHistoricalTraces: true,
         })
     )
       .then(() => {

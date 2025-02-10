@@ -22,15 +22,19 @@ import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEnti
 import {
   decryptAndParseExtraHeaders,
   fetchLLMCompletion,
+  getQueue,
   getScoresByIds,
-  LLMApiKeySchema,
   logger,
+  QueueName,
+  QueueJobs,
+  LLMApiKeySchema,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
+import { v4 as uuidv4 } from "uuid";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -98,6 +102,7 @@ const CreateEvalJobSchema = z.object({
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
+  applyToHistoricalTraces: z.boolean().optional(),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -479,8 +484,17 @@ export const evalRouter = createTRPCRouter({
           throw new Error("Template not found");
         }
 
+        const jobId = uuidv4();
+        await auditLog({
+          session: ctx.session,
+          resourceType: "job",
+          resourceId: jobId,
+          action: "create",
+        });
+
         const job = await ctx.prisma.jobConfiguration.create({
           data: {
+            id: jobId,
             projectId: input.projectId,
             jobType: "EVAL",
             evalTemplateId: input.evalTemplateId,
@@ -493,12 +507,34 @@ export const evalRouter = createTRPCRouter({
             status: "ACTIVE",
           },
         });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "job",
-          resourceId: job.id,
-          action: "create",
-        });
+
+        if (input.applyToHistoricalTraces) {
+          logger.info("Applying to historical traces");
+          const batchJobQueue = getQueue(QueueName.BatchActionQueue);
+          if (!batchJobQueue) {
+            throw new Error("Batch job queue not found");
+          }
+          await batchJobQueue.add(QueueJobs.BatchActionProcessingJob, {
+            name: QueueJobs.BatchActionProcessingJob,
+            timestamp: new Date(),
+            id: uuidv4(),
+
+            payload: {
+              projectId: input.projectId,
+              actionId: "eval-create",
+              target: "traces",
+              configId: job.id,
+              cutoffCreatedAt: new Date(),
+              query: {
+                where: input.filter ?? [],
+                orderBy: {
+                  column: "timestamp",
+                  order: "DESC",
+                },
+              },
+            },
+          });
+        }
       } catch (e) {
         logger.error(e);
         throw e;

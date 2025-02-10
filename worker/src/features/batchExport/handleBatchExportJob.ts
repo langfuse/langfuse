@@ -253,6 +253,8 @@ export const getDatabaseReadStream = async ({
             Math.floor(offset / pageSize),
           );
 
+          console.log("traces", traces);
+
           const [metrics, fullTraces] = await Promise.all([
             getTracesTableMetrics({
               projectId,

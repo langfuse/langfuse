@@ -60,15 +60,37 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
-export const BatchActionProcessingEventSchema = z.object({
-  projectId: z.string(),
-  actionId: z.string(),
-  query: BatchActionQuerySchema,
-  tableName: z.nativeEnum(BatchExportTableName),
-  cutoffCreatedAt: z.date(),
-  targetId: z.string().optional(),
-  type: z.nativeEnum(BatchActionType),
-});
+export const BatchActionProcessingEventSchema = z.discriminatedUnion(
+  "actionId",
+  [
+    z.object({
+      actionId: z.literal("trace-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.nativeEnum(BatchExportTableName),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.nativeEnum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("trace-add-to-annotation-queue"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.nativeEnum(BatchExportTableName),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.nativeEnum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("eval-create"),
+      target: z.enum(["traces", "dataset-run-items"]),
+      configId: z.string(),
+      projectId: z.string(),
+      cutoffCreatedAt: z.date(),
+      query: BatchActionQuerySchema,
+    }),
+  ],
+);
 
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;

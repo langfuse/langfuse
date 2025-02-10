@@ -1,6 +1,8 @@
 import {
   BatchActionProcessingEventType,
+  getQueue,
   logger,
+  QueueJobs,
   QueueName,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -9,6 +11,7 @@ import {
   BatchActionType,
   BatchExportTableName,
   FilterCondition,
+  JobExecutionStatus,
 } from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
@@ -16,6 +19,8 @@ import { env } from "../../env";
 import { Job } from "bullmq";
 import { processAddToQueue } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
+import { prisma } from "@langfuse/shared/src/db";
+import { v4 as uuidv4 } from "uuid";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInQuery = (query: BatchActionQuery) => {
@@ -59,57 +64,166 @@ async function processActionChunk(
   }
 }
 
+export type TraceRowForEval = {
+  id: string;
+  project_id: string;
+  timestamp: Date;
+};
+
+const assertIsTracesTableArray = (
+  element: unknown,
+): element is TraceRowForEval => {
+  if (!Array.isArray(element)) {
+    throw new Error("Expected an array");
+  }
+
+  return element.every(
+    (el) =>
+      typeof el === "object" && el !== null && "id" in el && "timestamp" in el,
+  );
+};
+
 export const handleBatchActionJob = async (
   batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>,
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
     batchActionJob.data.payload;
-  const {
-    projectId,
-    actionId,
-    tableName,
-    query,
-    cutoffCreatedAt,
-    targetId,
-    type,
-  } = batchActionEvent;
+  const { actionId } = batchActionEvent;
+  logger.info(`Processing batch action job ${batchActionJob.id}`);
+  if (
+    actionId === "trace-delete" ||
+    actionId === "trace-add-to-annotation-queue"
+  ) {
+    const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
+      batchActionEvent;
 
-  if (type === BatchActionType.Create && !targetId) {
-    throw new Error(`Target ID is required for create action`);
-  }
+    if (type === BatchActionType.Create && !targetId) {
+      throw new Error(`Target ID is required for create action`);
+    }
 
-  const dbReadStream = await getDatabaseReadStream({
-    projectId: projectId,
-    cutoffCreatedAt: new Date(cutoffCreatedAt),
-    ...convertDatesInQuery(query),
-    tableName: tableName as unknown as BatchExportTableName,
-    exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
-  });
+    const dbReadStream = await getDatabaseReadStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      ...convertDatesInQuery(query),
+      tableName: tableName as unknown as BatchExportTableName,
+      exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+    });
 
-  // Process stream in database-sized batches
-  // 1. Read all records
-  const records: any[] = [];
-  for await (const record of dbReadStream) {
-    if (record?.id) {
-      records.push(record);
+    // Process stream in database-sized batches
+    // 1. Read all records
+    const records: any[] = [];
+    for await (const record of dbReadStream) {
+      if (record?.id) {
+        records.push(record);
+      }
+    }
+
+    // 2. Process in chunks
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const batch = records.slice(i, i + CHUNK_SIZE);
+
+      await processActionChunk(
+        actionId,
+        batch.map((r) => r.id),
+        projectId,
+        targetId,
+      );
+    }
+  } else if (actionId === "eval-create") {
+    // if a user wants to apply evals for historic traces or dataset runs, we do this here.
+    // 1) we fetch data from the database, 2) we create eval executions in batches, 3) we create eval execution jobs for each batch
+    const { projectId, query, target, configId, cutoffCreatedAt } =
+      batchActionEvent;
+
+    const config = await prisma.jobConfiguration.findUnique({
+      where: {
+        id: configId,
+        projectId: projectId,
+      },
+    });
+
+    if (!config) {
+      throw new Error("Eval config not found");
+    }
+
+    if (target === "traces") {
+      const dbReadStream = await getDatabaseReadStream({
+        projectId: projectId,
+        cutoffCreatedAt: new Date(cutoffCreatedAt),
+        ...convertDatesInQuery(query),
+        tableName: BatchExportTableName.Traces,
+        exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+      });
+
+      const records: any[] = [];
+      for await (const record of dbReadStream) {
+        if (record?.id) {
+          records.push(record);
+        }
+      }
+
+      for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+        const batch = records.slice(i, i + CHUNK_SIZE);
+        logger.debug("got one chunk from traces for eval");
+        if (assertIsTracesTableArray(batch)) {
+          // first check if an execution already exists for a row in this batch
+          const existingExecutions = await prisma.jobExecution.findMany({
+            where: {
+              projectId: projectId,
+              jobConfigurationId: configId,
+              jobInputTraceId: { in: batch.map((row) => row.id) },
+            },
+          });
+
+          // remove the matching rows from the batch
+          const rowsToCreate = batch.filter(
+            (row) =>
+              !existingExecutions.some(
+                (execution) => execution.jobInputTraceId === row.id,
+              ),
+          );
+
+          const evalExecutions = rowsToCreate.map((row) => ({
+            id: uuidv4(),
+            projectId: projectId,
+            jobConfigurationId: configId,
+            jobInputTraceId: row.id,
+            status: JobExecutionStatus.PENDING,
+          }));
+
+          await prisma.jobExecution.createMany({
+            data: evalExecutions,
+            skipDuplicates: true,
+          });
+
+          const queue = getQueue(QueueName.EvaluationExecution);
+          if (!queue) {
+            throw new Error("Eval execution queue not found");
+          }
+          await queue.addBulk(
+            evalExecutions.map((row) => ({
+              name: QueueJobs.EvaluationExecution,
+              data: {
+                timestamp: new Date(),
+                id: uuidv4(),
+                payload: {
+                  projectId: projectId,
+                  jobExecutionId: row.id,
+                  delay: config.delay,
+                },
+                name: QueueJobs.EvaluationExecution,
+              },
+            })),
+          );
+        } else {
+          logger.error("batch is not a valid traces table array");
+          throw new Error("Batch is not a valid traces table array");
+        }
+      }
     }
   }
 
-  // 2. Process in chunks
-  for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-    const batch = records.slice(i, i + CHUNK_SIZE);
-
-    await processActionChunk(
-      actionId,
-      batch.map((r) => r.id),
-      projectId,
-      targetId,
-    );
-  }
-
-  logger.info("Batch action job completed", {
-    projectId,
-    actionId,
-    tableName,
-  });
+  logger.info(
+    `Batch action job completed, projectId: ${batchActionJob.data.payload.projectId}, actionId: ${actionId}`,
+  );
 };

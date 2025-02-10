@@ -7,7 +7,7 @@ export const batchActionQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.BatchActionQueue]>,
 ) => {
   try {
-    logger.info("Executing Batch Action Job", job.data.payload);
+    logger.info(`Executing Batch Action jon ${JSON.stringify(job)}`);
     await handleBatchActionJob(job);
     logger.info("Finished Batch Action Job", job.data.payload);
 
