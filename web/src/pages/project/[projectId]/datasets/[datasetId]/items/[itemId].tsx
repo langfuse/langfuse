@@ -90,7 +90,7 @@ export default function Dataset() {
         </ResizablePanel>
         <ResizableHandle withHandle className="bg-border" />
         <ResizablePanel minSize={10} className="flex flex-col space-y-4">
-          <Header title="Runs" level="h3" />
+          <Header title="Runs" />
           <DatasetRunItemsTable
             projectId={projectId}
             datasetItemId={itemId}

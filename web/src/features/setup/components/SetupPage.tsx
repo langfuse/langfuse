@@ -144,7 +144,7 @@ export function SetupPage() {
             // 1. Create Org
             stepInt === 1 && (
               <div>
-                <Header title="New Organization" level="h3" />
+                <Header title="New Organization" />
                 <p className="mb-4 text-sm text-muted-foreground">
                   Organizations are used to manage your projects and teams.
                 </p>
@@ -161,7 +161,7 @@ export function SetupPage() {
             stepInt === 2 && organization && (
               <div className="flex flex-col gap-10">
                 <div>
-                  <Header title="Organization Members" level="h3" />
+                  <Header title="Organization Members" />
                   <p className="mb-4 text-sm text-muted-foreground">
                     Invite members to your organization to collaborate on
                     projects. You can always add more members later.
@@ -178,7 +178,7 @@ export function SetupPage() {
             // 3. Create Project
             stepInt === 3 && organization && (
               <div>
-                <Header title="New Project" level="h3" />
+                <Header title="New Project" />
                 <p className="mb-4 text-sm text-muted-foreground">
                   Projects are used to group traces, datasets, evals and
                   prompts. Multiple environments are best separated via tags
@@ -198,7 +198,7 @@ export function SetupPage() {
             stepInt === 4 && project && organization && (
               <div className="space-y-8">
                 <div>
-                  <Header title="API Keys" level="h3" />
+                  <Header title="API Keys" />
                   <p className="mb-4 text-sm text-muted-foreground">
                     These keys are used to authenticate your API requests. You
                     can create more keys later in the project settings.
@@ -286,7 +286,6 @@ const TracingSetup = ({
         <div>
           <Header
             title="Setup Tracing"
-            level="h3"
             status={hasAnyTrace ? "active" : "pending"}
           />
           <p className="mb-4 text-sm text-muted-foreground">

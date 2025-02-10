@@ -89,7 +89,7 @@ export default function PosthogIntegrationSettings() {
         )}
         {hasAccess && (
           <>
-            <Header level="h3" title="Configuration" />
+            <Header title="Configuration" />
             <Card className="p-3">
               <PostHogLogo className="mb-4 w-36 text-foreground" />
               <PostHogIntegrationSettings
@@ -102,7 +102,7 @@ export default function PosthogIntegrationSettings() {
         )}
         {state.data?.enabled && (
           <>
-            <Header level="h3" title="Status" className="mt-8" />
+            <Header title="Status" className="mt-8" />
             <p className="text-sm text-primary">
               Data synced until:{" "}
               {state.data?.lastSyncAt

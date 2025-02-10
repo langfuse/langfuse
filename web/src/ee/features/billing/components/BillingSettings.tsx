@@ -57,7 +57,7 @@ export const BillingSettings = () => {
     );
   return (
     <div>
-      <Header title="Usage & Billing" level="h3" />
+      <Header title="Usage & Billing" />
       <OrganizationUsageChart />
     </div>
   );
@@ -213,7 +213,6 @@ const BillingPortalOrPricingPageButton = () => {
         <DialogHeader>
           <Header
             title="Plans"
-            level="h3"
             actionButtons={
               <Button variant="secondary" asChild>
                 <Link href="https://langfuse.com/pricing" target="_blank">

@@ -52,7 +52,7 @@ export default function SettingsPage() {
                   <RenameProject />
                   {isLangfuseCloud && <ConfigureRetention />}
                   <div>
-                    <Header title="Debug Information" level="h3" />
+                    <Header title="Debug Information" />
                     <JSONView
                       title="Metadata"
                       json={{
@@ -105,7 +105,7 @@ export default function SettingsPage() {
               slug: "members",
               content: (
                 <div>
-                  <Header title="Project Members" level="h3" />
+                  <Header title="Project Members" />
                   <div>
                     <MembersTable
                       orgId={organization.id}
@@ -163,7 +163,7 @@ const Integrations = (props: { projectId: string }) => {
 
   return (
     <div>
-      <Header title="Integrations" level="h3" />
+      <Header title="Integrations" />
       <Card className="p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <PostHogLogo className="mb-4 w-40 text-foreground" />

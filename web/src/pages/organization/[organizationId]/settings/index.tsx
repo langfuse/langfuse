@@ -36,7 +36,7 @@ const OrgSettingsPage = () => {
               <div className="flex flex-col gap-6">
                 <RenameOrganization />
                 <div>
-                  <Header title="Debug Information" level="h3" />
+                  <Header title="Debug Information" />
                   <JSONView
                     title="Metadata"
                     json={{ name: organization.name, id: organization.id }}
@@ -61,7 +61,7 @@ const OrgSettingsPage = () => {
             content: (
               <div className="flex flex-col gap-6">
                 <div>
-                  <Header title="Organization Members" level="h3" />
+                  <Header title="Organization Members" />
                   <MembersTable orgId={organization.id} />
                 </div>
                 <div>

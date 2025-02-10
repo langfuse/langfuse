@@ -14,7 +14,7 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
 
   return (
     <div id="score-configs">
-      <Header title="Score Configs" level="h3" />
+      <Header title="Score Configs" />
       <p className="mb-4 text-sm">
         Score configs define which scores are available for{" "}
         <a
