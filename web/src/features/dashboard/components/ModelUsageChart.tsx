@@ -105,6 +105,15 @@ export const ModelUsageChart = ({
 
   const usageData = Array.from(usageTypeMap.values()).flat();
 
+  console.log(
+    "usageData",
+    JSON.stringify(
+      usageData.filter((u) => u.cost > 0 || u.units > 0),
+      null,
+      2,
+    ),
+  );
+
   const currentModels = [
     ...new Set(usageData.map((row) => row.model).filter(Boolean)),
   ];
@@ -267,6 +276,7 @@ export const ModelUsageChart = ({
     </DashboardCard>
   );
 };
+
 export function prepareUsageDataForTimeseriesChart(
   selectedModels: string[],
   typedData: ModelUsageReturnType[],
@@ -274,6 +284,7 @@ export function prepareUsageDataForTimeseriesChart(
   const usageTypeMap = new Map<
     string,
     {
+      startTime: string;
       units: number;
       cost: number;
       usageType: string;
@@ -285,51 +296,48 @@ export function prepareUsageDataForTimeseriesChart(
     ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
   ];
 
-  const dates = [...new Set(typedData.flatMap((r) => r.startTime))];
+  const uniqueDates = [
+    ...new Set(typedData.flatMap((r) => new Date(r.startTime).getTime())),
+  ];
 
-  dates?.forEach((d) => {
-    selectedModels.forEach((m) => {
-      allUsageUnits.forEach((uu) => {
+  const uniqueModels = [...new Set(selectedModels)];
+  console.log("allUsageUnits", allUsageUnits);
+  console.log("uniqueModels", uniqueModels);
+  console.log("uniqueDates", uniqueDates);
+
+  allUsageUnits.forEach((uu) => {
+    const unitEntries: {
+      startTime: string;
+      units: number;
+      cost: number;
+      usageType: string;
+      model: string;
+    }[] = [];
+
+    uniqueDates.forEach((d) => {
+      uniqueModels.forEach((m) => {
         const existingEntry = typedData.find(
           (td) =>
             new Date(td.startTime).getTime() === new Date(d).getTime() &&
             td.model === m,
         );
 
-        if (!existingEntry) {
-          const newEntry = {
-            startTime: d.toString(),
-            model: m,
-            units: { [uu]: 0 },
-            cost: { [uu]: 0 },
-          };
+        const entry = {
+          startTime: new Date(d).toISOString(),
+          model: m,
+          units: existingEntry ? existingEntry.units[uu] || 0 : 0,
+          cost: existingEntry ? existingEntry.cost[uu] || 0 : 0,
+          usageType: uu,
+        };
 
-          // Add the new entry to usageTypeMap
-          usageTypeMap.set(uu, [
-            ...(usageTypeMap.get(uu) ?? []),
-            {
-              ...newEntry,
-              units: 0,
-              cost: 0,
-              usageType: uu,
-            },
-          ]);
-        }
-
-        if (existingEntry) {
-          usageTypeMap.set(uu, [
-            ...(usageTypeMap.get(uu) ?? []),
-            {
-              ...existingEntry,
-              units: existingEntry.units[uu],
-              cost: existingEntry.cost[uu],
-              usageType: uu,
-            },
-          ]);
-        }
+        unitEntries.push(entry);
       });
     });
+
+    usageTypeMap.set(uu, unitEntries);
   });
+
+  console.log("usageTypeMap", usageTypeMap);
 
   return usageTypeMap;
 }

@@ -1,15 +1,5 @@
-import { truncateClickhouseTables } from "@/src/__tests__/test-utils";
 import { prepareUsageDataForTimeseriesChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import {
-  createObservation,
-  createObservationsCh,
-  createOrgProjectAndApiKey,
-  createTrace,
-  createTracesCh,
-  getObservationsCostGroupedByName,
-  getObservationUsageByTime,
-  orderByTimeSeries,
-} from "@langfuse/shared/src/server";
+import { logger, orderByTimeSeries } from "@langfuse/shared/src/server";
 
 describe("orderByTimeSeries", () => {
   test("should return correct bucket size and query for 1 hour time range", () => {
