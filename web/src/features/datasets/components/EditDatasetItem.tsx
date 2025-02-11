@@ -80,24 +80,21 @@ export const EditDatasetItem = ({
   const utils = api.useUtils();
 
   useEffect(() => {
-    form.setValue(
-      "input",
-      datasetItem?.input ? JSON.stringify(datasetItem.input, null, 2) : "",
-    );
-    form.setValue(
-      "expectedOutput",
-      datasetItem?.expectedOutput
-        ? JSON.stringify(datasetItem.expectedOutput, null, 2)
-        : "",
-    );
-    form.setValue(
-      "metadata",
-      datasetItem?.metadata
-        ? JSON.stringify(datasetItem.metadata, null, 2)
-        : "",
-    );
+    if (datasetItem) {
+      form.reset({
+        input: datasetItem.input
+          ? JSON.stringify(datasetItem.input, null, 2)
+          : "",
+        expectedOutput: datasetItem.expectedOutput
+          ? JSON.stringify(datasetItem.expectedOutput, null, 2)
+          : "",
+        metadata: datasetItem.metadata
+          ? JSON.stringify(datasetItem.metadata, null, 2)
+          : "",
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetItem]);
+  }, [datasetItem?.id]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

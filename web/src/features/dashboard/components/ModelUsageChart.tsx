@@ -1,29 +1,10 @@
-import { Check, ChevronsUpDown } from "lucide-react";
-import { useEffect, useState } from "react";
-
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { Button } from "@/src/components/ui/button";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-  InputCommandList,
-  InputCommandSeparator,
-} from "@/src/components/ui/input-command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { env } from "@/src/env.mjs";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
-  getAllModels,
   isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
@@ -35,8 +16,11 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
+import {
+  ModelSelectorPopover,
+  useModelSelection,
+} from "@/src/features/dashboard/components/ModelSelector";
 
 type ModelUsageReturnType = {
   startTime: string;
@@ -56,20 +40,14 @@ export const ModelUsageChart = ({
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
 }) => {
-  const allModels = getAllModels(projectId, globalFilterState);
-
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [open, setOpen] = useState(false);
-  const [firstAllModelUpdate, setFirstAllModelUpdate] = useState(true);
-
-  const isAllSelected = selectedModels.length === allModels.length;
-  const buttonText = isAllSelected
-    ? "All models"
-    : `${selectedModels.length} selected`;
-
-  const handleSelectAll = () => {
-    setSelectedModels(isAllSelected ? [] : [...allModels]);
-  };
+  const {
+    allModels,
+    selectedModels,
+    setSelectedModels,
+    isAllSelected,
+    buttonText,
+    handleSelectAll,
+  } = useModelSelection(projectId, globalFilterState);
 
   const queryResult = api.dashboard.chart.useQuery(
     {
@@ -85,16 +63,12 @@ export const ModelUsageChart = ({
       filter: [
         ...globalFilterState,
         { type: "string", column: "type", operator: "=", value: "GENERATION" },
-        ...(!isAllSelected
-          ? [
-              {
-                type: "stringOptions",
-                column: "model",
-                operator: "any of",
-                value: selectedModels,
-              } as const,
-            ]
-          : []),
+        {
+          type: "stringOptions",
+          column: "model",
+          operator: "any of",
+          value: selectedModels,
+        } as const,
       ],
       groupBy: [
         {
@@ -113,7 +87,7 @@ export const ModelUsageChart = ({
       queryName: "observations-usage-timeseries",
     },
     {
-      enabled: selectedModels.length > 0,
+      enabled: selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -122,76 +96,15 @@ export const ModelUsageChart = ({
     },
   );
 
-  useEffect(() => {
-    if (firstAllModelUpdate && allModels.length > 0) {
-      setSelectedModels(allModels);
-      setFirstAllModelUpdate(false);
-    }
-  }, [allModels, firstAllModelUpdate]);
-
   const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
 
-  const allUsageUnits = [
-    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
-  ];
-
-  const dates = typedData.flatMap((r) => new Date(r.startTime));
-
-  const usageTypeMap = new Map<
-    string,
-    {
-      units: number;
-      cost: number;
-      usageType: string;
-      model: string;
-    }[]
-  >();
-
-  dates?.forEach((d) => {
-    allModels.forEach((m) => {
-      allUsageUnits.forEach((uu) => {
-        const existingEntry = typedData.find(
-          (td) =>
-            new Date(td.startTime).getTime() === d.getTime() && td.model === m,
-        );
-
-        if (!existingEntry) {
-          const newEntry = {
-            startTime: d.toString(),
-            model: m,
-            units: { [uu]: 0 },
-            cost: { [uu]: 0 },
-          };
-          typedData.push(newEntry);
-
-          // Add the new entry to usageTypeMap
-          usageTypeMap.set(uu, [
-            ...(usageTypeMap.get(uu) ?? []),
-            {
-              ...newEntry,
-              units: 0,
-              cost: 0,
-              usageType: uu,
-            },
-          ]);
-        }
-
-        if (existingEntry) {
-          usageTypeMap.set(uu, [
-            ...(usageTypeMap.get(uu) ?? []),
-            {
-              ...existingEntry,
-              units: existingEntry.units[uu],
-              cost: existingEntry.cost[uu],
-              usageType: uu,
-            },
-          ]);
-        }
-      });
-    });
-  });
+  const usageTypeMap = prepareUsageDataForTimeseriesChart(
+    selectedModels,
+    typedData,
+  );
 
   const usageData = Array.from(usageTypeMap.values()).flat();
+
   const currentModels = [
     ...new Set(usageData.map((row) => row.model).filter(Boolean)),
   ];
@@ -312,63 +225,14 @@ export const ModelUsageChart = ({
       isLoading={queryResult.isLoading && selectedModels.length > 0}
       headerRight={
         <div className="flex items-center justify-end">
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="w-56 justify-between"
-              >
-                {buttonText}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-0">
-              <InputCommand>
-                <InputCommandInput placeholder="Search models..." />
-                <InputCommandEmpty>No model found.</InputCommandEmpty>
-                <InputCommandGroup>
-                  <InputCommandItem onSelect={handleSelectAll}>
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isAllSelected ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    <span>
-                      <p className="font-semibold">Select All</p>
-                    </span>
-                  </InputCommandItem>
-                  <InputCommandSeparator className="my-1" />
-                  <InputCommandList>
-                    {allModels.map((model) => (
-                      <InputCommandItem
-                        key={model}
-                        onSelect={() => {
-                          setSelectedModels((prev) =>
-                            prev.includes(model)
-                              ? prev.filter((m) => m !== model)
-                              : [...prev, model],
-                          );
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedModels.includes(model)
-                              ? "opacity-100"
-                              : "opacity-0",
-                          )}
-                        />
-                        {!model || model === "" ? <i>none</i> : model}
-                      </InputCommandItem>
-                    ))}
-                  </InputCommandList>
-                </InputCommandGroup>
-              </InputCommand>
-            </PopoverContent>
-          </Popover>
+          <ModelSelectorPopover
+            allModels={allModels}
+            selectedModels={selectedModels}
+            setSelectedModels={setSelectedModels}
+            buttonText={buttonText}
+            isAllSelected={isAllSelected}
+            handleSelectAll={handleSelectAll}
+          />
         </div>
       }
     >
@@ -403,3 +267,63 @@ export const ModelUsageChart = ({
     </DashboardCard>
   );
 };
+
+export function prepareUsageDataForTimeseriesChart(
+  selectedModels: string[],
+  typedData: ModelUsageReturnType[],
+) {
+  const usageTypeMap = new Map<
+    string,
+    {
+      startTime: string;
+      units: number;
+      cost: number;
+      usageType: string;
+      model: string;
+    }[]
+  >();
+
+  const allUsageUnits = [
+    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
+  ];
+
+  const uniqueDates = [
+    ...new Set(typedData.flatMap((r) => new Date(r.startTime).getTime())),
+  ];
+
+  const uniqueModels = [...new Set(selectedModels)];
+
+  allUsageUnits.forEach((uu) => {
+    const unitEntries: {
+      startTime: string;
+      units: number;
+      cost: number;
+      usageType: string;
+      model: string;
+    }[] = [];
+
+    uniqueDates.forEach((d) => {
+      uniqueModels.forEach((m) => {
+        const existingEntry = typedData.find(
+          (td) =>
+            new Date(td.startTime).getTime() === new Date(d).getTime() &&
+            td.model === m,
+        );
+
+        const entry = {
+          startTime: new Date(d).toISOString(),
+          model: m,
+          units: existingEntry ? existingEntry.units[uu] || 0 : 0,
+          cost: existingEntry ? existingEntry.cost[uu] || 0 : 0,
+          usageType: uu,
+        };
+
+        unitEntries.push(entry);
+      });
+    });
+
+    usageTypeMap.set(uu, unitEntries);
+  });
+
+  return usageTypeMap;
+}

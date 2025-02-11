@@ -525,6 +525,72 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: "Observing LLMs",
         },
       ],
+      [
+        "#5412: should map input.value to input for smolagents",
+        {
+          entity: "observation",
+          otelAttributeKey: "input.value",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              task: "Play some chess",
+              stream: false,
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            task: "Play some chess",
+            stream: false,
+          }),
+        },
+      ],
+      [
+        "#5412: should map llm.token_count.completion to provided_usage_details.output",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.token_count.completion",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.output",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "#5412: should map llm.token_count.total to provided_usage_details.total",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.token_count.total",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.total",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "#5412: should map llm.invocation_parameters to modelParameters",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.invocation_parameters",
+          otelAttributeValue: {
+            stringValue: '{"max_tokens": 4096}',
+          },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 4096,
+        },
+      ],
+      [
+        "#5457: should map traceloop.entity.input to input",
+        {
+          entity: "trace",
+          otelAttributeKey: "traceloop.entity.input",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
     ])(
       "Attributes: %s",
       (

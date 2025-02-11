@@ -5,11 +5,15 @@ import { ObservationLevel } from "@prisma/client";
 const convertNanoTimestampToISO = (
   timestamp:
     | number
+    | string
     | {
         high: number;
         low: number;
       },
 ) => {
+  if (typeof timestamp === "string") {
+    return new Date(parseInt(timestamp, 10) / 1e6).toISOString();
+  }
   if (typeof timestamp === "number") {
     return new Date(timestamp / 1e6).toISOString();
   }
@@ -127,6 +131,20 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
+  // TraceLoop sets traceloop.entity.input and traceloop.entity.output
+  input = attributes["traceloop.entity.input"];
+  output = attributes["traceloop.entity.output"];
+  if (input || output) {
+    return { input, output };
+  }
+
+  // SmolAgents sets input.value and output.value
+  input = attributes["input.value"];
+  output = attributes["output.value"];
+  if (input || output) {
+    return { input, output };
+  }
+
   // TraceLoop uses attributes property
   const inputAttributes = Object.keys(attributes).filter((key) =>
     key.startsWith("gen_ai.prompt"),
@@ -181,6 +199,15 @@ const extractSessionId = (
 const extractModelParameters = (
   attributes: Record<string, unknown>,
 ): Record<string, unknown> => {
+  // If we get invocation parameters, we use them as they are
+  if (attributes["llm.invocation_parameters"]) {
+    try {
+      return JSON.parse(attributes["llm.invocation_parameters"] as string);
+    } catch (e) {
+      // fallthrough
+    }
+  }
+
   const modelParameters = Object.keys(attributes).filter((key) =>
     key.startsWith("gen_ai.request."),
   );
@@ -194,7 +221,11 @@ const extractModelParameters = (
 const extractModelName = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
-  const modelNameKeys = ["gen_ai.request.model", "gen_ai.response.model"];
+  const modelNameKeys = [
+    "gen_ai.request.model",
+    "gen_ai.response.model",
+    "llm.model_name",
+  ];
   for (const key of modelNameKeys) {
     if (attributes[key]) {
       return typeof attributes[key] === "string"
@@ -208,7 +239,9 @@ const extractUsageDetails = (
   attributes: Record<string, unknown>,
 ): Record<string, unknown> => {
   const usageDetails = Object.keys(attributes).filter(
-    (key) => key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost",
+    (key) =>
+      (key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost") ||
+      key.startsWith("llm.token_count"),
   );
   const usageDetailKeyMapping: Record<string, string> = {
     prompt_tokens: "input",
@@ -216,9 +249,13 @@ const extractUsageDetails = (
     total_tokens: "total",
     input_tokens: "input",
     output_tokens: "output",
+    prompt: "input",
+    completion: "output",
   };
   return usageDetails.reduce((acc: any, key) => {
-    const usageDetailKey = key.replace("gen_ai.usage.", "");
+    const usageDetailKey = key
+      .replace("gen_ai.usage.", "")
+      .replace("llm.token_count.", "");
     const mappedUsageDetailKey =
       usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
     acc[mappedUsageDetailKey] = attributes[key];
@@ -265,6 +302,7 @@ export const convertOtelSpanToIngestionEvent = (
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
+          name: span.name,
           metadata: {
             attributes,
             resourceAttributes,
@@ -273,6 +311,9 @@ export const convertOtelSpanToIngestionEvent = (
           version: resourceAttributes?.["service.version"] ?? null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
+
+          // Input and Output
+          ...extractInputAndOutput(span?.events ?? [], attributes),
         };
         events.push({
           id: randomUUID(),
@@ -317,11 +358,10 @@ export const convertOtelSpanToIngestionEvent = (
         ...extractInputAndOutput(span?.events ?? [], attributes),
       };
 
-      // If the span has any gen_ai attributes, we consider it a generation
-      const isGeneration = Object.keys(attributes).some((key) =>
-        key.startsWith("gen_ai"),
-      );
-
+      // If the span has a model property, we consider it a generation.
+      // Just checking for llm.* or gen_ai.* attributes leads to overreporting and wrong
+      // aggregations for costs.
+      const isGeneration = Boolean(observation.model);
       events.push({
         id: randomUUID(),
         type: isGeneration ? "generation-create" : "span-create",

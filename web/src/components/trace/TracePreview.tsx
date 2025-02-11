@@ -40,6 +40,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export const TracePreview = ({
   trace,
@@ -131,7 +132,7 @@ export const TracePreview = ({
               <span>{trace.name}</span>
             </CardTitle>
             <CardDescription>
-              {trace.timestamp.toLocaleString()}
+              <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
             </CardDescription>
             {viewType === "detailed" && (
               <div className="flex flex-wrap gap-2">
