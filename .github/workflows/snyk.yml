@@ -29,6 +29,7 @@ jobs:
           image: langfuse-langfuse-web
           args: --file=web/Dockerfile
 
+      # Workaround for https://github.com/github/codeql-action/issues/2187
       - name: Replace security-severity undefined for license-related findings
         run: sed -i 's/"security-severity": "undefined"/"security-severity": "0"/g' snyk.sarif
 
