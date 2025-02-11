@@ -7,6 +7,8 @@ For any Langfuse single item pages, you should pass the itemType to the `PageCon
 
 **⚠️ Every page must be wrapped inside `<PageContainer>`—do not use `<main>` directly!**
 
+Please note that for settings pages, and settings pages only, you should use the `SettingsContainer` component instead.
+
 ---
 
 ## ✨ Features
