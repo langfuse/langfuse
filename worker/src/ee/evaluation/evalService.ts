@@ -468,6 +468,7 @@ export const evaluate = async ({
           data: {
             type: eventTypes.SCORE_CREATE,
             eventBodyId: scoreId,
+            fileKey: eventId,
           },
           authCheck: {
             validKey: true,
