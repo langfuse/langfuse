@@ -6,7 +6,6 @@ import {
   Fan,
   ListTree,
   MoveHorizontal,
-  Shell,
   User,
   FileText,
   FlaskConical,
@@ -14,6 +13,7 @@ import {
   WandSparkles,
   Cog,
   TestTubeDiagonal,
+  Clock,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
 import { ObservationType } from "@langfuse/shared";
@@ -38,7 +38,7 @@ const iconMap: Record<LangfuseItemType, React.ElementType> = {
   [ObservationType.GENERATION]: Fan,
   [ObservationType.EVENT]: CircleDot,
   [ObservationType.SPAN]: MoveHorizontal,
-  SESSION: Shell,
+  SESSION: Clock,
   USER: User,
   QUEUE_ITEM: ClipboardPen,
   DATASET: Database,
