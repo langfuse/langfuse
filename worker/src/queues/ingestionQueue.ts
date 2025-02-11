@@ -132,38 +132,6 @@ export const ingestionQueueProcessorBuilder = (
         `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
       );
 
-      // Load file list from Postgres event log if enabled and compare with S3 List Result
-      if (env.LANGFUSE_S3_EVENT_UPLOAD_POSTGRES_LOG_ENABLED === "true") {
-        try {
-          const files = await prisma.eventLog.findMany({
-            select: {
-              bucketPath: true,
-              createdAt: true,
-            },
-            where: {
-              projectId: job.data.payload.authCheck.scope.projectId,
-              entityType: clickhouseEntityType,
-              entityId: job.data.payload.data.eventBodyId,
-            },
-            distinct: ["bucketPath"],
-          });
-
-          // Compare files from Postgres with S3 result
-          if (files.length !== eventFiles.length) {
-            logger.warn(`Mismatch between Postgres and S3 file list`, {
-              postgres: files,
-              s3: eventFiles,
-            });
-          }
-        } catch (e) {
-          logger.error(
-            `Failed to load event log from Postgres for project ${job.data.payload.authCheck.scope.projectId}`,
-            e,
-          );
-          // Fail silently while feature is experimental
-        }
-      }
-
       recordDistribution(
         "langfuse.ingestion.count_files_distribution",
         eventFiles.length,
