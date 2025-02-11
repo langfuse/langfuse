@@ -131,6 +131,13 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
+  // TraceLoop sets traceloop.entity.input and traceloop.entity.output
+  input = attributes["traceloop.entity.input"];
+  output = attributes["traceloop.entity.output"];
+  if (input || output) {
+    return { input, output };
+  }
+
   // SmolAgents sets input.value and output.value
   input = attributes["input.value"];
   output = attributes["output.value"];
