@@ -828,9 +828,6 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.4.5
-      wait-for-expect:
-        specifier: ^3.0.2
-        version: 3.0.2
 
   worker:
     dependencies:

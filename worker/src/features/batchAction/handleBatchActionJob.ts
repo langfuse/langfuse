@@ -1,10 +1,12 @@
 import {
   BatchActionProcessingEventType,
+  CreateEvalQueue,
   getQueue,
   logger,
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionQuery,
@@ -21,6 +23,7 @@ import { processAddToQueue } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "node:crypto";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInQuery = (query: BatchActionQuery) => {
@@ -66,20 +69,19 @@ async function processActionChunk(
 
 export type TraceRowForEval = {
   id: string;
-  project_id: string;
+  projectId: string;
   timestamp: Date;
 };
 
-const assertIsTracesTableArray = (
+const assertIsTracesTableRecord = (
   element: unknown,
 ): element is TraceRowForEval => {
-  if (!Array.isArray(element)) {
-    throw new Error("Expected an array");
-  }
-
-  return element.every(
-    (el) =>
-      typeof el === "object" && el !== null && "id" in el && "timestamp" in el,
+  return (
+    typeof element === "object" &&
+    element !== null &&
+    "id" in element &&
+    "projectId" in element &&
+    "timestamp" in element
   );
 };
 
@@ -153,74 +155,40 @@ export const handleBatchActionJob = async (
         cutoffCreatedAt: new Date(cutoffCreatedAt),
         ...convertDatesInQuery(query),
         tableName: BatchExportTableName.Traces,
-        exportLimit: env.BATCH_ACTION_EXPORT_ROW_LIMIT,
+        exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
       });
 
-      const records: any[] = [];
+      const evalCreatorQueue = CreateEvalQueue.getInstance();
+      if (!evalCreatorQueue) {
+        logger.error("CreateEvalQueue is not initialized");
+        return;
+      }
+
+      let count = 0;
       for await (const record of dbReadStream) {
-        if (record?.id) {
-          records.push(record);
-        }
-      }
-
-      for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-        const batch = records.slice(i, i + CHUNK_SIZE);
-        logger.debug("got one chunk from traces for eval");
-        if (assertIsTracesTableArray(batch)) {
-          // first check if an execution already exists for a row in this batch
-          const existingExecutions = await prisma.jobExecution.findMany({
-            where: {
-              projectId: projectId,
-              jobConfigurationId: configId,
-              jobInputTraceId: { in: batch.map((row) => row.id) },
+        if (assertIsTracesTableRecord(record)) {
+          count++;
+          await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
+            payload: {
+              projectId: record.projectId,
+              traceId: record.id,
+              configId: configId,
+              timestamp: record.timestamp,
             },
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.CreateEvalJob as const,
           });
-
-          // remove the matching rows from the batch
-          const rowsToCreate = batch.filter(
-            (row) =>
-              !existingExecutions.some(
-                (execution) => execution.jobInputTraceId === row.id,
-              ),
-          );
-
-          const evalExecutions = rowsToCreate.map((row) => ({
-            id: uuidv4(),
-            projectId: projectId,
-            jobConfigurationId: configId,
-            jobInputTraceId: row.id,
-            status: JobExecutionStatus.PENDING,
-          }));
-
-          await prisma.jobExecution.createMany({
-            data: evalExecutions,
-            skipDuplicates: true,
-          });
-
-          const queue = getQueue(QueueName.EvaluationExecution);
-          if (!queue) {
-            throw new Error("Eval execution queue not found");
-          }
-          await queue.addBulk(
-            evalExecutions.map((row) => ({
-              name: QueueJobs.EvaluationExecution,
-              data: {
-                timestamp: new Date(),
-                id: uuidv4(),
-                payload: {
-                  projectId: projectId,
-                  jobExecutionId: row.id,
-                  delay: config.delay,
-                },
-                name: QueueJobs.EvaluationExecution,
-              },
-            })),
-          );
         } else {
-          logger.error("batch is not a valid traces table array");
-          throw new Error("Batch is not a valid traces table array");
+          logger.error("Record is not a valid traces table record", record);
+          throw new Error("Record is not a valid traces table record");
         }
       }
+      logger.info(
+        `Batch action job {${count} elements} completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
+      );
+    } else if (target === "dataset-run-items") {
+      // TODO: Implement
     }
   }
 

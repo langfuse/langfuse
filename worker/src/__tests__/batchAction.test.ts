@@ -209,15 +209,16 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(payload);
 
-    const evalExecutions = await prisma.jobExecution.findMany({
-      where: {
-        projectId,
-        jobConfigurationId: configId,
-      },
+    await waitForExpect(async () => {
+      const evalExecutions = await prisma.jobExecution.findMany({
+        where: {
+          projectId,
+          jobConfigurationId: configId,
+        },
+      });
+      expect(evalExecutions).toHaveLength(1);
+      expect(evalExecutions[0].jobInputTraceId).toBe(traceId1);
+      expect(evalExecutions[0].status).toBe("PENDING");
     });
-
-    expect(evalExecutions).toHaveLength(1);
-    expect(evalExecutions[0].jobInputTraceId).toBe(traceId1);
-    expect(evalExecutions[0].status).toBe("PENDING");
   });
 });

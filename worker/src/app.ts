@@ -9,6 +9,7 @@ import MessageResponse from "./interfaces/MessageResponse";
 require("dotenv").config();
 
 import {
+  evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
@@ -72,6 +73,16 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.TraceUpsert,
     evalJobTraceCreatorQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.CreateEvalQueue,
+    evalJobCreatorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
     },

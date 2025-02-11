@@ -21,6 +21,7 @@ import {
   TraceQueueEventType,
   StorageService,
   StorageServiceFactory,
+  CreateEvalQueueEventType,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -67,7 +68,10 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export const createEvalJobs = async ({
   event,
 }: {
-  event: TraceQueueEventType | DatasetRunItemUpsertEventType;
+  event:
+    | TraceQueueEventType
+    | DatasetRunItemUpsertEventType
+    | CreateEvalQueueEventType;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
   const configs = await kyselyPrisma.$kysely
@@ -92,14 +96,23 @@ export const createEvalJobs = async ({
       continue;
     }
 
-    logger.debug("Creating eval job for config", config.id);
+    if ("configId" in event && event.configId !== config.id) {
+      logger.debug(
+        `Skipping config ${config.id} because it does not match the event configId ${event.configId}`,
+      );
+      continue;
+    }
+
+    logger.debug(
+      `Creating eval job for config ${config.id} and trace ${event.traceId}`,
+    );
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     // Check whether the trace already exists in the database.
     const traceExists = await checkTraceExists(
       event.projectId,
       event.traceId,
-      new Date(),
+      "timestamp" in event ? new Date(event.timestamp) : new Date(),
       config.target_object === "trace" ? validatedFilter : [],
     );
 

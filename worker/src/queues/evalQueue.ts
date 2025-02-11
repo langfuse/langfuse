@@ -45,6 +45,22 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   }
 };
 
+export const evalJobCreatorQueueProcessor = async (
+  job: Job<TQueueJobTypes[QueueName.CreateEvalQueue]>,
+) => {
+  try {
+    await createEvalJobs({ event: job.data.payload });
+    return true;
+  } catch (e) {
+    logger.error(
+      `Failed job Evaluation for dataset item: ${JSON.stringify(job.data.payload)}`,
+      e,
+    );
+    traceException(e);
+    throw e;
+  }
+};
+
 export const evalJobExecutorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>,
 ) => {

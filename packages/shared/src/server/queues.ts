@@ -93,6 +93,16 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   ],
 );
 
+export const CreateEvalQueueEventSchema = z.object({
+  projectId: z.string(),
+  traceId: z.string(),
+  timestamp: z.date(),
+  configId: z.string(),
+});
+
+export type CreateEvalQueueEventType = z.infer<
+  typeof CreateEvalQueueEventSchema
+>;
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
@@ -133,6 +143,7 @@ export enum QueueName {
   DataRetentionQueue = "data-retention-queue",
   DataRetentionProcessingQueue = "data-retention-processing-queue",
   BatchActionQueue = "batch-action-queue",
+  CreateEvalQueue = "create-eval-queue",
 }
 
 export enum QueueJobs {
@@ -153,6 +164,7 @@ export enum QueueJobs {
   DataRetentionJob = "data-retention-job",
   DataRetentionProcessingJob = "data-retention-processing-job",
   BatchActionProcessingJob = "batch-action-processing-job",
+  CreateEvalJob = "create-eval-job",
 }
 
 export type TQueueJobTypes = {
@@ -227,5 +239,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: BatchActionProcessingEventType;
     name: QueueJobs.BatchActionProcessingJob;
+  };
+  [QueueName.CreateEvalQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: CreateEvalQueueEventType;
+    name: QueueJobs.CreateEvalJob;
   };
 };
