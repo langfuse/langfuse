@@ -134,6 +134,22 @@ describe("Traces table API test", () => {
     },
     {
       traceInput: {},
+      observationInput: [
+        { usage_details: { total: 100 } },
+        { usage_details: { total: 200 } },
+      ],
+      filterstate: [
+        {
+          column: "totalTokens",
+          operator: ">" as const,
+          value: 3456789,
+          type: "number" as const,
+        },
+      ],
+      expected: [],
+    },
+    {
+      traceInput: {},
       observationInput: [],
       filterstate: [
         {
