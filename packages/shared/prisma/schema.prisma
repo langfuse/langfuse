@@ -122,7 +122,6 @@ model Project {
   observations        Observation[]
   apiKeys             ApiKey[]
   dataset             Dataset[]
-  RawEvents           Events[]
   invitations         MembershipInvitation[]
   sessions            TraceSession[]
   Prompt              Prompt[]
@@ -141,7 +140,6 @@ model Project {
   TraceMedia          TraceMedia[]
   Media               Media[]
   ObservationMedia    ObservationMedia[]
-  EventLog            EventLog[]
 
   @@index([orgId])
   @@map("projects")
@@ -690,44 +688,6 @@ model DatasetRunItems {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_run_items")
-}
-
-model Events {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-  projectId String   @map("project_id")
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  data      Json
-  headers   Json     @default("{}")
-  url       String?
-  method    String?
-
-  @@index(projectId)
-  @@map("events")
-}
-
-model EventLog {
-  id String @id @default(cuid())
-
-  bucketName String  @map("bucket_name")
-  bucketPath String  @map("bucket_path")
-  projectId  String  @map("project_id")
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  entityType String  @map("entity_type")
-  entityId   String  @map("entity_id")
-  eventId    String  @map("event_id")
-
-  // traceId is only optional, because we cannot guarantee its presence for observations.
-  // We use it to support deletions on traces as we cannot cascade it down to scores and observations otherwise.
-  // We expect a traceId to be present in most cases.
-  traceId String? @map("trace_id")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  @@index([projectId, entityType, entityId])
-  @@map("event_log")
 }
 
 model Comment {

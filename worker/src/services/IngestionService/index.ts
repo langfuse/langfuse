@@ -895,13 +895,22 @@ export class IngestionService {
 
         if (result.length === 0) return null;
 
-        return table === TableName.Traces
-          ? convertTraceReadToInsert(recordParser[table].parse(result[0]))
-          : table === TableName.Scores
-            ? convertScoreReadToInsert(recordParser[table].parse(result[0]))
-            : convertObservationReadToInsert(
-                recordParser[table].parse(result[0]),
-              );
+        switch (table) {
+          case TableName.Traces:
+            return convertTraceReadToInsert(
+              recordParser[table].parse(result[0]),
+            );
+          case TableName.Scores:
+            return convertScoreReadToInsert(
+              recordParser[table].parse(result[0]),
+            );
+          case TableName.Observations:
+            return convertObservationReadToInsert(
+              recordParser[table].parse(result[0]),
+            );
+          default:
+            throw new Error(`Unsupported table name: ${table}`);
+        }
       },
     );
   }
