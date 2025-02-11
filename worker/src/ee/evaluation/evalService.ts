@@ -19,7 +19,8 @@ import {
   getObservationForTraceIdByName,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
-  uploadEventToS3,
+  StorageService,
+  StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -43,6 +44,23 @@ import {
   compileHandlebarString,
 } from "../../features/utilities";
 import { JSONPath } from "jsonpath-plus";
+import { env } from "../../env";
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -422,26 +440,20 @@ export const evaluate = async ({
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
     const eventId = randomUUID();
-    await uploadEventToS3(
+    const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${eventId}.json`;
+    await getS3StorageServiceClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    ).uploadJson(bucketPath, [
       {
-        projectId: event.projectId,
-        entityType: "score",
-        entityId: scoreId,
-        eventId,
-        traceId: job.job_input_trace_id,
-      },
-      [
-        {
-          id: eventId,
-          timestamp: new Date().toISOString(),
-          type: eventTypes.SCORE_CREATE,
-          body: {
-            ...baseScore,
-            dataType: "NUMERIC",
-          },
+        id: eventId,
+        timestamp: new Date().toISOString(),
+        type: eventTypes.SCORE_CREATE,
+        body: {
+          ...baseScore,
+          dataType: "NUMERIC",
         },
-      ],
-    );
+      },
+    ]);
 
     if (redis) {
       const queue = IngestionQueue.getInstance();
