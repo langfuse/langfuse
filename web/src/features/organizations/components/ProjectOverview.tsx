@@ -119,14 +119,14 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
         </Button>
       )}
       {createProjectAccess ? (
-        <Button asChild variant="secondary">
+        <Button asChild>
           <Link href={createProjectRoute(orgId)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             New project
           </Link>
         </Button>
       ) : (
-        <Button variant="secondary" disabled>
+        <Button disabled>
           <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
           New project
         </Button>
@@ -169,7 +169,7 @@ const SingleOrganizationPage = ({
     <SettingsContainer
       headerProps={{
         title: org?.name ?? "Organization",
-        actionButtonsLeft: <OrganizationActionButtons orgId={orgId} />,
+        actionButtonsRight: <OrganizationActionButtons orgId={orgId} />,
       }}
     >
       <OrganizationProjectTiles org={org} search={search} />
