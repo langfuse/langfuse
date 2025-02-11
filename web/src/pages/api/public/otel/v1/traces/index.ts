@@ -37,7 +37,7 @@ export default withMiddlewares({
       }
 
       let resourceSpans: any;
-      switch (req.headers["content-type"]) {
+      switch (req.headers["content-type"]?.toLowerCase()) {
         case "application/x-protobuf": {
           try {
             const parsed =
