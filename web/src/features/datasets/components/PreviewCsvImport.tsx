@@ -25,7 +25,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 const MIN_CHUNK_SIZE = 50;
 const DELAY_BETWEEN_CHUNKS = 100; // milliseconds
-const MAX_PAYLOAD_SIZE = 1 * 1024 * 1024; // 1MB in bytes
+
+// Max payload size is 1MB, but we must account for any trpc wrapper data and context
+const MAX_PAYLOAD_SIZE = 500 * 1024; // 500KB in bytes
 
 function getOptimalChunkSize(items: any[], startSize: number): number {
   const getPayloadSize = (size: number) =>
@@ -37,7 +39,7 @@ function getOptimalChunkSize(items: any[], startSize: number): number {
       }),
     ).length;
 
-  // Binary search for largest chunk size under 1MB
+  // Binary search for largest chunk size under MAX_PAYLOAD_SIZE
   let low = MIN_CHUNK_SIZE;
   let high = startSize;
   let best = MIN_CHUNK_SIZE;
