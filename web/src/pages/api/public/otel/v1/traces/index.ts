@@ -37,18 +37,38 @@ export default withMiddlewares({
       }
 
       let resourceSpans: any;
-      try {
-        const parsed =
-          $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
-            body,
-          );
-        resourceSpans =
-          $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
-            parsed,
-          ).resourceSpans;
-      } catch (e) {
-        logger.error(`Failed to parse OTel Trace`, e);
-        return res.status(400).json({ error: "Failed to parse OTel Trace" });
+      switch (req.headers["content-type"]?.toLowerCase()) {
+        case "application/x-protobuf": {
+          try {
+            const parsed =
+              $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
+                body,
+              );
+            resourceSpans =
+              $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
+                parsed,
+              ).resourceSpans;
+          } catch (e) {
+            logger.error(`Failed to parse OTel Protobuf`, e);
+            return res
+              .status(400)
+              .json({ error: "Failed to parse OTel Protobuf Trace" });
+          }
+          break;
+        }
+        case "application/json": {
+          try {
+            resourceSpans = JSON.parse(body.toString()).resourceSpans;
+          } catch (e) {
+            logger.error(`Failed to parse OTel JSON`, e);
+            return res
+              .status(400)
+              .json({ error: "Failed to parse OTel JSON Trace" });
+          }
+          break;
+        }
+        default:
+          return res.status(400).json({ error: "Unsupported content type" });
       }
 
       const events: IngestionEventType[] = resourceSpans.flatMap(
