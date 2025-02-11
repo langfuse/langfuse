@@ -5,11 +5,15 @@ import { ObservationLevel } from "@prisma/client";
 const convertNanoTimestampToISO = (
   timestamp:
     | number
+    | string
     | {
         high: number;
         low: number;
       },
 ) => {
+  if (typeof timestamp === "string") {
+    return new Date(parseInt(timestamp, 10) / 1e6).toISOString();
+  }
   if (typeof timestamp === "number") {
     return new Date(timestamp / 1e6).toISOString();
   }
@@ -291,6 +295,7 @@ export const convertOtelSpanToIngestionEvent = (
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
+          name: span.name,
           metadata: {
             attributes,
             resourceAttributes,
@@ -299,6 +304,9 @@ export const convertOtelSpanToIngestionEvent = (
           version: resourceAttributes?.["service.version"] ?? null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
+
+          // Input and Output
+          ...extractInputAndOutput(span?.events ?? [], attributes),
         };
         events.push({
           id: randomUUID(),
@@ -343,11 +351,10 @@ export const convertOtelSpanToIngestionEvent = (
         ...extractInputAndOutput(span?.events ?? [], attributes),
       };
 
-      // If the span has any gen_ai or llm attributes, we consider it a generation
-      const isGeneration = Object.keys(attributes).some(
-        (key) => key.startsWith("gen_ai") || key.startsWith("llm"),
-      );
-
+      // If the span has a model property, we consider it a generation.
+      // Just checking for llm.* or gen_ai.* attributes leads to overreporting and wrong
+      // aggregations for costs.
+      const isGeneration = Boolean(observation.model);
       events.push({
         id: randomUUID(),
         type: isGeneration ? "generation-create" : "span-create",

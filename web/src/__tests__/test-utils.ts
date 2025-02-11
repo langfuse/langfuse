@@ -26,6 +26,10 @@ export const pruneDatabase = async () => {
   await prisma.comment.deleteMany();
   await prisma.media.deleteMany();
 
+  await truncateClickhouseTables();
+};
+
+export const truncateClickhouseTables = async () => {
   if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
     throw new Error("You cannot prune clickhouse unless running on localhost.");
   }
