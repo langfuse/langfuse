@@ -1,5 +1,6 @@
 import {
   defaultClickhouseClient,
+  EventLogRecordInsertType,
   getCurrentSpan,
   ObservationRecordInsertType,
   recordGauge,
@@ -34,6 +35,7 @@ export class ClickhouseWriter {
       [TableName.Traces]: [],
       [TableName.Scores]: [],
       [TableName.Observations]: [],
+      [TableName.EventLog]: [],
     };
 
     this.start();
@@ -89,6 +91,7 @@ export class ClickhouseWriter {
           this.flush(TableName.Traces, fullQueue),
           this.flush(TableName.Scores, fullQueue),
           this.flush(TableName.Observations, fullQueue),
+          this.flush(TableName.EventLog, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -219,6 +222,7 @@ export enum TableName {
   Traces = "traces",
   Scores = "scores",
   Observations = "observations",
+  EventLog = "event_log",
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -227,7 +231,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
     ? ObservationRecordInsertType
     : T extends TableName.Traces
       ? TraceRecordInsertType
-      : never;
+      : T extends TableName.EventLog
+        ? EventLogRecordInsertType
+        : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];

@@ -1,26 +1,27 @@
 import { Job, Processor } from "bullmq";
 import {
-  traceException,
-  QueueName,
-  TQueueJobTypes,
-  logger,
-  IngestionEventType,
-  StorageServiceFactory,
-  StorageService,
-  redis,
   clickhouseClient,
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
+  IngestionEventType,
+  logger,
+  QueueName,
   recordDistribution,
   recordIncrement,
+  redis,
+  StorageService,
+  StorageServiceFactory,
+  TQueueJobTypes,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
-import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
+import { randomUUID } from "crypto";
 
 let s3StorageServiceClient: StorageService;
 
@@ -67,6 +68,23 @@ export const ingestionQueueProcessorBuilder = (
           job.data.payload.data.fileKey ?? "",
         );
       }
+
+      // We write the new file into the ClickHouse event log to keep track for retention and deletions
+      const clickhouseWriter = ClickhouseWriter.getInstance();
+      const fileName = job.data.payload.data.fileKey
+        ? `${job.data.payload.data.fileKey}.json`
+        : "";
+      clickhouseWriter.addToQueue(TableName.EventLog, {
+        id: randomUUID(),
+        project_id: job.data.payload.authCheck.scope.projectId,
+        entity_type: getClickhouseEntityType(job.data.payload.data.type),
+        entity_id: job.data.payload.data.eventBodyId,
+        event_id: job.data.payload.data.fileKey ?? null,
+        bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        bucket_path: `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${getClickhouseEntityType(job.data.payload.data.type)}/${job.data.payload.data.eventBodyId}/${fileName}`,
+        created_at: new Date().getTime(),
+        updated_at: new Date().getTime(),
+      });
 
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
       if (
@@ -196,7 +214,7 @@ export const ingestionQueueProcessorBuilder = (
       await new IngestionService(
         redis,
         prisma,
-        ClickhouseWriter.getInstance(),
+        clickhouseWriter,
         clickhouseClient(),
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
