@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
+  getEventLogByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
@@ -219,13 +220,14 @@ describe("/api/public/ingestion API Endpoint", () => {
   });
 
   // Disabled until eventLog becomes the default behaviour.
-  it.skip("should create a log entry for the S3 file", async () => {
+  it("should create a log entry for the S3 file", async () => {
     const traceId = v4();
+    const eventId = v4();
 
     const response = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
-          id: v4(),
+          id: eventId,
           type: "trace-create",
           timestamp: new Date().toISOString(),
           body: {
@@ -241,13 +243,17 @@ describe("/api/public/ingestion API Endpoint", () => {
     });
     expect(response.status).toBe(207);
 
-    const logs = await prisma.eventLog.findMany({
-      where: {
-        entityType: "trace",
-        entityId: traceId,
-      },
+    await waitForExpect(async () => {
+      const logs = await getEventLogByProjectAndEntityId(
+        projectId,
+        "trace",
+        traceId,
+      );
+      expect(logs.length).toBeGreaterThan(0);
+      expect(logs[0].bucket_path).toBe(
+        `events/${projectId}/trace/${traceId}/${eventId}.json`,
+      );
     });
-    expect(logs.length).toBe(1);
   });
 
   it("#4900: should clear score comment on update with `null`", async () => {
