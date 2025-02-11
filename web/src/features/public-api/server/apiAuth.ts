@@ -8,6 +8,7 @@ import {
   CachedApiKey,
   OrgEnrichedApiKey,
   logger,
+  instrumentAsync,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -101,142 +102,145 @@ export class ApiAuthService {
   async verifyAuthHeaderAndReturnScope(
     authHeader: string | undefined,
   ): Promise<AuthHeaderVerificationResult> {
-    if (!authHeader) {
-      logger.error("No authorization header");
-      return {
-        validKey: false,
-        error: "No authorization header",
-      };
-    }
+    return instrumentAsync({ name: "api-auth-verify" }, async () => {
+      if (!authHeader) {
+        logger.error("No authorization header");
+        return {
+          validKey: false,
+          error: "No authorization header",
+        };
+      }
 
-    try {
-      // Basic auth, full scope, needs secret key and public key
-      if (authHeader.startsWith("Basic ")) {
-        const { username: publicKey, password: secretKey } =
-          this.extractBasicAuthCredentials(authHeader);
+      try {
+        // Basic auth, full scope, needs secret key and public key
+        if (authHeader.startsWith("Basic ")) {
+          const { username: publicKey, password: secretKey } =
+            this.extractBasicAuthCredentials(authHeader);
 
-        const salt = env.SALT;
-        const hashFromProvidedKey = createShaHash(secretKey, salt);
+          const salt = env.SALT;
+          const hashFromProvidedKey = createShaHash(secretKey, salt);
 
-        // fetches by redis if available, fallback to postgres
-        // api key from redis does
-        const apiKey = await this.fetchApiKeyAndAddToRedis(hashFromProvidedKey);
+          // fetches by redis if available, fallback to postgres
+          // api key from redis does
+          const apiKey =
+            await this.fetchApiKeyAndAddToRedis(hashFromProvidedKey);
 
-        let finalApiKey = apiKey;
+          let finalApiKey = apiKey;
 
-        if (!apiKey || !apiKey.fastHashedSecretKey) {
-          const slowKey = await this.prisma.apiKey.findUnique({
-            where: { publicKey },
-            include: { project: { include: { organization: true } } },
-          });
+          if (!apiKey || !apiKey.fastHashedSecretKey) {
+            const slowKey = await this.prisma.apiKey.findUnique({
+              where: { publicKey },
+              include: { project: { include: { organization: true } } },
+            });
 
-          if (!slowKey) {
-            logger.error("No key found for public key", publicKey);
-            if (this.redis) {
-              logger.info(
-                `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
-              );
-              await this.addApiKeyToRedis(
-                hashFromProvidedKey,
-                API_KEY_NON_EXISTENT,
-              );
+            if (!slowKey) {
+              logger.error("No key found for public key", publicKey);
+              if (this.redis) {
+                logger.info(
+                  `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
+                );
+                await this.addApiKeyToRedis(
+                  hashFromProvidedKey,
+                  API_KEY_NON_EXISTENT,
+                );
+              }
+              throw new Error("Invalid credentials");
             }
-            throw new Error("Invalid credentials");
-          }
 
-          const isValid = await verifySecretKey(
-            secretKey,
-            slowKey.hashedSecretKey,
-          );
+            const isValid = await verifySecretKey(
+              secretKey,
+              slowKey.hashedSecretKey,
+            );
 
-          if (!isValid) {
-            logger.debug(`Old key is invalid: ${publicKey}`);
-            throw new Error("Invalid credentials");
-          }
+            if (!isValid) {
+              logger.debug(`Old key is invalid: ${publicKey}`);
+              throw new Error("Invalid credentials");
+            }
 
-          const shaKey = createShaHash(secretKey, salt);
+            const shaKey = createShaHash(secretKey, salt);
 
-          await this.prisma.apiKey.update({
-            where: { publicKey },
-            data: {
+            await this.prisma.apiKey.update({
+              where: { publicKey },
+              data: {
+                fastHashedSecretKey: shaKey,
+              },
+            });
+            finalApiKey = convertToRedisRepresentation({
+              ...slowKey,
               fastHashedSecretKey: shaKey,
+            });
+          }
+
+          if (!finalApiKey) {
+            logger.info("No project id found for key", publicKey);
+            throw new Error("Invalid credentials");
+          }
+
+          addUserToSpan({ projectId: finalApiKey.projectId });
+
+          const plan = finalApiKey.plan;
+
+          if (!isPlan(plan)) {
+            logger.error("Invalid plan type for key", finalApiKey.plan);
+            throw new Error("Invalid credentials");
+          }
+
+          return {
+            validKey: true,
+            scope: {
+              projectId: finalApiKey.projectId,
+              accessLevel: "all",
+              orgId: finalApiKey.orgId,
+              plan: plan,
+              rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
             },
-          });
-          finalApiKey = convertToRedisRepresentation({
-            ...slowKey,
-            fastHashedSecretKey: shaKey,
-          });
+          };
         }
+        // Bearer auth, limited scope, only needs public key
+        if (authHeader.startsWith("Bearer ")) {
+          const publicKey = authHeader.replace("Bearer ", "");
 
-        if (!finalApiKey) {
-          logger.info("No project id found for key", publicKey);
-          throw new Error("Invalid credentials");
+          const dbKey = await this.findDbKeyOrThrow(publicKey);
+
+          addUserToSpan({ projectId: dbKey.projectId });
+
+          const cloudConfig = dbKey.project.organization.cloudConfig
+            ? CloudConfigSchema.parse(dbKey.project.organization.cloudConfig)
+            : undefined;
+
+          return {
+            validKey: true,
+            scope: {
+              projectId: dbKey.projectId,
+              accessLevel: "scores",
+              orgId: dbKey.project.organization.id,
+              plan: getOrganizationPlanServerSide(cloudConfig),
+              rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
+            },
+          };
         }
+      } catch (error: unknown) {
+        logger.error(
+          `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
+          error,
+        );
 
-        addUserToSpan({ projectId: finalApiKey.projectId });
-
-        const plan = finalApiKey.plan;
-
-        if (!isPlan(plan)) {
-          logger.error("Invalid plan type for key", finalApiKey.plan);
-          throw new Error("Invalid credentials");
+        if (isPrismaException(error)) {
+          throw error;
         }
 
         return {
-          validKey: true,
-          scope: {
-            projectId: finalApiKey.projectId,
-            accessLevel: "all",
-            orgId: finalApiKey.orgId,
-            plan: plan,
-            rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
-          },
+          validKey: false,
+          error:
+            (error instanceof Error ? error.message : "Authorization error") +
+            ". Confirm that you've configured the correct host.",
         };
       }
-      // Bearer auth, limited scope, only needs public key
-      if (authHeader.startsWith("Bearer ")) {
-        const publicKey = authHeader.replace("Bearer ", "");
-
-        const dbKey = await this.findDbKeyOrThrow(publicKey);
-
-        addUserToSpan({ projectId: dbKey.projectId });
-
-        const cloudConfig = dbKey.project.organization.cloudConfig
-          ? CloudConfigSchema.parse(dbKey.project.organization.cloudConfig)
-          : undefined;
-
-        return {
-          validKey: true,
-          scope: {
-            projectId: dbKey.projectId,
-            accessLevel: "scores",
-            orgId: dbKey.project.organization.id,
-            plan: getOrganizationPlanServerSide(cloudConfig),
-            rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-          },
-        };
-      }
-    } catch (error: unknown) {
-      logger.error(
-        `Error verifying auth header: ${error instanceof Error ? error.message : null}`,
-        error,
-      );
-
-      if (isPrismaException(error)) {
-        throw error;
-      }
-
       return {
         validKey: false,
-        error:
-          (error instanceof Error ? error.message : "Authorization error") +
-          ". Confirm that you've configured the correct host.",
+        error: "Invalid authorization header",
       };
-    }
-    return {
-      validKey: false,
-      error: "Invalid authorization header",
-    };
+    });
   }
 
   extractBasicAuthCredentials(basicAuthHeader: string): {

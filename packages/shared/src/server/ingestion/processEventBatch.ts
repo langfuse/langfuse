@@ -22,7 +22,26 @@ import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { redis } from "../redis/redis";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
-import { uploadEventToS3 } from "../utils/eventLog";
+import {
+  StorageService,
+  StorageServiceFactory,
+} from "../services/StorageService";
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 export type TokenCountDelegate = (p: {
   model: Model;
@@ -174,23 +193,10 @@ export const processEventBatch = async (
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        return uploadEventToS3(
-          {
-            projectId: authCheck.scope.projectId,
-            entityType: getClickhouseEntityType(type),
-            entityId: eventBodyId,
-            eventId: key,
-            traceId:
-              data // Use the first truthy traceId for the event log.
-                .flatMap((event) =>
-                  "traceId" in event.body && event.body.traceId
-                    ? [event.body.traceId]
-                    : [],
-                )
-                .shift() ?? null,
-          },
-          data,
-        );
+        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
+        return getS3StorageServiceClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        ).uploadJson(bucketPath, data);
       }),
     );
     results.forEach((result) => {
