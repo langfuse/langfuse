@@ -269,7 +269,7 @@ export const getTracesGroupedByName = async (
       select 
         name as name,
         count(*) as count
-      from traces t
+      from traces t FINAL
       WHERE t.project_id = {projectId: String}
       AND t.name IS NOT NULL
       ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
