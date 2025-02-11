@@ -19,17 +19,14 @@ export const numberFormatter = (
   }).format(number ?? 0);
 };
 
-export const latencyFormatter = (
-  number?: number | bigint,
-  fractionDigits?: number,
-) => {
+export const latencyFormatter = (number?: number | bigint) => {
   return Intl.NumberFormat("en-US", {
     style: "unit",
     unit: "second",
     unitDisplay: "narrow",
     notation: "compact",
-    minimumFractionDigits: fractionDigits ?? 2,
-    maximumFractionDigits: fractionDigits ?? 2,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(number ?? 0);
 };
 
