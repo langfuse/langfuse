@@ -60,7 +60,7 @@ export const AnnotationQueuesItem = ({
             href: `/project/${projectId}/annotation-queues/${annotationQueueId}`,
           },
         ],
-        actionButtonsRight: [
+        actionButtonsRight: (
           <Tabs
             value={view}
             onValueChange={(view: string) => {
@@ -77,8 +77,8 @@ export const AnnotationQueuesItem = ({
                 Detailed
               </TabsTrigger>
             </TabsList>
-          </Tabs>,
-        ],
+          </Tabs>
+        ),
       }}
     >
       <AnnotationQueueItemPage

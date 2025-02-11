@@ -31,7 +31,7 @@ import {
 } from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import SettingsContainer from "@/src/components/layouts/settings-container";
-import { User } from "next-auth";
+import { type User } from "next-auth";
 
 const OrganizationProjectTiles = ({
   org,

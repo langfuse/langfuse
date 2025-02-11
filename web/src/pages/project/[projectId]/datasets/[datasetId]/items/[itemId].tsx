@@ -51,7 +51,7 @@ export default function Dataset() {
             href: `/project/${projectId}/datasets/${datasetId}/items`,
           },
         ],
-        actionButtonsLeft: [
+        actionButtonsLeft: (
           <>
             {item.data?.sourceTraceId && (
               <Button variant="outline" asChild>
@@ -63,17 +63,17 @@ export default function Dataset() {
                 </Link>
               </Button>
             )}
-          </>,
-        ],
-        actionButtonsRight: [
+          </>
+        ),
+        actionButtonsRight: (
           <DetailPageNav
             currentId={itemId}
             path={(entry) =>
               `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
             }
             listKey="datasetItems"
-          />,
-        ],
+          />
+        ),
       }}
     >
       <ResizablePanelGroup direction="vertical">

@@ -59,14 +59,14 @@ export default function PosthogIntegrationSettings() {
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
-        actionButtonsLeft: [<>{status && <StatusBadge type={status} />}</>],
-        actionButtonsRight: [
+        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/docs/analytics/posthog">
               Integration Docs ↗
             </Link>
-          </Button>,
-        ],
+          </Button>
+        ),
       }}
     >
       <p className="mb-4 text-sm text-primary">
