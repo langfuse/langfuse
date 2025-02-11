@@ -253,16 +253,6 @@ export type EvalTemplate = {
     vars: Generated<string[]>;
     output_schema: unknown;
 };
-export type Events = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    project_id: string;
-    data: unknown;
-    headers: Generated<unknown>;
-    url: string | null;
-    method: string | null;
-};
 export type JobConfiguration = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -634,7 +624,6 @@ export type DB = {
     dataset_runs: DatasetRuns;
     datasets: Dataset;
     eval_templates: EvalTemplate;
-    events: Events;
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
