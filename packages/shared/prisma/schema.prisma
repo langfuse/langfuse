@@ -122,7 +122,6 @@ model Project {
   observations        Observation[]
   apiKeys             ApiKey[]
   dataset             Dataset[]
-  RawEvents           Events[]
   invitations         MembershipInvitation[]
   sessions            TraceSession[]
   Prompt              Prompt[]
@@ -690,21 +689,6 @@ model DatasetRunItems {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_run_items")
-}
-
-model Events {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-  projectId String   @map("project_id")
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  data      Json
-  headers   Json     @default("{}")
-  url       String?
-  method    String?
-
-  @@index(projectId)
-  @@map("events")
 }
 
 model EventLog {

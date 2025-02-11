@@ -265,16 +265,6 @@ export type EventLog = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
-export type Events = {
-    id: string;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    project_id: string;
-    data: unknown;
-    headers: Generated<unknown>;
-    url: string | null;
-    method: string | null;
-};
 export type JobConfiguration = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -647,7 +637,6 @@ export type DB = {
     datasets: Dataset;
     eval_templates: EvalTemplate;
     event_log: EventLog;
-    events: Events;
     job_configurations: JobConfiguration;
     job_executions: JobExecution;
     llm_api_keys: LlmApiKeys;
