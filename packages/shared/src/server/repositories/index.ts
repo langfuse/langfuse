@@ -9,4 +9,3 @@ export * from "./observations_converters";
 export * from "./clickhouse";
 export * from "./constants";
 export * from "./trace-sessions";
-export * from "./eventLog";
