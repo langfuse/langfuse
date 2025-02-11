@@ -10,7 +10,7 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import PageContainer from "@/src/components/layouts/page-container";
+import SettingsContainer from "@/src/components/layouts/settings-container";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
@@ -21,7 +21,7 @@ const OrgSettingsPage = () => {
   if (!organization) return null;
 
   return (
-    <PageContainer
+    <SettingsContainer
       headerProps={{
         title: "Organization Settings",
       }}
@@ -83,7 +83,7 @@ const OrgSettingsPage = () => {
           },
         ]}
       />
-    </PageContainer>
+    </SettingsContainer>
   );
 };
 

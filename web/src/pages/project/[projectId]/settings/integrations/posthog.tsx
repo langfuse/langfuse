@@ -69,49 +69,47 @@ export default function PosthogIntegrationSettings() {
         ],
       }}
     >
-      <div className="lg:container">
-        <p className="mb-4 text-sm text-primary">
-          We have teamed up with{" "}
-          <Link href="https://posthog.com" className="underline">
-            PostHog
-          </Link>{" "}
-          (OSS product analytics) to make Langfuse events/metrics available in
-          your PostHog dashboards. Upon activation, all historical data from
-          your project will be synced. After the initial sync, new data is
-          automatically synced every hour to keep your PostHog dashboards up to
-          date.
+      <p className="mb-4 text-sm text-primary">
+        We have teamed up with{" "}
+        <Link href="https://posthog.com" className="underline">
+          PostHog
+        </Link>{" "}
+        (OSS product analytics) to make Langfuse events/metrics available in
+        your PostHog dashboards. Upon activation, all historical data from your
+        project will be synced. After the initial sync, new data is
+        automatically synced every hour to keep your PostHog dashboards up to
+        date.
+      </p>
+      {!hasAccess && (
+        <p className="text-sm">
+          You current role does not grant you access to these settings, please
+          reach out to your project admin or owner.
         </p>
-        {!hasAccess && (
-          <p className="text-sm">
-            You current role does not grant you access to these settings, please
-            reach out to your project admin or owner.
+      )}
+      {hasAccess && (
+        <>
+          <Header title="Configuration" />
+          <Card className="p-3">
+            <PostHogLogo className="mb-4 w-36 text-foreground" />
+            <PostHogIntegrationSettings
+              state={state.data}
+              projectId={projectId}
+              isLoading={state.isLoading}
+            />
+          </Card>
+        </>
+      )}
+      {state.data?.enabled && (
+        <>
+          <Header title="Status" className="mt-8" />
+          <p className="text-sm text-primary">
+            Data synced until:{" "}
+            {state.data?.lastSyncAt
+              ? new Date(state.data.lastSyncAt).toLocaleString()
+              : "Never (pending)"}
           </p>
-        )}
-        {hasAccess && (
-          <>
-            <Header title="Configuration" />
-            <Card className="p-3">
-              <PostHogLogo className="mb-4 w-36 text-foreground" />
-              <PostHogIntegrationSettings
-                state={state.data}
-                projectId={projectId}
-                isLoading={state.isLoading}
-              />
-            </Card>
-          </>
-        )}
-        {state.data?.enabled && (
-          <>
-            <Header title="Status" className="mt-8" />
-            <p className="text-sm text-primary">
-              Data synced until:{" "}
-              {state.data?.lastSyncAt
-                ? new Date(state.data.lastSyncAt).toLocaleString()
-                : "Never (pending)"}
-            </p>
-          </>
-        )}
-      </div>
+        </>
+      )}
     </SettingsContainer>
   );
 }

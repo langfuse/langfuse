@@ -17,7 +17,7 @@ const SettingsContainer = ({
       <header className="sticky top-0 z-50 w-full">
         <PageHeader {...headerProps} container />
       </header>
-      <main className="relative flex min-h-svh flex-1 flex-col p-3">
+      <main className="relative mt-3 flex min-h-svh flex-1 flex-col lg:container">
         {children}
       </main>
     </div>
