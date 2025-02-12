@@ -50,9 +50,6 @@ const EnvSchema = z.object({
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_EVENT_UPLOAD_POSTGRES_LOG_ENABLED: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
     required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
   }),

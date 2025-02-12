@@ -579,6 +579,18 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: 4096,
         },
       ],
+      [
+        "#5457: should map traceloop.entity.input to input",
+        {
+          entity: "trace",
+          otelAttributeKey: "traceloop.entity.input",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
     ])(
       "Attributes: %s",
       (
