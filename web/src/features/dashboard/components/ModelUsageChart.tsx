@@ -214,7 +214,6 @@ export const ModelUsageChart = ({
           currentModels,
         )
       : [];
-  console.log("costByModel", costByModel.length);
 
   const totalCost = usageData?.reduce(
     (acc, curr) =>
