@@ -112,7 +112,7 @@ export const ResizableImage = ({
                 height={0}
                 title={src}
                 className="h-full w-full rounded border object-contain"
-                onError={(error) => {
+                onError={() => {
                   setHasFetchError(true);
                   // captureException(error);
                 }}
