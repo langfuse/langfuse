@@ -1,29 +1,10 @@
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { LinkIcon, LockIcon, LockOpenIcon } from "lucide-react";
+import { Globe, Share2, CheckIcon } from "lucide-react";
 import { useState } from "react";
-
-export const CopyUrlButton = () => {
-  const [isCopied, setIsCopied] = useState(false);
-
-  const copyUrl = () => {
-    setIsCopied(true);
-    void navigator.clipboard.writeText(window.location.href);
-    setTimeout(() => setIsCopied(false), 1500);
-  };
-
-  return (
-    <div
-      className="flex cursor-pointer items-center gap-1 text-sm text-dark-green"
-      onClick={() => copyUrl()}
-    >
-      {isCopied && "Link copied ..."}
-      <LinkIcon className="h-4 w-4" />
-    </div>
-  );
-};
 
 export const PublishTraceSwitch = (props: {
   traceId: string;
@@ -98,27 +79,52 @@ const Base = (props: {
   isPublic: boolean;
   disabled?: boolean;
 }) => {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const copyUrl = () => {
+    setIsCopied(true);
+    void navigator.clipboard.writeText(window.location.href);
+    setTimeout(() => setIsCopied(false), 2500);
+  };
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-1">
       <div className="text-sm font-semibold">
         <Button
           id="publish-trace"
           variant="ghost"
           size="icon"
+          title={props.isPublic ? "Mark as private" : "Mark as public"}
           loading={props.isLoading}
           disabled={props.disabled}
           onClick={() => {
             if (props.isLoading) return;
+            if (!props.isPublic) copyUrl();
             props.onChange(!props.isPublic);
           }}
         >
           {props.isPublic ? (
-            <LockOpenIcon className="h-4 w-4" />
+            <Globe className="h-4 w-4" />
           ) : (
-            <LockIcon className="h-4 w-4" />
+            <Share2 className="h-4 w-4" />
           )}
         </Button>
       </div>
+      {props.isPublic && (
+        <div
+          className="flex cursor-pointer items-center gap-1"
+          onClick={() => copyUrl()}
+          title="Copy link"
+        >
+          <StatusBadge type="public" isLive={false} />
+        </div>
+      )}
+      {isCopied && (
+        <div className="flex items-center gap-1 text-xs">
+          <CheckIcon className="h-3 w-3" />
+          <span>Link copied</span>
+        </div>
+      )}
     </div>
   );
 };

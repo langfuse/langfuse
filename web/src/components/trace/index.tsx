@@ -13,10 +13,7 @@ import {
 } from "@/src/components/ui/select";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import {
-  CopyUrlButton,
-  PublishTraceSwitch,
-} from "@/src/components/publish-object-switch";
+import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
@@ -404,7 +401,6 @@ export function TracePage({
         ),
         actionButtonsRight: (
           <>
-            {trace.data.public && <CopyUrlButton />}
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {

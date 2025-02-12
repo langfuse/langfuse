@@ -1,9 +1,6 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
-import {
-  CopyUrlButton,
-  PublishSessionSwitch,
-} from "@/src/components/publish-object-switch";
+import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
@@ -122,7 +119,6 @@ export const SessionPage: React.FC<{
           />,
         ],
         actionButtonsRight: [
-          session.data?.public && <CopyUrlButton />,
           <DetailPageNav
             key="nav"
             currentId={encodeURIComponent(sessionId)}

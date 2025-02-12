@@ -87,7 +87,7 @@ export const DetailPageNav = (props: {
               }}
             >
               <ChevronUp className="h-4 w-4" />
-              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-white shadow-sm">
+              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
                 K
               </span>
             </Button>
@@ -119,7 +119,7 @@ export const DetailPageNav = (props: {
               }}
             >
               <ChevronDown className="h-4 w-4" />
-              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-white shadow-sm">
+              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
                 J
               </span>
             </Button>
