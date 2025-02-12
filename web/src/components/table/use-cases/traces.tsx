@@ -332,6 +332,8 @@ export default function TracesTable({
   };
 
   const tableActions: TableAction[] = [
+    // temporary: hide if no entitlement until we support trace deletion on cloud again
+    // https://github.com/orgs/langfuse/discussions/5313
     ...(hasTraceDeletionEntitlement
       ? [
           {
