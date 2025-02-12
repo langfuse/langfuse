@@ -36,12 +36,14 @@ const tableNameToTimeFilterColumn = {
   sessions: "createdAt",
   traces: "timestamp",
   generations: "startTime",
+  dataset_run_items: "createdAt",
 };
 
 const tableNameToTimeFilterColumnCh = {
   sessions: "createdAt",
   traces: "timestamp",
   generations: "startTime",
+  dataset_run_items: "createdAt",
 };
 
 const isGenerationTimestampFilter = (
@@ -325,8 +327,26 @@ export const getDatabaseReadStream = async ({
         exportLimit,
       );
     }
-    default:
-      throw new Error("Invalid table name: " + tableName);
+
+    case "dataset_run_items": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const items = await prisma.$queryRaw`
+            SELECT dri.*, d.name as dataset_name
+            FROM dataset_run_items dri JOIN dataset_items di ON dri.id = di.id
+            WHERE dri.projectId = ${projectId}
+            ORDER BY dri.createdAt DESC
+            LIMIT ${pageSize}
+            OFFSET ${offset}
+          `;
+          return new Promise((resolve) => {
+            resolve([] as unknown[]);
+          });
+        },
+        1000,
+        exportLimit,
+      );
+    }
   }
 };
 

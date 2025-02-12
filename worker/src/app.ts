@@ -9,7 +9,6 @@ import MessageResponse from "./interfaces/MessageResponse";
 require("dotenv").config();
 
 import {
-  evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,

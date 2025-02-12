@@ -16,6 +16,7 @@ import {
   JobConfigState,
   JobType,
   Prisma,
+  ApplyJobToSchema,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -102,7 +103,7 @@ const CreateEvalJobSchema = z.object({
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
-  applyToHistoricalTraces: z.boolean().optional(),
+  applyJobTo: ApplyJobToSchema,
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -112,6 +113,7 @@ const UpdateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.nativeEnum(EvaluatorStatus).optional(),
+  applyJobTo: ApplyJobToSchema.optional(),
 });
 
 export const evalRouter = createTRPCRouter({
@@ -505,11 +507,14 @@ export const evalRouter = createTRPCRouter({
             sampling: input.sampling,
             delay: input.delay,
             status: "ACTIVE",
+            applyJobTo: input.applyJobTo,
           },
         });
 
-        if (input.applyToHistoricalTraces) {
-          logger.info("Applying to historical traces");
+        if (input.applyJobTo.includes("existing")) {
+          logger.info(
+            `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
+          );
           const batchJobQueue = getQueue(QueueName.BatchActionQueue);
           if (!batchJobQueue) {
             throw new Error("Batch job queue not found");
@@ -518,13 +523,13 @@ export const evalRouter = createTRPCRouter({
             name: QueueJobs.BatchActionProcessingJob,
             timestamp: new Date(),
             id: uuidv4(),
-
             payload: {
               projectId: input.projectId,
               actionId: "eval-create",
               target: "traces",
               configId: job.id,
               cutoffCreatedAt: new Date(),
+              targetObject: input.target,
               query: {
                 where: input.filter ?? [],
                 orderBy: {
@@ -672,6 +677,22 @@ export const evalRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "evalJob:CUD",
       });
+
+      const existingJob = await ctx.prisma.jobConfiguration.findUnique({
+        where: {
+          id: input.evalConfigId,
+          projectId: input.projectId,
+        },
+      });
+
+      if (
+        existingJob?.applyJobTo.includes("existing") &&
+        !input.config.applyJobTo?.includes("existing")
+      ) {
+        throw new Error(
+          "The evaluator ran on existing traces already. This cannot be changed anymore.",
+        );
+      }
 
       await ctx.prisma.jobConfiguration.update({
         where: {

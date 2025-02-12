@@ -135,7 +135,7 @@ export const handleBatchActionJob = async (
   } else if (actionId === "eval-create") {
     // if a user wants to apply evals for historic traces or dataset runs, we do this here.
     // 1) we fetch data from the database, 2) we create eval executions in batches, 3) we create eval execution jobs for each batch
-    const { projectId, query, target, configId, cutoffCreatedAt } =
+    const { projectId, query, targetObject, configId, cutoffCreatedAt } =
       batchActionEvent;
 
     const config = await prisma.jobConfiguration.findUnique({
@@ -149,7 +149,7 @@ export const handleBatchActionJob = async (
       throw new Error("Eval config not found");
     }
 
-    if (target === "traces") {
+    if (targetObject === "traces") {
       const dbReadStream = await getDatabaseReadStream({
         projectId: projectId,
         cutoffCreatedAt: new Date(cutoffCreatedAt),
@@ -187,8 +187,7 @@ export const handleBatchActionJob = async (
       logger.info(
         `Batch action job {${count} elements} completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
       );
-    } else if (target === "dataset-run-items") {
-      // TODO: Implement
+    } else if (targetObject === "dataset-run-items") {
     }
   }
 

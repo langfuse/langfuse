@@ -29,6 +29,7 @@ import {
   datasetFormFilterColsWithOptions,
   availableDatasetEvalVariables,
   type langfuseObjects,
+  ApplyJobToSchema,
 } from "@langfuse/shared";
 import * as z from "zod";
 import { useEffect, useMemo, useState } from "react";
@@ -65,6 +66,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 export const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -80,6 +82,7 @@ const formSchema = z.object({
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().optional().default(10),
+  applyEvalsTo: ApplyJobToSchema,
 });
 
 type LangfuseObject = (typeof langfuseObjects)[number];
@@ -340,6 +343,10 @@ export const InnerEvalConfigForm = (props: {
       delay: props.existingEvaluator?.delay
         ? props.existingEvaluator.delay / 1000
         : 10,
+      applyEvalsTo: (props.existingEvaluator?.applyJobTo ?? ["new"]).filter(
+        (option): option is "existing" | "new" =>
+          ["existing", "new"].includes(option),
+      ),
     },
   });
 
@@ -423,6 +430,17 @@ export const InnerEvalConfigForm = (props: {
       : availableDatasetEvalVariables,
   );
 
+  if (
+    props.existingEvaluator?.applyJobTo.includes("existing") &&
+    props.mode === "edit"
+  ) {
+    form.setError("applyEvalsTo", {
+      type: "manual",
+      message:
+        "The evaluator ran on existing traces already. This cannot be changed anymore.",
+    });
+  }
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
       props.mode === "edit"
@@ -469,6 +487,7 @@ export const InnerEvalConfigForm = (props: {
             variableMapping: mapping,
             sampling,
             scoreName,
+            applyJobTo: values.applyEvalsTo,
           },
         })
       : createJobMutation.mutateAsync({
@@ -480,7 +499,7 @@ export const InnerEvalConfigForm = (props: {
           mapping,
           sampling,
           delay,
-          applyToHistoricalTraces: true,
+          applyJobTo: values.applyEvalsTo,
         })
     )
       .then(() => {
@@ -574,6 +593,38 @@ export const InnerEvalConfigForm = (props: {
                 </FormItem>
               )}
             />
+
+            <div className="flex min-w-[300px]">
+              <FormField
+                control={form.control}
+                name="applyEvalsTo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Evaluator runs on</FormLabel>
+                    <FormControl>
+                      <MultiSelect
+                        options={[
+                          {
+                            value: "new",
+                            displayValue: "New objects",
+                          },
+                          {
+                            value: "existing",
+                            displayValue: "Existing objects",
+                          },
+                        ]}
+                        values={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                        }}
+                        disabled={props.disabled}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

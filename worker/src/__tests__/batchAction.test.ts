@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
+import waitForExpect from "wait-for-expect";
 
 describe("select all test suite", () => {
   it("should process items in chunks", async () => {

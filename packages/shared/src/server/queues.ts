@@ -84,7 +84,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
     }),
     z.object({
       actionId: z.literal("eval-create"),
-      target: z.enum(["traces", "dataset-run-items"]),
+      targetObject: z.enum(["traces", "dataset-run-items"]),
       configId: z.string(),
       projectId: z.string(),
       cutoffCreatedAt: z.date(),
