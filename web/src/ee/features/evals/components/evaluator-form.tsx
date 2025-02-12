@@ -29,7 +29,7 @@ import {
   datasetFormFilterColsWithOptions,
   availableDatasetEvalVariables,
   type langfuseObjects,
-  ApplyJobToSchema,
+  TimeScopeSchema,
 } from "@langfuse/shared";
 import * as z from "zod";
 import { useEffect, useMemo, useState } from "react";
@@ -82,7 +82,7 @@ const formSchema = z.object({
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().optional().default(10),
-  applyEvalsTo: ApplyJobToSchema,
+  timeScope: TimeScopeSchema,
 });
 
 type LangfuseObject = (typeof langfuseObjects)[number];
@@ -343,7 +343,7 @@ export const InnerEvalConfigForm = (props: {
       delay: props.existingEvaluator?.delay
         ? props.existingEvaluator.delay / 1000
         : 10,
-      applyEvalsTo: (props.existingEvaluator?.applyJobTo ?? ["new"]).filter(
+      timeScope: (props.existingEvaluator?.timeScope ?? ["new"]).filter(
         (option): option is "existing" | "new" =>
           ["existing", "new"].includes(option),
       ),
@@ -431,10 +431,10 @@ export const InnerEvalConfigForm = (props: {
   );
 
   if (
-    props.existingEvaluator?.applyJobTo.includes("existing") &&
+    props.existingEvaluator?.timeScope.includes("existing") &&
     props.mode === "edit"
   ) {
-    form.setError("applyEvalsTo", {
+    form.setError("timeScope", {
       type: "manual",
       message:
         "The evaluator ran on existing traces already. This cannot be changed anymore.",
@@ -487,7 +487,7 @@ export const InnerEvalConfigForm = (props: {
             variableMapping: mapping,
             sampling,
             scoreName,
-            applyJobTo: values.applyEvalsTo,
+            timeScope: values.timeScope,
           },
         })
       : createJobMutation.mutateAsync({
@@ -499,7 +499,7 @@ export const InnerEvalConfigForm = (props: {
           mapping,
           sampling,
           delay,
-          applyJobTo: values.applyEvalsTo,
+          timeScope: values.timeScope,
         })
     )
       .then(() => {
@@ -597,7 +597,7 @@ export const InnerEvalConfigForm = (props: {
             <div className="flex min-w-[300px]">
               <FormField
                 control={form.control}
-                name="applyEvalsTo"
+                name="timeScope"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Evaluator runs on</FormLabel>

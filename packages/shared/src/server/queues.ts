@@ -84,7 +84,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
     }),
     z.object({
       actionId: z.literal("eval-create"),
-      targetObject: z.enum(["traces", "dataset-run-items"]),
+      targetObject: z.enum(["trace", "dataset"]),
       configId: z.string(),
       projectId: z.string(),
       cutoffCreatedAt: z.date(),
@@ -93,12 +93,18 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   ],
 );
 
-export const CreateEvalQueueEventSchema = z.object({
-  projectId: z.string(),
-  traceId: z.string(),
-  timestamp: z.date(),
-  configId: z.string(),
-});
+export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
+  z.object({
+    configId: z.string(),
+  }),
+).or(
+  TraceQueueEventSchema.and(
+    z.object({
+      timestamp: z.date(),
+      configId: z.string(),
+    }),
+  ),
+);
 
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema

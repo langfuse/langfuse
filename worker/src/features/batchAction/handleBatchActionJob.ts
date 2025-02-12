@@ -73,6 +73,13 @@ export type TraceRowForEval = {
   timestamp: Date;
 };
 
+export type DatasetRunItemRowForEval = {
+  id: string;
+  projectId: string;
+  datasetItemId: string;
+  traceId: string;
+  observationId: string | null;
+};
 const assertIsTracesTableRecord = (
   element: unknown,
 ): element is TraceRowForEval => {
@@ -82,6 +89,21 @@ const assertIsTracesTableRecord = (
     "id" in element &&
     "projectId" in element &&
     "timestamp" in element
+  );
+};
+
+const assertIsDatasetRunItemTableRecord = (
+  element: unknown,
+): element is DatasetRunItemRowForEval => {
+  logger.info(`element: ${JSON.stringify(element)}`);
+  return (
+    typeof element === "object" &&
+    element !== null &&
+    "id" in element &&
+    "projectId" in element &&
+    "datasetItemId" in element &&
+    "traceId" in element &&
+    "observationId" in element
   );
 };
 
@@ -149,46 +171,70 @@ export const handleBatchActionJob = async (
       throw new Error("Eval config not found");
     }
 
-    if (targetObject === "traces") {
-      const dbReadStream = await getDatabaseReadStream({
-        projectId: projectId,
-        cutoffCreatedAt: new Date(cutoffCreatedAt),
-        ...convertDatesInQuery(query),
-        tableName: BatchExportTableName.Traces,
-        exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
-      });
+    logger.info(`Processing eval create, ${JSON.stringify(batchActionEvent)}`);
 
-      const evalCreatorQueue = CreateEvalQueue.getInstance();
-      if (!evalCreatorQueue) {
-        logger.error("CreateEvalQueue is not initialized");
-        return;
-      }
+    const dbReadStream = await getDatabaseReadStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      ...convertDatesInQuery(query),
+      tableName:
+        targetObject === "trace"
+          ? BatchExportTableName.Traces
+          : BatchExportTableName.DatasetRunItems,
+      exportLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    });
 
-      let count = 0;
-      for await (const record of dbReadStream) {
-        if (assertIsTracesTableRecord(record)) {
-          count++;
-          await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
-            payload: {
-              projectId: record.projectId,
-              traceId: record.id,
-              configId: configId,
-              timestamp: record.timestamp,
-            },
-            id: randomUUID(),
-            timestamp: new Date(),
-            name: QueueJobs.CreateEvalJob as const,
-          });
-        } else {
-          logger.error("Record is not a valid traces table record", record);
-          throw new Error("Record is not a valid traces table record");
-        }
-      }
-      logger.info(
-        `Batch action job {${count} elements} completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
-      );
-    } else if (targetObject === "dataset-run-items") {
+    const evalCreatorQueue = CreateEvalQueue.getInstance();
+    if (!evalCreatorQueue) {
+      logger.error("CreateEvalQueue is not initialized");
+      return;
     }
+
+    let count = 0;
+    for await (const record of dbReadStream) {
+      if (targetObject === "trace" && assertIsTracesTableRecord(record)) {
+        const payload = {
+          projectId: record.projectId,
+          traceId: record.id,
+          configId: configId,
+          timestamp: new Date(record.timestamp),
+        };
+
+        await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
+          payload,
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.CreateEvalJob as const,
+        });
+      } else if (
+        targetObject === "dataset" &&
+        assertIsDatasetRunItemTableRecord(record)
+      ) {
+        const payload = {
+          projectId: record.projectId,
+          datasetItemId: record.datasetItemId,
+          traceId: record.traceId,
+          observationId: record.observationId ?? undefined,
+          configId: configId,
+        };
+
+        await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
+          payload,
+          id: randomUUID(),
+          timestamp: new Date(),
+          name: QueueJobs.CreateEvalJob as const,
+        });
+        count++;
+      } else {
+        logger.error(
+          "Record is not a valid traces table or dataset record",
+          record,
+        );
+      }
+    }
+    logger.info(
+      `Batch action job {${count} elements} completed, projectId: ${batchActionJob.payload.projectId}, actionId: ${actionId}`,
+    );
   }
 
   logger.info(

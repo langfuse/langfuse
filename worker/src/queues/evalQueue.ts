@@ -17,7 +17,9 @@ export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
-    await createEvalJobs({ event: job.data.payload });
+    await createEvalJobs({
+      event: job.data.payload,
+    });
     return true;
   } catch (e) {
     logger.error(
@@ -33,7 +35,9 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>,
 ) => {
   try {
-    await createEvalJobs({ event: job.data.payload });
+    await createEvalJobs({
+      event: job.data.payload,
+    });
     return true;
   } catch (e) {
     logger.error(
@@ -49,7 +53,10 @@ export const evalJobCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.CreateEvalQueue]>,
 ) => {
   try {
-    await createEvalJobs({ event: job.data.payload });
+    await createEvalJobs({
+      event: job.data.payload,
+      timeScope: ["new", "existing"],
+    });
     return true;
   } catch (e) {
     logger.error(

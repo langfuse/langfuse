@@ -16,7 +16,7 @@ import {
   JobConfigState,
   JobType,
   Prisma,
-  ApplyJobToSchema,
+  TimeScopeSchema,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -98,12 +98,12 @@ const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(),
+  target: z.string(z.enum(["trace", "dataset-run-item"])),
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
-  applyJobTo: ApplyJobToSchema,
+  timeScope: TimeScopeSchema,
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -113,7 +113,7 @@ const UpdateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.nativeEnum(EvaluatorStatus).optional(),
-  applyJobTo: ApplyJobToSchema.optional(),
+  timeScope: TimeScopeSchema.optional(),
 });
 
 export const evalRouter = createTRPCRouter({
@@ -507,11 +507,11 @@ export const evalRouter = createTRPCRouter({
             sampling: input.sampling,
             delay: input.delay,
             status: "ACTIVE",
-            applyJobTo: input.applyJobTo,
+            timeScope: input.timeScope,
           },
         });
 
-        if (input.applyJobTo.includes("existing")) {
+        if (input.timeScope.includes("existing")) {
           logger.info(
             `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
           );
@@ -526,7 +526,6 @@ export const evalRouter = createTRPCRouter({
             payload: {
               projectId: input.projectId,
               actionId: "eval-create",
-              target: "traces",
               configId: job.id,
               cutoffCreatedAt: new Date(),
               targetObject: input.target,
@@ -686,8 +685,8 @@ export const evalRouter = createTRPCRouter({
       });
 
       if (
-        existingJob?.applyJobTo.includes("existing") &&
-        !input.config.applyJobTo?.includes("existing")
+        existingJob?.timeScope.includes("existing") &&
+        !input.config.timeScope?.includes("existing")
       ) {
         throw new Error(
           "The evaluator ran on existing traces already. This cannot be changed anymore.",

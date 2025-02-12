@@ -37,7 +37,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   variableMapping,
-  ApplyJobToSchema,
+  TimeScopeSchema,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -68,13 +68,13 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 // there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   event,
-  allowedJobApplications = ["new" as const],
+  timeScope: timeScope = ["new" as const],
 }: {
   event:
     | TraceQueueEventType
     | DatasetRunItemUpsertEventType
     | CreateEvalQueueEventType;
-  allowedJobApplications: z.infer<typeof ApplyJobToSchema>;
+  timeScope?: z.infer<typeof TimeScopeSchema>;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
   const configs = await kyselyPrisma.$kysely
@@ -100,12 +100,12 @@ export const createEvalJobs = async ({
     }
 
     if (
-      !config.applyJobTo.some((job) =>
-        allowedJobApplications.includes(job as "new" | "existing"),
+      !config.time_scope.some((job) =>
+        timeScope.includes(job as "new" | "existing"),
       )
     ) {
       logger.debug(
-        `Skipping config ${config.id} because it does not match the allowed job applications ${allowedJobApplications}`,
+        `Skipping config ${config.id} because it does not match the allowed job applications ${timeScope}`,
       );
       continue;
     }

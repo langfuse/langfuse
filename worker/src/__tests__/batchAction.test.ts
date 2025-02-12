@@ -188,7 +188,7 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        target: "traces" as const,
+        targetObject: "trace" as const,
         configId,
         cutoffCreatedAt: new Date(),
         query: {

@@ -331,22 +331,49 @@ export const getDatabaseReadStream = async ({
     case "dataset_run_items": {
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const items = await prisma.$queryRaw`
+          const items = await prisma.$queryRaw<
+            Array<{
+              id: string;
+              project_id: string;
+              dataset_item_id: string;
+              trace_id: string;
+              observation_id: string | null;
+              created_at: Date;
+              updated_at: Date;
+              dataset_name: string;
+            }>
+          >`
             SELECT dri.*, d.name as dataset_name
-            FROM dataset_run_items dri JOIN dataset_items di ON dri.id = di.id
-            WHERE dri.projectId = ${projectId}
-            ORDER BY dri.createdAt DESC
+
+            FROM dataset_run_items dri 
+              JOIN dataset_items di ON dri.dataset_item_id = di.id AND dri.project_id = di.project_id 
+              JOIN datasets d ON di.dataset_id = d.id AND d.project_id = dri.project_id
+            WHERE dri.project_id = ${projectId}
+            AND dri.created_at < ${cutoffCreatedAt}
+
+            ORDER BY dri.created_at DESC
             LIMIT ${pageSize}
             OFFSET ${offset}
           `;
-          return new Promise((resolve) => {
-            resolve([] as unknown[]);
-          });
+
+          logger.info(`Found ${items.length} dataset run items`);
+          return items.map((item) => ({
+            id: item.id,
+            projectId: item.project_id,
+            datasetItemId: item.dataset_item_id,
+            traceId: item.trace_id,
+            observationId: item.observation_id,
+            createdAt: item.created_at,
+            updatedAt: item.updated_at,
+            datasetName: item.dataset_name,
+          }));
         },
         1000,
         exportLimit,
       );
     }
+    default:
+      throw new Error(`Unhandled table case: ${tableName}`);
   }
 };
 
