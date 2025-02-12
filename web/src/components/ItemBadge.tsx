@@ -53,10 +53,10 @@ const iconMap: Record<LangfuseItemType, React.ElementType> = {
 const iconVariants = cva(cn("h-4 w-4"), {
   variants: {
     type: {
-      TRACE: "text-green-700",
-      [ObservationType.GENERATION]: "text-pink-600",
-      [ObservationType.EVENT]: "text-teal-700",
-      [ObservationType.SPAN]: "text-purple-700",
+      TRACE: "text-dark-green",
+      [ObservationType.GENERATION]: "text-muted-magenta",
+      [ObservationType.EVENT]: "text-muted-green",
+      [ObservationType.SPAN]: "text-muted-blue",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
