@@ -78,7 +78,7 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     const files = await storageService.listFiles("");
-    expect(files).not.toContain(fileName);
+    expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
       where: { id: mediaId },

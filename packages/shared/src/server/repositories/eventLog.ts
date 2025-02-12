@@ -1,4 +1,8 @@
-import { queryClickhouse } from "./clickhouse";
+import {
+  commandClickhouse,
+  queryClickhouse,
+  queryClickhouseStream,
+} from "./clickhouse";
 import { EventLogRecordReadType } from "./definitions";
 
 export const getEventLogByProjectAndEntityId = async (
@@ -20,6 +24,41 @@ export const getEventLogByProjectAndEntityId = async (
       projectId,
       entityType,
       entityId,
+    },
+  });
+};
+
+export const getEventLogByProjectId = (
+  projectId: string,
+): AsyncGenerator<EventLogRecordReadType> => {
+  const query = `
+    select *
+    from event_log
+    where project_id = {projectId: String}
+  `;
+
+  return queryClickhouseStream<EventLogRecordReadType>({
+    query,
+    params: {
+      projectId,
+    },
+  });
+};
+
+export const deleteEventLogByProjectId = async (
+  projectId: string,
+): Promise<void> => {
+  const query = `
+    DELETE FROM event_log
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
     },
   });
 };
