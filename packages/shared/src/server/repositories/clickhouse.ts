@@ -54,7 +54,8 @@ export async function upsertClickhouse<
         const eventId = randomUUID();
         const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
 
-        // Write new file directly to ClickHouse as the writer lives in the worker as we don't expect much traffic on this endpoint
+        // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
+        // and are not worried that much about latency.
         await clickhouseClient().insert({
           table: "event_log",
           values: [
