@@ -1,10 +1,8 @@
 import {
-  deleteEventLogByProjectId,
   deleteEventLogByProjectIdBeforeDate,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
-  getEventLogByProjectId,
   getEventLogByProjectIdBeforeDate,
   logger,
   StorageService,
