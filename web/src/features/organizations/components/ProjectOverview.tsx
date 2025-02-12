@@ -94,7 +94,13 @@ const DemoOrganizationTile = () => {
   );
 };
 
-const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
+const OrganizationActionButtons = ({
+  orgId,
+  primaryButtonVariant = "default",
+}: {
+  orgId: string;
+  primaryButtonVariant?: "default" | "secondary";
+}) => {
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
@@ -119,14 +125,14 @@ const OrganizationActionButtons = ({ orgId }: { orgId: string }) => {
         </Button>
       )}
       {createProjectAccess ? (
-        <Button asChild>
+        <Button asChild variant={primaryButtonVariant}>
           <Link href={createProjectRoute(orgId)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             New project
           </Link>
         </Button>
       ) : (
-        <Button disabled>
+        <Button disabled variant={primaryButtonVariant}>
           <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
           New project
         </Button>
@@ -216,7 +222,12 @@ const SingleOrganizationProjectOverviewTile = ({
               }
             : undefined
         }
-        actionButtons={<OrganizationActionButtons orgId={orgId} />}
+        actionButtons={
+          <OrganizationActionButtons
+            orgId={orgId}
+            primaryButtonVariant="secondary"
+          />
+        }
       />
       <OrganizationProjectTiles org={org} search={search} />
     </div>
