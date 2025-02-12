@@ -34,6 +34,7 @@ import {
   ListTree,
   Network,
   Percent,
+  Share2Icon,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useCallback, useState } from "react";
@@ -51,6 +52,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -62,6 +64,7 @@ export function Trace(props: {
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;
+  defaultMinObservationLevel?: ObservationLevel;
 }) {
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
@@ -86,7 +89,9 @@ export function Trace(props: {
   );
 
   const [minObservationLevel, setMinObservationLevel] =
-    useState<ObservationLevel>(ObservationLevel.DEFAULT);
+    useState<ObservationLevel>(
+      props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
+    );
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
@@ -487,6 +492,10 @@ export function TracePage({
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
           </TabsBarTrigger>
+          <TabsBarTrigger value="graph">
+            <Share2Icon className="mr-1 h-4 w-4"></Share2Icon>
+            Graph
+          </TabsBarTrigger>
         </TabsBarList>
         <TabsBarContent
           value="details"
@@ -505,6 +514,18 @@ export function TracePage({
           className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
         >
           <TraceTimelineView
+            key={trace.data.id}
+            trace={trace.data}
+            scores={trace.data.scores}
+            observations={trace.data.observations}
+            projectId={trace.data.projectId}
+          />
+        </TabsBarContent>
+        <TabsBarContent
+          value="graph"
+          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
+        >
+          <TraceGraphView
             key={trace.data.id}
             trace={trace.data}
             scores={trace.data.scores}
