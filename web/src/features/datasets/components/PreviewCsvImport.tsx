@@ -23,7 +23,7 @@ import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDa
 import { Progress } from "@/src/components/ui/progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-const MIN_CHUNK_SIZE = 50;
+const MIN_CHUNK_SIZE = 1;
 const DELAY_BETWEEN_CHUNKS = 100; // milliseconds
 
 // Max payload size is 1MB, but we must account for any trpc wrapper data and context
