@@ -2,9 +2,9 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+// import { useEffect } from "react";
 import Link from "next/link";
-import { captureException } from "@sentry/nextjs";
+// import { captureException } from "@sentry/nextjs";
 
 export const ErrorPage = ({
   title = "Error",
@@ -67,13 +67,13 @@ export const ErrorPageWithSentry = ({
   title?: string;
   message: string;
 }) => {
-  useEffect(() => {
-    // Capture the error with Sentry
-    if (window !== undefined)
-      captureException(
-        new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
-      );
-  }, [title, message]); // Empty dependency array means this effect runs once on mount
+  // useEffect(() => {
+  //   // Capture the error with Sentry
+  //   if (window !== undefined)
+  //     captureException(
+  //       new Error(`ErrorPageWithSentry rendered: ${title}, ${message}`),
+  //     );
+  // }, [title, message]); // Empty dependency array means this effect runs once on mount
 
   return <ErrorPage title={title} message={message} />;
 };
