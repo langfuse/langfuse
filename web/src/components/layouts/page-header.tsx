@@ -53,7 +53,7 @@ const PageHeader = ({
           >
             <div className="flex flex-wrap items-center gap-2">
               {itemType && <ItemBadge type={itemType} showLabel />}
-              <h1 className="text-lg font-semibold leading-7">{title}</h1>
+              <h2 className="text-lg font-semibold leading-7">{title}</h2>
               {help && (
                 <div className="-ml-2 -mt-2">
                   <DocPopup
