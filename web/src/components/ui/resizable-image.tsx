@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { captureException } from "@sentry/nextjs";
+// import { captureException } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
 
 /**
@@ -112,9 +112,9 @@ export const ResizableImage = ({
                 height={0}
                 title={src}
                 className="h-full w-full rounded border object-contain"
-                onError={(error) => {
+                onError={() => {
                   setHasFetchError(true);
-                  captureException(error);
+                  // captureException(error);
                 }}
               />
               <Button
