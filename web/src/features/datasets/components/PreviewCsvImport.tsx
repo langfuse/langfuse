@@ -24,6 +24,7 @@ import { Progress } from "@/src/components/ui/progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const MIN_CHUNK_SIZE = 1;
+const CHUNK_START_SIZE = 50;
 const DELAY_BETWEEN_CHUNKS = 100; // milliseconds
 
 // Max payload size is 1MB, but we must account for any trpc wrapper data and context
@@ -276,7 +277,7 @@ export function PreviewCsvImport({
         },
       });
 
-      const optimalChunkSize = getOptimalChunkSize(items, MIN_CHUNK_SIZE);
+      const optimalChunkSize = getOptimalChunkSize(items, CHUNK_START_SIZE);
       const chunks = chunkArray(items, optimalChunkSize);
 
       for (const [index, chunk] of chunks.entries()) {
