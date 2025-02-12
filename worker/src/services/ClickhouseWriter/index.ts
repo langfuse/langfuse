@@ -1,5 +1,6 @@
 import {
-  defaultClickhouseClient,
+  clickhouseClient,
+  ClickhouseClientType,
   EventLogRecordInsertType,
   getCurrentSpan,
   ObservationRecordInsertType,
@@ -16,6 +17,7 @@ import { SpanKind } from "@opentelemetry/api";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
+  private static client: ClickhouseClientType | null = null;
   batchSize: number;
   writeInterval: number;
   maxAttempts: number;
@@ -41,7 +43,15 @@ export class ClickhouseWriter {
     this.start();
   }
 
-  public static getInstance() {
+  /**
+   * Get the singleton instance of ClickhouseWriter.
+   * Client parameter is only used for testing.
+   */
+  public static getInstance(clickhouseClient?: ClickhouseClientType) {
+    if (clickhouseClient) {
+      ClickhouseWriter.client = clickhouseClient;
+    }
+
     if (!ClickhouseWriter.instance) {
       ClickhouseWriter.instance = new ClickhouseWriter();
     }
@@ -198,7 +208,7 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await defaultClickhouseClient
+    await (ClickhouseWriter.client ?? clickhouseClient())
       .insert({
         table: params.table,
         format: "JSONEachRow",
