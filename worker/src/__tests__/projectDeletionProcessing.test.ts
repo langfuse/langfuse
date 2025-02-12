@@ -213,7 +213,7 @@ describe("ProjectDeletionProcessingJob", () => {
         id: mediaId,
         sha256Hash: randomUUID(),
         projectId,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30), // 30 days in the past
+        createdAt: new Date(),
         bucketPath: fileName,
         bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
         contentType: fileType,
