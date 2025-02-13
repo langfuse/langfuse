@@ -214,6 +214,10 @@ export const IOTableCell = ({
   className?: string;
   singleLine?: boolean;
 }) => {
+  if (isLoading) {
+    return <JsonSkeleton className="h-full w-full overflow-hidden px-2 py-1" />;
+  }
+
   const stringifiedJson = data ? stringifyJsonNode(data) : undefined;
 
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
@@ -222,9 +226,7 @@ export const IOTableCell = ({
 
   return (
     <>
-      {isLoading ? (
-        <JsonSkeleton className="h-full w-full overflow-hidden px-2 py-1" />
-      ) : singleLine ? (
+      {singleLine ? (
         <div
           className={cn(
             "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
