@@ -232,7 +232,7 @@ export async function queryClickhouse<T>(opts: {
   });
 }
 
-export async function commandClickhouse<T>(opts: {
+export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;

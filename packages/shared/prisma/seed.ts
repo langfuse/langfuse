@@ -97,7 +97,7 @@ async function main() {
     },
   });
 
-  const orgMembership = await prisma.organizationMembership.upsert({
+  await prisma.organizationMembership.upsert({
     where: {
       orgId_userId: {
         userId: user.id,
@@ -127,7 +127,7 @@ async function main() {
     update: {},
   });
 
-  const projectMembership = await prisma.projectMembership.upsert({
+  await prisma.projectMembership.upsert({
     where: {
       projectId_userId: {
         projectId: project1.id,

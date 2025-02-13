@@ -1,11 +1,6 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../src/db";
-import {
-  clickhouseClient,
-  getDisplaySecretKey,
-  hashSecretKey,
-  logger,
-} from "../src/server";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { prepareClickhouse } from "./prepareClickhouse";
 import { redis } from "../src/server";
 

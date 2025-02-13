@@ -1,7 +1,4 @@
-import {
-  clickhouseClient,
-  ObservationRecordReadType,
-} from "@langfuse/shared/src/server";
+import { ObservationRecordReadType } from "@langfuse/shared/src/server";
 import { prisma } from "../../src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { prepareClickhouse } from "../../scripts/prepareClickhouse";
