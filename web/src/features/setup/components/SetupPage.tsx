@@ -79,6 +79,14 @@ export function SetupPage() {
           description:
             "Create a new organization. This will be used to manage your projects and teams.",
         },
+        ...(stepInt === 1 && {
+          breadcrumb: [
+            {
+              name: "Organizations",
+              href: "/",
+            },
+          ],
+        }),
       }}
     >
       <Breadcrumb className="mb-3">

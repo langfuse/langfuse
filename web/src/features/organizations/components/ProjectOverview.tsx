@@ -271,6 +271,12 @@ export const OrganizationProjectOverview = () => {
             "Organizations help you manage access to projects. Each organization can have multiple projects and team members with different roles.",
           href: "https://langfuse.com/docs/rbac",
         },
+        breadcrumb: [
+          {
+            name: "Organizations",
+            href: "/",
+          },
+        ],
         actionButtonsRight: (
           <>
             <Input
