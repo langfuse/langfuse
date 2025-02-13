@@ -3,7 +3,7 @@ import { AnnotationQueuesTable } from "@/src/ee/features/annotation-queues/compo
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export default function AnnotationQueues() {
   if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Annotation Queues",
         help: {
@@ -27,6 +27,6 @@ export default function AnnotationQueues() {
       }}
     >
       <AnnotationQueuesTable projectId={projectId} />
-    </PageContainer>
+    </Page>
   );
 }

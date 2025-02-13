@@ -6,7 +6,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { AnnotationQueueItemPage } from "@/src/ee/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
 import { Goal, Network } from "lucide-react";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export const AnnotationQueuesItem = ({
   annotationQueueId,
@@ -46,7 +46,7 @@ export const AnnotationQueuesItem = ({
   if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: `${queue.data?.name}: ${itemId}`,
         itemType: "QUEUE_ITEM",
@@ -87,6 +87,6 @@ export const AnnotationQueuesItem = ({
         view={view}
         queryItemId={itemId}
       />
-    </PageContainer>
+    </Page>
   );
 };

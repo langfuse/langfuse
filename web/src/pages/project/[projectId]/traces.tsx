@@ -1,14 +1,14 @@
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Traces",
         help: {
@@ -20,6 +20,6 @@ export default function Traces() {
       }}
     >
       <TracesTable projectId={projectId} />
-    </PageContainer>
+    </Page>
   );
 }

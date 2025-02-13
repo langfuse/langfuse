@@ -1,4 +1,4 @@
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -44,7 +44,7 @@ export default function EvaluatorsPage() {
   }
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Evaluators",
         help: {
@@ -85,6 +85,6 @@ export default function EvaluatorsPage() {
           </Tabs>
         }
       />
-    </PageContainer>
+    </Page>
   );
 }

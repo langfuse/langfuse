@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { FolderKanban } from "lucide-react";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function DatasetItems() {
   });
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
@@ -124,6 +124,6 @@ export default function DatasetItems() {
           </Tabs>
         }
       />
-    </PageContainer>
+    </Page>
   );
 }

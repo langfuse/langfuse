@@ -1,13 +1,13 @@
 # 📦 Langfuse Layout Components
 
-## 📌 Overview: PageContainer - Standard Page Wrapper
+## 📌 Overview: Page - Standard Page Wrapper
 
-`PageContainer` is the required wrapper for all pages in our app. It ensures a **consistent layout**, a **sticky header**, and proper **scroll behavior** across different screens.
-For any Langfuse single item pages, you should pass the itemType to the `PageContainer` as a prop. Also, ideally the title should follow the format of `{itemName}: {itemId}`. If only either is reasonable, just pass it as the title. For tables, you should not pass the itemType, unless the table is part of a single item page.
+`Page` is the required wrapper for all pages in our app. It ensures a **consistent layout**, a **sticky header**, and proper **scroll behavior** across different screens.
+For any Langfuse single item pages, you should pass the itemType to the `Page` as a prop. Also, ideally the title should follow the format of `{itemName}: {itemId}`. If only either is reasonable, just pass it as the title. For tables, you should not pass the itemType, unless the table is part of a single item page.
 
-**⚠️ Every page must be wrapped inside `<PageContainer>`—do not use `<main>` directly!**
+**⚠️ Every page must be wrapped inside `<Page>`—do not use `<main>` directly!**
 
-Please note that for settings pages, and settings pages only, you should use the `SettingsContainer` component instead.
+Please note that whenever content will not scale nicely to the width of the page, you should use the `ContainerPage` component instead, for example when in settings pages or set up pages.
 
 ---
 
@@ -26,11 +26,11 @@ Please note that for settings pages, and settings pages only, you should use the
 ### **Basic Example**
 
 ```tsx
-import PageContainer from "@/src/components/layouts/PageContainer";
+import Page from "@/src/components/layouts/Page";
 
 export default function MyPage() {
   return (
-    <PageContainer
+    <Page
       title="My Page"
       scrollable
       headerProps={{
@@ -39,7 +39,7 @@ export default function MyPage() {
       }}
     >
       <div>My page content here...</div>
-    </PageContainer>
+    </Page>
   );
 }
 ```

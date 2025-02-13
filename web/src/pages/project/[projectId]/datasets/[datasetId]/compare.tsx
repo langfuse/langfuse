@@ -33,7 +33,7 @@ import {
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -160,7 +160,7 @@ export default function DatasetCompare() {
   }
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
         breadcrumb: [
@@ -326,6 +326,6 @@ export default function DatasetCompare() {
         runIds={runIds ?? []}
         localExperiments={localRuns}
       />
-    </PageContainer>
+    </Page>
   );
 }

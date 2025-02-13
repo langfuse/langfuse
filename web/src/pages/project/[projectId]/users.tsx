@@ -22,7 +22,7 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 type RowData = {
   userId: string;
@@ -244,7 +244,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Users",
         help: {
@@ -308,6 +308,6 @@ export default function UsersPage() {
           state: paginationState,
         }}
       />
-    </PageContainer>
+    </Page>
   );
 }

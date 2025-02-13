@@ -1,4 +1,4 @@
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
@@ -27,7 +27,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Eval Templates",
         help: {
@@ -76,6 +76,6 @@ export default function TemplatesPage() {
           </Tabs>
         }
       />
-    </PageContainer>
+    </Page>
   );
 }

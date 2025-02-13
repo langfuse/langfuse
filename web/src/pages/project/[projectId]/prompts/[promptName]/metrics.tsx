@@ -18,7 +18,7 @@ import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/compo
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -373,7 +373,7 @@ export default function PromptVersionTable() {
       : [];
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: promptName,
         help: {
@@ -451,6 +451,6 @@ export default function PromptVersionTable() {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
-    </PageContainer>
+    </Page>
   );
 }

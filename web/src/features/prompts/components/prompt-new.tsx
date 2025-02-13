@@ -2,7 +2,7 @@ import { StringParam, useQueryParam } from "use-query-params";
 import { NewPromptForm } from "@/src/features/prompts/components/NewPromptForm";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export const NewPrompt = () => {
   const projectId = useProjectIdFromURL();
@@ -46,7 +46,7 @@ export const NewPrompt = () => {
   }
 
   return (
-    <PageContainer
+    <Page
       scrollable
       headerProps={{
         title: initialPrompt
@@ -69,6 +69,6 @@ export const NewPrompt = () => {
       <div className="my-8">
         <NewPromptForm {...{ initialPrompt }} />
       </div>
-    </PageContainer>
+    </Page>
   );
 };

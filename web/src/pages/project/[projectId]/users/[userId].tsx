@@ -10,7 +10,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
@@ -53,7 +53,7 @@ export default function UserPage() {
   };
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: userId,
         breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
@@ -150,7 +150,7 @@ export default function UserPage() {
         </div>
         {renderTabContent()}
       </>
-    </PageContainer>
+    </Page>
   );
 }
 

@@ -16,7 +16,7 @@ import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -46,7 +46,7 @@ export const EvalTemplateDetail = () => {
   );
 
   return (
-    <PageContainer
+    <Page
       scrollable
       headerProps={{
         title: `${template.data?.name}: ${templateId}`,
@@ -90,7 +90,7 @@ export const EvalTemplateDetail = () => {
           setIsEditing={setIsEditing}
         />
       )}
-    </PageContainer>
+    </Page>
   );
 };
 

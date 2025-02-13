@@ -1,6 +1,6 @@
 import { ResetPlaygroundButton } from "@/src/ee/features/playground/page/components/ResetPlaygroundButton";
 import { SaveToPromptButton } from "@/src/ee/features/playground/page/components/SaveToPromptButton";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { PlaygroundProvider } from "@/src/ee/features/playground/page/context";
 import Playground from "@/src/ee/features/playground/page/playground";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -10,7 +10,7 @@ export default function PlaygroundPage() {
   if (!available) return null;
   return (
     <PlaygroundProvider>
-      <PageContainer
+      <Page
         headerProps={{
           title: "Playground",
           help: {
@@ -28,7 +28,7 @@ export default function PlaygroundPage() {
         <div className="flex-1 overflow-auto">
           <Playground />
         </div>
-      </PageContainer>
+      </Page>
     </PlaygroundProvider>
   );
 }

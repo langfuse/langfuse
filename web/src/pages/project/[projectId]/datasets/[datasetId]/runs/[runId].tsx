@@ -8,7 +8,7 @@ import { api } from "@/src/utils/api";
 import { Columns3 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function Dataset() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function Dataset() {
   });
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: run.data?.name ?? runId,
         itemType: "DATASET_RUN",
@@ -106,6 +106,6 @@ export default function Dataset() {
           datasetRunId={runId}
         />
       )}
-    </PageContainer>
+    </Page>
   );
 }

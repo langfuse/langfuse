@@ -31,7 +31,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function Dataset() {
   const router = useRouter();
@@ -106,7 +106,7 @@ export default function Dataset() {
   };
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: dataset.data?.name ?? "",
         itemType: "DATASET",
@@ -260,6 +260,6 @@ export default function Dataset() {
           </Tabs>
         }
       />
-    </PageContainer>
+    </Page>
   );
 }

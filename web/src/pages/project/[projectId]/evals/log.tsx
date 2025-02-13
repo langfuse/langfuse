@@ -8,7 +8,7 @@ import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function LogPage() {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function LogPage() {
   }
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Eval Log",
         help: {
@@ -51,6 +51,6 @@ export default function LogPage() {
           </Tabs>
         }
       />
-    </PageContainer>
+    </Page>
   );
 }

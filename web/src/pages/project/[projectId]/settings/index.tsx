@@ -25,7 +25,7 @@ import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditL
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import { env } from "@/src/env.mjs";
-import SettingsContainer from "@/src/components/layouts/settings-container";
+import ContainerPage from "@/src/components/layouts/container-page";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   if (!project || !organization) return null;
   return (
-    <SettingsContainer
+    <ContainerPage
       headerProps={{
         title: "Project Settings",
       }}
@@ -148,7 +148,7 @@ export default function SettingsPage() {
           },
         ]}
       />
-    </SettingsContainer>
+    </ContainerPage>
   );
 }
 

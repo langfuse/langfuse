@@ -30,7 +30,7 @@ import {
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
-import SettingsContainer from "@/src/components/layouts/settings-container";
+import ContainerPage from "@/src/components/layouts/container-page";
 import { type User } from "next-auth";
 
 const OrganizationProjectTiles = ({
@@ -161,25 +161,25 @@ const SingleOrganizationPage = ({
 
   if (isDemoOrg) {
     return (
-      <SettingsContainer
+      <ContainerPage
         headerProps={{
           title: "Demo Organization",
         }}
       >
         <DemoOrganizationTile />
-      </SettingsContainer>
+      </ContainerPage>
     );
   }
 
   return (
-    <SettingsContainer
+    <ContainerPage
       headerProps={{
         title: org?.name ?? "Organization",
         actionButtonsRight: <OrganizationActionButtons orgId={orgId} />,
       }}
     >
       <OrganizationProjectTiles org={org} search={search} />
-    </SettingsContainer>
+    </ContainerPage>
   );
 };
 
@@ -263,7 +263,7 @@ export const OrganizationProjectOverview = () => {
   }
 
   return (
-    <SettingsContainer
+    <ContainerPage
       headerProps={{
         title: "Organizations",
         help: {
@@ -311,7 +311,7 @@ export const OrganizationProjectOverview = () => {
             />
           </Fragment>
         ))}
-    </SettingsContainer>
+    </ContainerPage>
   );
 };
 

@@ -1,13 +1,13 @@
 import { useRouter } from "next/router";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function Sessions() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Sessions",
         help: {
@@ -18,6 +18,6 @@ export default function Sessions() {
       }}
     >
       <SessionsTable projectId={projectId} />
-    </PageContainer>
+    </Page>
   );
 }

@@ -1,4 +1,4 @@
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
@@ -17,7 +17,7 @@ export default function NewTemplatesPage() {
   }
 
   return (
-    <PageContainer
+    <Page
       scrollable
       headerProps={{
         title: "Create eval template",
@@ -29,6 +29,6 @@ export default function NewTemplatesPage() {
       }}
     >
       <EvalTemplateForm projectId={projectId} isEditing={true} />
-    </PageContainer>
+    </Page>
   );
 }

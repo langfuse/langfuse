@@ -37,7 +37,7 @@ import { useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -136,7 +136,7 @@ export const PromptDetail = () => {
     return <div className="p-3">Loading...</div>;
   }
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: prompt.name,
         itemType: "PROMPT",
@@ -358,6 +358,6 @@ export const PromptDetail = () => {
           />
         </div>
       </div>
-    </PageContainer>
+    </Page>
   );
 };

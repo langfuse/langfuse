@@ -1,9 +1,9 @@
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 
 export default function Prompts() {
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Prompts",
         help: {
@@ -14,6 +14,6 @@ export default function Prompts() {
       }}
     >
       <PromptTable />
-    </PageContainer>
+    </Page>
   );
 }

@@ -26,7 +26,7 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -143,7 +143,7 @@ export default function Dashboard() {
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
   return (
-    <PageContainer
+    <Page
       scrollable
       headerProps={{
         title: "Dashboard",
@@ -265,6 +265,6 @@ export default function Dashboard() {
           />
         )}
       </div>
-    </PageContainer>
+    </Page>
   );
 }

@@ -1,4 +1,4 @@
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
 import { api } from "@/src/utils/api";
 
@@ -15,7 +15,7 @@ export default function NewEvaluatorPage() {
   });
 
   return (
-    <PageContainer
+    <Page
       scrollable
       headerProps={{
         title: "Create evaluator",
@@ -30,6 +30,6 @@ export default function NewEvaluatorPage() {
         projectId={projectId}
         evalTemplates={evalTemplates.data?.templates ?? []}
       />
-    </PageContainer>
+    </Page>
   );
 }

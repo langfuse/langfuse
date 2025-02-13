@@ -20,7 +20,7 @@ import { useMemo } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import Generations from "@/src/components/table/use-cases/observations";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function ModelDetailPage() {
   const router = useRouter();
@@ -68,7 +68,7 @@ export default function ModelDetailPage() {
   }
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: model.modelName,
         help: {
@@ -202,6 +202,6 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
       </div>
-    </PageContainer>
+    </Page>
   );
 }

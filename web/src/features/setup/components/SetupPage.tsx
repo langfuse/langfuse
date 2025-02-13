@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import SettingsContainer from "@/src/components/layouts/settings-container";
+import ContainerPage from "@/src/components/layouts/container-page";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -72,7 +72,7 @@ export function SetupPage() {
   }, [hasAnyTrace, capture]);
 
   return (
-    <SettingsContainer
+    <ContainerPage
       headerProps={{
         title: "Setup",
         help: {
@@ -230,7 +230,7 @@ export function SetupPage() {
           </Button>
         )
       }
-    </SettingsContainer>
+    </ContainerPage>
   );
 }
 

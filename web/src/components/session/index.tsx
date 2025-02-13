@@ -17,7 +17,7 @@ import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -93,7 +93,7 @@ export const SessionPage: React.FC<{
     );
 
   return (
-    <PageContainer
+    <Page
       scrollable
       headerProps={{
         title: sessionId,
@@ -214,7 +214,7 @@ export const SessionPage: React.FC<{
           </Button>
         )}
       </div>
-    </PageContainer>
+    </Page>
   );
 };
 

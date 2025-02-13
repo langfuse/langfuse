@@ -8,10 +8,7 @@ type SettingsContainerProps = {
   headerProps: Omit<PageHeaderProps, "container">;
 };
 
-const SettingsContainer = ({
-  children,
-  headerProps,
-}: SettingsContainerProps) => {
+const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
   return (
     <div className={cn("h-full")}>
       <header className="sticky top-0 z-50 w-full">
@@ -24,4 +21,4 @@ const SettingsContainer = ({
   );
 };
 
-export default SettingsContainer;
+export default ContainerPage;

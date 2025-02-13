@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -71,7 +71,7 @@ export const EvaluatorDetail = () => {
       : undefined;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: evaluator.data
           ? `${evaluator.data.scoreName}: ${evaluator.data.id}`
@@ -171,7 +171,7 @@ export const EvaluatorDetail = () => {
           }
         />
       )}
-    </PageContainer>
+    </Page>
   );
 };
 

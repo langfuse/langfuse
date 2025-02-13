@@ -1,6 +1,6 @@
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
-import SettingsContainer from "@/src/components/layouts/settings-container";
+import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -53,7 +53,7 @@ export default function PosthogIntegrationSettings() {
         : "inactive";
 
   return (
-    <SettingsContainer
+    <ContainerPage
       headerProps={{
         title: "PostHog Integration",
         breadcrumb: [
@@ -110,7 +110,7 @@ export default function PosthogIntegrationSettings() {
           </p>
         </>
       )}
-    </SettingsContainer>
+    </ContainerPage>
   );
 }
 

@@ -14,7 +14,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function QueueItems() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function QueueItems() {
   if (!hasReadAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: `${queue.data?.name}: ${queueId}`,
         itemType: "ANNOTATION_QUEUE",
@@ -102,6 +102,6 @@ export default function QueueItems() {
           </>
         }
       />
-    </PageContainer>
+    </Page>
   );
 }

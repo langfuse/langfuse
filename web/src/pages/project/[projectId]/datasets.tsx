@@ -1,13 +1,13 @@
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: "Datasets",
         help: {
@@ -18,6 +18,6 @@ export default function Traces() {
       }}
     >
       <DatasetsTable projectId={projectId} />
-    </PageContainer>
+    </Page>
   );
 }

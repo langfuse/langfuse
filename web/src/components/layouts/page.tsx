@@ -9,7 +9,7 @@ type PageContainerProps = {
   scrollable?: boolean;
 };
 
-const PageContainer = ({
+const Page = ({
   children,
   headerProps,
   scrollable = false,
@@ -30,4 +30,4 @@ const PageContainer = ({
   );
 };
 
-export default PageContainer;
+export default Page;

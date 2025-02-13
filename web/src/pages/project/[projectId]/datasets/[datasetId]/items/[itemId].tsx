@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import {
   ResizableHandle,
@@ -36,7 +36,7 @@ export default function Dataset() {
   );
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: itemId,
         itemType: "DATASET_ITEM",
@@ -98,6 +98,6 @@ export default function Dataset() {
           />
         </ResizablePanel>
       </ResizablePanelGroup>
-    </PageContainer>
+    </Page>
   );
 }

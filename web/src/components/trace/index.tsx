@@ -48,7 +48,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import PageContainer from "@/src/components/layouts/page-container";
+import Page from "@/src/components/layouts/page";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -375,7 +375,7 @@ export function TracePage({
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
   return (
-    <PageContainer
+    <Page
       headerProps={{
         title: `${trace.data.name}: ${trace.data.id}`,
         itemType: "TRACE",
@@ -516,6 +516,6 @@ export function TracePage({
           />
         </TabsBarContent>
       </TabsBar>
-    </PageContainer>
+    </Page>
   );
 }
