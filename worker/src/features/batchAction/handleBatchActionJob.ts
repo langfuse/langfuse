@@ -1,19 +1,16 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
-  getQueue,
   logger,
   QueueJobs,
   QueueName,
   TQueueJobTypes,
-  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionQuery,
   BatchActionType,
   BatchExportTableName,
   FilterCondition,
-  JobExecutionStatus,
 } from "@langfuse/shared";
 import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
@@ -22,7 +19,6 @@ import { Job } from "bullmq";
 import { processAddToQueue } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
-import { v4 as uuidv4 } from "uuid";
 import { randomUUID } from "node:crypto";
 
 const CHUNK_SIZE = 1000;
