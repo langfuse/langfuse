@@ -47,7 +47,7 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  staticPageGenerationTimeout: 100, // default is 60. Required for build process for amd
+  staticPageGenerationTimeout: 120, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
   experimental: {
