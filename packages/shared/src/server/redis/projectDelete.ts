@@ -27,6 +27,7 @@ export class ProjectDeleteQueue {
               removeOnComplete: true,
               removeOnFail: 100_000,
               attempts: 5,
+              delay: 60_000, // 1 minute
               backoff: {
                 type: "exponential",
                 delay: 5000,
