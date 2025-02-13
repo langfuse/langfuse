@@ -181,22 +181,11 @@ export const traceRouter = createTRPCRouter({
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
       }),
     )
-    .query(async ({ input }) => {
-      const trace = await getTraceById(
-        input.traceId,
-        input.projectId,
-        input.timestamp ?? undefined,
-      );
-      if (!trace) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Trace not found",
-        });
-      }
+    .query(async ({ ctx }) => {
       return {
-        ...trace,
-        input: trace.input ? JSON.stringify(trace.input) : undefined,
-        output: trace.output ? JSON.stringify(trace.output) : undefined,
+        ...ctx.trace,
+        input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : undefined,
+        output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : undefined,
       };
     }),
   byIdWithObservationsAndScores: protectedGetTraceProcedure

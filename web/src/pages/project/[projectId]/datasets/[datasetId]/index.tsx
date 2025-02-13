@@ -100,7 +100,7 @@ export default function Dataset() {
       description: "Waiting for experiment to complete...",
       link: {
         text: "View experiment",
-        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runIds=${data.runId}`,
+        href: `/project/${projectId}/datasets/${data.datasetId}/compare?runs=${data.runId}`,
       },
     });
   };

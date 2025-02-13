@@ -59,7 +59,6 @@ export const getObservationsCostGroupedByName = async (
   const appliedFilter = chFilter.apply();
 
   const hasTraceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
-  // TODO: Validate whether we can filter traces on timestamp here.
 
   const query = `
     SELECT 
@@ -68,7 +67,7 @@ export const getObservationsCostGroupedByName = async (
       sumMap(usage_details)['total'] as sum_usage_details
     FROM observations o FINAL ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
-    AND ${appliedFilter.query}
+    ${appliedFilter.query ? `AND ${appliedFilter.query}` : ""}
     GROUP BY provided_model_name
     ORDER BY sumMap(cost_details)['total'] DESC
     LIMIT 50

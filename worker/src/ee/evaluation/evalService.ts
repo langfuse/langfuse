@@ -19,7 +19,8 @@ import {
   getObservationForTraceIdByName,
   DatasetRunItemUpsertEventType,
   TraceQueueEventType,
-  uploadEventToS3,
+  StorageService,
+  StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -43,6 +44,23 @@ import {
   compileHandlebarString,
 } from "../../features/utilities";
 import { JSONPath } from "jsonpath-plus";
+import { env } from "../../env";
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 // this function is used to determine which eval jobs to create for a given trace
 // there might be multiple eval jobs to create for a single trace
@@ -88,14 +106,14 @@ export const createEvalJobs = async ({
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem: { id: string } | undefined;
     if (isDatasetConfig) {
+      const condition = tableColumnsToSqlFilterAndPrefix(
+        config.target_object === "dataset" ? validatedFilter : [],
+        evalDatasetFormFilterCols,
+        "dataset_items",
+      );
+
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
-        const condition = tableColumnsToSqlFilterAndPrefix(
-          config.target_object === "dataset" ? validatedFilter : [],
-          evalDatasetFormFilterCols,
-          "dataset_items",
-        );
-
         const datasetItems = await prisma.$queryRaw<
           Array<{ id: string }>
         >(Prisma.sql`
@@ -114,9 +132,12 @@ export const createEvalJobs = async ({
         >(Prisma.sql`
           SELECT dataset_item_id as id
           FROM dataset_run_items as dri
-          WHERE project_id = ${event.projectId}
-          AND trace_id = ${event.traceId}
+          JOIN dataset_items as di ON di.id = dri.dataset_item_id
+          WHERE dri.project_id = ${event.projectId}
+            AND dri.trace_id = ${event.traceId}
+            ${condition}
         `);
+
         datasetItem = datasetItems.shift();
       }
     }
@@ -422,26 +443,20 @@ export const evaluate = async ({
   // Write score to S3 and ingest into queue for Clickhouse processing
   try {
     const eventId = randomUUID();
-    await uploadEventToS3(
+    const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${event.projectId}/score/${scoreId}/${eventId}.json`;
+    await getS3StorageServiceClient(
+      env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    ).uploadJson(bucketPath, [
       {
-        projectId: event.projectId,
-        entityType: "score",
-        entityId: scoreId,
-        eventId,
-        traceId: job.job_input_trace_id,
-      },
-      [
-        {
-          id: eventId,
-          timestamp: new Date().toISOString(),
-          type: eventTypes.SCORE_CREATE,
-          body: {
-            ...baseScore,
-            dataType: "NUMERIC",
-          },
+        id: eventId,
+        timestamp: new Date().toISOString(),
+        type: eventTypes.SCORE_CREATE,
+        body: {
+          ...baseScore,
+          dataType: "NUMERIC",
         },
-      ],
-    );
+      },
+    ]);
 
     if (redis) {
       const queue = IngestionQueue.getInstance();
@@ -456,6 +471,7 @@ export const evaluate = async ({
           data: {
             type: eventTypes.SCORE_CREATE,
             eventBodyId: scoreId,
+            fileKey: eventId,
           },
           authCheck: {
             validKey: true,

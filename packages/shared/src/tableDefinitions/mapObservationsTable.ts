@@ -145,6 +145,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Output Tokens",
@@ -152,6 +153,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Total Tokens",
@@ -159,6 +161,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Usage",
@@ -166,6 +169,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
+    clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {
     uiTableName: "Metadata",

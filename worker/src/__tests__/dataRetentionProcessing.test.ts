@@ -2,12 +2,15 @@ import { expect, it, describe, beforeAll } from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
+  clickhouseClient,
   createObservation,
   createObservationsCh,
   createScore,
   createScoresCh,
   createTrace,
   createTracesCh,
+  getClickhouseEntityType,
+  getEventLogByProjectAndEntityId,
   getObservationById,
   getScoreById,
   getTraceById,
@@ -31,6 +34,162 @@ describe("DataRetentionProcessingJob", () => {
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
     });
+  });
+
+  it("should NOT delete event files from cloud storage if after expiry cutoff", async () => {
+    // Setup
+    const baseId = randomUUID();
+    const fileName = `${baseId}.json`;
+    const fileType = "application/json";
+    const data = JSON.stringify({ hello: "world" });
+    const expiresInSeconds = 3600;
+    await storageService.uploadFile({
+      fileName,
+      fileType,
+      data,
+      expiresInSeconds,
+    });
+
+    await clickhouseClient().insert({
+      table: "event_log",
+      format: "JSONEachRow",
+      values: [
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "trace",
+          entity_id: `${baseId}-trace`,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: fileName,
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).getTime(), // 3 days in the past
+          updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).getTime(), // 3 days in the past
+        },
+      ],
+    });
+
+    // When
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } }, // Delete after 7 days
+    } as Job);
+
+    // Then
+    const files = await storageService.listFiles("");
+    expect(files.map((file) => file.file)).toContain(fileName);
+
+    const eventLogRecord = await getEventLogByProjectAndEntityId(
+      projectId,
+      "trace",
+      `${baseId}-trace`,
+    );
+    expect(eventLogRecord).toHaveLength(1);
+  });
+
+  it("should delete event files from cloud storage if expired", async () => {
+    // Setup
+    const baseId = randomUUID();
+    const fileName = `${baseId}.json`;
+    const fileType = "application/json";
+    const data = JSON.stringify({ hello: "world" });
+    const expiresInSeconds = 3600;
+    await storageService.uploadFile({
+      fileName,
+      fileType,
+      data,
+      expiresInSeconds,
+    });
+
+    await clickhouseClient().insert({
+      table: "event_log",
+      format: "JSONEachRow",
+      values: [
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "trace",
+          entity_id: `${baseId}-trace`,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: fileName,
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
+          updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).getTime(), // 30 days in the past
+        },
+      ],
+    });
+
+    // When
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } }, // Delete after 7 days
+    } as Job);
+
+    // Then
+    const files = await storageService.listFiles("");
+    expect(files.map((file) => file.file)).not.toContain(fileName);
+
+    const eventLogRecord = await getEventLogByProjectAndEntityId(
+      projectId,
+      "trace",
+      `${baseId}-trace`,
+    );
+    expect(eventLogRecord).toHaveLength(0);
+  });
+
+  it("should NOT delete media files from cloud storage and database if after expiry cutoff", async () => {
+    // Setup
+    const fileName = `${randomUUID()}.txt`;
+    const fileType = "text/plain";
+    const data = "Hello, world!";
+    const expiresInSeconds = 3600;
+    await storageService.uploadFile({
+      fileName,
+      fileType,
+      data,
+      expiresInSeconds,
+    });
+
+    const mediaId = randomUUID();
+    const traceId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days in the past
+        bucketPath: fileName,
+        bucketName: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        contentType: fileType,
+        contentLength: 0,
+      },
+    });
+
+    await prisma.traceMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        traceId,
+        mediaId,
+        field: "test",
+      },
+    });
+
+    // When
+    await handleDataRetentionProcessingJob({
+      data: { payload: { projectId, retention: 7 } }, // Delete after 7 days
+    } as Job);
+
+    // Then
+    const files = await storageService.listFiles("");
+    expect(files.map((file) => file.file)).toContain(fileName);
+
+    const media = await prisma.media.findUnique({
+      where: { id: mediaId },
+    });
+    expect(media).toBeDefined();
+
+    const traceMedia = await prisma.traceMedia.findFirst({
+      where: { mediaId },
+    });
+    expect(traceMedia).toBeDefined();
   });
 
   it("should delete media files from cloud storage and database if expired", async () => {
@@ -78,7 +237,7 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     const files = await storageService.listFiles("");
-    expect(files).not.toContain(fileName);
+    expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
       where: { id: mediaId },
