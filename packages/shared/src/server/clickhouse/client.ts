@@ -6,20 +6,32 @@ import { propagation, context } from "@opentelemetry/api";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export const clickhouseClient = (opts?: NodeClickHouseClientConfigOptions) => {
-  const headers = opts?.http_headers ?? {};
+export const clickhouseClient = (
+  params: {
+    tags?: string[];
+    opts?: NodeClickHouseClientConfigOptions;
+  } = {},
+) => {
+  const headers = params.opts?.http_headers ?? {};
   const activeSpan = getCurrentSpan();
   if (activeSpan) {
     propagation.inject(context.active(), headers);
   }
+
+  let log_comment: string | null = null;
+  if (params.tags && params.tags.length) {
+    log_comment = params.tags.join(",");
+  }
+
   return createClient({
-    ...opts,
+    ...params.opts,
     url: env.CLICKHOUSE_URL,
     username: env.CLICKHOUSE_USER,
     password: env.CLICKHOUSE_PASSWORD,
     database: env.CLICKHOUSE_DB,
     http_headers: headers,
     clickhouse_settings: {
+      ...(log_comment ? { log_comment } : {}),
       async_insert: 1,
       wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
     },

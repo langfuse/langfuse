@@ -215,7 +215,12 @@ export const ingestionQueueProcessorBuilder = (
         redis,
         prisma,
         clickhouseWriter,
-        clickhouseClient(),
+        clickhouseClient({
+          tags: [
+            "feature:ingestion",
+            `projectId:${job.data.payload.authCheck.scope.projectId}`,
+          ],
+        }),
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,

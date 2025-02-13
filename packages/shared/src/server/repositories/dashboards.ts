@@ -39,6 +39,12 @@ export const getTotalTraces = async (
       projectId,
       ...chFilter.params,
     },
+    tags: [
+      "feature:dashboard",
+      "type:totalTraces",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   if (result.length === 0) {
@@ -83,6 +89,12 @@ export const getObservationsCostGroupedByName = async (
       projectId,
       ...appliedFilter.params,
     },
+    tags: [
+      "feature:dashboard",
+      "type:observationCostGroupedByName",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result;
@@ -137,6 +149,12 @@ export const getScoreAggregate = async (
         ? { tracesTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
+    tags: [
+      "feature:dashboard",
+      "type:scoreAggregate",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result;
@@ -175,6 +193,12 @@ export const groupTracesByTime = async (
       ...chFilter.params,
       ...orderByParams,
     },
+    tags: [
+      "feature:dashboard",
+      "type:tracesByTime",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -238,6 +262,12 @@ export const getObservationUsageByTime = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
+    tags: [
+      "feature:dashboard",
+      "type:observationUsageByTime",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -300,6 +330,12 @@ export const getDistinctModels = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
+    tags: [
+      "feature:dashboard",
+      "type:distinctModels",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result;
@@ -356,6 +392,12 @@ export const getScoresAggregateOverTime = async (
       ...appliedFilter.params,
       ...orderByParams,
     },
+    tags: [
+      "feature:dashboard",
+      "type:scoresAggregateOverTime",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -413,6 +455,12 @@ export const getModelUsageByUser = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
+    tags: [
+      "feature:dashboard",
+      "type:modelUsageByUser",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -448,6 +496,12 @@ export const getObservationLatencies = async (
   const result = await queryClickhouse<{ quantiles: string[]; name: string }>({
     query,
     params: { projectId, ...appliedFilter.params },
+    tags: [
+      "feature:dashboard",
+      "type:observationLatencies",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -509,6 +563,12 @@ export const getTracesLatencies = async (
         ? { dateTimeFilterObservations: timestampFilter.value }
         : {}),
     },
+    tags: [
+      "feature:dashboard",
+      "type:tracesLatencies",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -558,6 +618,12 @@ export const getModelLatenciesOverTime = async (
   }>({
     query,
     params: { projectId, ...appliedFilter.params, ...orderByParams },
+    tags: [
+      "feature:dashboard",
+      "type:modelLatenciesOverTime",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -611,6 +677,12 @@ export const getNumericScoreTimeSeries = async (
       ...(chFilterRes ? chFilterRes.params : {}),
       ...orderByParams,
     },
+    tags: [
+      "feature:dashboard",
+      "type:numericScoreTimeSeries",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -666,6 +738,12 @@ export const getCategoricalScoreTimeSeries = async (
       ...(chFilterRes ? chFilterRes.params : {}),
       ...orderByParams,
     },
+    tags: [
+      "feature:dashboard",
+      "type:categoricalScoreTimeSeries",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
@@ -721,6 +799,12 @@ export const getObservationsStatusTimeSeries = async (
       ...(chFilterRes ? chFilterRes.params : {}),
       ...orderByParams,
     },
+    tags: [
+      "feature:dashboard",
+      "type:observationStatusTimeSeries",
+      "kind:analytic",
+      `projectId:${projectId}`,
+    ],
   });
 
   return result.map((row) => ({
