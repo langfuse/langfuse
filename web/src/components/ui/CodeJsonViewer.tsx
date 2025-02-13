@@ -13,6 +13,8 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 
+const IO_TABLE_CHAR_LIMIT = 10000;
+
 export function JSONView(props: {
   canEnableMarkdown?: boolean;
   json?: unknown;
@@ -212,6 +214,12 @@ export const IOTableCell = ({
   className?: string;
   singleLine?: boolean;
 }) => {
+  const stringifiedJson = data ? stringifyJsonNode(data) : undefined;
+
+  // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
+  const shouldTruncate =
+    stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
+
   return (
     <>
       {isLoading ? (
@@ -223,11 +231,29 @@ export const IOTableCell = ({
             className,
           )}
         >
-          {data ? stringifyJsonNode(data) : undefined}
+          {stringifiedJson}
+        </div>
+      ) : shouldTruncate ? (
+        <div className="grid h-full grid-cols-1">
+          <JSONView
+            json={
+              stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
+              `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
+            }
+            className={cn(
+              "h-full w-full self-stretch overflow-y-auto rounded-sm",
+              className,
+            )}
+            codeClassName="py-1 px-2"
+            collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
+          />
+          <div className="text-xs text-muted-foreground">
+            Content was truncated.
+          </div>
         </div>
       ) : (
         <JSONView
-          json={data ? stringifyJsonNode(data) : undefined}
+          json={stringifiedJson}
           className={cn(
             "h-full w-full self-stretch overflow-y-auto rounded-sm",
             className,
