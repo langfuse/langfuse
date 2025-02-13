@@ -7,11 +7,11 @@ import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 
 const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -26,7 +26,6 @@ export function JSONView(props: {
   media?: MediaReturnType[];
 }) {
   // some users ingest stringified json nested in json, parse it
-  const [isCopied, setIsCopied] = useState(false);
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
@@ -37,63 +36,34 @@ export function JSONView(props: {
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
 
-  const handleCopy = () => {
-    setIsCopied(true);
+  const handleOnCopy = () => {
     void navigator.clipboard.writeText(stringifyJsonNode(parsedJson));
-    setTimeout(() => setIsCopied(false), 1000);
+  };
+
+  const handleOnValueChange = () => {
+    setIsMarkdownEnabled(true);
+    capture("trace_detail:io_pretty_format_toggle_group", {
+      renderMarkdown: true,
+    });
   };
 
   return (
-    <div className={cn("rounded-md border", props.className)}>
+    <div className={cn(props.className)}>
       {props.title ? (
-        <div
-          className={cn(
-            props.title === "assistant" || props.title === "Output"
-              ? "dark:border-accent-dark-green"
-              : "",
-            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
-          )}
-        >
-          {props.title}
-          <div className="flex items-center gap-1">
-            {props.canEnableMarkdown && (
-              <Button
-                title="Enable Markdown"
-                variant="ghost"
-                type="button"
-                size="icon-xs"
-                onClick={() => {
-                  setIsMarkdownEnabled(true);
-                  capture("trace_detail:io_pretty_format_toggle_group", {
-                    renderMarkdown: true,
-                  });
-                }}
-                className="opacity-50 hover:bg-border"
-              >
-                <BsMarkdown className="h-4 w-4 text-foreground" />
-              </Button>
-            )}
-            <Button
-              title="Copy to clipboard"
-              variant="ghost"
-              size="icon-xs"
-              type="button"
-              onClick={handleCopy}
-              className="-mr-2 hover:bg-border"
-            >
-              {isCopied ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-          </div>
-        </div>
-      ) : undefined}
+        <MarkdownJsonViewHeader
+          title={props.title}
+          canEnableMarkdown={props.canEnableMarkdown ?? false}
+          handleOnValueChange={handleOnValueChange}
+          handleOnCopy={handleOnCopy}
+        />
+      ) : null}
       <div
         className={cn(
-          "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
+          "flex gap-2 whitespace-pre-wrap break-words rounded-sm border p-3 text-xs",
           props.codeClassName,
+          props.title === "assistant" || props.title === "Output"
+            ? "bg-accent-light-green dark:border-accent-dark-green"
+            : "",
         )}
       >
         {props.isLoading ? (

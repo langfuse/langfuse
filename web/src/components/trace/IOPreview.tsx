@@ -2,86 +2,19 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
   type ChatMlMessageSchema,
-  OpenAIContentSchema,
-  type OpenAIOutputAudioType,
 } from "@/src/components/schemas/ChatMlSchema";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-
-const isSupportedMarkdownFormat = (
-  content: unknown,
-  contentValidation: z.SafeParseReturnType<
-    string,
-    z.infer<typeof OpenAIContentSchema>
-  >,
-): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
-
-// MarkdownOrJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
-// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
-export function MarkdownOrJsonView({
-  content,
-  title,
-  className,
-  customCodeHeaderClassName,
-  audio,
-  media,
-}: {
-  content?: unknown;
-  title?: string;
-  className?: string;
-  customCodeHeaderClassName?: string;
-  audio?: OpenAIOutputAudioType;
-  media?: MediaReturnType[];
-}) {
-  const stringOrValidatedMarkdown = useMemo(
-    () => StringOrMarkdownSchema.safeParse(content),
-    [content],
-  );
-  const validatedOpenAIContent = useMemo(
-    () => OpenAIContentSchema.safeParse(content),
-    [content],
-  );
-
-  const { isMarkdownEnabled } = useMarkdownContext();
-  const canEnableMarkdown = isSupportedMarkdownFormat(
-    content,
-    validatedOpenAIContent,
-  );
-
-  return (
-    <>
-      {isMarkdownEnabled && canEnableMarkdown ? (
-        <MarkdownView
-          markdown={stringOrValidatedMarkdown.data ?? content}
-          title={title}
-          className={className}
-          customCodeHeaderClassName={customCodeHeaderClassName}
-          audio={audio}
-          media={media}
-        />
-      ) : (
-        <JSONView
-          json={content ?? (audio ? { audio } : null)}
-          canEnableMarkdown={canEnableMarkdown}
-          title={title}
-          className={className}
-          media={media}
-        />
-      )}
-    </>
-  );
-}
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -208,17 +141,16 @@ export const IOPreview: React.FC<{
           ) : (
             <>
               {!(hideIfNull && !input) && !hideInput ? (
-                <MarkdownOrJsonView
+                <MarkdownJsonView
                   title="Input"
                   content={input}
                   media={media?.filter((m) => m.field === "input") ?? []}
                 />
               ) : null}
               {!(hideIfNull && !output) && !hideOutput ? (
-                <MarkdownOrJsonView
+                <MarkdownJsonView
                   title="Output"
                   content={output}
-                  className="bg-accent-light-green dark:border-accent-dark-green"
                   customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
                   media={media?.filter((m) => m.field === "output") ?? []}
                 />
@@ -243,7 +175,7 @@ export const IOPreview: React.FC<{
               title="Output"
               json={outputClean}
               isLoading={isLoading}
-              className="flex-1 bg-accent-light-green dark:border-accent-dark-green"
+              className="flex-1"
               media={media?.filter((m) => m.field === "output") ?? []}
             />
           ) : null}
@@ -292,7 +224,7 @@ export const OpenAiMessageView: React.FC<{
               <div>
                 {(!!message.content || !!message.audio) &&
                   (shouldRenderMarkdown ? (
-                    <MarkdownOrJsonView
+                    <MarkdownJsonView
                       title={message.name ?? message.role}
                       content={message.content}
                       className={cn(
