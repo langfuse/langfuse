@@ -215,11 +215,8 @@ export const IOTableCell = ({
               stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
               `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
             }
-            className={cn(
-              "h-full w-full self-stretch overflow-y-auto rounded-sm",
-              className,
-            )}
-            codeClassName="py-1 px-2"
+            className={cn("h-full w-full self-stretch rounded-sm", className)}
+            codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
             collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
           />
           <div className="text-xs text-muted-foreground">
@@ -229,11 +226,8 @@ export const IOTableCell = ({
       ) : (
         <JSONView
           json={stringifiedJson}
-          className={cn(
-            "h-full w-full self-stretch overflow-y-auto rounded-sm",
-            className,
-          )}
-          codeClassName="py-1 px-2"
+          className={cn("h-full w-full self-stretch rounded-sm", className)}
+          codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
           collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         />
       )}
