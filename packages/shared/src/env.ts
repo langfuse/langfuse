@@ -19,9 +19,9 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
   REDIS_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
-  REDIS_TLS_CA_PATH: z.string().default("/certs/ca.crt"),
-  REDIS_TLS_CERT_PATH: z.string().default("/certs/redis.crt"),
-  REDIS_TLS_KEY_PATH: z.string().default("/certs/redis.key"),
+  REDIS_TLS_CA_PATH: z.string().optional(),
+  REDIS_TLS_CERT_PATH: z.string().optional(),
+  REDIS_TLS_KEY_PATH: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
   ENCRYPTION_KEY: z
     .string()

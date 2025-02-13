@@ -29,9 +29,9 @@ export const createNewRedisInstance = (
   const tlsOptions = tlsEnabled
     ? {
         tls: {
-          ca: fs.readFileSync(env.REDIS_TLS_CA_PATH),
-          cert: fs.readFileSync(env.REDIS_TLS_CERT_PATH),
-          key: fs.readFileSync(env.REDIS_TLS_KEY_PATH),
+          ca: env.REDIS_TLS_CA_PATH ? fs.readFileSync(env.REDIS_TLS_CA_PATH) : undefined,
+          cert: env.REDIS_TLS_CERT_PATH ? fs.readFileSync(env.REDIS_TLS_CERT_PATH) : undefined,
+          key: env.REDIS_TLS_KEY_PATH ? fs.readFileSync(env.REDIS_TLS_KEY_PATH) : undefined,
         },
       }
     : {};
