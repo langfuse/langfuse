@@ -22,6 +22,7 @@ export default function TableLink({
       )}
       href={path}
       title={value}
+      prefetch={false}
     >
       {icon ? icon : value}
     </Link>

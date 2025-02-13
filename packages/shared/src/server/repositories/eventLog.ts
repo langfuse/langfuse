@@ -1,5 +1,10 @@
-import { queryClickhouse } from "./clickhouse";
+import {
+  commandClickhouse,
+  queryClickhouse,
+  queryClickhouseStream,
+} from "./clickhouse";
 import { EventLogRecordReadType } from "./definitions";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 export const getEventLogByProjectAndEntityId = async (
   projectId: string,
@@ -20,6 +25,82 @@ export const getEventLogByProjectAndEntityId = async (
       projectId,
       entityType,
       entityId,
+    },
+  });
+};
+
+export const getEventLogByProjectId = (
+  projectId: string,
+): AsyncGenerator<EventLogRecordReadType> => {
+  const query = `
+    select *
+    from event_log
+    where project_id = {projectId: String}
+  `;
+
+  return queryClickhouseStream<EventLogRecordReadType>({
+    query,
+    params: {
+      projectId,
+    },
+  });
+};
+
+export const getEventLogByProjectIdBeforeDate = (
+  projectId: string,
+  beforeDate: Date,
+): AsyncGenerator<EventLogRecordReadType> => {
+  const query = `
+        select *
+        from event_log
+        where project_id = {projectId: String}
+        and created_at <= {beforeDate: DateTime64(3)}
+    `;
+
+  return queryClickhouseStream<EventLogRecordReadType>({
+    query,
+    params: {
+      projectId,
+      beforeDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+  });
+};
+
+export const deleteEventLogByProjectId = async (
+  projectId: string,
+): Promise<void> => {
+  const query = `
+    DELETE FROM event_log
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+  });
+};
+
+export const deleteEventLogByProjectIdBeforeDate = async (
+  projectId: string,
+  beforeDate: Date,
+): Promise<void> => {
+  const query = `
+    DELETE FROM event_log
+    WHERE project_id = {projectId: String}
+    AND created_at <= {beforeDate: DateTime64(3)};
+  `;
+  await commandClickhouse({
+    query: query,
+    params: {
+      projectId,
+      beforeDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
     },
   });
 };

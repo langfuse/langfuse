@@ -1,7 +1,9 @@
 import {
+  deleteEventLogByProjectIdBeforeDate,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
+  getEventLogByProjectIdBeforeDate,
   logger,
   StorageService,
   StorageServiceFactory,
@@ -26,8 +28,26 @@ const getS3MediaStorageClient = (bucketName: string): StorageService => {
   return s3MediaStorageClient;
 };
 
+let s3EventStorageClient: StorageService;
+
+const getS3EventStorageClient = (bucketName: string): StorageService => {
+  if (!s3EventStorageClient) {
+    s3EventStorageClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3EventStorageClient;
+};
+
 export const handleDataRetentionProcessingJob = async (job: Job) => {
   const { projectId, retention } = job.data.payload;
+
+  const cutoffDate = new Date(Date.now() - retention * 24 * 60 * 60 * 1000);
 
   // Delete media files if bucket is configured
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
@@ -45,7 +65,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       where: {
         projectId,
         createdAt: {
-          lte: new Date(Date.now() - retention * 24 * 60 * 60 * 1000),
+          lte: cutoffDate,
         },
       },
     });
@@ -70,6 +90,26 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     );
   }
 
+  // Remove event files from S3
+  const eventLogStream = getEventLogByProjectIdBeforeDate(
+    projectId,
+    cutoffDate,
+  );
+  let eventLogPaths: string[] = [];
+  const eventStorageClient = getS3EventStorageClient(
+    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+  );
+  for await (const eventLog of eventLogStream) {
+    eventLogPaths.push(eventLog.bucket_path);
+    if (eventLogPaths.length > 500) {
+      // Delete the current batch and reset the list
+      await eventStorageClient.deleteFiles(eventLogPaths);
+      eventLogPaths = [];
+    }
+  }
+  // Delete any remaining files
+  await eventStorageClient.deleteFiles(eventLogPaths);
+
   // Delete ClickHouse (TTL / Delete Queries)
   logger.info(
     `[Data Retention] Deleting ClickHouse data older than ${retention} days for project ${projectId}`,
@@ -78,6 +118,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     deleteTracesOlderThanDays(projectId, retention),
     deleteObservationsOlderThanDays(projectId, retention),
     deleteScoresOlderThanDays(projectId, retention),
+    deleteEventLogByProjectIdBeforeDate(projectId, cutoffDate),
   ]);
   logger.info(
     `[Data Retention] Deleted ClickHouse data older than ${retention} days for project ${projectId}`,
