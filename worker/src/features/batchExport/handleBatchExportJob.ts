@@ -355,8 +355,8 @@ export const handleBatchExportJob = async (
     );
   }
   if (jobDetails.status !== BatchExportStatus.QUEUED) {
-    throw new Error(
-      `Job ${batchExportId} has invalid status: ${jobDetails.status}`,
+    logger.warning(
+      `Job ${batchExportId} has invalid status: ${jobDetails.status}. Retrying anyway.`,
     );
   }
 
