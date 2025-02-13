@@ -64,6 +64,9 @@ export function JSONView(props: {
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
+          props.title === "system" || props.title === "Input"
+            ? "bg-primary-foreground"
+            : "",
         )}
       >
         {props.isLoading ? (

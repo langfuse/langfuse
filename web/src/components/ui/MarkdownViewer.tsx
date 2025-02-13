@@ -305,6 +305,9 @@ export function MarkdownView({
           title === "assistant" || title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
+          title === "system" || title === "Input"
+            ? "bg-primary-foreground"
+            : "",
         )}
       >
         {typeof markdown === "string" ? (

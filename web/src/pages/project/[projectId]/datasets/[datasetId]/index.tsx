@@ -26,13 +26,13 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 
 export default function Dataset() {
   const router = useRouter();
@@ -203,7 +203,7 @@ export default function Dataset() {
                   </div>
                   <div>
                     <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownOrJsonView
+                    <MarkdownJsonView
                       content={dataset.data?.metadata ?? null}
                     />
                   </div>

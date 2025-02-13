@@ -227,17 +227,11 @@ export const OpenAiMessageView: React.FC<{
                     <MarkdownJsonView
                       title={message.name ?? message.role}
                       content={message.content}
-                      className={cn(
-                        "bg-muted",
-                        message.role === "system" && "bg-primary-foreground",
-                        message.role === "assistant" &&
-                          "bg-accent-light-green dark:border-accent-dark-green",
-                        message.role === "user" && "bg-background",
-                        !!message.json && "rounded-b-none",
-                      )}
+                      className={cn(!!message.json && "rounded-b-none")}
                       customCodeHeaderClassName={cn(
                         message.role === "assistant" &&
                           "bg-muted-green dark:bg-secondary",
+                        message.role === "system" && "bg-primary-foreground",
                       )}
                       audio={message.audio}
                     />
@@ -245,14 +239,7 @@ export const OpenAiMessageView: React.FC<{
                     <JSONView
                       title={message.name ?? message.role}
                       json={message.content}
-                      className={cn(
-                        "bg-muted",
-                        message.role === "system" && "bg-primary-foreground",
-                        message.role === "assistant" &&
-                          "bg-accent-light-green dark:border-accent-dark-green",
-                        message.role === "user" && "bg-background",
-                        !!message.json && "rounded-b-none",
-                      )}
+                      className={cn(!!message.json && "rounded-b-none")}
                     />
                   ))}
                 {!!message.json && (
@@ -264,11 +251,6 @@ export const OpenAiMessageView: React.FC<{
                     }
                     json={message.json}
                     className={cn(
-                      "bg-muted",
-                      message.role === "system" && "bg-primary-foreground",
-                      message.role === "assistant" &&
-                        "bg-accent-light-green dark:border-accent-dark-green",
-                      message.role === "user" && "bg-background",
                       !!message.content && "rounded-t-none border-t-0",
                     )}
                   />
