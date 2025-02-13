@@ -208,10 +208,7 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await (
-      ClickhouseWriter.client ??
-      clickhouseClient({ tags: ["feature:ingestion"] })
-    )
+    await (ClickhouseWriter.client ?? clickhouseClient())
       .insert({
         table: params.table,
         format: "JSONEachRow",

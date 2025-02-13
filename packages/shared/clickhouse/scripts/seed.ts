@@ -1,4 +1,7 @@
-import { ObservationRecordReadType } from "@langfuse/shared/src/server";
+import {
+  clickhouseClient,
+  ObservationRecordReadType,
+} from "@langfuse/shared/src/server";
 import { prisma } from "../../src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { prepareClickhouse } from "../../scripts/prepareClickhouse";
@@ -62,6 +65,7 @@ async function main() {
   } catch (error) {
     console.error("Error during Clickhouse preparation:", error);
   } finally {
+    await clickhouseClient().close();
     await prisma.$disconnect();
     redis?.disconnect();
     console.log("Disconnected from Clickhouse.");

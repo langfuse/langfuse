@@ -162,10 +162,7 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     })),
   );
 
-  await clickhouseClient({
-    tags: ["feature:dataset", `projectId:${projectId}`],
-    opts: { session_id: clickhouseSession },
-  }).insert({
+  await clickhouseClient({ session_id: clickhouseSession }).insert({
     table: tableName,
     values: rows,
     format: "JSONEachRow",
@@ -193,7 +190,6 @@ export const createTempTableInClickhouse = async (
     query,
     params: { tableName },
     clickhouseConfigs: { session_id: clickhouseSession },
-    tags: ["feature:dataset"],
   });
 };
 
@@ -208,7 +204,6 @@ export const deleteTempTableInClickhouse = async (
     query,
     params: { tableName },
     clickhouseConfigs: { session_id: sessionId },
-    tags: ["feature:dataset"],
   });
 };
 
@@ -275,7 +270,6 @@ const getScoresFromTempTable = async (
       datasetId: input.datasetId,
     },
     clickhouseConfigs: { session_id: clickhouseSession },
-    tags: ["feature:dataset", `projectId:${input.projectId}`],
   });
 
   return rows.map((row) => ({ ...convertToScore(row), run_id: row.run_id }));
@@ -325,7 +319,6 @@ const getObservationLatencyAndCostForDataset = async (
       datasetId: input.datasetId,
     },
     clickhouseConfigs: { session_id: clickhouseSession },
-    tags: ["feature:dataset", `projectId:${input.projectId}`],
   });
 
   return rows.map((row) => ({
@@ -375,7 +368,6 @@ const getTraceLatencyAndCostForDataset = async (
       datasetId: input.datasetId,
     },
     clickhouseConfigs: { session_id: clickhouseSession },
-    tags: ["feature:dataset", `projectId:${input.projectId}`],
   });
 
   return rows.map((row) => ({
