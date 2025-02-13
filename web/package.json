@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.26.0",
+  "version": "3.27.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -86,6 +86,7 @@
     "@remixicon/react": "^4.2.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@sentry/nextjs": "^8.52.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tanstack/react-query": "^4.36.1",

@@ -1,7 +1,7 @@
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-// import { setUser } from "@sentry/nextjs";
+import { setUser } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -163,11 +163,11 @@ function UserTracking() {
           domain: emailDomain,
         });
 
-      // // Sentry
-      // setUser({
-      //   email: sessionUser.email ?? undefined,
-      //   id: sessionUser.id ?? undefined,
-      // });
+      // Sentry
+      setUser({
+        email: sessionUser.email ?? undefined,
+        id: sessionUser.id ?? undefined,
+      });
 
       // Chat
       chatSetUser({
@@ -191,8 +191,8 @@ function UserTracking() {
         posthog.reset();
         posthog.resetGroups();
       }
-      // // Sentry
-      // setUser(null);
+      // Sentry
+      setUser(null);
     }
   }, [sessionUser, session.status]);
 

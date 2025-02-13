@@ -156,7 +156,7 @@ export default function DatasetCompare() {
     return [...apiRuns, ...localRuns];
   }, [runsData.data, localRuns]);
 
-  if (!runsData.data || !router.isReady) {
+  if (!runsData.data || !router.isReady || runs.length === 0) {
     return <span>Loading...</span>;
   }
 
@@ -248,7 +248,7 @@ export default function DatasetCompare() {
             options={runs.map((run) => ({
               key: run.key,
               value: run.value,
-              disabled: runIds?.includes(run.key) && runIds.length === 2,
+              disabled: runIds?.includes(run.key) && runIds.length === 1,
             }))}
             values={runs.filter((run) => runIds?.includes(run.key))}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
