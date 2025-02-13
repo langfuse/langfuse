@@ -124,7 +124,6 @@ async function main() {
   } catch (error) {
     logger.error("Error during Clickhouse preparation:", error);
   } finally {
-    await clickhouseClient().close();
     await prisma.$disconnect();
     redis?.disconnect();
     logger.info("Disconnected from Clickhouse.");

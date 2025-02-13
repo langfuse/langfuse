@@ -36,6 +36,7 @@ export async function upsertClickhouse<
   table: "scores" | "traces" | "observations";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
+  tags?: string[];
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-upsert" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
@@ -56,7 +57,9 @@ export async function upsertClickhouse<
 
         // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
         // and are not worried that much about latency.
-        await clickhouseClient().insert({
+        await clickhouseClient({
+          tags: opts.tags,
+        }).insert({
           table: "event_log",
           values: [
             {
@@ -85,7 +88,7 @@ export async function upsertClickhouse<
       }),
     );
 
-    const res = await clickhouseClient().insert({
+    const res = await clickhouseClient({ tags: opts.tags }).insert({
       table: opts.table,
       values: opts.records.map((record) => ({
         ...record,
@@ -124,6 +127,7 @@ export async function* queryClickhouseStream<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  tags?: string[];
 }): AsyncGenerator<T> {
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream");
@@ -135,7 +139,10 @@ export async function* queryClickhouseStream<T>(opts: {
         // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
         span.setAttribute("ch.query.text", opts.query);
 
-        const res = await clickhouseClient(opts.clickhouseConfigs).query({
+        const res = await clickhouseClient({
+          tags: opts.tags,
+          opts: opts.clickhouseConfigs,
+        }).query({
           query: opts.query,
           format: "JSONEachRow",
           query_params: opts.params,
@@ -182,12 +189,16 @@ export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  tags?: string[];
 }): Promise<T[]> {
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
 
-    const res = await clickhouseClient(opts.clickhouseConfigs).query({
+    const res = await clickhouseClient({
+      tags: opts.tags,
+      opts: opts.clickhouseConfigs,
+    }).query({
       query: opts.query,
       format: "JSONEachRow",
       query_params: opts.params,
@@ -225,11 +236,15 @@ export async function commandClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
+  tags?: string[];
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
     span.setAttribute("ch.query.text", opts.query);
-    const res = await clickhouseClient(opts.clickhouseConfigs).command({
+    const res = await clickhouseClient({
+      tags: opts.tags,
+      opts: opts.clickhouseConfigs,
+    }).command({
       query: opts.query,
       query_params: opts.params,
     });
