@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.26.0",
+  "version": "3.27.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -108,7 +108,7 @@
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
     "date-fns": "^3.3.1",
-    "dd-trace": "^5.23.1",
+    "dd-trace": "^5.36.0",
     "decimal.js": "^10.4.3",
     "diff": "^7.0.0",
     "dompurify": "^3.1.5",
@@ -202,7 +202,6 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.2.0",
       "nanoid": "^3.3.8",
       "katex": "0.16.21"
     }
