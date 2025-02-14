@@ -8,7 +8,7 @@ export type ClickhouseClientType = ReturnType<typeof createClient>;
 
 export const clickhouseClient = (
   params: {
-    tags?: string[];
+    tags?: Record<string, string>;
     opts?: NodeClickHouseClientConfigOptions;
   } = {},
 ) => {
@@ -20,7 +20,7 @@ export const clickhouseClient = (
 
   let log_comment: string | null = null;
   if (params.tags && params.tags.length) {
-    log_comment = params.tags.join(",");
+    log_comment = JSON.stringify(params.tags);
   }
 
   return createClient({

@@ -26,7 +26,11 @@ export const getEventLogByProjectAndEntityId = async (
       entityType,
       entityId,
     },
-    tags: ["feature:eventLog", "kind:byId", `projectId:${projectId}`],
+    tags: {
+      feature: "eventLog",
+      kind: "byID",
+      projectId,
+    },
   });
 };
 
@@ -44,7 +48,11 @@ export const getEventLogByProjectId = (
     params: {
       projectId,
     },
-    tags: ["feature:eventLog", "kind:list", `projectId:${projectId}`],
+    tags: {
+      feature: "eventLog",
+      kind: "list",
+      projectId,
+    },
   });
 };
 
@@ -65,7 +73,11 @@ export const getEventLogByProjectIdBeforeDate = (
       projectId,
       beforeDate: convertDateToClickhouseDateTime(beforeDate),
     },
-    tags: ["feature:eventLog", "kind:list", `projectId:${projectId}`],
+    tags: {
+      feature: "eventLog",
+      kind: "list",
+      projectId,
+    },
   });
 };
 
@@ -84,7 +96,11 @@ export const deleteEventLogByProjectId = async (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: ["feature:eventLog", "kind:delete", `projectId:${projectId}`],
+    tags: {
+      feature: "eventLog",
+      kind: "delete",
+      projectId,
+    },
   });
 };
 
@@ -106,6 +122,10 @@ export const deleteEventLogByProjectIdBeforeDate = async (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: ["feature:eventLog", "kind:delete", `projectId:${projectId}`],
+    tags: {
+      feature: "eventLog",
+      kind: "delete",
+      projectId,
+    },
   });
 };

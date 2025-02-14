@@ -36,7 +36,7 @@ export async function upsertClickhouse<
   table: "scores" | "traces" | "observations";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
-  tags?: string[];
+  tags?: Record<string, string>;
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-upsert" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
@@ -127,7 +127,7 @@ export async function* queryClickhouseStream<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: string[];
+  tags?: Record<string, string>;
 }): AsyncGenerator<T> {
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream");
@@ -189,7 +189,7 @@ export async function queryClickhouse<T>(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: string[];
+  tags?: Record<string, string>;
 }): Promise<T[]> {
   return await instrumentAsync({ name: "clickhouse-query" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
@@ -236,7 +236,7 @@ export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: string[];
+  tags?: Record<string, string>;
 }): Promise<void> {
   return await instrumentAsync({ name: "clickhouse-command" }, async (span) => {
     // https://opentelemetry.io/docs/specs/semconv/database/database-spans/

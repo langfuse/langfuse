@@ -210,7 +210,7 @@ export class ClickhouseWriter {
 
     await (
       ClickhouseWriter.client ??
-      clickhouseClient({ tags: ["feature:ingestion"] })
+      clickhouseClient({ tags: { feature: "ingestion" } })
     )
       .insert({
         table: params.table,

@@ -15,18 +15,15 @@ import {
   DateTimeFilter,
   FilterList,
   StringFilter,
-} from "../queries/clickhouse-sql/clickhouse-filter";
-import {
-  FullObservation,
   FullObservations,
-} from "../queries/createGenerationsQuery";
+  orderByToClickhouseSql,
+} from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   observationsTableTraceUiColumnDefinitions,
   observationsTableUiColumnDefinitions,
 } from "../../tableDefinitions";
 import { TableCount } from "./types";
-import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -65,12 +62,12 @@ export const checkObservationExists = async (
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:exists",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "exists",
+      projectId,
+    },
   });
 
   return rows.length > 0;
@@ -96,12 +93,12 @@ export const upsertObservation = async (
     table: "observations",
     records: [observation as ObservationRecordReadType],
     eventBodyMapper: convertObservation,
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:upsert",
-      `projectId:${observation.project_id}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "upsert",
+      projectId: observation.project_id ?? "",
+    },
   });
 };
 
@@ -156,12 +153,12 @@ export const getObservationsViewForTrace = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:list",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "list",
+      projectId,
+    },
   });
 
   return records.map(convertObservationToView);
@@ -221,12 +218,12 @@ export const getObservationForTraceIdByName = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:list",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "list",
+      projectId,
+    },
   });
 
   return records.map(convertObservationToView);
@@ -386,12 +383,12 @@ const getObservationByIdInternal = async (
         ? { startTime: convertDateToClickhouseDateTime(startTime) }
         : {}),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:byId",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "byId",
+      projectId,
+    },
   });
 };
 
@@ -417,7 +414,7 @@ export const getObservationsTableCount = async (opts: ObservationTableQuery) =>
   getObservationsTableInternal<TableCount>({
     ...opts,
     select: "count",
-    tags: ["kind:count"],
+    tags: { kind: "count" },
   });
 
 export const getObservationsTableWithModelData = async (
@@ -431,7 +428,7 @@ export const getObservationsTableWithModelData = async (
   >({
     ...opts,
     select: "rows",
-    tags: ["kind:list"],
+    tags: { kind: "list" },
   });
 
   const uniqueModels: string[] = Array.from(
@@ -488,7 +485,10 @@ export const getObservationsTableWithModelData = async (
 };
 
 const getObservationsTableInternal = async <T>(
-  opts: ObservationTableQuery & { select: "count" | "rows"; tags: string[] },
+  opts: ObservationTableQuery & {
+    select: "count" | "rows";
+    tags: Record<string, string>;
+  },
 ): Promise<Array<T>> => {
   const select =
     opts.select === "count"
@@ -680,12 +680,12 @@ const getObservationsTableInternal = async <T>(
         : {}),
       ...search.params,
     },
-    tags: [
-      ...(opts.tags ?? []),
-      "feature:tracing",
-      "type:observation",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      ...(opts.tags ?? {}),
+      feature: "tracing",
+      type: "observation",
+      projectId,
+    },
   });
 
   return res;
@@ -731,12 +731,12 @@ export const getObservationsGroupedByModel = async (
     params: {
       ...appliedObservationsFilter.params,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
   return res.map((r) => ({ model: r.name }));
 };
@@ -781,12 +781,12 @@ export const getObservationsGroupedByModelId = async (
     params: {
       ...appliedObservationsFilter.params,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
   return res.map((r) => ({ modelId: r.modelId }));
 };
@@ -831,12 +831,12 @@ export const getObservationsGroupedByName = async (
     params: {
       ...appliedObservationsFilter.params,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
   return res;
 };
@@ -882,12 +882,12 @@ export const getObservationsGroupedByPromptName = async (
     params: {
       ...appliedObservationsFilter.params,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   const prompts = res.map((r) => r.id).filter((r): r is string => Boolean(r));
@@ -941,12 +941,12 @@ export const getCostForTraces = async (
       traceIds,
       timestamp: convertDateToClickhouseDateTime(timestamp),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
   return res.length > 0 ? Number(res[0].total_cost) : undefined;
 };
@@ -969,12 +969,12 @@ export const deleteObservationsByTraceIds = async (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:delete",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "delete",
+      projectId,
+    },
   });
 };
 
@@ -991,12 +991,12 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:delete",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "delete",
+      projectId,
+    },
   });
 };
 
@@ -1018,12 +1018,12 @@ export const deleteObservationsOlderThanDays = async (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:delete",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "delete",
+      projectId,
+    },
   });
 };
 
@@ -1045,12 +1045,12 @@ export const getObservationsWithPromptName = async (
       projectId,
       promptNames,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:list",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "list",
+      projectId,
+    },
   });
 
   return rows.map((r) => ({
@@ -1113,12 +1113,12 @@ export const getObservationMetricsForPrompts = async (
       projectId,
       promptIds,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   return rows.map((r) => ({
@@ -1157,12 +1157,12 @@ export const getLatencyAndTotalCostForObservations = async (
       projectId,
       observationIds,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   return rows.map((r) => ({
@@ -1196,12 +1196,12 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
       projectId,
       traceIds,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   return rows.map((r) => ({
@@ -1234,7 +1234,11 @@ export const getObservationCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
     },
-    tags: ["feature:tracing", "type:observation", "kind:analytic"],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+    },
   });
 
   return rows.map((row) => ({
@@ -1264,14 +1268,11 @@ export const getObservationCountOfProjectsSinceCreationDate = async ({
       projectIds,
       start: convertDateToClickhouseDateTime(start),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      ...(projectIds.length > 0
-        ? projectIds.map((projectId) => `projectId:${projectId}`)
-        : []),
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+    },
   });
 
   return Number(rows[0]?.count ?? 0);
@@ -1296,12 +1297,12 @@ export const getTraceIdsForObservations = async (
       projectId,
       observationIds,
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:list",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "list",
+      projectId,
+    },
   });
 
   return rows.map((row) => ({
@@ -1355,12 +1356,12 @@ export const getGenerationsForPostHog = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: [
-      "feature:tracing",
-      "type:observation",
-      "kind:analytic",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      feature: "posthog",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
