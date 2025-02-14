@@ -128,4 +128,30 @@ describe("traces trps", () => {
       });
     });
   });
+
+  describe("sessions.all", () => {
+    it("should handle large usage filters correctly", async () => {
+      // We expect that this doesn't throw an error due to a number overflow
+
+      // When
+      const sessions = await caller.sessions.all({
+        projectId,
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        filter: [
+          {
+            column: "Usage",
+            operator: ">=",
+            value: 3182169638,
+            type: "number",
+          },
+        ],
+      });
+
+      // Then
+      expect(sessions.sessions).toBeDefined();
+    });
+  });
 });
