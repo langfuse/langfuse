@@ -1,11 +1,6 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../src/db";
-import {
-  clickhouseClient,
-  getDisplaySecretKey,
-  hashSecretKey,
-  logger,
-} from "../src/server";
+import { getDisplaySecretKey, hashSecretKey, logger } from "../src/server";
 import { prepareClickhouse } from "./prepareClickhouse";
 import { redis } from "../src/server";
 
@@ -124,7 +119,6 @@ async function main() {
   } catch (error) {
     logger.error("Error during Clickhouse preparation:", error);
   } finally {
-    await clickhouseClient().close();
     await prisma.$disconnect();
     redis?.disconnect();
     logger.info("Disconnected from Clickhouse.");
