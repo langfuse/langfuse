@@ -94,7 +94,10 @@ export const processEventBatch = async (
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
   recordIncrement("langfuse.ingestion.event", input.length);
-  currentSpan?.setAttribute("event_count", input.length);
+  currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
+  currentSpan?.setAttribute("langfuse.project.id", authCheck.scope.projectId);
+  currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
+  currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
@@ -109,7 +112,10 @@ export const processEventBatch = async (
         (span) => {
           const parsedBody = ingestionEvent.safeParse(event);
           if (parsedBody.data?.id !== undefined) {
-            span.setAttribute("object.id", parsedBody.data.id);
+            span.setAttribute(
+              "langfuse.ingestion.entity.id",
+              parsedBody.data.id,
+            );
           }
           return parsedBody;
         },

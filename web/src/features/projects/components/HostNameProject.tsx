@@ -8,7 +8,7 @@ export function HostNameProject() {
   const uiCustomization = useUiCustomization();
   return (
     <div>
-      <Header title="Host Name" level="h3" />
+      <Header title="Host Name" />
       <Card className="mb-4 p-3">
         <div className="">
           <div className="mb-2 text-sm">

@@ -8,8 +8,6 @@ import {
   withDefault,
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import Header from "@/src/components/layouts/header";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -24,6 +22,7 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import Page from "@/src/components/layouts/page";
 
 type RowData = {
   userId: string;
@@ -245,15 +244,16 @@ export default function UsersPage() {
   ];
 
   return (
-    <FullScreenPage>
-      <Header
-        title="Users"
-        help={{
+    <Page
+      headerProps={{
+        title: "Users",
+        help: {
           description:
             "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
           href: "https://langfuse.com/docs/user-explorer",
-        }}
-      />
+        },
+      }}
+    >
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
@@ -308,6 +308,6 @@ export default function UsersPage() {
           state: paginationState,
         }}
       />
-    </FullScreenPage>
+    </Page>
   );
 }

@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
 import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
@@ -26,8 +25,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
 import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import Page from "@/src/components/layouts/page";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -144,8 +143,13 @@ export default function Dashboard() {
   const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
 
   return (
-    <ScrollScreenPage>
-      <Header title="Dashboard" actionButtons={<SetupTracingButton />} />
+    <Page
+      scrollable
+      headerProps={{
+        title: "Dashboard",
+        actionButtonsLeft: <SetupTracingButton />,
+      }}
+    >
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col gap-2 lg:flex-row">
           <DatePickerWithRange
@@ -261,6 +265,6 @@ export default function Dashboard() {
           />
         )}
       </div>
-    </ScrollScreenPage>
+    </Page>
   );
 }

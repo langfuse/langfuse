@@ -27,7 +27,7 @@ export const NewDatasetItemButton = (props: {
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <ActionButton
-          variant="secondary"
+          variant="outline"
           className={props.className}
           hasAccess={hasAccess}
           onClick={() => capture("dataset_item:new_form_open")}

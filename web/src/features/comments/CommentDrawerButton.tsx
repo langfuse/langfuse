@@ -65,7 +65,7 @@ export function CommentDrawerButton({
         <div className="mx-auto w-full overflow-y-auto md:max-h-full">
           <DrawerHeader className="sticky top-0 z-10 rounded-sm bg-background">
             <DrawerTitle>
-              <Header title="Comments" level="h3"></Header>
+              <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
           <div data-vaul-no-drag className="px-2">

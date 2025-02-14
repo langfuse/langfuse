@@ -11,9 +11,6 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
   return {
     ...original,
-    defaultClickhouseClient: {
-      insert: vi.fn(),
-    },
     recordHistogram: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
@@ -37,12 +34,16 @@ vi.mock("../../env", async (importOriginal) => {
   };
 });
 
+const clickhouseClientMock = {
+  insert: vi.fn(),
+};
+
 describe("ClickhouseWriter", () => {
   let writer: ClickhouseWriter;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    writer = ClickhouseWriter.getInstance();
+    writer = ClickhouseWriter.getInstance(clickhouseClientMock);
   });
 
   afterEach(async () => {
@@ -84,7 +85,7 @@ describe("ClickhouseWriter", () => {
 
   it("should flush when queue reaches batch size", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
 
     for (let i = 0; i < writer.batchSize; i++) {
@@ -99,7 +100,7 @@ describe("ClickhouseWriter", () => {
 
   it("should flush at regular intervals", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
 
@@ -110,7 +111,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle errors and retry", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValueOnce(new Error("DB Error"))
       .mockResolvedValueOnce();
 
@@ -130,7 +131,7 @@ describe("ClickhouseWriter", () => {
 
   it("should drop records after max attempts", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValue(new Error("DB Error"));
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
@@ -151,7 +152,7 @@ describe("ClickhouseWriter", () => {
   it("should shutdown gracefully", async () => {
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
 
     await writer.shutdown();
@@ -165,7 +166,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle multiple table types", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "trace" });
@@ -182,7 +183,7 @@ describe("ClickhouseWriter", () => {
 
   it("should not flush when isIntervalFlushInProgress is true", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
     writer["isIntervalFlushInProgress"] = true;
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
@@ -205,7 +206,7 @@ describe("ClickhouseWriter", () => {
 
   it("should flush all queues when flushAll is called directly", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
     writer.addToQueue(TableName.Traces, { id: "1", name: "trace" });
     writer.addToQueue(TableName.Scores, { id: "2", name: "score" });
@@ -219,7 +220,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle adding items to queue while flush is in progress", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockImplementation(() => {
         writer.addToQueue(TableName.Traces, { id: "2", name: "test2" });
         return Promise.resolve();
@@ -236,7 +237,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle concurrent writes during high load", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
     const concurrentWrites = 1000;
 
@@ -258,7 +259,7 @@ describe("ClickhouseWriter", () => {
   it("should report wait time and processing time metrics correctly", async () => {
     const metricsDistributionSpy = vi.spyOn(serverExports, "recordHistogram");
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
 
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
@@ -280,7 +281,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle different types of Clickhouse client errors", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValueOnce(new Error("Network error"))
       .mockRejectedValueOnce(new Error("Timeout"))
       .mockResolvedValueOnce();
@@ -303,7 +304,7 @@ describe("ClickhouseWriter", () => {
 
   it("should handle partial queue flush correctly", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
     const partialQueueSize = Math.floor(writer.batchSize / 2);
 
@@ -326,7 +327,7 @@ describe("ClickhouseWriter", () => {
 
   it("should continue functioning after encountering an error", async () => {
     const mockInsert = vi
-      .spyOn(serverExports.defaultClickhouseClient, "insert")
+      .spyOn(clickhouseClientMock, "insert")
       .mockRejectedValueOnce(new Error("DB Error"))
       .mockResolvedValue();
 

@@ -1,5 +1,3 @@
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
@@ -35,6 +33,7 @@ import {
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Page from "@/src/components/layouts/page";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -156,15 +155,15 @@ export default function DatasetCompare() {
     return [...apiRuns, ...localRuns];
   }, [runsData.data, localRuns]);
 
-  if (!runsData.data || !router.isReady) {
+  if (!runsData.data || !router.isReady || runs.length === 0) {
     return <span>Loading...</span>;
   }
 
   return (
-    <FullScreenPage>
-      <Header
-        title={`Compare runs: ${dataset.data?.name ?? datasetId}`}
-        breadcrumb={[
+    <Page
+      headerProps={{
+        title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+        breadcrumb: [
           {
             name: "Datasets",
             href: `/project/${projectId}/datasets`,
@@ -173,11 +172,11 @@ export default function DatasetCompare() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
-        ]}
-        help={{
+        ],
+        help: {
           description: "Compare your dataset runs side by side",
-        }}
-        actionButtons={[
+        },
+        actionButtonsRight: [
           <Dialog
             key="create-experiment-dialog"
             open={isCreateExperimentDialogOpen}
@@ -185,7 +184,7 @@ export default function DatasetCompare() {
           >
             <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
               <Button
-                variant="secondary"
+                variant="outline"
                 disabled={!hasExperimentWriteAccess}
                 onClick={() => capture("dataset_run:new_form_open")}
               >
@@ -248,7 +247,7 @@ export default function DatasetCompare() {
             options={runs.map((run) => ({
               key: run.key,
               value: run.value,
-              disabled: runIds?.includes(run.key) && runIds.length === 2,
+              disabled: runIds?.includes(run.key) && runIds.length === 1,
             }))}
             values={runs.filter((run) => runIds?.includes(run.key))}
             onValueChange={(values, changedValueId, selectedValueKeys) => {
@@ -270,8 +269,9 @@ export default function DatasetCompare() {
               }
             }}
           />,
-        ]}
-      />
+        ],
+      }}
+    >
       {Boolean(selectedMetrics.length) &&
         Boolean(runAggregatedMetrics?.size) && (
           <Card className="my-4 max-h-64">
@@ -326,6 +326,6 @@ export default function DatasetCompare() {
         runIds={runIds ?? []}
         localExperiments={localRuns}
       />
-    </FullScreenPage>
+    </Page>
   );
 }

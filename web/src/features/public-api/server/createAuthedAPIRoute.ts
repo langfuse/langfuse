@@ -64,7 +64,7 @@ export const createAuthedAPIRoute = <
       return rateLimitResponse.sendRestResponseIfLimited(res);
     }
 
-    logger.info(
+    logger.debug(
       `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
       {
         query: req.query,

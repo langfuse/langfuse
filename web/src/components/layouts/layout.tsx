@@ -313,7 +313,7 @@ export default function Layout(props: PropsWithChildren) {
             }}
           />
           <SidebarInset className="h-dvh max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-            <main className="h-full p-3">{props.children}</main>
+            <main className="h-full">{props.children}</main>
             <Toaster visibleToasts={1} />
             <CommandMenu mainNavigation={navigation} />
           </SidebarInset>
