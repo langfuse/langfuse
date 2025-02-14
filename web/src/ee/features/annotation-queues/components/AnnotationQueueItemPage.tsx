@@ -95,7 +95,8 @@ const AnnotateIOView = ({
     return configs.map((c) => c.id);
   }, [configs]);
 
-  if (trace.isLoading || !trace.data) return <div>Loading...</div>;
+  if (trace.isLoading || !trace.data)
+    return <div className="p-3">Loading...</div>;
 
   let isValidObservationId = false;
 

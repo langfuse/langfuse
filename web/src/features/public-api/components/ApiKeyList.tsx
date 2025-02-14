@@ -46,7 +46,7 @@ export function ApiKeyList(props: { projectId: string }) {
   if (!hasAccess) {
     return (
       <div>
-        <Header title="API Keys" level="h3" />
+        <Header title="API Keys" />
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
@@ -59,7 +59,7 @@ export function ApiKeyList(props: { projectId: string }) {
 
   return (
     <div>
-      <Header title="API Keys" level="h3" />
+      <Header title="API Keys" />
       <Card className="mb-4">
         <Table>
           <TableHeader>

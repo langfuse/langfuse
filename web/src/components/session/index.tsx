@@ -1,5 +1,4 @@
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import Header from "@/src/components/layouts/header";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { StarSessionToggle } from "@/src/components/star-toggle";
@@ -18,7 +17,7 @@ import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import Page from "@/src/components/layouts/page";
 
 // some projects have thousands of traces in a sessions, paginate to avoid rendering all at once
 const PAGE_SIZE = 50;
@@ -94,17 +93,18 @@ export const SessionPage: React.FC<{
     );
 
   return (
-    <ScrollScreenPage>
-      <Header
-        title="Session"
-        breadcrumb={[
+    <Page
+      scrollable
+      headerProps={{
+        title: sessionId,
+        itemType: "SESSION",
+        breadcrumb: [
           {
             name: "Sessions",
             href: `/project/${projectId}/sessions`,
           },
-          { name: sessionId },
-        ]}
-        actionButtons={[
+        ],
+        actionButtonsLeft: [
           <StarSessionToggle
             key="star"
             projectId={projectId}
@@ -117,6 +117,8 @@ export const SessionPage: React.FC<{
             isPublic={session.data?.public ?? false}
             key="publish"
           />,
+        ],
+        actionButtonsRight: [
           <DetailPageNav
             key="nav"
             currentId={encodeURIComponent(sessionId)}
@@ -133,8 +135,9 @@ export const SessionPage: React.FC<{
             objectType="SESSION"
             count={sessionCommentCounts.data?.get(sessionId)}
           />,
-        ]}
-      />
+        ],
+      }}
+    >
       <div className="flex flex-wrap gap-2">
         {session.data?.users.filter(Boolean).map((userId) => (
           <Link
@@ -211,7 +214,7 @@ export const SessionPage: React.FC<{
           </Button>
         )}
       </div>
-    </ScrollScreenPage>
+    </Page>
   );
 };
 

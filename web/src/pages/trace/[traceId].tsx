@@ -49,7 +49,7 @@ const TraceRedirectPage = ({
 }) => {
   const router = useRouter();
   if (router.isFallback) {
-    return <div>Loading...</div>;
+    return <div className="p-3">Loading...</div>;
   }
 
   if (notFound) {
