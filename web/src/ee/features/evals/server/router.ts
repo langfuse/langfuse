@@ -665,28 +665,28 @@ export const evalRouter = createTRPCRouter({
         config: UpdateEvalJobSchema,
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ ctx, input: { config, projectId, evalConfigId } }) => {
       throwIfNoEntitlement({
         entitlement: "model-based-evaluations",
-        projectId: input.projectId,
+        projectId: projectId,
         sessionUser: ctx.session.user,
       });
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId: projectId,
         scope: "evalJob:CUD",
       });
 
       const existingJob = await ctx.prisma.jobConfiguration.findUnique({
         where: {
-          id: input.evalConfigId,
-          projectId: input.projectId,
+          id: evalConfigId,
+          projectId: projectId,
         },
       });
 
       if (
         existingJob?.timeScope.includes("EXISTING") &&
-        !input.config.timeScope?.includes("EXISTING")
+        !config.timeScope?.includes("EXISTING")
       ) {
         throw new Error(
           "The evaluator ran on existing traces already. This cannot be changed anymore.",
@@ -696,21 +696,21 @@ export const evalRouter = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: "job",
-        resourceId: input.evalConfigId,
+        resourceId: evalConfigId,
         action: "update",
       });
 
       await ctx.prisma.jobConfiguration.update({
         where: {
-          id: input.evalConfigId,
-          projectId: input.projectId,
+          id: evalConfigId,
+          projectId: projectId,
         },
-        data: input.config,
+        data: config,
       });
 
-      if (input.config.timeScope.includes("EXISTING")) {
+      if (config.timeScope?.includes("EXISTING")) {
         logger.info(
-          `Applying to historical traces for job ${input.evalConfigId} and project ${input.projectId}`,
+          `Applying to historical traces for job ${evalConfigId} and project ${projectId}`,
         );
         const batchJobQueue = getQueue(QueueName.BatchActionQueue);
         if (!batchJobQueue) {
@@ -721,13 +721,13 @@ export const evalRouter = createTRPCRouter({
           timestamp: new Date(),
           id: uuidv4(),
           payload: {
-            projectId: input.projectId,
+            projectId: projectId,
             actionId: "eval-create",
-            configId: input.evalConfigId,
+            configId: evalConfigId,
             cutoffCreatedAt: new Date(),
-            targetObject: input.config.target,
+            targetObject: config.target,
             query: {
-              where: input.config.filter ?? [],
+              where: config.filter ?? [],
               orderBy: {
                 column: "timestamp",
                 order: "DESC",
