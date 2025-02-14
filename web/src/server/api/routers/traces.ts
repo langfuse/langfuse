@@ -64,6 +64,9 @@ export type ObservationReturnType = Omit<
   costDetails: Record<string, number>;
 };
 
+export type ObservationReturnTypeWithMetadata = ObservationReturnType &
+  Pick<ObservationView, "metadata">;
+
 export const traceRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -255,7 +258,7 @@ export const traceRouter = createTRPCRouter({
           ...o,
           output: undefined,
           input: undefined, // this is not queried above.
-        })) as ObservationReturnType[],
+        })) as ObservationReturnTypeWithMetadata[],
       };
     }),
   deleteMany: protectedProjectProcedure

@@ -150,7 +150,6 @@ function AnnotateHeader({
   return (
     <Header
       title="Annotate"
-      level="h3"
       help={{
         description: `Annotate ${observationId ? "observation" : "trace"} with scores to capture human evaluation across different dimensions.`,
         href: "https://langfuse.com/docs/scores/manually",

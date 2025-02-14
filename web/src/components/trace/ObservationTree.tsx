@@ -322,7 +322,7 @@ const ObservationTreeNodeCard = ({
     }
     // Should only trigger a single time on initial render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentObservationRef.current]);
+  }, [currentObservationId, currentObservationRef.current]);
 
   return (
     <div className="flex">

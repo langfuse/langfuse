@@ -3,7 +3,6 @@ import { StarIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -31,10 +30,10 @@ export function StarToggle({
       loading={isLoading}
     >
       <StarIcon
-        className={cn(
-          "h-4 w-4",
-          value ? "fill-current text-yellow-500" : "text-muted-foreground",
-        )}
+        className="h-4 w-4"
+        fill={value ? "#facc15" : "none"}
+        stroke={value ? "#ca8a04" : "currentColor"}
+        strokeWidth={2}
       />
     </Button>
   );

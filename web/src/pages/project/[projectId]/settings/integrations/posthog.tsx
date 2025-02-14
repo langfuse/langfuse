@@ -1,5 +1,7 @@
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
+import ContainerPage from "@/src/components/layouts/container-page";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Form,
@@ -43,28 +45,30 @@ export default function PosthogIntegrationSettings() {
   );
   if (!entitled) return null;
 
+  const status =
+    state.isInitialLoading || !hasAccess
+      ? undefined
+      : state.data?.enabled
+        ? "active"
+        : "inactive";
+
   return (
-    <div className="md:container">
-      <Header
-        title="PostHog Integration"
-        breadcrumb={[
+    <ContainerPage
+      headerProps={{
+        title: "PostHog Integration",
+        breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
+        actionButtonsRight: (
           <Button asChild variant="secondary">
             <Link href="https://langfuse.com/docs/analytics/posthog">
               Integration Docs ↗
             </Link>
           </Button>
-        }
-        status={
-          state.isInitialLoading || !hasAccess
-            ? undefined
-            : state.data?.enabled
-              ? "active"
-              : "inactive"
-        }
-      />
+        ),
+      }}
+    >
       <p className="mb-4 text-sm text-primary">
         We have teamed up with{" "}
         <Link href="https://posthog.com" className="underline">
@@ -84,7 +88,7 @@ export default function PosthogIntegrationSettings() {
       )}
       {hasAccess && (
         <>
-          <Header level="h3" title="Configuration" />
+          <Header title="Configuration" />
           <Card className="p-3">
             <PostHogLogo className="mb-4 w-36 text-foreground" />
             <PostHogIntegrationSettings
@@ -97,7 +101,7 @@ export default function PosthogIntegrationSettings() {
       )}
       {state.data?.enabled && (
         <>
-          <Header level="h3" title="Status" className="mt-8" />
+          <Header title="Status" className="mt-8" />
           <p className="text-sm text-primary">
             Data synced until:{" "}
             {state.data?.lastSyncAt
@@ -106,7 +110,7 @@ export default function PosthogIntegrationSettings() {
           </p>
         </>
       )}
-    </div>
+    </ContainerPage>
   );
 }
 

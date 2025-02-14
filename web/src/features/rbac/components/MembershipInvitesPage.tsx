@@ -185,7 +185,7 @@ export function MembershipInvitesPage({
       orgRole: invite.orgRole,
       projectRole:
         invite.projectId === projectId
-          ? invite.projectRole ?? undefined
+          ? (invite.projectRole ?? undefined)
           : undefined,
       invitedByUser: invite.invitedByUser,
     };
@@ -200,7 +200,7 @@ export function MembershipInvitesPage({
   return (
     <>
       {/* Header included in order to hide it when there are not invites yet */}
-      <Header title="Membership Invites" level="h3" />
+      <Header title="Membership Invites" />
       <DataTableToolbar columns={columns} />
       <DataTable
         columns={columns}

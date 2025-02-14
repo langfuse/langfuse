@@ -11,7 +11,7 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
 
   return (
     <>
-      <Header title="Exports" level="h3" />
+      <Header title="Exports" />
       <p className="mb-4 text-sm">
         Export large datasets in your preferred format via the export buttons
         across Langfuse. Exports are processed asynchronously and remain
