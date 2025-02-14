@@ -1,4 +1,3 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Button } from "@/src/components/ui/button";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -9,7 +8,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { CheckIcon, Globe, Link, LockIcon, Share2 } from "lucide-react";
+import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
 import { useState } from "react";
 
 export const PublishTraceSwitch = (props: {
