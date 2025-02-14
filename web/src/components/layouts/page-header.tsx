@@ -57,7 +57,7 @@ const PageHeader = ({
                 {title}
               </h2>
               {help && (
-                <div className="-ml-2 -mt-2">
+                <div className="-ml-1 -mt-2">
                   <DocPopup
                     description={help.description}
                     href={help.href}
