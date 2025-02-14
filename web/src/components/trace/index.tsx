@@ -51,7 +51,7 @@ import {
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
-import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/useIsLanggraphTrace";
+import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
