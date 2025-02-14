@@ -31,10 +31,10 @@ export function StarToggle({
       loading={isLoading}
     >
       <StarIcon
-        className={cn(
-          "h-4 w-4",
-          value ? "fill-current text-yellow-500" : "text-muted-foreground",
-        )}
+        className="h-4 w-4"
+        fill={value ? "#facc15" : "none"}
+        stroke={value ? "#ca8a04" : "currentColor"}
+        strokeWidth={2}
       />
     </Button>
   );
