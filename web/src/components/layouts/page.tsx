@@ -15,7 +15,12 @@ const Page = ({
   scrollable = false,
 }: PageContainerProps) => {
   return (
-    <div className={cn("h-full", !scrollable && "flex flex-col")}>
+    <div
+      className={cn(
+        "flex flex-col",
+        scrollable ? "relative flex min-h-svh flex-1" : "h-full",
+      )}
+    >
       <header className="sticky top-0 z-50 w-full">
         <PageHeader {...headerProps} container={false} />
       </header>
