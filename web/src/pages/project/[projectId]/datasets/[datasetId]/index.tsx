@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
@@ -7,7 +6,6 @@ import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState } from "react";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
@@ -33,6 +31,7 @@ import {
 } from "@/src/components/ui/popover";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import Page from "@/src/components/layouts/page";
 
 export default function Dataset() {
   const router = useRouter();
@@ -107,21 +106,19 @@ export default function Dataset() {
   };
 
   return (
-    <FullScreenPage>
-      <Header
-        title={dataset.data?.name ?? ""}
-        breadcrumb={[
+    <Page
+      headerProps={{
+        title: dataset.data?.name ?? "",
+        itemType: "DATASET",
+        breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
-          { name: dataset.data?.name ?? datasetId },
-        ]}
-        help={
-          dataset.data?.description
-            ? {
-                description: dataset.data.description,
-              }
-            : undefined
-        }
-        actionButtons={
+        ],
+        help: dataset.data?.description
+          ? {
+              description: dataset.data.description,
+            }
+          : undefined,
+        actionButtonsRight: [
           <>
             <Dialog
               open={isCreateExperimentDialogOpen}
@@ -129,7 +126,7 @@ export default function Dataset() {
             >
               <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
@@ -161,6 +158,7 @@ export default function Dataset() {
 
             {hasReadAccess && hasEntitlement && evaluators.isSuccess && (
               <MultiSelectKeyValues
+                variant="outline"
                 className="max-w-fit"
                 placeholder="Search..."
                 title="Evaluators"
@@ -238,10 +236,10 @@ export default function Dataset() {
               redirectUrl={`/project/${projectId}/datasets`}
               deleteConfirmation={dataset.data?.name}
             />
-          </>
-        }
-      />
-
+          </>,
+        ],
+      }}
+    >
       <DatasetRunsTable
         projectId={projectId}
         datasetId={datasetId}
@@ -262,6 +260,6 @@ export default function Dataset() {
           </Tabs>
         }
       />
-    </FullScreenPage>
+    </Page>
   );
 }

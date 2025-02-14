@@ -49,7 +49,7 @@ export const getSessionsTableCount = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: ["kind:count"],
+    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -69,7 +69,7 @@ export const getSessionsTable = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: ["kind:list"],
+    tags: { kind: "list" },
   });
 
   return rows.map((row) => ({
@@ -92,7 +92,7 @@ export const getSessionsWithMetrics = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: ["kind:analytic"],
+    tags: { kind: "analytic" },
   });
 
   return rows.map((row) => ({
@@ -110,7 +110,7 @@ export type FetchSessionsTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
-  tags?: string[];
+  tags?: Record<string, string>;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
@@ -317,12 +317,12 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         ? { observationsStartTime: obsStartTimeValue }
         : {}),
     },
-    tags: [
-      ...(props.tags ?? []),
-      "feature:tracing",
-      "type:sessions-table",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      ...(props.tags ?? {}),
+      feature: "tracing",
+      type: "sessions-table",
+      projectId,
+    },
   });
 
   return res;

@@ -160,7 +160,7 @@ export type FetchTracesTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
-  tags?: string[];
+  tags?: Record<string, string>;
 };
 
 export const getTracesTableCount = async (props: {
@@ -173,7 +173,7 @@ export const getTracesTableCount = async (props: {
 }) => {
   const countRows = await getTracesTableGeneric<{ count: string }>({
     select: "count",
-    tags: ["kind:count"],
+    tags: { kind: "count" },
     ...props,
   });
 
@@ -195,7 +195,7 @@ export const getTracesTableMetrics = async (props: {
   const countRows =
     await getTracesTableGeneric<TracesTableMetricsClickhouseReturnType>({
       select: "metrics",
-      tags: ["kind:analytic"],
+      tags: { kind: "analytic" },
       ...props,
     });
 
@@ -212,7 +212,7 @@ export const getTracesTable = async (
 ) => {
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: "rows",
-    tags: ["kind:list"],
+    tags: { kind: "list" },
     projectId,
     filter,
     searchQuery,
@@ -447,12 +447,12 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...scoresFilterRes.params,
       ...search.params,
     },
-    tags: [
-      ...(props.tags ?? []),
-      "feature:tracing",
-      "type:traces-table",
-      `projectId:${projectId}`,
-    ],
+    tags: {
+      ...(props.tags ?? {}),
+      feature: "tracing",
+      type: "traces-table",
+      projectId,
+    },
   });
 
   return res;

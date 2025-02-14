@@ -8,7 +8,7 @@ export type ClickhouseClientType = ReturnType<typeof createClient>;
 
 export const clickhouseClient = (
   params: {
-    tags?: string[];
+    tags?: Record<string, string>;
     opts?: NodeClickHouseClientConfigOptions;
   } = {},
 ) => {
@@ -16,11 +16,6 @@ export const clickhouseClient = (
   const activeSpan = getCurrentSpan();
   if (activeSpan) {
     propagation.inject(context.active(), headers);
-  }
-
-  let log_comment: string | null = null;
-  if (params.tags && params.tags.length) {
-    log_comment = params.tags.join(",");
   }
 
   return createClient({
@@ -31,7 +26,7 @@ export const clickhouseClient = (
     database: env.CLICKHOUSE_DB,
     http_headers: headers,
     clickhouse_settings: {
-      ...(log_comment ? { log_comment } : {}),
+      log_comment: JSON.stringify(params.tags ?? {}),
       async_insert: 1,
       wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
     },
