@@ -13,10 +13,10 @@ import {
   ChatMessageRole,
   paginationZod,
   type JobConfiguration,
-  JobTimeScope,
   JobType,
   Prisma,
   TimeScopeSchema,
+  JobConfigState,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -47,7 +47,7 @@ const APIEvaluatorSchema = z.object({
   variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
-  status: z.nativeEnum(JobTimeScope),
+  status: z.nativeEnum(JobConfigState),
   jobType: z.nativeEnum(JobType),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -511,7 +511,7 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
-        if (input.timeScope.includes(JobTimeScope.EXISTING)) {
+        if (input.timeScope.includes("EXISTING")) {
           logger.info(
             `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
           );
@@ -693,6 +693,13 @@ export const evalRouter = createTRPCRouter({
         );
       }
 
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: input.evalConfigId,
+        action: "update",
+      });
+
       await ctx.prisma.jobConfiguration.update({
         where: {
           id: input.evalConfigId,
@@ -701,12 +708,34 @@ export const evalRouter = createTRPCRouter({
         data: input.config,
       });
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "job",
-        resourceId: input.evalConfigId,
-        action: "update",
-      });
+      if (input.config.timeScope.includes("EXISTING")) {
+        logger.info(
+          `Applying to historical traces for job ${input.evalConfigId} and project ${input.projectId}`,
+        );
+        const batchJobQueue = getQueue(QueueName.BatchActionQueue);
+        if (!batchJobQueue) {
+          throw new Error("Batch job queue not found");
+        }
+        await batchJobQueue.add(QueueJobs.BatchActionProcessingJob, {
+          name: QueueJobs.BatchActionProcessingJob,
+          timestamp: new Date(),
+          id: uuidv4(),
+          payload: {
+            projectId: input.projectId,
+            actionId: "eval-create",
+            configId: input.evalConfigId,
+            cutoffCreatedAt: new Date(),
+            targetObject: input.config.target,
+            query: {
+              where: input.config.filter ?? [],
+              orderBy: {
+                column: "timestamp",
+                order: "DESC",
+              },
+            },
+          },
+        });
+      }
     }),
 
   getLogs: protectedProjectProcedure

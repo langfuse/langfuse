@@ -77,7 +77,7 @@ export const createEvalJobs = async ({
   enforcedJobTimeScope?: JobTimeScope;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
-  const configsQuery = kyselyPrisma.$kysely
+  let configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
@@ -85,13 +85,14 @@ export const createEvalJobs = async ({
 
   if ("configId" in event) {
     // if configid is set in the event, we only want to fetch the one config
-    configsQuery.where("id", "=", event.configId);
+    configsQuery = configsQuery.where("id", "=", event.configId);
   }
 
   // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on
   // configs, which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
+
   if (enforcedJobTimeScope) {
-    configsQuery.where(
+    configsQuery = configsQuery.where(
       "time_scope",
       "@>",
       sql<string[]>`ARRAY[${enforcedJobTimeScope}]`,
