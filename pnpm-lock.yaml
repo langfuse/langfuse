@@ -586,8 +586,8 @@ importers:
         specifier: ^7.0.0
         version: 7.0.0
       dompurify:
-        specifier: ^3.1.5
-        version: 3.1.5
+        specifier: ^3.2.4
+        version: 3.2.4
       fastest-levenshtein:
         specifier: ^1.0.16
         version: 1.0.16
@@ -6774,6 +6774,9 @@ packages:
 
   dompurify@3.1.5:
     resolution: {integrity: sha512-lwG+n5h8QNpxtyrJW/gJWckL+1/DQiYMX8f7t8Z2AZTPw1esVrqjI63i7Zc2Gz0aKzLVMYC1V1PL/ky+aY/NgA==}
+
+  dompurify@3.2.4:
+    resolution: {integrity: sha512-ysFSFEDVduQpyhzAob/kkuJjf5zWkZD8/A9ywSp1byueyuCfHamrCBa14/Oc2iiB0e51B+NpxSl5gmzn+Ms/mg==}
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
@@ -19445,6 +19448,10 @@ snapshots:
 
   dompurify@3.1.5: {}
 
+  dompurify@3.2.4:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
+
   domutils@3.2.2:
     dependencies:
       dom-serializer: 2.0.0
@@ -21623,7 +21630,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.10.5
+      '@types/node': 20.14.8
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
