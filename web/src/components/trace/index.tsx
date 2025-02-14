@@ -53,6 +53,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
+import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/useIsLanggraphTrace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -492,10 +493,15 @@ export function TracePage({
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
           </TabsBarTrigger>
-          <TabsBarTrigger value="graph">
-            <Share2Icon className="mr-1 h-4 w-4"></Share2Icon>
-            Graph
-          </TabsBarTrigger>
+          {isLanggraphTrace(trace.data.observations) ? (
+            <TabsBarTrigger value="graph">
+              <span className="flex flex-row items-center">
+                <Share2Icon className="mr-1 h-4 w-4"></Share2Icon>
+                Graph
+              </span>
+              <Badge className="ml-2">Beta</Badge>
+            </TabsBarTrigger>
+          ) : null}
         </TabsBarList>
         <TabsBarContent
           value="details"
@@ -521,18 +527,20 @@ export function TracePage({
             projectId={trace.data.projectId}
           />
         </TabsBarContent>
-        <TabsBarContent
-          value="graph"
-          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
-        >
-          <TraceGraphView
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            observations={trace.data.observations}
-            projectId={trace.data.projectId}
-          />
-        </TabsBarContent>
+        {isLanggraphTrace(trace.data.observations) ? (
+          <TabsBarContent
+            value="graph"
+            className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
+          >
+            <TraceGraphView
+              key={trace.data.id}
+              trace={trace.data}
+              scores={trace.data.scores}
+              observations={trace.data.observations}
+              projectId={trace.data.projectId}
+            />
+          </TabsBarContent>
+        ) : null}
       </TabsBar>
     </FullScreenPage>
   );

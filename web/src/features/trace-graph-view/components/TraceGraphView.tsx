@@ -1,14 +1,21 @@
-import type { APIScore, Trace } from "@langfuse/shared";
-import { z } from "zod";
-import React, { useEffect, useState } from "react";
-import { TraceGraphCanvas } from "./TraceGraphCanvas";
-import type { GraphCanvasData } from "./types";
-import { Trace as TraceView } from "@/src/components/trace";
-import type { ObservationReturnType } from "@/src/server/api/routers/traces";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
+import type { APIScore, Trace } from "@langfuse/shared";
+import { Trace as TraceView } from "@/src/components/trace";
+import type { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+
+import { TraceGraphCanvas } from "./TraceGraphCanvas";
+import {
+  type GraphCanvasData,
+  LANGGRAPH_STEP_TAG,
+  LANGGRAPH_NODE_TAG,
+  LANGGRAPH_END_NODE_NAME,
+  LanggraphMetadataSchema,
+} from "../types";
+
 type TraceGraphViewProps = {
-  observations: Array<ObservationReturnType>;
+  observations: ObservationReturnTypeWithMetadata[];
   trace: Omit<Trace, "input" | "output"> & {
     input: string | undefined;
     output: string | undefined;
@@ -17,18 +24,13 @@ type TraceGraphViewProps = {
   projectId: string;
 };
 
-const LANGGRAPH_NODE_TAG = "langgraph_node";
-const LANGGRAPH_STEP_TAG = "langgraph_step";
-
-const LanggraphMetadataSchema = z.object({
-  [LANGGRAPH_NODE_TAG]: z.string(),
-  [LANGGRAPH_STEP_TAG]: z.number(),
-});
-
 export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   const { trace, observations, scores, projectId } = props;
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
-  const { graph, nodeToParentObservationMap } = parseGraph({ observations });
+  const { graph, nodeToParentObservationMap } = useMemo(
+    () => parseGraph({ observations }),
+    [observations],
+  );
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -48,23 +50,26 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
     setSelectedNodeName(nodeName ?? null);
   }, [currentObservationId, observations]);
 
+  const onCanvasNodeNameChange = useCallback(
+    (nodeName: string | null) => {
+      setSelectedNodeName(nodeName);
+
+      if (nodeName) {
+        const nodeParentObservationId = nodeToParentObservationMap[nodeName];
+
+        if (nodeParentObservationId)
+          setCurrentObservationId(nodeParentObservationId);
+      }
+    },
+    [nodeToParentObservationMap, setCurrentObservationId],
+  );
+
   return (
     <div className="grid h-full grid-rows-[1fr_1.618fr] gap-4">
       <TraceGraphCanvas
         graph={graph}
         selectedNodeName={selectedNodeName}
-        setSelectedNodeName={setSelectedNodeName}
-        onCanvasNodeNameChange={(nodeName: string | null) => {
-          setSelectedNodeName(nodeName);
-
-          if (nodeName) {
-            const nodeParentObservationId =
-              nodeToParentObservationMap[nodeName];
-
-            if (nodeParentObservationId)
-              setCurrentObservationId(nodeParentObservationId);
-          }
-        }}
+        onCanvasNodeNameChange={onCanvasNodeNameChange}
       />
       <div className="h-full overflow-y-auto">
         <TraceView
@@ -88,56 +93,56 @@ function parseGraph(params: {
 } {
   const { observations } = params;
 
-  const nodes = new Set<string>(["__end__"]);
-  const stepToNode = new Map<number, string>();
-  const adjByNode = new Map<string, Map<string | null, string[]>>();
+  const stepToNodeMap = new Map<number, string>();
+  const nodeToParentObservationMap = new Map<string, string>();
 
   observations?.forEach((o) => {
     const parsedMetadata = LanggraphMetadataSchema.safeParse(o.metadata);
 
-    if (!parsedMetadata.success) {
-      return;
-    }
+    if (!parsedMetadata.success) return;
+
     const { [LANGGRAPH_NODE_TAG]: node, [LANGGRAPH_STEP_TAG]: step } =
       parsedMetadata.data;
 
-    nodes.add(node);
-    stepToNode.set(step, node);
+    stepToNodeMap.set(step, node);
 
-    const adj = adjByNode.get(node) ?? new Map<string | null, string[]>();
-    adj.set(o.id, [...(adj.get(o.id) ?? [])]);
-    adj.set(o.parentObservationId, [
-      o.id,
-      ...(adj.get(o.parentObservationId) ?? []),
-    ]);
-    adjByNode.set(node, adj);
-  });
+    // Check if parent is in the same node. If not, observation must be top-most observation of the node
+    if (o.parentObservationId) {
+      const parent = observations.find(
+        (obs) => obs.id === o.parentObservationId,
+      );
+      const parsedParentMetadata = LanggraphMetadataSchema.safeParse(
+        parent?.metadata,
+      );
 
-  const edges: [string, string][] = [];
-
-  // Infer edges from the step indicator
-  Array.from(stepToNode.entries())
-    .sort((a, b) => a[0] - b[0])
-    .forEach(([_, node], idx, arr) => {
-      edges.push([node, idx === arr.length - 1 ? "__end__" : arr[idx + 1][1]]);
-    });
-
-  // Get the parent observation ID for a given node
-  const nodeToParentObservationMap = Object.fromEntries(
-    [...adjByNode.entries()].map(([node, adj]) => {
-      for (const [parentId, children] of adj.entries()) {
-        if (parentId && children.length === 0) return [node, parentId];
+      if (parent && !parsedParentMetadata.success) {
+        nodeToParentObservationMap.set(LANGGRAPH_END_NODE_NAME, parent.id);
       }
 
-      return [];
-    }),
-  );
+      if (
+        !parsedParentMetadata.success ||
+        parsedParentMetadata.data[LANGGRAPH_NODE_TAG] !== node
+      ) {
+        nodeToParentObservationMap.set(node, o.id);
+      }
+    }
+  });
+
+  const nodes = [...nodeToParentObservationMap.keys()];
+  const edges = [...stepToNodeMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([_, node], idx, arr) => ({
+      from: node,
+      to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
+    }));
 
   return {
     graph: {
-      nodes: new Array(...nodes).map((n) => ({ id: n, label: n })),
-      edges: edges.map((e) => ({ from: e[0], to: e[1], arrows: "to" })),
+      nodes,
+      edges,
     },
-    nodeToParentObservationMap,
+    nodeToParentObservationMap: Object.fromEntries(
+      nodeToParentObservationMap.entries(),
+    ),
   };
 }
