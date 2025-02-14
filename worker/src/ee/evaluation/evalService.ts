@@ -68,7 +68,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 // there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   event,
-  enforcedJobTimeScope = "NEW",
+  enforcedJobTimeScope,
 }: {
   event:
     | TraceQueueEventType
@@ -99,6 +99,10 @@ export const createEvalJobs = async ({
   }
 
   const configs = await configsQuery.execute();
+
+  logger.debug(
+    `Found ${JSON.stringify(configs)} evaluation jobs for project ${event.projectId}`,
+  );
 
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);
