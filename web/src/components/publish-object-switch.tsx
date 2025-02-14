@@ -110,7 +110,6 @@ const Base = (props: {
               id="publish-trace"
               variant="ghost"
               size="icon"
-              title={props.isPublic ? "Mark as private" : "Mark as public"}
               loading={props.isLoading}
               disabled={props.disabled}
             >
