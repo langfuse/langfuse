@@ -47,7 +47,7 @@ describe("orderByTimeSeries", () => {
 
     const [query, params, bucketSize] = orderByTimeSeries(filter, "timestamp");
 
-    // For 1 hour difference, should pick 60 second buckets to get ~60 data points
+    // For 1 minute difference, should pick 5 second buckets to get ~12 data points
     expect(bucketSize).toBe(5); // 5 seconds
     expect(query).toBe(
       "ORDER BY timestamp ASC \n    WITH FILL\n    FROM toStartOfInterval(toDateTime({fromTime: DateTime64(3)}), INTERVAL 5 SECOND)\n    TO toDateTime({toTime: DateTime64(3)}) + INTERVAL 5 SECOND\n    STEP toIntervalSecond(5)",
