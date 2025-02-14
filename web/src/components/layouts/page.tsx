@@ -18,7 +18,7 @@ const Page = ({
     <div
       className={cn(
         "flex flex-col",
-        scrollable ? "relative flex min-h-svh flex-1 flex-col" : "h-full",
+        scrollable ? "relative flex min-h-svh flex-1" : "h-full",
       )}
     >
       <header className="sticky top-0 z-50 w-full">
