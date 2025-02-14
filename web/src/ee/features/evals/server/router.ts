@@ -685,8 +685,8 @@ export const evalRouter = createTRPCRouter({
       });
 
       if (
-        existingJob?.timeScope.includes(JobTimeScope.EXISTING) &&
-        !input.config.timeScope?.includes(JobTimeScope.EXISTING)
+        existingJob?.timeScope.includes("EXISTING") &&
+        !input.config.timeScope?.includes("EXISTING")
       ) {
         throw new Error(
           "The evaluator ran on existing traces already. This cannot be changed anymore.",
