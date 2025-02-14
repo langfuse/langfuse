@@ -13,7 +13,7 @@ import {
   ChatMessageRole,
   paginationZod,
   type JobConfiguration,
-  JobConfigState,
+  JobTimeScope,
   JobType,
   Prisma,
   TimeScopeSchema,
@@ -47,7 +47,7 @@ const APIEvaluatorSchema = z.object({
   variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
-  status: z.nativeEnum(JobConfigState),
+  status: z.nativeEnum(JobTimeScope),
   jobType: z.nativeEnum(JobType),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -511,7 +511,7 @@ export const evalRouter = createTRPCRouter({
           },
         });
 
-        if (input.timeScope.includes("existing")) {
+        if (input.timeScope.includes(JobTimeScope.EXISTING)) {
           logger.info(
             `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
           );
@@ -685,8 +685,8 @@ export const evalRouter = createTRPCRouter({
       });
 
       if (
-        existingJob?.timeScope.includes("existing") &&
-        !input.config.timeScope?.includes("existing")
+        existingJob?.timeScope.includes(JobTimeScope.EXISTING) &&
+        !input.config.timeScope?.includes(JobTimeScope.EXISTING)
       ) {
         throw new Error(
           "The evaluator ran on existing traces already. This cannot be changed anymore.",

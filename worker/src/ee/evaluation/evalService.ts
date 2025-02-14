@@ -37,7 +37,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   variableMapping,
-  TimeScopeSchema,
+  JobTimeScope,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -68,21 +68,37 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 // there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   event,
-  timeScope: timeScope = ["new" as const],
+  enforcedJobTimeScope = "NEW",
 }: {
   event:
     | TraceQueueEventType
     | DatasetRunItemUpsertEventType
     | CreateEvalQueueEventType;
-  timeScope?: z.infer<typeof TimeScopeSchema>;
+  enforcedJobTimeScope?: JobTimeScope;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
-  const configs = await kyselyPrisma.$kysely
+  const configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .execute();
+    .where("project_id", "=", event.projectId);
+
+  if ("configId" in event) {
+    // if configid is set in the event, we only want to fetch the one config
+    configsQuery.where("id", "=", event.configId);
+  }
+
+  // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on
+  // configs, which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
+  if (enforcedJobTimeScope) {
+    configsQuery.where(
+      "time_scope",
+      "@>",
+      sql<string[]>`ARRAY[${enforcedJobTimeScope}]`,
+    );
+  }
+
+  const configs = await configsQuery.execute();
 
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);
@@ -96,24 +112,6 @@ export const createEvalJobs = async ({
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
-      continue;
-    }
-
-    if (
-      !config.time_scope.some((job) =>
-        timeScope.includes(job as "new" | "existing"),
-      )
-    ) {
-      logger.debug(
-        `Skipping config ${config.id} because it does not match the allowed job applications ${timeScope}`,
-      );
-      continue;
-    }
-
-    if ("configId" in event && event.configId !== config.id) {
-      logger.debug(
-        `Skipping config ${config.id} because it does not match the event configId ${event.configId}`,
-      );
       continue;
     }
 

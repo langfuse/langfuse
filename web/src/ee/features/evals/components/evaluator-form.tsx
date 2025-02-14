@@ -66,7 +66,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { Checkbox } from "@/src/components/ui/checkbox";
 
 export const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -343,9 +343,9 @@ export const InnerEvalConfigForm = (props: {
       delay: props.existingEvaluator?.delay
         ? props.existingEvaluator.delay / 1000
         : 10,
-      timeScope: (props.existingEvaluator?.timeScope ?? ["new"]).filter(
-        (option): option is "existing" | "new" =>
-          ["existing", "new"].includes(option),
+      timeScope: (props.existingEvaluator?.timeScope ?? ["NEW"]).filter(
+        (option): option is "NEW" | "EXISTING" =>
+          ["NEW", "EXISTING"].includes(option),
       ),
     },
   });
@@ -430,17 +430,6 @@ export const InnerEvalConfigForm = (props: {
       : availableDatasetEvalVariables,
   );
 
-  if (
-    props.existingEvaluator?.timeScope.includes("existing") &&
-    props.mode === "edit"
-  ) {
-    form.setError("timeScope", {
-      type: "manual",
-      message:
-        "The evaluator ran on existing traces already. This cannot be changed anymore.",
-    });
-  }
-
   function onSubmit(values: z.infer<typeof formSchema>) {
     capture(
       props.mode === "edit"
@@ -449,6 +438,26 @@ export const InnerEvalConfigForm = (props: {
     );
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
+
+    console.log("timeScope", values.timeScope);
+    if (
+      props.existingEvaluator?.timeScope.includes("existing") &&
+      props.mode === "edit"
+    ) {
+      form.setError("timeScope", {
+        type: "manual",
+        message:
+          "The evaluator ran on existing traces already. This cannot be changed anymore.",
+      });
+      return;
+    }
+    if (form.getValues("timeScope").length === 0) {
+      form.setError("timeScope", {
+        type: "manual",
+        message: "Please select at least one.",
+      });
+      return;
+    }
 
     if (validatedFilter.success === false) {
       form.setError("filter", {
@@ -602,23 +611,50 @@ export const InnerEvalConfigForm = (props: {
                   <FormItem>
                     <FormLabel>Evaluator runs on</FormLabel>
                     <FormControl>
-                      <MultiSelect
-                        options={[
-                          {
-                            value: "new",
-                            displayValue: "New objects",
-                          },
-                          {
-                            value: "existing",
-                            displayValue: "Existing objects",
-                          },
-                        ]}
-                        values={field.value}
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                        }}
-                        disabled={props.disabled}
-                      />
+                      <div className="flex flex-col gap-2">
+                        <div className="items-top flex space-x-2">
+                          <Checkbox
+                            id="newObjects"
+                            checked={field.value.includes("NEW")}
+                            onCheckedChange={(checked) => {
+                              const newValue = checked
+                                ? [...field.value, "NEW"]
+                                : field.value.filter((v) => v !== "NEW");
+                              field.onChange(newValue);
+                            }}
+                            disabled={props.disabled}
+                          />
+                          <div className="grid gap-1.5 leading-none">
+                            <label
+                              htmlFor="newObjects"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              New objects
+                            </label>
+                          </div>
+                        </div>
+                        <div className="items-top flex space-x-2">
+                          <Checkbox
+                            id="existingObjects"
+                            checked={field.value.includes("EXISTING")}
+                            onCheckedChange={(checked) => {
+                              const newValue = checked
+                                ? [...field.value, "EXISTING"]
+                                : field.value.filter((v) => v !== "EXISTING");
+                              field.onChange(newValue);
+                            }}
+                            disabled={props.disabled}
+                          />
+                          <div className="grid gap-1.5 leading-none">
+                            <label
+                              htmlFor="existingObjects"
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              Existing objects
+                            </label>
+                          </div>
+                        </div>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

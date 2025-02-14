@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError } from "@langfuse/shared";
+import { ApiError, BaseError, JobTimeScope } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -19,6 +19,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
+      enforcedJobTimeScope: "NEW",
     });
     return true;
   } catch (e) {
@@ -37,6 +38,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
+      enforcedJobTimeScope: "NEW",
     });
     return true;
   } catch (e) {
@@ -55,7 +57,6 @@ export const evalJobCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
-      timeScope: ["new", "existing"],
     });
     return true;
   } catch (e) {

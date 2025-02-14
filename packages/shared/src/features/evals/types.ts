@@ -113,6 +113,7 @@ export enum EvalTargetObject {
 
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
 
-export const TimeScopeSchema = z
-  .array(z.enum(["existing", "new"]))
-  .default(["new"]);
+export const JobTimeScopeZod = z.enum(["NEW", "EXISTING"]);
+export type JobTimeScope = z.infer<typeof JobTimeScopeZod>;
+
+export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);
