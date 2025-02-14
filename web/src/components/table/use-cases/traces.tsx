@@ -332,18 +332,24 @@ export default function TracesTable({
   };
 
   const tableActions: TableAction[] = [
-    {
-      id: "trace-delete",
-      type: BatchActionType.Delete,
-      label: "Delete Traces",
-      description:
-        "This action permanently deletes traces and cannot be undone.",
-      accessCheck: {
-        scope: "traces:delete",
-        entitlement: "trace-deletion",
-      },
-      execute: handleDeleteTraces,
-    },
+    // temporary: hide if no entitlement until we support trace deletion on cloud again
+    // https://github.com/orgs/langfuse/discussions/5313
+    ...(hasTraceDeletionEntitlement
+      ? [
+          {
+            id: "trace-delete",
+            type: BatchActionType.Delete,
+            label: "Delete Traces",
+            description:
+              "This action permanently deletes traces and cannot be undone.",
+            accessCheck: {
+              scope: "traces:delete",
+              entitlement: "trace-deletion",
+            },
+            execute: handleDeleteTraces,
+          } as TableAction,
+        ]
+      : []),
     {
       id: "trace-add-to-annotation-queue",
       type: BatchActionType.Create,

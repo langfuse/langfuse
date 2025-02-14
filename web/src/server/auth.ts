@@ -310,11 +310,11 @@ if (
       clientSecret: env.AUTH_AZURE_AD_CLIENT_SECRET,
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
-        env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+        env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
-        token_endpoint_auth_method: env.AUTH_AZURE_CLIENT_AUTH_METHOD,
+        token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_AZURE_CHECKS,
+      checks: env.AUTH_AZURE_AD_CHECKS,
     }),
   );
 

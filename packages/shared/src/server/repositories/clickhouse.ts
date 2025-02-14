@@ -9,7 +9,26 @@ import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { context, trace } from "@opentelemetry/api";
-import { uploadEventToS3 } from "../utils/eventLog";
+import {
+  StorageService,
+  StorageServiceFactory,
+} from "../services/StorageService";
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
@@ -23,7 +42,7 @@ export async function upsertClickhouse<
     span.setAttribute("ch.query.table", opts.table);
 
     await Promise.all(
-      opts.records.map((record) => {
+      opts.records.map(async (record) => {
         // drop trailing s and pretend it's always a create.
         // Only applicable to scores and traces.
         let eventType = `${opts.table.slice(0, -1)}-create`;
@@ -33,23 +52,36 @@ export async function upsertClickhouse<
         }
 
         const eventId = randomUUID();
-        return uploadEventToS3(
-          {
-            projectId: record.project_id as string,
-            entityType: getClickhouseEntityType(eventType),
-            entityId: record.id as string,
-            eventId,
-            traceId: record?.trace_id as string,
-          },
-          [
+        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
+
+        // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
+        // and are not worried that much about latency.
+        await clickhouseClient().insert({
+          table: "event_log",
+          values: [
             {
-              id: eventId,
-              timestamp: new Date().toISOString(),
-              type: eventType,
-              body: opts.eventBodyMapper(record),
+              id: randomUUID(),
+              project_id: record.project_id,
+              entity_type: getClickhouseEntityType(eventType),
+              entity_id: record.id,
+              event_id: eventId,
+              bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+              bucket_path: bucketPath,
             },
           ],
-        );
+          format: "JSONEachRow",
+        });
+
+        return getS3StorageServiceClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        ).uploadJson(bucketPath, [
+          {
+            id: eventId,
+            timestamp: new Date().toISOString(),
+            type: eventType,
+            body: opts.eventBodyMapper(record),
+          },
+        ]);
       }),
     );
 

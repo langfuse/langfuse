@@ -22,7 +22,26 @@ import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { redis } from "../redis/redis";
 import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
-import { uploadEventToS3 } from "../utils/eventLog";
+import {
+  StorageService,
+  StorageServiceFactory,
+} from "../services/StorageService";
+
+let s3StorageServiceClient: StorageService;
+
+const getS3StorageServiceClient = (bucketName: string): StorageService => {
+  if (!s3StorageServiceClient) {
+    s3StorageServiceClient = StorageServiceFactory.getInstance({
+      bucketName,
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+  }
+  return s3StorageServiceClient;
+};
 
 export type TokenCountDelegate = (p: {
   model: Model;
@@ -47,7 +66,10 @@ const getDelay = (delay: number | null) => {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
   }
 
-  return 0;
+  // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
+  // we use this instead.
+  // Values should be revisited based on a cost/performance trade-off.
+  return Math.min(5000, env.LANGFUSE_INGESTION_QUEUE_DELAY_MS);
 };
 
 /**
@@ -72,7 +94,10 @@ export const processEventBatch = async (
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
   recordIncrement("langfuse.ingestion.event", input.length);
-  currentSpan?.setAttribute("event_count", input.length);
+  currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
+  currentSpan?.setAttribute("langfuse.project.id", authCheck.scope.projectId);
+  currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
+  currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
@@ -87,7 +112,10 @@ export const processEventBatch = async (
         (span) => {
           const parsedBody = ingestionEvent.safeParse(event);
           if (parsedBody.data?.id !== undefined) {
-            span.setAttribute("object.id", parsedBody.data.id);
+            span.setAttribute(
+              "langfuse.ingestion.entity.id",
+              parsedBody.data.id,
+            );
           }
           return parsedBody;
         },
@@ -171,23 +199,10 @@ export const processEventBatch = async (
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
         const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        return uploadEventToS3(
-          {
-            projectId: authCheck.scope.projectId,
-            entityType: getClickhouseEntityType(type),
-            entityId: eventBodyId,
-            eventId: key,
-            traceId:
-              data // Use the first truthy traceId for the event log.
-                .flatMap((event) =>
-                  "traceId" in event.body && event.body.traceId
-                    ? [event.body.traceId]
-                    : [],
-                )
-                .shift() ?? null,
-          },
-          data,
-        );
+        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
+        return getS3StorageServiceClient(
+          env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+        ).uploadJson(bucketPath, data);
       }),
     );
     results.forEach((result) => {
@@ -225,6 +240,7 @@ export const processEventBatch = async (
                 data: {
                   type: sortedBatchByEventBodyId[id].type,
                   eventBodyId: sortedBatchByEventBodyId[id].eventBodyId,
+                  fileKey: sortedBatchByEventBodyId[id].key,
                 },
                 authCheck,
               },

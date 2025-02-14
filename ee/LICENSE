@@ -1,24 +1,36 @@
-Langfuse Enterprise License (the “Enterprise License”)
-Copyright (c) 2024 Langfuse GmbH ('Langfuse')
+START NOTE
+Langfuse is an open core project. Langfuse's core
+is permissively licensed (MIT license).
+Certain parts of the periphery of Langfuse are commercially
+licensed and governed by this Enterprise License.
+For the avoidance of doubt, this license does not apply 
+to the core of Langfuse as it is defined in its license in 
+the directory "/LICENSE" (as opposed to this file  "ee/LICENSE")
+which can be used and run without infringing the below license
+and its licensed materials.
+END NOTE
 
-With regard to the Langfuse Software:
+START OF LICENSE
+Langfuse Enterprise license (the “Enterprise License” or "EE license")
+
+Copyright (c) 2023-2025 Langfuse GmbH
+
+With regard to the Langfuse Enterprise Software:
 This software and associated documentation files (the "Software") may only be
-used in production, if you (and any entity that you represent) have agreed to,
-and are in compliance with, the Langfuse Terms of Service, available
+used, if you (and any entity that you represent) have agreed to,
+and are in compliance with, the applicable Langfuse Terms of Service, available
 at https://langfuse.com/terms (the “Enterprise Terms”), or other
 agreement governing the use of the Software, as agreed by you and Langfuse,
-and otherwise have a valid Langfuse Enterprise license.
+and otherwise have a valid Langfuse Enterprise License.
 
 Subject to the foregoing sentence, you are free to
 modify this Software and publish patches to the Software. You agree that Langfuse
 and/or its licensors (as applicable) retain all right, title and interest in and
 to all such modifications and/or patches, and all such modifications and/or
 patches may only be used, copied, modified, displayed, distributed, or otherwise
-exploited with a valid Langfuse Enterprise license.
-
-Notwithstanding the foregoing, you may copy and modify
+exploited with a valid Langfuse Enterprise License. Notwithstanding the foregoing, you may copy and modify
 the Software for development and testing purposes, without requiring a
-subscription. You agree that Langfuse and/or its licensors (as applicable) retain
+subscription. You agree that Langfuse GmbH and/or its licensors (as applicable) retain
 all right, title and interest in and to all such modifications. You are not
 granted any other rights beyond what is expressly stated herein. Subject to the
 foregoing, it is forbidden to copy, merge, publish, distribute, sublicense,
@@ -33,5 +45,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 For all third party components incorporated into the Langfuse Software, those
-components are licensed under the original license provided by the owner of the 
+components are licensed under the original license provided by the owner of the
 applicable component.
+
+END OF LICENSE

@@ -158,6 +158,30 @@ export const scoreRecordInsertSchema = scoreRecordBaseSchema.extend({
 });
 export type ScoreRecordInsertType = z.infer<typeof scoreRecordInsertSchema>;
 
+export const eventLogRecordBaseSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  entity_type: z.string(),
+  entity_id: z.string(),
+  // event_id is nullable to be compatible with legacy queue events.
+  // It still allows us to delete things by prefix, but requires an additional list call.
+  event_id: z.string().nullable(),
+  bucket_name: z.string(),
+  bucket_path: z.string(),
+});
+export const eventLogRecordReadSchema = eventLogRecordBaseSchema.extend({
+  created_at: clickhouseStringDateSchema,
+  updated_at: clickhouseStringDateSchema,
+});
+export type EventLogRecordReadType = z.infer<typeof eventLogRecordReadSchema>;
+export const eventLogRecordInsertSchema = eventLogRecordBaseSchema.extend({
+  created_at: z.number(),
+  updated_at: z.number(),
+});
+export type EventLogRecordInsertType = z.infer<
+  typeof eventLogRecordInsertSchema
+>;
+
 export const convertTraceReadToInsert = (
   record: TraceRecordReadType,
 ): TraceRecordInsertType => {

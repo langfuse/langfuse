@@ -3,29 +3,32 @@
 <div align="center">
    <div>
       <h3>
+      <a href="https://langfuse.com/kr">
+            <strong>🇰🇷 🤝 🪢</strong>
+         </a> · 
          <a href="https://cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
          </a> · 
          <a href="https://langfuse.com/docs/deployment/self-host">
-            <strong>Self Host</strong>
+            <strong>셀프 호스트</strong>
          </a> · 
          <a href="https://langfuse.com/demo">
-            <strong>Demo</strong>
+            <strong>데모</strong>
          </a>
       </h3>
    </div>
 
    <div>
-      <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
-      <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
-      <a href="https://langfuse.com/ideas"><strong>Feature Request</strong></a> ·
-      <a href="https://langfuse.com/changelog"><strong>Changelog</strong></a> ·
-      <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
+      <a href="https://langfuse.com/docs"><strong>문서</strong></a> ·
+      <a href="https://langfuse.com/issues"><strong>버그 신고</strong></a> ·
+      <a href="https://langfuse.com/ideas"><strong>기능 요청</strong></a> ·
+      <a href="https://langfuse.com/changelog"><strong>변경 내역</strong></a> ·
+      <a href="https://langfuse.com/roadmap"><strong>로드맵</strong></a> ·
    </div>
    <br/>
-   <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a>  for Support and Feature Requests.</span>
+   <span>Langfuse는 지원 및 기능 요청을 위해 <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>를 사용합니다.</span>
    <br/>
-   <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in product engineering and technical go-to-market roles.</span>
+   <span><b>채용 중입니다.</b> <a href="https://langfuse.com/careers"><strong>함께 하세요</strong></a> – 제품 엔지니어링 및 기술 go-to-market 역할의 인재를 찾고 있습니다.</span>
    <br/>
    <br/>
    <div>
@@ -66,34 +69,41 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuse is an **open source LLM engineering** platform. It helps teams collaboratively
-**develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested**.
+Langfuse는 **오픈 소스 LLM 엔지니어링** 플랫폼입니다.  
+팀이 협업하여 AI 애플리케이션을 **개발, 모니터링, 평가** 및 **디버그**할 수 있도록 도와줍니다.  
+Langfuse는 몇 분 안에 셀프 호스팅할 수 있으며, 검증된(battle-tested) 솔루션입니다.
 
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
 
-## ✨ Core Features
+## ✨ 주요 기능
 
 ![Langfuse Overview](https://langfuse.com/images/docs/github-readme/github-feature-overview.png)
 
-- [LLM Application Observability](https://langfuse.com/docs/tracing): Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions. Try the interactive [demo](https://langfuse.com/docs/demo) to see this in action.
+- **LLM 애플리케이션 관측**  
+  앱에 계측(instrumentation)을 추가하여 Langfuse로 trace 데이터를 수집함으로써, 검색, 임베딩, 또는 에이전트 동작과 같은 LLM 호출 및 기타 관련 로직을 추적할 수 있습니다. 복잡한 로그와 사용자 세션을 확인 및 디버깅 해보세요. 인터랙티브 데모를 통해 실제 작동 예를 확인할 수 있습니다.
 
-- [Prompt Management](https://langfuse.com/docs/prompts/get-started) helps you centrally manage, version control, and collaboratively iterate on your prompts. Thanks to strong caching on server and client side, you can iterate on prompts without adding latency to your application.
+- **프롬프트 관리**  
+  프롬프트를 중앙에서 관리하고 버전 관리하며 협업으로 수정할 수 있도록 도와줍니다. 서버와 클라이언트 측의 강력한 캐싱 덕분에 애플리케이션에 지연(latency)을 추가하지 않고도 프롬프트를 반복 개선할 수 있습니다.
 
-- [Evaluations](https://langfuse.com/docs/scores/overview) are key to the LLM application development workflow, and Langfuse adapts to your needs. It supports LLM-as-a-judge, user feedback collection, manual labeling, and custom evaluation pipelines via APIs/SDKs.
+- **평가**  
+  LLM 애플리케이션 개발 워크플로우에서 핵심적인 역할을 하며, Langfuse는 여러분의 필요에 맞게 유연하게 대응합니다. LLM을 심사자로 활용하는 기능, 사용자 피드백 수집, 수동 라벨링 및 API/SDK를 통한 맞춤 평가 파이프라인을 지원합니다.
 
-- [Datasets](https://langfuse.com/docs/datasets/overview) enable test sets and benchmarks for evaluating your LLM application. They support continuous improvement, pre-deployment testing, structured experiments, flexible evaluation, and seamless integration with frameworks like LangChain and LlamaIndex.
+- **데이터셋**  
+  LLM 애플리케이션 평가를 위한 테스트 세트와 벤치마크를 제공하여, 지속적인 개선, 배포 전 테스트, 구조화된 실험, 유연한 평가 및 LangChain과 LlamaIndex와 같은 프레임워크와의 원활한 통합을 지원합니다.
 
-- [LLM Playground](https://langfuse.com/docs/playground) is a tool for testing and iterating on your prompts and model configurations, shortening the feedback loop and accelerating development. When you see a bad result in tracing, you can directly jump to the playground to iterate on it.
+- **LLM 플레이그라운드**  
+  프롬프트와 모델 구성에 대해 테스트 및 반복 개선할 수 있는 도구로, 피드백 루프를 단축하여 개발 속도를 높여줍니다. trace에서 이상한 결과가 발생하면 플레이그라운드로 바로 이동해 개선할 수 있습니다.
 
-- [Comprehensive API](https://langfuse.com/docs/api): Langfuse is frequently used to power bespoke LLMOps workflows while using the building blocks provided by Langfuse via the API. OpenAPI spec, Postman collection, and typed SDKs for Python, JS/TS are available.
+- **종합 API**  
+  Langfuse는 API를 통해 제공되는 구성 요소들을 활용하여 맞춤형 LLMOps 워크플로우를 강화하는 데 자주 사용됩니다. OpenAPI 명세, Postman 컬렉션, Python 및 JS/TS용 타입드 SDK가 제공됩니다.
 
-## 📦 Deploy Langfuse
+## 📦 Langfuse 배포
 
 ![Langfuse Deployment Options](https://langfuse.com/images/docs/github-readme/github-deployment-options.png)
 
 ### Langfuse Cloud
 
-Managed deployment by the Langfuse team, generous free-tier (hobby plan), no credit card required.
+Langfuse 팀이 관리하는 배포 방식으로, 후한 무료 플랜(취미 플랜)을 제공하며 신용카드가 필요하지 않습니다.
 
 <div align="center">
     <a href="https://cloud.langfuse.com" target="_blank">
@@ -101,83 +111,83 @@ Managed deployment by the Langfuse team, generous free-tier (hobby plan), no cre
     </a>
 </div>
 
-### Self-Host Langfuse
+### Langfuse 셀프 호스트
 
-Run Langfuse on your own infrastructure:
+자체 인프라에서 Langfuse를 실행하세요:
 
-- [Local (docker compose)](https://langfuse.com/self-hosting/local): Run Langfuse on your own machine in 5 minutes using Docker Compose.
+- [로컬 (docker compose)](https://langfuse.com/self-hosting/local): Docker Compose를 사용하여 본인의 컴퓨터에서 5분 안에 Langfuse를 실행할 수 있습니다.
 
   ```bash
-  # Get a copy of the latest Langfuse repository
+  # 최신 Langfuse 저장소 클론
   git clone https://github.com/langfuse/langfuse.git
   cd langfuse
 
-  # Run the langfuse docker compose
+  # langfuse docker compose 실행
   docker compose up
   ```
 
-- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
-- [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
-- Planned: Cloud-specific deployment guides, please upvote and comment on the following threads: [AWS](https://github.com/orgs/langfuse/discussions/4645), [Google Cloud](https://github.com/orgs/langfuse/discussions/4646), [Azure](https://github.com/orgs/langfuse/discussions/4647).
+- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Helm을 사용해 Kubernetes 클러스터에서 Langfuse를 실행합니다. 이는 권장되는 프로덕션 배포 방식입니다.
+- [VM](https://langfuse.com/self-hosting/docker-compose): Docker Compose를 사용해 단일 가상 머신에서 Langfuse를 실행합니다.
+- 예정: 클라우드별 배포 가이드 – 아래 스레드에서 투표 및 댓글을 남겨주세요: [AWS](https://github.com/orgs/langfuse/discussions/4645), [Google Cloud](https://github.com/orgs/langfuse/discussions/4646), [Azure](https://github.com/orgs/langfuse/discussions/4647).
 
-See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about the architecture and configuration options.
+자세한 내용은 [자체 호스팅 문서](https://langfuse.com/self-hosting)를 참조하세요.
 
-## 🔌 Integrations
+## 🔌 통합 기능
 
 ![Langfuse Integrations](https://langfuse.com/images/docs/github-readme/github-integrations.png)
 
-### Main Integrations:
+### 주요 통합:
 
-| Integration                                                                  | Supports                   | Description                                                                                                                                      |
-| ---------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | Manual instrumentation using the SDKs for full flexibility.                                                                                      |
-| [OpenAI](https://langfuse.com/docs/integrations/openai)                      | Python, JS/TS              | Automated instrumentation using drop-in replacement of OpenAI SDK.                                                                               |
-| [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS              | Automated instrumentation by passing callback handler to Langchain application.                                                                  |
-| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                     | Automated instrumentation via LlamaIndex callback system.                                                                                        |
-| [Haystack](https://langfuse.com/docs/integrations/haystack)                  | Python                     | Automated instrumentation via Haystack content tracing system.                                                                                   |
-| [LiteLLM](https://langfuse.com/docs/integrations/litellm)                    | Python, JS/TS (proxy only) | Use any LLM as a drop in replacement for GPT. Use Azure, OpenAI, Cohere, Anthropic, Ollama, VLLM, Sagemaker, HuggingFace, Replicate (100+ LLMs). |
-| [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                      | TypeScript toolkit designed to help developers build AI-powered applications with React, Next.js, Vue, Svelte, Node.js.                          |
-| [API](https://langfuse.com/docs/api)                                         |                            | Directly call the public API. OpenAPI spec available.                                                                                            |
+| 통합                                                                 | 지원                   | 설명                                                                                                                                      |
+| --------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| [SDK](https://langfuse.com/docs/sdk)                                  | Python, JS/TS          | SDK를 사용하여 완전한 유연성을 갖춘 수동 계측(manual instrumentation)을 수행합니다.                                                       |
+| [OpenAI](https://langfuse.com/docs/integrations/openai)               | Python, JS/TS          | OpenAI SDK의 드롭인 대체(drop-in replacement)를 통해 자동 계측(automated instrumentation)을 수행합니다.                                       |
+| [Langchain](https://langfuse.com/docs/integrations/langchain)         | Python, JS/TS          | Langchain 애플리케이션에 callback 핸들러를 전달하여 자동 계측합니다.                                                                       |
+| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                 | LlamaIndex 콜백 시스템을 통한 자동 계측을 지원합니다.                                                                                      |
+| [Haystack](https://langfuse.com/docs/integrations/haystack)           | Python                 | Haystack 콘텐츠 추적 시스템을 통한 자동 계측을 지원합니다.                                                                                 |
+| [LiteLLM](https://langfuse.com/docs/integrations/litellm)             | Python, JS/TS (proxy only) | GPT의 드롭인 대체품으로 어떤 LLM도 사용할 수 있습니다. Azure, OpenAI, Cohere, Anthropic, Ollama, VLLM, Sagemaker, HuggingFace, Replicate 등 100개 이상의 LLM 지원. |
+| [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)   | JS/TS                  | React, Next.js, Vue, Svelte, Node.js와 함께 AI 기반 애플리케이션 구축을 돕는 TypeScript 툴킷입니다.                                             |
+| [API](https://langfuse.com/docs/api)                                   |                        | 공개 API를 직접 호출합니다. OpenAPI 명세가 제공됩니다.                                                                                      |
 
-### Packages integrated with Langfuse:
+### Langfuse와 통합된 패키지:
 
-| Name                                                                    | Type               | Description                                                                                                             |
-| ----------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| [Instructor](https://langfuse.com/docs/integrations/instructor)         | Library            | Library to get structured LLM outputs (JSON, Pydantic)                                                                  |
-| [DSPy](https://langfuse.com/docs/integrations/dspy)                     | Library            | Framework that systematically optimizes language model prompts and weights                                              |
-| [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | Library            | Python toolkit for building LLM applications.                                                                           |
-| [Ollama](https://langfuse.com/docs/integrations/ollama)                 | Model (local)      | Easily run open source LLMs on your own machine.                                                                        |
-| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | Model              | Run foundation and fine-tuned models on AWS.                                                                            |
-| [AutoGen](https://langfuse.com/docs/integrations/autogen)               | Agent Framework    | Open source LLM platform for building distributed agents.                                                               |
-| [Flowise](https://langfuse.com/docs/integrations/flowise)               | Chat/Agent&nbsp;UI | JS/TS no-code builder for customized LLM flows.                                                                         |
-| [Langflow](https://langfuse.com/docs/integrations/langflow)             | Chat/Agent&nbsp;UI | Python-based UI for LangChain, designed with react-flow to provide an effortless way to experiment and prototype flows. |
-| [Dify](https://langfuse.com/docs/integrations/dify)                     | Chat/Agent&nbsp;UI | Open source LLM app development platform with no-code builder.                                                          |
-| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)           | Chat/Agent&nbsp;UI | Self-hosted LLM Chat web ui supporting various LLM runners including self-hosted and local models.                      |
-| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)           | Tool               | Open source LLM testing platform.                                                                                       |
-| [LobeChat](https://langfuse.com/docs/integrations/lobechat)             | Chat/Agent&nbsp;UI | Open source chatbot platform.                                                                                           |
-| [Vapi](https://langfuse.com/docs/integrations/vapi)                     | Platform           | Open source voice AI platform.                                                                                          |
-| [Inferable](https://langfuse.com/docs/integrations/other/inferable)     | Agents             | Open source LLM platform for building distributed agents.                                                               |
-| [Gradio](https://langfuse.com/docs/integrations/other/gradio)           | Chat/Agent&nbsp;UI | Open source Python library to build web interfaces like Chat UI.                                                        |
-| [Goose](https://langfuse.com/docs/integrations/goose)                   | Agents             | Open source LLM platform for building distributed agents.                                                               |
-| [smolagents](https://langfuse.com/docs/integrations/smolagents)         | Agents             | Open source AI agents framework.                                                                                        |
-| [CrewAI](https://langfuse.com/docs/integrations/crewai)                 | Agents             | Multi agent framework for agent collaboration and tool use.                                                             |
+| 이름                                                                    | 유형               | 설명                                                                                                             |
+| ----------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| [Instructor](https://langfuse.com/docs/integrations/instructor)         | 라이브러리         | 구조화된 LLM 출력을(JSON, Pydantic) 얻기 위한 라이브러리입니다.                                                  |
+| [DSPy](https://langfuse.com/docs/integrations/dspy)                     | 라이브러리         | 언어 모델 프롬프트와 가중치를 체계적으로 최적화하는 프레임워크입니다.                                             |
+| [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | 라이브러리         | LLM 애플리케이션 구축을 위한 Python 툴킷입니다.                                                                    |
+| [Ollama](https://langfuse.com/docs/integrations/ollama)                 | 모델 (로컬)        | 자신의 컴퓨터에서 오픈 소스 LLM을 손쉽게 실행할 수 있습니다.                                                      |
+| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | 모델               | AWS에서 기본 및 파인튜닝된 모델을 실행합니다.                                                                      |
+| [AutoGen](https://langfuse.com/docs/integrations/autogen)               | 에이전트 프레임워크 | 분산 에이전트 구축을 위한 오픈 소스 LLM 플랫폼입니다.                                                              |
+| [Flowise](https://langfuse.com/docs/integrations/flowise)               | 채팅/에이전트 UI    | 맞춤형 LLM 플로우를 위한 JS/TS 코드 없는(no-code) 빌더입니다.                                                       |
+| [Langflow](https://langfuse.com/docs/integrations/langflow)             | 채팅/에이전트 UI    | react-flow를 활용하여 실험 및 프로토타이핑을 손쉽게 할 수 있도록 디자인된 LangChain용 Python 기반 UI입니다.          |
+| [Dify](https://langfuse.com/docs/integrations/dify)                     | 채팅/에이전트 UI    | 코드 없는 빌더와 함께 제공되는 오픈 소스 LLM 애플리케이션 개발 플랫폼입니다.                                        |
+| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)           | 채팅/에이전트 UI    | 셀프 호스팅 및 로컬 모델 등 다양한 LLM 실행기를 지원하는 셀프 호스팅 LLM 채팅 웹 UI입니다.                              |
+| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)           | 도구               | 오픈 소스 LLM 테스트 플랫폼입니다.                                                                                 |
+| [LobeChat](https://langfuse.com/docs/integrations/lobechat)             | 채팅/에이전트 UI    | 오픈 소스 챗봇 플랫폼입니다.                                                                                         |
+| [Vapi](https://langfuse.com/docs/integrations/vapi)                     | 플랫폼             | 오픈 소스 음성 AI 플랫폼입니다.                                                                                      |
+| [Inferable](https://langfuse.com/docs/integrations/other/inferable)     | 에이전트           | 분산 에이전트 구축을 위한 오픈 소스 LLM 플랫폼입니다.                                                              |
+| [Gradio](https://langfuse.com/docs/integrations/other/gradio)           | 채팅/에이전트 UI    | 채팅 UI와 같은 웹 인터페이스 구축을 위한 오픈 소스 Python 라이브러리입니다.                                         |
+| [Goose](https://langfuse.com/docs/integrations/goose)                   | 에이전트           | 분산 에이전트 구축을 위한 오픈 소스 LLM 플랫폼입니다.                                                              |
+| [smolagents](https://langfuse.com/docs/integrations/smolagents)         | 에이전트           | 오픈 소스 AI 에이전트 프레임워크입니다.                                                                            |
+| [CrewAI](https://langfuse.com/docs/integrations/crewai)                 | 에이전트           | 에이전트 간 협업 및 도구 사용을 위한 다중 에이전트 프레임워크입니다.                                                 |
 
-## 🚀 Quickstart
+## 🚀 빠른 시작
 
-Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions.
+앱에 계측을 추가하고 Langfuse에 trace 데이터를 수집하여, LLM 호출 및 검색, 임베딩, 에이전트 동작과 같은 애플리케이션 로직을 추적해보세요. 복잡한 로그와 사용자 세션을 확인하여 디버깅할 수 있습니다.
 
-### 1️⃣ Create new project
+### 1️⃣ 새 프로젝트 생성
 
-1.  [Create Langfuse account](https://cloud.langfuse.com/auth/sign-up) or [self-host](https://langfuse.com/self-hosting)
-2.  Create a new project
-3.  Create new API credentials in the project settings
+1. [Langfuse 계정 생성](https://cloud.langfuse.com/auth/sign-up) 또는 [셀프 호스트](https://langfuse.com/self-hosting)
+2. 새 프로젝트를 생성합니다.
+3. 프로젝트 설정에서 새로운 API 자격 증명을 생성합니다.
 
-### 2️⃣ Log your first LLM call
+### 2️⃣ 첫 번째 LLM 호출 기록하기
 
-The [`@observe()` decorator](https://langfuse.com/docs/sdk/python/decorators) makes it easy to trace any Python LLM application. In this quickstart we also use the Langfuse [OpenAI integration](https://langfuse.com/docs/integrations/openai) to automatically capture all model parameters.
+[`@observe()` 데코레이터](https://langfuse.com/docs/sdk/python/decorators)를 사용하면 Python LLM 애플리케이션의 추적이 매우 간편해집니다. 이 빠른 시작 예제에서는 Langfuse [OpenAI 통합](https://langfuse.com/docs/integrations/openai)을 사용하여 모든 모델 파라미터를 자동으로 캡처합니다.
 
 > [!TIP]
-> Not using OpenAI? Visit [our documentation](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse) to learn how to log other models and frameworks.
+> OpenAI를 사용하지 않으시다면, 다른 모델 및 프레임워크의 로그 기록 방법은 [문서](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse)를 참조하세요.
 
 ```bash
 pip install langfuse openai
@@ -190,7 +200,7 @@ LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EU region
 # LANGFUSE_HOST="https://us.cloud.langfuse.com" # 🇺🇸 US region
 ```
 
-```python /@observe()/ /from langfuse.openai import openai/ filename="main.py"
+```python:main.py
 from langfuse.decorators import observe
 from langfuse.openai import openai # OpenAI integration
 
@@ -208,50 +218,50 @@ def main():
 main()
 ```
 
-### 3️⃣ See traces in Langfuse
+### 3️⃣ Langfuse에서 trace 확인하기
 
-See your language model calls and other application logic in Langfuse.
+Langfuse에서 LLM 호출 및 애플리케이션의 기타 로직에 대한 trace를 확인할 수 있습니다.
 
 ![Example trace in Langfuse](https://langfuse.com/images/docs/github-readme/github-example-trace.png)
 
-_[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
+_[Langfuse의 공개 예제 trace](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 
 > [!TIP]
 >
-> [Learn more](https://langfuse.com/docs/tracing) about tracing in Langfuse or play with the [interactive demo](https://langfuse.com/docs/demo).
+> Langfuse의 trace에 대해 더 알아보거나 [인터랙티브 데모](https://langfuse.com/docs/demo)에서 직접 체험해보세요.
 
-## ⭐️ Star Us
+## ⭐️ 별을 눌러주세요
 
 ![Star Langfuse](https://langfuse.com/images/docs/github-readme/github-star-howto.gif)
 
-## 💭 Support
+## 💭 지원
 
-Finding an answer to your question:
+질문에 대한 답변을 찾는 방법:
 
-- Our [documentation](https://langfuse.com/docs) is the best place to start looking for answers. It is comprehensive, and we invest significant time into maintaining it. You can also suggest edits to the docs via GitHub.
-- [Langfuse FAQs](https://langfuse.com/faq) where the most common questions are answered.
-- Use "[Ask AI](https://langfuse.com/docs/ask-ai)" to get instant answers to your questions.
+- 우리의 [문서](https://langfuse.com/docs)는 답을 찾기 위한 최적의 장소입니다. 문서가 매우 포괄적이며, 유지보수에 많은 노력을 기울이고 있습니다. GitHub를 통해 문서 수정 제안도 가능합니다.
+- [Langfuse FAQ](https://langfuse.com/faq)에서는 가장 흔한 질문에 대해 답변하고 있습니다.
+- 질문에 즉각적인 답변이 필요하다면 [Ask AI](https://langfuse.com/docs/ask-ai)를 사용해보세요.
 
-Support Channels:
+지원 채널:
 
-- **Ask any question in our [public Q&A](https://github.com/orgs/langfuse/discussions/categories/support) on GitHub Discussions.** Please include as much detail as possible (e.g. code snippets, screenshots, background information) to help us understand your question.
-- [Request a feature](https://github.com/orgs/langfuse/discussions/categories/ideas) on GitHub Discussions.
-- [Report a Bug](https://github.com/langfuse/langfuse/issues) on GitHub Issues.
-- For time-sensitive queries, ping us via the in-app chat widget.
+- **GitHub Discussions의 [공개 Q&A](https://github.com/orgs/langfuse/discussions/categories/support)** 에 질문을 남겨주세요. 가능한 한 많은 세부 사항(예: 코드 스니펫, 스크린샷, 배경 정보)을 포함해 질문해 주시기 바랍니다.
+- [기능 요청](https://github.com/orgs/langfuse/discussions/categories/ideas)을 남겨주세요.
+- [버그 신고](https://github.com/langfuse/langfuse/issues)는 GitHub Issues를 통해 해주세요.
+- 긴급한 문의는 앱 내 채팅 위젯을 통해 연락 바랍니다.
 
-## 🤝 Contributing
+## 🤝 기여하기
 
-Your contributions are welcome!
+여러분의 기여를 환영합니다!
 
-- Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas) in GitHub Discussions.
-- Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues).
-- Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
+- GitHub Discussions의 [아이디어](https://github.com/orgs/langfuse/discussions/categories/ideas)에 투표해보세요.
+- GitHub Issues에서 이슈를 제기하고 댓글을 남겨주세요.
+- PR을 제출하세요 – 개발 환경 설정 방법 등 자세한 내용은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조하세요.
 
-## 🥇 License
+## 🥇 라이선스
 
-This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+이 저장소는 `ee` 폴더를 제외하고 MIT 라이선스가 적용됩니다. 자세한 내용은 [LICENSE](LICENSE)와 [문서](https://langfuse.com/docs/open-source)를 확인하세요.
 
-## ⭐️ Star History
+## ⭐️ 별(Star) 히스토리
 
 <a href="https://star-history.com/#langfuse/langfuse&Date">
  <picture>
@@ -261,12 +271,12 @@ This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICE
  </picture>
 </a>
 
-## ❤️ Open Source Projects Using Langfuse
+## ❤️ Langfuse를 사용하는 오픈 소스 프로젝트
 
-Top open-source Python projects that use Langfuse, ranked by stars ([Source](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents)):
+별(star) 수를 기준으로 순위가 매겨진 Langfuse를 사용하는 상위 오픈 소스 Python 프로젝트들 ([출처](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents)):
 
-| Repository                                                                                                                                                                                                                                                          | Stars |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----: |
+| 저장소                                                                                                                                                                                                                                                          | 별   |
+| :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---: |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/127165244?s=40&v=4" width="20" height="20" alt=""> &nbsp; [langgenius](https://github.com/langgenius) / [dify](https://github.com/langgenius/dify)                                            | 54865 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/158137808?s=40&v=4" width="20" height="20" alt=""> &nbsp; [open-webui](https://github.com/open-webui) / [open-webui](https://github.com/open-webui/open-webui)                                | 51531 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/131470832?s=40&v=4" width="20" height="20" alt=""> &nbsp; [lobehub](https://github.com/lobehub) / [lobe-chat](https://github.com/lobehub/lobe-chat)                                           | 49003 |
@@ -312,19 +322,18 @@ Top open-source Python projects that use Langfuse, ranked by stars ([Source](htt
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/169401942?s=40&v=4" width="20" height="20" alt=""> &nbsp; [LibreChat-AI](https://github.com/LibreChat-AI) / [librechat.ai](https://github.com/LibreChat-AI/librechat.ai)                      |   128 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/51827949?s=40&v=4" width="20" height="20" alt=""> &nbsp; [deepset-ai](https://github.com/deepset-ai) / [haystack-core-integrations](https://github.com/deepset-ai/haystack-core-integrations) |   126 |
 
-## 🔒 Security & Privacy
+## 🔒 보안 & 개인정보 보호
 
-We take data security and privacy seriously. Please refer to our [Security and Privacy](https://langfuse.com/security) page for more information.
+우리는 데이터 보안과 개인정보 보호를 매우 중요하게 생각합니다. 자세한 내용은 [Security and Privacy](https://langfuse.com/security) 페이지를 참조하세요.
 
-### Telemetry
+### 텔레메트리
 
-By default, Langfuse automatically reports basic usage statistics of self-hosted instances to a centralized server (PostHog).
+기본적으로 Langfuse는 자체 호스팅 인스턴스의 기본 사용 통계를 중앙 서버(PostHog)로 자동 보고합니다.
 
-This helps us to:
+이를 통해:
+1. Langfuse가 어떻게 사용되는지 이해하고, 가장 관련성 높은 기능을 개선할 수 있습니다.
+2. 내부 및 외부(예: 자금 조달) 보고를 위한 전체 사용량을 추적할 수 있습니다.
 
-1. Understand how Langfuse is used and improve the most relevant features.
-2. Track overall usage for internal and external (e.g. fundraising) reporting.
+수집된 데이터는 제3자와 공유되지 않으며 민감한 정보를 포함하지 않습니다. 이에 대해 매우 투명하게 공개하고 있으며, 수집되는 정확한 데이터는 [여기](/web/src/features/telemetry/index.ts)에서 확인할 수 있습니다.
 
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/web/src/features/telemetry/index.ts).
-
-You can opt-out by setting `TELEMETRY_ENABLED=false`.
+환경 변수 `TELEMETRY_ENABLED=false`를 설정하여 옵트아웃할 수 있습니다.
