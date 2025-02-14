@@ -51,9 +51,11 @@ const PageHeader = ({
               container && "lg:container",
             )}
           >
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex-no-wrap flex min-h-16 items-center gap-1 md:max-h-16">
               {itemType && <ItemBadge type={itemType} showLabel />}
-              <h2 className="text-lg font-semibold leading-7">{title}</h2>
+              <h2 className="line-clamp-2 h-16 min-w-0 place-content-center text-lg font-semibold leading-7">
+                {title}
+              </h2>
               {help && (
                 <div className="-ml-2 -mt-2">
                   <DocPopup
@@ -65,7 +67,7 @@ const PageHeader = ({
               )}
               <div className="flex items-center gap-1">{actionButtonsLeft}</div>
             </div>
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-row flex-wrap items-center gap-1">
               {actionButtonsRight}
             </div>
           </div>
