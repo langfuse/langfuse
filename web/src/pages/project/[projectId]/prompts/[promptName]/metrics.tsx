@@ -376,6 +376,7 @@ export default function PromptVersionTable() {
     <Page
       headerProps={{
         title: promptName,
+        itemType: "PROMPT",
         help: {
           description:
             "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
@@ -392,7 +393,7 @@ export default function PromptVersionTable() {
           },
           { name: `Metrics` },
         ],
-        actionButtonsLeft: (
+        actionButtonsRight: (
           <>
             <Tabs value="metrics">
               <TabsList>
