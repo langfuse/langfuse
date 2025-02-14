@@ -25,7 +25,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "release": "dotenv -e ../.env -- release-it",
+    "release": "dotenv -e ../.env -- release-it --dry-run",
     "prepare": "husky"
   },
   "devDependencies": {
