@@ -558,7 +558,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -572,12 +572,18 @@
               "query": [],
               "variable": []
             },
-            "header": [],
+            "header": [
+              {
+                "type": "text",
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "method": "POST",
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"batch\": [\n        {\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"example\",\n                \"timestamp\": \"1994-11-05T13:15:30Z\",\n                \"name\": \"example\",\n                \"userId\": \"example\",\n                \"input\": \"UNKNOWN\",\n                \"output\": \"UNKNOWN\",\n                \"sessionId\": \"example\",\n                \"release\": \"example\",\n                \"version\": \"example\",\n                \"metadata\": \"UNKNOWN\",\n                \"tags\": [\n                    \"example\"\n                ],\n                \"public\": true\n            },\n            \"id\": \"example\",\n            \"timestamp\": \"example\",\n            \"metadata\": \"UNKNOWN\"\n        }\n    ],\n    \"metadata\": \"UNKNOWN\"\n}",
+              "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n                \"name\": \"My Trace\",\n                \"userId\": \"1234-5678-90ab-cdef\",\n                \"input\": \"My input\",\n                \"output\": \"My output\",\n                \"sessionId\": \"1234-5678-90ab-cdef\",\n                \"release\": \"1.0.0\",\n                \"version\": \"1.0.0\",\n                \"metadata\": \"My metadata\",\n                \"tags\": [\n                    \"tag1\",\n                    \"tag2\"\n                ],\n                \"public\": true\n            }\n        }\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -585,7 +591,134 @@
               }
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "originalRequest": {
+                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/ingestion",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "ingestion"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "type": "text",
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "auth": null,
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n                \"name\": \"My Trace\",\n                \"userId\": \"1234-5678-90ab-cdef\",\n                \"input\": \"My input\",\n                \"output\": \"My output\",\n                \"sessionId\": \"1234-5678-90ab-cdef\",\n                \"release\": \"1.0.0\",\n                \"version\": \"1.0.0\",\n                \"metadata\": \"My metadata\",\n                \"tags\": [\n                    \"tag1\",\n                    \"tag2\"\n                ],\n                \"public\": true\n            }\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "description": null,
+              "body": "{\n    \"successes\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"status\": 201\n        }\n    ],\n    \"errors\": []\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "originalRequest": {
+                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/ingestion",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "ingestion"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "type": "text",
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "auth": null,
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"span-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"traceId\": \"1234-5678-90ab-cdef\",\n                \"startTime\": \"2022-01-01T00:00:00.000Z\"\n            }\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "description": null,
+              "body": "{\n    \"successes\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"status\": 201\n        }\n    ],\n    \"errors\": []\n}",
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "originalRequest": {
+                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "url": {
+                  "raw": "{{baseUrl}}/api/public/ingestion",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "public",
+                    "ingestion"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "type": "text",
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "auth": null,
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"score-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"traceId\": \"1234-5678-90ab-cdef\",\n                \"name\": \"My Score\",\n                \"value\": 0.9\n            }\n        }\n    ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "description": null,
+              "body": "{\n    \"successes\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"status\": 201\n        }\n    ],\n    \"errors\": []\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ]
         }
       ]
     },
