@@ -67,7 +67,7 @@ export const DetailPageNav = (props: {
 
   if (entries.length > 1)
     return (
-      <div className="flex flex-row gap-2">
+      <div className="flex flex-row gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
