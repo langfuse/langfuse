@@ -2,8 +2,6 @@ import { type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
-
-import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Select,
@@ -41,7 +39,6 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore, ObservationLevel } from "@langfuse/shared";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
@@ -51,6 +48,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import Page from "@/src/components/layouts/page";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -374,20 +372,20 @@ export function TracePage({
       />
     );
 
-  if (!trace.data) return <div>loading...</div>;
+  if (!trace.data) return <div className="p-3">Loading...</div>;
 
   return (
-    <FullScreenPage>
-      <Header
-        title="Trace Detail"
-        breadcrumb={[
+    <Page
+      headerProps={{
+        title: `${trace.data.name}: ${trace.data.id}`,
+        itemType: "TRACE",
+        breadcrumb: [
           {
             name: "Traces",
             href: `/project/${router.query.projectId as string}/traces`,
           },
-          { name: traceId },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsLeft: (
           <>
             <StarTraceDetailsToggle
               traceId={trace.data.id}
@@ -399,6 +397,10 @@ export function TracePage({
               projectId={trace.data.projectId}
               isPublic={trace.data.public}
             />
+          </>
+        ),
+        actionButtonsRight: (
+          <>
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
@@ -432,8 +434,9 @@ export function TracePage({
               />
             )}
           </>
-        }
-      />
+        ),
+      }}
+    >
       <div className="flex flex-wrap gap-2">
         {trace.data.sessionId ? (
           <Link
@@ -513,6 +516,6 @@ export function TracePage({
           />
         </TabsBarContent>
       </TabsBar>
-    </FullScreenPage>
+    </Page>
   );
 }

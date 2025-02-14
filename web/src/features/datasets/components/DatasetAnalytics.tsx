@@ -15,6 +15,7 @@ export function DatasetAnalytics(props: {
       className="max-w-fit"
       placeholder="Search..."
       title="Charts"
+      variant="outline"
       iconLeft={<ChartColumnBig className="mr-1 h-4 w-4" />}
       hideClearButton
       onValueChange={(values, changedValue, selectedKeys) => {

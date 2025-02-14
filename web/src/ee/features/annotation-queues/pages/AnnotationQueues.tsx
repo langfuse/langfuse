@@ -1,10 +1,9 @@
-import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { AnnotationQueuesTable } from "@/src/ee/features/annotation-queues/components/AnnotationQueuesTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import Page from "@/src/components/layouts/page";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -17,18 +16,17 @@ export default function AnnotationQueues() {
   if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (
-    <FullScreenPage>
-      <>
-        <Header
-          title="Annotation Queues"
-          help={{
-            description:
-              "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
-            href: "https://langfuse.com/docs/scores/annotation",
-          }}
-        />
-        <AnnotationQueuesTable projectId={projectId} />
-      </>
-    </FullScreenPage>
+    <Page
+      headerProps={{
+        title: "Annotation Queues",
+        help: {
+          description:
+            "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
+          href: "https://langfuse.com/docs/scores/annotation",
+        },
+      }}
+    >
+      <AnnotationQueuesTable projectId={projectId} />
+    </Page>
   );
 }

@@ -10,7 +10,7 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import ContainerPage from "@/src/components/layouts/container-page";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
@@ -21,8 +21,11 @@ const OrgSettingsPage = () => {
   if (!organization) return null;
 
   return (
-    <ScrollScreenPage>
-      <Header title="Organization Settings" />
+    <ContainerPage
+      headerProps={{
+        title: "Organization Settings",
+      }}
+    >
       <PagedSettingsContainer
         activeSlug={page as string | undefined}
         pages={[
@@ -33,7 +36,7 @@ const OrgSettingsPage = () => {
               <div className="flex flex-col gap-6">
                 <RenameOrganization />
                 <div>
-                  <Header title="Debug Information" level="h3" />
+                  <Header title="Debug Information" />
                   <JSONView
                     title="Metadata"
                     json={{ name: organization.name, id: organization.id }}
@@ -58,7 +61,7 @@ const OrgSettingsPage = () => {
             content: (
               <div className="flex flex-col gap-6">
                 <div>
-                  <Header title="Organization Members" level="h3" />
+                  <Header title="Organization Members" />
                   <MembersTable orgId={organization.id} />
                 </div>
                 <div>
@@ -80,7 +83,7 @@ const OrgSettingsPage = () => {
           },
         ]}
       />
-    </ScrollScreenPage>
+    </ContainerPage>
   );
 };
 

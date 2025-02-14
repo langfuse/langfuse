@@ -25,6 +25,7 @@ import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditL
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import { env } from "@/src/env.mjs";
+import ContainerPage from "@/src/components/layouts/container-page";
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
@@ -33,8 +34,11 @@ export default function SettingsPage() {
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   if (!project || !organization) return null;
   return (
-    <div className="lg:container">
-      <Header title="Project Settings" />
+    <ContainerPage
+      headerProps={{
+        title: "Project Settings",
+      }}
+    >
       <PagedSettingsContainer
         activeSlug={router.query.page as string | undefined}
         pages={[
@@ -47,7 +51,7 @@ export default function SettingsPage() {
                 <RenameProject />
                 {isLangfuseCloud && <ConfigureRetention />}
                 <div>
-                  <Header title="Debug Information" level="h3" />
+                  <Header title="Debug Information" />
                   <JSONView
                     title="Metadata"
                     json={{
@@ -100,7 +104,7 @@ export default function SettingsPage() {
             slug: "members",
             content: (
               <div>
-                <Header title="Project Members" level="h3" />
+                <Header title="Project Members" />
                 <div>
                   <MembersTable
                     orgId={organization.id}
@@ -144,7 +148,7 @@ export default function SettingsPage() {
           },
         ]}
       />
-    </div>
+    </ContainerPage>
   );
 }
 
@@ -157,7 +161,7 @@ const Integrations = (props: { projectId: string }) => {
 
   return (
     <div>
-      <Header title="Integrations" level="h3" />
+      <Header title="Integrations" />
       <Card className="p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <PostHogLogo className="mb-4 w-40 text-foreground" />
