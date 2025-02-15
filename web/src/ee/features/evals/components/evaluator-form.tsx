@@ -439,10 +439,10 @@ export const InnerEvalConfigForm = (props: {
 
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
-    console.log("timeScope", values.timeScope);
     if (
-      props.existingEvaluator?.timeScope.includes("existing") &&
-      props.mode === "edit"
+      props.existingEvaluator?.timeScope.includes("EXISTING") &&
+      props.mode === "edit" &&
+      !values.timeScope.includes("EXISTING")
     ) {
       form.setError("timeScope", {
         type: "manual",
@@ -643,7 +643,11 @@ export const InnerEvalConfigForm = (props: {
                                 : field.value.filter((v) => v !== "EXISTING");
                               field.onChange(newValue);
                             }}
-                            disabled={props.disabled}
+                            disabled={
+                              props.disabled ||
+                              (props.mode === "edit" &&
+                                field.value.includes("EXISTING"))
+                            }
                           />
                           <div className="grid gap-1.5 leading-none">
                             <label
