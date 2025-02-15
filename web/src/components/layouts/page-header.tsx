@@ -31,7 +31,7 @@ const PageHeader = ({
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-12 items-center gap-3 px-3 py-2 md:max-h-12",
+              "flex min-h-12 items-center gap-3 px-3 py-2",
               container && "lg:container",
             )}
           >
@@ -47,13 +47,13 @@ const PageHeader = ({
         <div className="bg-muted">
           <div
             className={cn(
-              "flex min-h-16 items-center justify-between p-3 md:max-h-16",
+              "flex min-h-12 items-center justify-between p-3",
               container && "lg:container",
             )}
           >
-            <div className="flex-no-wrap flex min-h-16 items-center gap-1 md:max-h-16">
+            <div className="flex-no-wrap flex min-h-12 items-center gap-1">
               {itemType && <ItemBadge type={itemType} showLabel />}
-              <h2 className="line-clamp-2 h-16 min-w-0 place-content-center text-lg font-semibold leading-7">
+              <h2 className="line-clamp-2 h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
                 {title}
               </h2>
               {help && (

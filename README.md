@@ -222,7 +222,7 @@ _[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj
 
 ## ⭐️ Star Us
 
-![Star Langfuse](https://langfuse.com/images/docs/github-readme/github-star-howto.gif)
+![star-langfuse-on-github](https://github.com/user-attachments/assets/79a1d816-d229-4526-aecc-097d4a19f1ad)
 
 ## 💭 Support
 
