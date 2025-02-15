@@ -878,14 +878,13 @@ describe("eval service tests", () => {
   test("creates eval for trace with timestamp in the future", async () => {
     const traceId = randomUUID();
 
-    await kyselyPrisma.$kysely
-      .insertInto("traces")
-      .values({
-        id: traceId,
-        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-      })
-      .execute();
+    const trace = createTrace({
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      id: traceId,
+      timestamp: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1).getTime(),
+    });
+
+    await createTracesCh([trace]);
 
     await createEvalJobs({
       event: {
