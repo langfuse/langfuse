@@ -107,7 +107,7 @@
     "date-fns": "^3.3.1",
     "dd-trace": "^5.23.1",
     "decimal.js": "^10.4.3",
-    "dompurify": "^3.1.5",
+    "dompurify": "^3.2.4",
     "graphql": "^16.9.0",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.4.1",
