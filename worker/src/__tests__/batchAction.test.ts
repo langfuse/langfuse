@@ -242,7 +242,7 @@ describe("select all test suite", () => {
     });
   });
 
-  it.only("should create eval jobs for historic datasets", async () => {
+  it("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traceId1 = randomUUID();
