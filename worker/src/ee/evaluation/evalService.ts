@@ -76,7 +76,6 @@ export const createEvalJobs = async ({
     | CreateEvalQueueEventType;
   enforcedJobTimeScope?: JobTimeScope;
 }) => {
-  logger.info(`Creating eval jobs for event ${JSON.stringify(event)}`);
   // Fetch all configs for a given project. Those may be dataset or trace configs.
   let configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
@@ -102,10 +101,6 @@ export const createEvalJobs = async ({
 
   const configs = await configsQuery.execute();
 
-  logger.debug(
-    `Found ${JSON.stringify(configs)} evaluation jobs for project ${event.projectId}`,
-  );
-
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);
     return;
@@ -121,9 +116,6 @@ export const createEvalJobs = async ({
       continue;
     }
 
-    logger.debug(
-      `Creating eval job for config ${config.id} and trace ${event.traceId}`,
-    );
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     // Check whether the trace already exists in the database.
@@ -143,24 +135,8 @@ export const createEvalJobs = async ({
         "dataset_items",
       );
 
-      logger.info(
-        `condition: ${JSON.stringify(condition)} and validatedFilter: ${JSON.stringify(
-          validatedFilter,
-        )}`,
-      );
-
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
-        const query = Prisma.sql`
-          SELECT id
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
-        `;
-
-        logger.info(`query: ${JSON.stringify(query.inspect())}`);
-
         const datasetItems = await prisma.$queryRaw<
           Array<{ id: string }>
         >(Prisma.sql`
@@ -184,7 +160,6 @@ export const createEvalJobs = async ({
             AND dri.trace_id = ${event.traceId}
             ${condition}
         `);
-
         datasetItem = datasetItems.shift();
       }
     }
@@ -235,11 +210,6 @@ export const createEvalJobs = async ({
 
     // If we matched a trace for a trace event, we create a job or
     // if we have both trace and datasetItem.
-    logger.info(
-      `traceExists: ${traceExists} and isDatasetConfig: ${isDatasetConfig} and datasetItem: ${JSON.stringify(
-        datasetItem,
-      )}`,
-    );
     if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
       const jobExecutionId = randomUUID();
 

@@ -91,7 +91,6 @@ const assertIsTracesTableRecord = (
 const assertIsDatasetRunItemTableRecord = (
   element: unknown,
 ): element is DatasetRunItemRowForEval => {
-  logger.info(`element: ${JSON.stringify(element)}`);
   return (
     typeof element === "object" &&
     element !== null &&
@@ -110,7 +109,7 @@ export const handleBatchActionJob = async (
     batchActionJob.payload;
 
   const { actionId } = batchActionEvent;
-  logger.info(`Processing batch action job ${batchActionJob.id}`);
+
   if (
     actionId === "trace-delete" ||
     actionId === "trace-add-to-annotation-queue"
@@ -167,8 +166,6 @@ export const handleBatchActionJob = async (
       throw new Error("Eval config not found");
     }
 
-    logger.info(`Processing eval create, ${JSON.stringify(batchActionEvent)}`);
-
     const dbReadStream = await getDatabaseReadStream({
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
@@ -206,18 +203,6 @@ export const handleBatchActionJob = async (
         targetObject === "dataset" &&
         assertIsDatasetRunItemTableRecord(record)
       ) {
-        logger.info(
-          `Processing dataset item ${record.datasetItemId} and trace ${record.traceId}, ${JSON.stringify(
-            {
-              projectId: record.projectId,
-              datasetItemId: record.datasetItemId,
-              traceId: record.traceId,
-              observationId: record.observationId ?? undefined,
-              configId: configId,
-              timestamp: new Date("2023-01-01"), // we need to set this. Otherwise, the eval
-            },
-          )}`,
-        );
         const payload = {
           projectId: record.projectId,
           datasetItemId: record.datasetItemId,

@@ -91,18 +91,6 @@ export const checkTraceExists = async (
     GROUP BY t.id, t.project_id
   `;
 
-  logger.info(`query: ${query}`);
-  logger.info(
-    `params: ${JSON.stringify({
-      projectId,
-      ...tracesFilterRes.params,
-      ...(observationFilterRes ? observationFilterRes.params : {}),
-      ...(timestamp
-        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-        : {}),
-    })}`,
-  );
-
   const rows = await queryClickhouse<{ id: string; project_id: string }>({
     query,
     params: {

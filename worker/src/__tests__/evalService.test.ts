@@ -806,7 +806,7 @@ describe("eval service tests", () => {
 
       await createEvalJobs({
         event: payload,
-        enforcedJobTimeScope: "NEW", // the conig must contain NEW
+        enforcedJobTimeScope: "NEW", // the config must contain NEW
       });
 
       const jobs = await kyselyPrisma.$kysely
@@ -860,7 +860,7 @@ describe("eval service tests", () => {
 
     await createEvalJobs({
       event: payload,
-      enforcedJobTimeScope: "NEW", // the conig must contain NEW
+      enforcedJobTimeScope: "NEW", // the config must contain NEW
     });
 
     const jobs = await kyselyPrisma.$kysely
