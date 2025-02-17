@@ -72,8 +72,8 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               <Edit className="h-4 w-4" />
             </Button>
           ) : (
-            <div
-              className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+            <Button
+              variant="ghost"
               onClick={() => {
                 setOpen(true);
                 capture("datasets:update_form_open", {
@@ -87,11 +87,11 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
                 <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
               Rename
-            </div>
+            </Button>
           )
         ) : props.mode === "delete" ? (
-          <div
-            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+          <Button
+            variant="ghost"
             onClick={() => {
               setOpen(true);
               capture("datasets:delete_form_open", {
@@ -101,7 +101,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
           >
             <Trash className="mr-2 h-4 w-4" />
             Delete
-          </div>
+          </Button>
         ) : (
           <Button
             className={props.className}

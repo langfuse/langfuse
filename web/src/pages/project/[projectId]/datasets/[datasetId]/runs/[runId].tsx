@@ -5,10 +5,16 @@ import { DatasetRunItemsTable } from "@/src/features/datasets/components/Dataset
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { Columns3 } from "lucide-react";
+import { Columns3, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 
 export default function Dataset() {
   const router = useRouter();
@@ -59,11 +65,22 @@ export default function Dataset() {
               }
               listKey="datasetRuns"
             />
-            <DeleteDatasetRunButton
-              projectId={projectId}
-              datasetRunId={runId}
-              redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
-            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <DeleteDatasetRunButton
+                    projectId={projectId}
+                    datasetRunId={runId}
+                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>,
         ],
       }}

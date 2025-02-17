@@ -356,7 +356,6 @@ export function DatasetRunsTable(props: {
               <DeleteDatasetRunButton
                 projectId={props.projectId}
                 datasetRunId={id}
-                fullWidth
               />
             </DropdownMenuContent>
           </DropdownMenu>
