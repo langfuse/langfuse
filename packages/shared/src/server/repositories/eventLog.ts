@@ -134,6 +134,9 @@ export const getEventLogByProjectIdAndTraceIds = (
       projectId,
       traceIds,
     },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
     tags: {
       feature: "eventLog",
       kind: "list",
