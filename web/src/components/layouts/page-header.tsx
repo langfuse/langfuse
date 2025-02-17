@@ -47,7 +47,7 @@ const PageHeader = ({
         <div className="bg-muted">
           <div
             className={cn(
-              "flex min-h-12 items-center justify-between p-3",
+              "grid min-h-12 grid-flow-col items-center justify-between p-3",
               container && "lg:container",
             )}
           >
