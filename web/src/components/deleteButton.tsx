@@ -23,6 +23,7 @@ interface DeleteButtonProps {
   type: "trace" | "dataset";
   redirectUrl?: string;
   deleteConfirmation?: string;
+  icon?: boolean;
 }
 
 export function DeleteButton({
@@ -34,6 +35,7 @@ export function DeleteButton({
   type,
   redirectUrl,
   deleteConfirmation,
+  icon = false,
 }: DeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -62,7 +64,8 @@ export function DeleteButton({
     <Popover key={itemId}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant={icon ? "outline" : "ghost"}
+          size={icon ? "icon" : "default"}
           disabled={!hasAccess}
           onClick={(e) => {
             e.stopPropagation();
@@ -75,8 +78,14 @@ export function DeleteButton({
                 });
           }}
         >
-          <TrashIcon className="mr-2 h-4 w-4" />
-          Delete
+          {icon ? (
+            <TrashIcon className="h-4 w-4" />
+          ) : (
+            <>
+              <TrashIcon className="mr-2 h-4 w-4" />
+              Delete
+            </>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent onClick={(e) => e.stopPropagation()}>
