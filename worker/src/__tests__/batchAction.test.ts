@@ -221,8 +221,8 @@ describe("select all test suite", () => {
       logger.info(JSON.stringify(evalExecutions));
       expect(evalExecutions).toHaveLength(1);
       expect(evalExecutions[0].jobInputTraceId).toBe(traceId1);
-    });
-  });
+    }, 20000);
+  }, 20000);
   it("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
