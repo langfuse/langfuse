@@ -52,21 +52,23 @@ const PageHeader = ({
             )}
           >
             <div className="flex w-fit items-center gap-1">
-              <div className="flex h-12 items-center">
-                {itemType && <ItemBadge type={itemType} showLabel />}
-              </div>
+              {itemType && (
+                <div className="flex h-12 items-center">
+                  <ItemBadge type={itemType} showLabel />
+                </div>
+              )}
               <div className="relative mr-2 inline-block min-w-0">
                 <h2 className="line-clamp-2 inline h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
-                  {title}
-                  {help && (
-                    <span className="ml-1 inline-flex">
+                  <span className="inline-flex break-all md:break-normal md:break-words">
+                    {title}
+                    {help && (
                       <DocPopup
                         description={help.description}
                         href={help.href}
                         className={help.className}
                       />
-                    </span>
-                  )}
+                    )}
+                  </span>
                 </h2>
               </div>
               <div className="flex items-center gap-1">{actionButtonsLeft}</div>
