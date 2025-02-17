@@ -121,7 +121,7 @@ export const getEventLogByProjectIdAndTraceIds = (
       from filtered_scores
     )
 
-    select *
+    select el.*
     from event_log el
     left semi join filtered_events fe
     on el.project_id = fe.project_id and el.entity_id = fe.entity_id and el.entity_type = fe.entity_type
