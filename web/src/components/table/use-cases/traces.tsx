@@ -55,6 +55,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { Separator } from "@/src/components/ui/separator";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -255,6 +256,8 @@ export default function TracesTable({
       cellsLoading: !traceMetrics.data,
     });
 
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
+
   const { selectActionColumn } = TableSelectionManager<TracesTableRow>({
     projectId,
     tableName: "traces",
@@ -330,18 +333,22 @@ export default function TracesTable({
   };
 
   const tableActions: TableAction[] = [
-    {
-      id: "trace-delete",
-      type: BatchActionType.Delete,
-      label: "Delete Traces",
-      description:
-        "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
-      accessCheck: {
-        scope: "traces:delete",
-        entitlement: "trace-deletion",
-      },
-      execute: handleDeleteTraces,
-    },
+    ...(hasTraceDeletionEntitlement
+      ? [
+          {
+            id: "trace-delete",
+            type: BatchActionType.Delete,
+            label: "Delete Traces",
+            description:
+              "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
+            accessCheck: {
+              scope: "traces:delete",
+              entitlement: "trace-deletion",
+            },
+            execute: handleDeleteTraces,
+          } as TableAction,
+        ]
+      : []),
     {
       id: "trace-add-to-annotation-queue",
       type: BatchActionType.Create,
@@ -823,7 +830,9 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return traceId && typeof traceId === "string" ? (
+        return traceId &&
+          typeof traceId === "string" &&
+          hasTraceDeletionEntitlement ? (
           <DeleteButton
             itemId={traceId}
             projectId={projectId}

@@ -13,6 +13,7 @@ import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 interface DeleteButtonProps {
   itemId: string;
@@ -44,6 +45,11 @@ export function DeleteButton({
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);
+      showSuccessToast({
+        title: "Trace deleted",
+        description:
+          "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+      });
       !isTableAction && redirectUrl
         ? void router.push(redirectUrl)
         : invalidateFunc();

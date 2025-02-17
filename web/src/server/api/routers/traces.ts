@@ -40,6 +40,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -289,6 +290,12 @@ export const traceRouter = createTRPCRouter({
             message: "TraceDeleteQueue not initialized",
           });
         }
+
+        throwIfNoEntitlement({
+          entitlement: "trace-deletion",
+          projectId: input.projectId,
+          sessionUser: ctx.session.user,
+        });
 
         await Promise.all(
           input.traceIds.map((traceId) =>
