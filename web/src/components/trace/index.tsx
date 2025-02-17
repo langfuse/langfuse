@@ -383,7 +383,9 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: `${trace.data.name}: ${trace.data.id}`,
+        title: trace.data.name
+          ? `${trace.data.name}: ${trace.data.id}`
+          : trace.data.id,
         itemType: "TRACE",
         breadcrumb: [
           {
