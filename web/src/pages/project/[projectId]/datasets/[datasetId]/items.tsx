@@ -1,6 +1,10 @@
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import Link from "next/link";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -43,6 +47,18 @@ export default function DatasetItems() {
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
         ],
+        tabsComponent: (
+          <TabsBar value="items">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="runs" asChild>
+                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
+                  Runs
+                </Link>
+              </TabsBarTrigger>
+              <TabsBarTrigger value="items">Items</TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
+        ),
         actionButtonsRight: [
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
@@ -108,22 +124,7 @@ export default function DatasetItems() {
         ],
       }}
     >
-      <DatasetItemsTable
-        projectId={projectId}
-        datasetId={datasetId}
-        menuItems={
-          <Tabs value="items">
-            <TabsList>
-              <TabsTrigger value="runs" asChild>
-                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
-                  Runs
-                </Link>
-              </TabsTrigger>
-              <TabsTrigger value="items">Items</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-      />
+      <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
     </Page>
   );
 }
