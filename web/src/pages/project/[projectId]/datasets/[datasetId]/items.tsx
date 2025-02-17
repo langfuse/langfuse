@@ -16,8 +16,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/src/components/ui/dropdown-menu";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -81,29 +87,43 @@ export default function DatasetItems() {
               }
               listKey="datasets"
             />
-            <DatasetActionButton
-              mode="update"
-              projectId={projectId}
-              datasetId={datasetId}
-              datasetName={dataset.data?.name ?? ""}
-              datasetDescription={dataset.data?.description ?? undefined}
-              datasetMetadata={dataset.data?.metadata}
-              icon
-            />
-            <DuplicateDatasetButton
-              datasetId={datasetId}
-              projectId={projectId}
-            />
-            <DeleteButton
-              itemId={datasetId}
-              projectId={projectId}
-              isTableAction={false}
-              scope="datasets:CUD"
-              invalidateFunc={() => void utils.datasets.invalidate()}
-              type="dataset"
-              redirectUrl={`/project/${projectId}/datasets`}
-              deleteConfirmation={dataset.data?.name}
-            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                <DropdownMenuItem asChild>
+                  <DatasetActionButton
+                    mode="update"
+                    projectId={projectId}
+                    datasetId={datasetId}
+                    datasetName={dataset.data?.name ?? ""}
+                    datasetDescription={dataset.data?.description ?? undefined}
+                    datasetMetadata={dataset.data?.metadata}
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <DuplicateDatasetButton
+                    datasetId={datasetId}
+                    projectId={projectId}
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <DeleteButton
+                    itemId={datasetId}
+                    projectId={projectId}
+                    isTableAction={false}
+                    scope="datasets:CUD"
+                    invalidateFunc={() => void utils.datasets.invalidate()}
+                    type="dataset"
+                    redirectUrl={`/project/${projectId}/datasets`}
+                    deleteConfirmation={dataset.data?.name}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>,
         ],
       }}

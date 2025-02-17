@@ -57,7 +57,7 @@ const PageHeader = ({
                   <ItemBadge type={itemType} showLabel />
                 </div>
               )}
-              <div className="relative mr-2 inline-block min-w-0">
+              <div className="relative mr-2 inline-block min-w-20">
                 <h2 className="line-clamp-2 inline h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
                   <span className="break-all md:break-normal md:break-words">
                     {title}
