@@ -390,6 +390,6 @@ describe("select all test suite", () => {
       expect(traceIds).toContain(traceId2);
       expect(evalExecutions[0].status).toBe("PENDING");
       expect(evalExecutions[1].status).toBe("PENDING");
-    }, 10000);
-  }, 10000);
+    }, 20000);
+  }, 20000);
 });

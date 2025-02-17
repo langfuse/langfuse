@@ -356,7 +356,6 @@ export const getDatabaseReadStream = async ({
             OFFSET ${offset}
           `;
 
-          logger.info(`Found ${items.length} dataset run items`);
           return items.map((item) => ({
             id: item.id,
             projectId: item.project_id,

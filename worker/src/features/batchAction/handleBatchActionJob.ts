@@ -212,6 +212,7 @@ export const handleBatchActionJob = async (
           traceId: record.traceId,
           observationId: record.observationId ?? undefined,
           configId: configId,
+          timestamp: new Date(0),
         };
 
         await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
