@@ -49,7 +49,7 @@ const PageHeader = ({
         <div className="bg-muted">
           <div
             className={cn(
-              "grid min-h-12 grid-flow-col items-center justify-between px-3 py-1",
+              "grid min-h-12 grid-cols-[minmax(auto,1fr)_auto] items-center justify-between px-3 py-1",
               container && "lg:container",
             )}
           >
