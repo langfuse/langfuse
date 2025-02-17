@@ -273,6 +273,12 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
+      throwIfNoEntitlement({
+        entitlement: "trace-deletion",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
       if (input.isBatchAction && input.query) {
         await createBatchActionJob({
           projectId: input.projectId,
@@ -290,12 +296,6 @@ export const traceRouter = createTRPCRouter({
             message: "TraceDeleteQueue not initialized",
           });
         }
-
-        throwIfNoEntitlement({
-          entitlement: "trace-deletion",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
 
         await Promise.all(
           input.traceIds.map((traceId) =>
