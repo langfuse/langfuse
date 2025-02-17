@@ -209,7 +209,8 @@ export const handleBatchActionJob = async (
           traceId: record.traceId,
           observationId: record.observationId ?? undefined,
           configId: configId,
-          timestamp: new Date("2023-01-01"), // we need to set this. Otherwise, the eval
+          //We need to set this to be able to fetch traces from the past. We cannot infer from the dataset run when the trace was created.
+          timestamp: new Date("2020-01-01"),
         };
 
         await evalCreatorQueue.add(

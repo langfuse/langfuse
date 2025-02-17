@@ -88,9 +88,8 @@ export const createEvalJobs = async ({
     configsQuery = configsQuery.where("id", "=", event.configId);
   }
 
-  // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on
-  // configs, which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
-
+  // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on configs,
+  // which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
   if (enforcedJobTimeScope) {
     configsQuery = configsQuery.where(
       "time_scope",
@@ -116,6 +115,7 @@ export const createEvalJobs = async ({
       continue;
     }
 
+    logger.debug("Creating eval job for config", config.id);
     const validatedFilter = z.array(singleFilter).parse(config.filter);
 
     // Check whether the trace already exists in the database.
@@ -266,6 +266,9 @@ export const createEvalJobs = async ({
             jobExecutionId: jobExecutionId,
             delay: config.delay,
           },
+        },
+        {
+          delay: config.delay, // milliseconds
         },
       );
     } else {

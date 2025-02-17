@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { ApiError, BaseError, JobTimeScope } from "@langfuse/shared";
+import { ApiError, BaseError } from "@langfuse/shared";
 import { kyselyPrisma } from "@langfuse/shared/src/db";
 import { sql } from "kysely";
 import {
@@ -19,7 +19,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
-      enforcedJobTimeScope: "NEW",
+      enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
     });
     return true;
   } catch (e) {
@@ -38,7 +38,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   try {
     await createEvalJobs({
       event: job.data.payload,
-      enforcedJobTimeScope: "NEW",
+      enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
     });
     return true;
   } catch (e) {
@@ -61,7 +61,7 @@ export const evalJobCreatorQueueProcessor = async (
     return true;
   } catch (e) {
     logger.error(
-      `Failed job Evaluation for dataset item: ${JSON.stringify(job.data.payload)}`,
+      `Failed to create evaluation jobs: ${JSON.stringify(job.data.payload)}`,
       e,
     );
     traceException(e);

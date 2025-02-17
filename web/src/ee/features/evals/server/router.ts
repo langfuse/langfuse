@@ -162,7 +162,6 @@ export const evalRouter = createTRPCRouter({
       return {
         configs: configs.map((config) => ({
           ...config,
-          jobsScheduled: config.JobExecution.length,
           jobExecutions: config.JobExecution,
         })),
         totalCount: count,

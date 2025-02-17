@@ -26,7 +26,6 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
-import { logger } from "../logger";
 
 export const checkTraceExists = async (
   projectId: string,

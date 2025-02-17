@@ -33,7 +33,6 @@ import {
   upsertTrace,
 } from "@langfuse/shared/src/server";
 import { compileHandlebarString } from "../features/utilities";
-import { time } from "console";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
