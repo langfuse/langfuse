@@ -28,11 +28,9 @@ export type JobExecutionRow = {
 export default function EvalLogTable({
   projectId,
   jobConfigurationId,
-  menuItems,
 }: {
   projectId: string;
   jobConfigurationId?: string;
-  menuItems?: ReactNode;
 }) {
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("evalLogs", "s");
   const [paginationState, setPaginationState] = useQueryParams({
@@ -191,7 +189,6 @@ export default function EvalLogTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={menuItems}
       />
       <DataTable
         columns={columns}
