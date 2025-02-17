@@ -9,7 +9,6 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type JobExecutionRow = {
