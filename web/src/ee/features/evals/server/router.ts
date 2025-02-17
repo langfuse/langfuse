@@ -17,6 +17,7 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
+  JobExecutionStatus,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -144,6 +145,7 @@ export const evalRouter = createTRPCRouter({
         },
         include: {
           evalTemplate: true,
+          JobExecution: true,
         },
         orderBy: {
           status: "asc",
@@ -159,7 +161,11 @@ export const evalRouter = createTRPCRouter({
         },
       });
       return {
-        configs: configs,
+        configs: configs.map((config) => ({
+          ...config,
+          jobsScheduled: config.JobExecution.length,
+          jobExecutions: config.JobExecution,
+        })),
         totalCount: count,
       };
     }),
