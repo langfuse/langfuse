@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -29,9 +28,6 @@ import {
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsViewForTrace,
-  deleteTraces,
-  deleteScoresByTraceIds,
-  deleteObservationsByTraceIds,
   getTraceById,
   logger,
   upsertTrace,
@@ -44,7 +40,6 @@ import {
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
