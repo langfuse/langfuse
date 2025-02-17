@@ -823,19 +823,16 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return (
-          traceId &&
-          typeof traceId === "string" && (
-            <DeleteButton
-              itemId={traceId}
-              projectId={projectId}
-              scope="traces:delete"
-              invalidateFunc={() => void utils.traces.all.invalidate()}
-              type="trace"
-              isTableAction={true}
-            />
-          )
-        );
+        return traceId && typeof traceId === "string" ? (
+          <DeleteButton
+            itemId={traceId}
+            projectId={projectId}
+            scope="traces:delete"
+            invalidateFunc={() => void utils.traces.all.invalidate()}
+            type="trace"
+            isTableAction={true}
+          />
+        ) : undefined;
       },
     },
   ];
