@@ -7,7 +7,11 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -393,21 +397,19 @@ export default function PromptVersionTable() {
           },
           { name: `Metrics` },
         ],
-        actionButtonsRight: (
-          <>
-            <Tabs value="metrics">
-              <TabsList>
-                <TabsTrigger value="editor" asChild>
-                  <Link
-                    href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}
-                  >
-                    Editor
-                  </Link>
-                </TabsTrigger>
-                <TabsTrigger value="metrics">Metrics</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </>
+        tabsComponent: (
+          <TabsBar value="metrics">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="editor" asChild>
+                <Link
+                  href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}
+                >
+                  Editor
+                </Link>
+              </TabsBarTrigger>
+              <TabsBarTrigger value="metrics">Metrics</TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
         ),
       }}
     >

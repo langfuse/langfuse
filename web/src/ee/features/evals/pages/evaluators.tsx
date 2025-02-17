@@ -5,7 +5,11 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/ee/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
@@ -52,6 +56,21 @@ export default function EvaluatorsPage() {
             "Use LLM-as-a-judge evaluators as practical addition to human annotation. Configure an evaluation prompt and a model as judge to evaluate incoming traces.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         },
+        tabsComponent: (
+          <TabsBar value="evaluators">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="evaluators">Evaluators</TabsBarTrigger>
+              <TabsBarTrigger value="templates" asChild>
+                <Link href={`/project/${projectId}/evals/templates`}>
+                  Templates
+                </Link>
+              </TabsBarTrigger>
+              <TabsBarTrigger value="log" asChild>
+                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              </TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
+        ),
         actionButtonsRight: (
           <ActionButton
             hasAccess={hasWriteAccess}
@@ -67,24 +86,7 @@ export default function EvaluatorsPage() {
         ),
       }}
     >
-      <EvaluatorTable
-        projectId={projectId}
-        menuItems={
-          <Tabs value="evaluators">
-            <TabsList>
-              <TabsTrigger value="evaluators">Evaluators</TabsTrigger>
-              <TabsTrigger value="templates" asChild>
-                <Link href={`/project/${projectId}/evals/templates`}>
-                  Templates
-                </Link>
-              </TabsTrigger>
-              <TabsTrigger value="log" asChild>
-                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-      />
+      <EvaluatorTable projectId={projectId} />
     </Page>
   );
 }

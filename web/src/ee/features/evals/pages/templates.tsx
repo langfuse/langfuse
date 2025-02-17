@@ -6,7 +6,11 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Lock, Plus } from "lucide-react";
 import EvalsTemplateTable from "@/src/ee/features/evals/components/eval-templates-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -35,6 +39,19 @@ export default function TemplatesPage() {
             "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
         },
+        tabsComponent: (
+          <TabsBar value="templates">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="evaluators" asChild>
+                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
+              </TabsBarTrigger>
+              <TabsBarTrigger value="templates">Templates</TabsBarTrigger>
+              <TabsBarTrigger value="log" asChild>
+                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
+              </TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
+        ),
         actionButtonsRight: (
           <Button
             disabled={!hasWriteAccess}
@@ -60,22 +77,7 @@ export default function TemplatesPage() {
         ),
       }}
     >
-      <EvalsTemplateTable
-        projectId={projectId}
-        menuItems={
-          <Tabs value="templates">
-            <TabsList>
-              <TabsTrigger value="evaluators" asChild>
-                <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
-              </TabsTrigger>
-              <TabsTrigger value="templates">Templates</TabsTrigger>
-              <TabsTrigger value="log" asChild>
-                <Link href={`/project/${projectId}/evals/log`}>Log</Link>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-      />
+      <EvalsTemplateTable projectId={projectId} />
     </Page>
   );
 }
