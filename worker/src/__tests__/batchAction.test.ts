@@ -118,7 +118,7 @@ describe("select all test suite", () => {
     expect(remainingRows[0].userId).toBe("user2");
   });
 
-  it.only("should create eval jobs for historic traces", async () => {
+  it("should create eval jobs for historic traces", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traceId1 = randomUUID();
@@ -222,4 +222,174 @@ describe("select all test suite", () => {
       expect(evalExecutions[0].status).toBe("PENDING");
     });
   });
+  it.only("should create eval jobs for historic datasets", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId1 = randomUUID();
+    const traceId2 = randomUUID();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: traceId1,
+        user_id: "user1",
+        timestamp: new Date().getTime(),
+      }),
+      createTrace({
+        project_id: projectId,
+        id: traceId2,
+        user_id: "user2",
+        timestamp: new Date().getTime(),
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    const datasetName = randomUUID();
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        name: datasetName,
+      },
+    });
+
+    const datasetItem1 = await prisma.datasetItem.create({
+      data: {
+        id: randomUUID(),
+        datasetId: dataset.id,
+        input: "Hello, world!",
+        projectId,
+      },
+    });
+
+    const datasetItem2 = await prisma.datasetItem.create({
+      data: {
+        id: randomUUID(),
+        datasetId: dataset.id,
+        input: "Hello, world!",
+        projectId,
+      },
+    });
+
+    const runId = randomUUID();
+
+    const datasetRun = await prisma.datasetRuns.create({
+      data: {
+        id: runId,
+        datasetId: dataset.id,
+        projectId,
+        name: "test-run",
+      },
+    });
+
+    const datasetRunItem1 = await prisma.datasetRunItems.create({
+      data: {
+        id: randomUUID(),
+        datasetItemId: datasetItem1.id,
+        projectId,
+        traceId: traceId1,
+        datasetRunId: runId,
+      },
+    });
+
+    const datasetRunItem2 = await prisma.datasetRunItems.create({
+      data: {
+        id: randomUUID(),
+        datasetItemId: datasetItem2.id,
+        projectId,
+        traceId: traceId2,
+        datasetRunId: runId,
+      },
+    });
+
+    const templateId = randomUUID();
+
+    await prisma.evalTemplate.create({
+      data: {
+        id: templateId,
+        projectId,
+        name: "test-template",
+        version: 1,
+        prompt: "Please evaluate toxicity {{input}} {{output}}",
+        model: "gpt-3.5-turbo",
+        provider: "openai",
+        modelParams: {},
+        outputSchema: {
+          reasoning: "Please explain your reasoning",
+          score: "Please provide a score between 0 and 1",
+        },
+      },
+    });
+
+    const configId = randomUUID();
+    await prisma.jobConfiguration.create({
+      data: {
+        id: configId,
+        projectId,
+        filter: [
+          {
+            type: "stringOptions" as const,
+            value: [datasetName],
+            column: "Dataset",
+            operator: "any of" as const,
+          },
+        ],
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal("1"),
+        targetObject: "dataset",
+        scoreName: "score",
+        variableMapping: JSON.parse("[]"),
+        evalTemplateId: templateId,
+      },
+    });
+
+    const payload = {
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "eval-create" as const,
+        targetObject: "dataset" as const,
+        configId,
+        cutoffCreatedAt: new Date(),
+        query: {
+          filter: [
+            {
+              type: "stringOptions" as const,
+              value: [datasetName],
+              column: "Dataset",
+              operator: "any of" as const,
+            },
+          ],
+          orderBy: {
+            column: "timestamp",
+            order: "DESC" as const,
+          },
+        },
+      },
+    };
+
+    await handleBatchActionJob(payload);
+
+    await waitForExpect(async () => {
+      const evalExecutions = await prisma.jobExecution.findMany({
+        where: {
+          projectId,
+          jobConfigurationId: configId,
+        },
+      });
+      expect(evalExecutions).toHaveLength(2);
+      const traceIds = [
+        evalExecutions[0].jobInputTraceId,
+        evalExecutions[1].jobInputTraceId,
+      ];
+      expect(traceIds).toContain(traceId1);
+      expect(traceIds).toContain(traceId2);
+      expect(evalExecutions[0].status).toBe("PENDING");
+      expect(evalExecutions[1].status).toBe("PENDING");
+    }, 10000);
+  }, 10000);
 });
