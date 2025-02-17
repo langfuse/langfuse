@@ -303,7 +303,7 @@ describe("select all test suite", () => {
       },
     });
 
-    const datasetRunItem1 = await prisma.datasetRunItems.create({
+    await prisma.datasetRunItems.create({
       data: {
         id: randomUUID(),
         datasetItemId: datasetItem1.id,
@@ -313,7 +313,7 @@ describe("select all test suite", () => {
       },
     });
 
-    const datasetRunItem2 = await prisma.datasetRunItems.create({
+    await prisma.datasetRunItems.create({
       data: {
         id: randomUUID(),
         datasetItemId: datasetItem2.id,
