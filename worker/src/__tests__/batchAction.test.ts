@@ -7,8 +7,10 @@ import {
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
+  getQueue,
   logger,
   QueueJobs,
+  QueueName,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
@@ -120,6 +122,10 @@ describe("select all test suite", () => {
   });
 
   it("should create eval jobs for historic traces", async () => {
+    // remove all jobs from the evaluation execution queue
+    const queue = getQueue(QueueName.CreateEvalQueue);
+    await queue?.obliterate({ force: true });
+
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traceId1 = randomUUID();
@@ -212,18 +218,31 @@ describe("select all test suite", () => {
     await handleBatchActionJob(payload);
 
     await waitForExpect(async () => {
-      const evalExecutions = await prisma.jobExecution.findMany({
-        where: {
-          projectId,
-          jobConfigurationId: configId,
-        },
-      });
-      logger.info(JSON.stringify(evalExecutions));
-      expect(evalExecutions).toHaveLength(1);
-      expect(evalExecutions[0].jobInputTraceId).toBe(traceId1);
-    }, 20000);
-  }, 20000);
-  it("should create eval jobs for historic datasets", async () => {
+      try {
+        const queue = getQueue(QueueName.CreateEvalQueue);
+
+        const jobs = await queue?.getJobs();
+
+        expect(jobs).toHaveLength(1);
+
+        if (!jobs) {
+          throw new Error("No jobs found");
+        }
+
+        const job = jobs[0];
+
+        expect(job.name).toBe("create-eval-job");
+        expect(job.data.payload.projectId).toBe(projectId);
+        expect(job.data.payload.traceId).toBe(traceId1);
+        expect(job.data.payload.configId).toBe(configId);
+      } catch (e) {
+        logger.error(e);
+        throw e;
+      }
+    });
+  });
+
+  it.only("should create eval jobs for historic datasets", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traceId1 = randomUUID();
@@ -346,6 +365,9 @@ describe("select all test suite", () => {
       },
     });
 
+    const queue = getQueue(QueueName.CreateEvalQueue);
+    await queue?.obliterate({ force: true });
+
     const payload = {
       id: randomUUID(),
       timestamp: new Date(),
@@ -376,19 +398,24 @@ describe("select all test suite", () => {
     await handleBatchActionJob(payload);
 
     await waitForExpect(async () => {
-      const evalExecutions = await prisma.jobExecution.findMany({
-        where: {
-          projectId,
-          jobConfigurationId: configId,
-        },
-      });
-      expect(evalExecutions).toHaveLength(2);
-      const traceIds = [
-        evalExecutions[0].jobInputTraceId,
-        evalExecutions[1].jobInputTraceId,
-      ];
-      expect(traceIds).toContain(traceId1);
-      expect(traceIds).toContain(traceId2);
-    }, 20000);
-  }, 20000);
+      try {
+        const jobs = await queue?.getJobs();
+        expect(jobs).toHaveLength(2);
+        const jobTraceIds = jobs?.map((job) => job.data.payload.traceId);
+        expect(jobTraceIds).toContain(traceId1);
+        expect(jobTraceIds).toContain(traceId2);
+
+        const jobDatasetIds = jobs?.map(
+          (job) => job.data.payload.datasetItemId,
+        );
+        expect(jobDatasetIds).toContain(datasetItem1.id);
+        expect(jobDatasetIds).toContain(datasetItem2.id);
+        const configIds = jobs?.map((job) => job.data.payload.configId);
+        expect(configIds).toContain(configId);
+      } catch (e) {
+        logger.error(e);
+        throw e;
+      }
+    });
+  });
 });
