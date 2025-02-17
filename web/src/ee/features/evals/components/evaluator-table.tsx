@@ -29,7 +29,7 @@ export type EvaluatorDataRow = {
   filter: FilterState;
   result: {
     level: string;
-    count: string;
+    count: number;
     symbol: string;
   }[];
 };
