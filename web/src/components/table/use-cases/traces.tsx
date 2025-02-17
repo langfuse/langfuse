@@ -256,8 +256,6 @@ export default function TracesTable({
       cellsLoading: !traceMetrics.data,
     });
 
-  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
-
   const { selectActionColumn } = TableSelectionManager<TracesTableRow>({
     projectId,
     tableName: "traces",
@@ -268,7 +266,8 @@ export default function TracesTable({
     onSuccess: () => {
       showSuccessToast({
         title: "Traces deleted",
-        description: "Selected traces will be deleted. This may take a minute.",
+        description:
+          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
       });
     },
     onSettled: () => {
@@ -332,24 +331,18 @@ export default function TracesTable({
   };
 
   const tableActions: TableAction[] = [
-    // temporary: hide if no entitlement until we support trace deletion on cloud again
-    // https://github.com/orgs/langfuse/discussions/5313
-    ...(hasTraceDeletionEntitlement
-      ? [
-          {
-            id: "trace-delete",
-            type: BatchActionType.Delete,
-            label: "Delete Traces",
-            description:
-              "This action permanently deletes traces and cannot be undone.",
-            accessCheck: {
-              scope: "traces:delete",
-              entitlement: "trace-deletion",
-            },
-            execute: handleDeleteTraces,
-          } as TableAction,
-        ]
-      : []),
+    {
+      id: "trace-delete",
+      type: BatchActionType.Delete,
+      label: "Delete Traces",
+      description:
+        "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
+      accessCheck: {
+        scope: "traces:delete",
+        entitlement: "trace-deletion",
+      },
+      execute: handleDeleteTraces,
+    },
     {
       id: "trace-add-to-annotation-queue",
       type: BatchActionType.Create,
@@ -831,18 +824,19 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        return traceId &&
-          typeof traceId === "string" &&
-          hasTraceDeletionEntitlement ? (
-          <DeleteButton
-            itemId={traceId}
-            projectId={projectId}
-            scope="traces:delete"
-            invalidateFunc={() => void utils.traces.all.invalidate()}
-            type="trace"
-            isTableAction={true}
-          />
-        ) : undefined;
+        return (
+          traceId &&
+          typeof traceId === "string" && (
+            <DeleteButton
+              itemId={traceId}
+              projectId={projectId}
+              scope="traces:delete"
+              invalidateFunc={() => void utils.traces.all.invalidate()}
+              type="trace"
+              isTableAction={true}
+            />
+          )
+        );
       },
     },
   ];

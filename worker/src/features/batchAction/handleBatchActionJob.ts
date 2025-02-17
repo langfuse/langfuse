@@ -42,8 +42,10 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
-        await processPostgresTraceDelete(projectId, chunkIds);
-        await processClickhouseTraceDelete(projectId, chunkIds);
+        await Promise.all([
+          processPostgresTraceDelete(projectId, chunkIds),
+          processClickhouseTraceDelete(projectId, chunkIds),
+        ]);
         break;
 
       case "trace-add-to-annotation-queue":

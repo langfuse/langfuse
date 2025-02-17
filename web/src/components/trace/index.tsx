@@ -361,8 +361,6 @@ export function TracePage({
     withDefault(StringParam, "details"),
   );
 
-  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
-
   if (trace.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
 
@@ -428,17 +426,15 @@ export function TracePage({
               }}
               listKey="traces"
             />
-            {hasTraceDeletionEntitlement && (
-              <DeleteButton
-                itemId={traceId}
-                projectId={trace.data.projectId}
-                scope="traces:delete"
-                invalidateFunc={() => void utils.traces.all.invalidate()}
-                type="trace"
-                redirectUrl={`/project/${router.query.projectId as string}/traces`}
-                deleteConfirmation={trace.data.name ?? ""}
-              />
-            )}
+            <DeleteButton
+              itemId={traceId}
+              projectId={trace.data.projectId}
+              scope="traces:delete"
+              invalidateFunc={() => void utils.traces.all.invalidate()}
+              type="trace"
+              redirectUrl={`/project/${router.query.projectId as string}/traces`}
+              deleteConfirmation={trace.data.name ?? ""}
+            />
           </>
         ),
       }}

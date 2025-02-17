@@ -14,7 +14,7 @@ const entitlements = [
   "prompt-experiments",
   "trace-deletion",
   "audit-logs",
-  "data-retention",
+  "data-retention", // Not in use anymore, but necessary to use the TableAction type.
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
@@ -25,6 +25,7 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "integration-posthog",
   "annotation-queues",
   "prompt-experiments",
+  "trace-deletion",
 ];
 
 const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];

@@ -81,6 +81,99 @@ export const getEventLogByProjectIdBeforeDate = (
   });
 };
 
+export const getEventLogByProjectIdAndTraceIds = (
+  projectId: string,
+  traceIds: string[],
+): AsyncGenerator<EventLogRecordReadType> => {
+  const query = `
+    with filtered_traces as (
+      select distinct
+        id as entity_id,
+        project_id as project_id,
+        'trace' as entity_type
+      from traces
+      where project_id = {projectId: String}
+        and id in ({traceIds: Array(String)})
+    ), filtered_observations as (
+      select distinct
+        id as entity_id,
+        project_id as project_id,
+        'observation' as entity_type
+      from observations
+      where project_id = {projectId: String}
+        and trace_id in ({traceIds: Array(String)})
+    ), filtered_scores as (
+      select distinct
+        id as entity_id,
+        project_id as project_id,
+        'score' as entity_type
+      from scores
+      where project_id = {projectId: String}
+        and trace_id in ({traceIds: Array(String)})
+    ), filtered_events as (
+      select *
+      from filtered_traces
+      union all
+      select *
+      from filtered_observations
+      union all
+      select *
+      from filtered_scores
+    )
+
+    select *
+    from event_log el
+    left semi join filtered_events fe
+    on el.project_id = fe.project_id and el.entity_id = fe.entity_id and el.entity_type = fe.entity_type
+    where el.project_id = {projectId: String}
+  `;
+
+  return queryClickhouseStream<EventLogRecordReadType>({
+    query,
+    params: {
+      projectId,
+      traceIds,
+    },
+    tags: {
+      feature: "eventLog",
+      kind: "list",
+      projectId,
+    },
+  });
+};
+
+/**
+ * Deletes event log records by projectId and the _eventLog_.id
+ * @param projectId - Project ID
+ * @param ids - ID record of the event log table to be deleted
+ */
+export const deleteEventLogByProjectIdAndIds = async (
+  projectId: string,
+  ids: string[],
+): Promise<void> => {
+  const query = `  
+    delete from event_log
+    where project_id = {projectId: String}
+    and id in ({ids: Array(String)});
+  `;
+
+  await commandClickhouse({
+    query,
+    params: {
+      projectId,
+      ids,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+    tags: {
+      feature: "eventLog",
+      kind: "delete",
+      projectId,
+    },
+  });
+};
+
 export const deleteEventLogByProjectId = async (
   projectId: string,
 ): Promise<void> => {

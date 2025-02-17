@@ -277,12 +277,6 @@ export const traceRouter = createTRPCRouter({
         scope: "traces:delete",
       });
 
-      throwIfNoEntitlement({
-        entitlement: "trace-deletion",
-        projectId: input.projectId,
-        sessionUser: ctx.session.user,
-      });
-
       if (input.isBatchAction && input.query) {
         await createBatchActionJob({
           projectId: input.projectId,
@@ -292,74 +286,25 @@ export const traceRouter = createTRPCRouter({
           session: ctx.session,
           query: input.query,
         });
-        return;
       } else {
         const traceDeleteQueue = TraceDeleteQueue.getInstance();
-
-        for (const traceId of input.traceIds) {
-          await auditLog({
-            resourceType: "trace",
-            resourceId: traceId,
-            action: "delete",
-            session: ctx.session,
+        if (!traceDeleteQueue) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "TraceDeleteQueue not initialized",
           });
         }
 
-        if (!traceDeleteQueue) {
-          logger.warn(
-            `TraceDeleteQueue not initialized. Try synchronous deletion for ${input.traceIds.length} traces.`,
-          );
-          await ctx.prisma.$transaction([
-            ctx.prisma.trace.deleteMany({
-              where: {
-                id: {
-                  in: input.traceIds,
-                },
-                projectId: input.projectId,
-              },
+        await Promise.all(
+          input.traceIds.map((traceId) =>
+            auditLog({
+              resourceType: "trace",
+              resourceId: traceId,
+              action: "delete",
+              session: ctx.session,
             }),
-            ctx.prisma.observation.deleteMany({
-              where: {
-                traceId: {
-                  in: input.traceIds,
-                },
-                projectId: input.projectId,
-              },
-            }),
-            ctx.prisma.score.deleteMany({
-              where: {
-                traceId: {
-                  in: input.traceIds,
-                },
-                projectId: input.projectId,
-              },
-            }),
-            // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
-            ctx.prisma.jobExecution.updateMany({
-              where: {
-                jobInputTraceId: { in: input.traceIds },
-                projectId: input.projectId,
-              },
-              data: {
-                jobInputTraceId: {
-                  set: null,
-                },
-                jobInputObservationId: {
-                  set: null,
-                },
-              },
-            }),
-          ]);
-
-          if (env.CLICKHOUSE_URL) {
-            await Promise.all([
-              deleteTraces(input.projectId, input.traceIds),
-              deleteObservationsByTraceIds(input.projectId, input.traceIds),
-              deleteScoresByTraceIds(input.projectId, input.traceIds),
-            ]);
-          }
-          return;
-        }
+          ),
+        );
 
         await traceDeleteQueue.add(QueueJobs.TraceDelete, {
           timestamp: new Date(),
