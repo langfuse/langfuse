@@ -37,38 +37,41 @@ export default withMiddlewares({
       }
 
       let resourceSpans: any;
-      switch (req.headers["content-type"]?.toLowerCase()) {
-        case "application/x-protobuf": {
-          try {
-            const parsed =
-              $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
-                body,
-              );
-            resourceSpans =
-              $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
-                parsed,
-              ).resourceSpans;
-          } catch (e) {
-            logger.error(`Failed to parse OTel Protobuf`, e);
-            return res
-              .status(400)
-              .json({ error: "Failed to parse OTel Protobuf Trace" });
-          }
-          break;
+      const contentType = req.headers["content-type"]?.toLowerCase();
+      // Strict content-type matching does not work if something like `content-type: text/javascript; charset=utf-8` is sent.
+      if (
+        !contentType ||
+        (!contentType.includes("application/json") &&
+          !contentType.includes("application/x-protobuf"))
+      ) {
+        return res.status(400).json({ error: "Invalid content type" });
+      }
+      if (contentType.includes("application/x-protobuf")) {
+        try {
+          const parsed =
+            $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
+              body,
+            );
+          resourceSpans =
+            $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
+              parsed,
+            ).resourceSpans;
+        } catch (e) {
+          logger.error(`Failed to parse OTel Protobuf`, e);
+          return res
+            .status(400)
+            .json({ error: "Failed to parse OTel Protobuf Trace" });
         }
-        case "application/json": {
-          try {
-            resourceSpans = JSON.parse(body.toString()).resourceSpans;
-          } catch (e) {
-            logger.error(`Failed to parse OTel JSON`, e);
-            return res
-              .status(400)
-              .json({ error: "Failed to parse OTel JSON Trace" });
-          }
-          break;
+      }
+      if (contentType.includes("application/json")) {
+        try {
+          resourceSpans = JSON.parse(body.toString()).resourceSpans;
+        } catch (e) {
+          logger.error(`Failed to parse OTel JSON`, e);
+          return res
+            .status(400)
+            .json({ error: "Failed to parse OTel JSON Trace" });
         }
-        default:
-          return res.status(400).json({ error: "Unsupported content type" });
       }
 
       const events: IngestionEventType[] = resourceSpans.flatMap(
