@@ -8,6 +8,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { type ReactNode, useEffect } from "react";
@@ -28,7 +29,7 @@ export type EvaluatorDataRow = {
   filter: FilterState;
   result: {
     level: string;
-    count: number;
+    count: string;
     symbol: string;
   }[];
 };
@@ -187,9 +188,24 @@ export default function EvaluatorTable({
     );
 
     const result = [
-      { level: "pending", count: statusCounts.PENDING, symbol: "🕒" },
-      { level: "error", count: statusCounts.ERROR, symbol: "❌" },
-      { level: "succeeded", count: statusCounts.COMPLETED, symbol: "✅" },
+      {
+        level: "pending",
+        count: statusCounts.PENDING,
+        symbol: "🕒",
+        customNumberFormatter: compactNumberFormatter,
+      },
+      {
+        level: "error",
+        count: statusCounts.ERROR,
+        symbol: "❌",
+        customNumberFormatter: compactNumberFormatter,
+      },
+      {
+        level: "succeeded",
+        count: statusCounts.COMPLETED,
+        symbol: "✅",
+        customNumberFormatter: compactNumberFormatter,
+      },
     ];
 
     const finalStatus =

@@ -7,6 +7,7 @@ export type LevelCount = {
   level: string;
   count: number | bigint;
   symbol: string;
+  customNumberFormatter?: (number: number | bigint) => string;
 };
 
 interface LevelCountsDisplayProps {
@@ -24,18 +25,23 @@ export function LevelCountsDisplay({
 
   return (
     <div className="flex min-h-6 flex-row gap-2 overflow-x-auto whitespace-nowrap">
-      {nonZeroCounts.map(({ level, count, symbol }, index) => (
-        <React.Fragment key={level}>
-          <div className="flex min-w-max flex-row gap-2">
-            <span className="text-xs">
-              {symbol} {numberFormatter(count, 0)}
-            </span>
-          </div>
-          {index < nonZeroCounts.length - 1 && (
-            <Separator orientation="vertical" className="h-5" />
-          )}
-        </React.Fragment>
-      ))}
+      {nonZeroCounts.map(
+        ({ level, count, symbol, customNumberFormatter }, index) => (
+          <React.Fragment key={level}>
+            <div className="flex min-w-max flex-row gap-2">
+              <span className="text-xs">
+                {symbol}{" "}
+                {customNumberFormatter
+                  ? customNumberFormatter(count)
+                  : numberFormatter(count, 0)}
+              </span>
+            </div>
+            {index < nonZeroCounts.length - 1 && (
+              <Separator orientation="vertical" className="h-5" />
+            )}
+          </React.Fragment>
+        ),
+      )}
     </div>
   );
 }
