@@ -5,7 +5,6 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { type ReactNode } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
 export type EvalsTemplateRow = {
@@ -17,10 +16,8 @@ export type EvalsTemplateRow = {
 
 export default function EvalsTemplateTable({
   projectId,
-  menuItems,
 }: {
   projectId: string;
-  menuItems?: ReactNode;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -91,7 +88,7 @@ export default function EvalsTemplateTable({
 
   return (
     <>
-      <DataTableToolbar columns={columns} actionButtons={menuItems} />
+      <DataTableToolbar columns={columns} />
       <DataTable
         columns={columns}
         data={
