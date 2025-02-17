@@ -23,6 +23,7 @@ interface DeleteButtonProps {
   type: "trace" | "dataset";
   redirectUrl?: string;
   deleteConfirmation?: string;
+  icon?: boolean;
 }
 
 export function DeleteButton({
@@ -34,6 +35,7 @@ export function DeleteButton({
   type,
   redirectUrl,
   deleteConfirmation,
+  icon = false,
 }: DeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -62,23 +64,31 @@ export function DeleteButton({
     <Popover key={itemId}>
       <PopoverTrigger asChild>
         <Button
-          variant={isTableAction ? "ghost" : "outline"}
-          size={isTableAction ? "xs" : "icon"}
+          variant={icon ? "outline" : "ghost"}
+          size={icon ? "icon" : "default"}
           disabled={!hasAccess}
-          onClick={() =>
+          onClick={(e) => {
+            e.stopPropagation();
             type === "trace"
               ? capture("trace:delete_form_open", {
                   source: isTableAction ? "table-single-row" : "trace detail",
                 })
               : capture("datasets:delete_form_open", {
                   source: "dataset",
-                })
-          }
+                });
+          }}
         >
-          <TrashIcon className="h-4 w-4" />
+          {icon ? (
+            <TrashIcon className="h-4 w-4" />
+          ) : (
+            <>
+              <TrashIcon className="mr-2 h-4 w-4" />
+              Delete
+            </>
+          )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent>
+      <PopoverContent onClick={(e) => e.stopPropagation()}>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action cannot be undone and removes all the data associated with

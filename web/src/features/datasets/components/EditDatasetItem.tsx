@@ -132,7 +132,7 @@ export const EditDatasetItem = ({
           className="flex h-full flex-col"
           onChange={() => setHasChanges(true)}
         >
-          <div className="flex items-center justify-end gap-4 py-4">
+          <div className="flex items-center justify-end gap-4">
             {formError ? (
               <p className="text-red text-center">
                 <span className="font-bold">Error:</span> {formError}
@@ -148,7 +148,7 @@ export const EditDatasetItem = ({
             </Button>
           </div>
           <div className="flex-1 overflow-auto">
-            <div className="space-y-4 py-4">
+            <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
