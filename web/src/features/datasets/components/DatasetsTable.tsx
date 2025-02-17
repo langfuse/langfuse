@@ -5,6 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
@@ -154,21 +155,28 @@ export function DatasetsTable(props: { projectId: string }) {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent
+              align="end"
+              className="flex flex-col [&>*]:w-full [&>*]:justify-start"
+            >
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DatasetActionButton
-                mode="update"
-                projectId={props.projectId}
-                datasetId={key.id}
-                datasetName={key.name}
-                datasetDescription={row.getValue("description") ?? undefined}
-              />
-              <DatasetActionButton
-                mode="delete"
-                projectId={props.projectId}
-                datasetId={key.id}
-                datasetName={key.name}
-              />
+              <DropdownMenuItem asChild>
+                <DatasetActionButton
+                  mode="update"
+                  projectId={props.projectId}
+                  datasetId={key.id}
+                  datasetName={key.name}
+                  datasetDescription={row.getValue("description") ?? undefined}
+                />
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <DatasetActionButton
+                  mode="delete"
+                  projectId={props.projectId}
+                  datasetId={key.id}
+                  datasetName={key.name}
+                />
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         );
