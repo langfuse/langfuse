@@ -13,6 +13,7 @@ export type PageHeaderProps = {
   help?: { description: string; href?: string; className?: string };
   itemType?: LangfuseItemType;
   container?: boolean;
+  tabsComponent?: React.ReactNode;
 };
 
 const PageHeader = ({
@@ -22,6 +23,7 @@ const PageHeader = ({
   actionButtonsRight,
   breadcrumb,
   help,
+  tabsComponent,
   container = false,
 }: PageHeaderProps) => {
   return (
@@ -47,7 +49,7 @@ const PageHeader = ({
         <div className="bg-muted">
           <div
             className={cn(
-              "flex min-h-12 items-center justify-between p-3",
+              "flex min-h-12 items-center justify-between px-3 py-1",
               container && "lg:container",
             )}
           >
@@ -71,6 +73,7 @@ const PageHeader = ({
               {actionButtonsRight}
             </div>
           </div>
+          <div className="ml-2">{tabsComponent}</div>
         </div>
       </div>
     </div>
