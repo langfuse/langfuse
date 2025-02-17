@@ -437,6 +437,7 @@ export function TracePage({
                 type="trace"
                 redirectUrl={`/project/${router.query.projectId as string}/traces`}
                 deleteConfirmation={trace.data.name ?? ""}
+                icon
               />
             )}
           </>
