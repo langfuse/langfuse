@@ -57,6 +57,7 @@ const unauthenticatedPaths: string[] = [
   "/auth/sign-in",
   "/auth/sign-up",
   "/auth/error",
+  "/auth/hf-spaces",
 ];
 // auth or unauthed
 const publishablePaths: string[] = [

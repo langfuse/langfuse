@@ -12,11 +12,16 @@ if [ -z "$DATABASE_URL" ]; then
         echo "Error: Required database environment variables are not set. Provide a postgres url for DATABASE_URL."
         exit 1
     fi
+    if [ -n "$DATABASE_ARGS" ]; then
+        # Append ARGS to DATABASE_URL
+        DATABASE_URL="${DATABASE_URL}?$DATABASE_ARGS"
+        export DATABASE_URL
+    fi
 fi
 
 # Set DIRECT_URL to the value of DATABASE_URL if it is not set, required for migrations
 if [ -z "$DIRECT_URL" ]; then
-    export DIRECT_URL=$DATABASE_URL
+    export DIRECT_URL="${DATABASE_URL}"
 fi
 
 # Always execute the postgres migration, except when disabled.

@@ -11,7 +11,6 @@ import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsS
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { type Adapter } from "next-auth/adapters";
 
 // Providers
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -42,6 +41,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { getOrganizationPlan } from "@/src/features/entitlements/server/getOrganizationPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import {
+  type AdapterUser,
+  type Adapter,
+  type AdapterAccount,
+} from "next-auth/adapters";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   // if no allowlist is set or no active EE key, allow all users to create organizations
@@ -171,11 +175,16 @@ if (
       clientId: env.AUTH_CUSTOM_CLIENT_ID,
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
+      idToken: env.AUTH_CUSTOM_ID_TOKEN !== "false", // defaults to true
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
         params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
       },
+      client: {
+        token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_CUSTOM_CHECKS,
     }),
   );
 
@@ -186,6 +195,10 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GOOGLE_CHECKS,
     }),
   );
 
@@ -201,6 +214,10 @@ if (
       issuer: env.AUTH_OKTA_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_OKTA_CHECKS,
     }),
   );
 
@@ -216,6 +233,10 @@ if (
       issuer: env.AUTH_AUTH0_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_AUTH0_CHECKS,
     }),
   );
 
@@ -226,6 +247,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GITHUB_CHECKS,
     }),
   );
 
@@ -241,6 +266,11 @@ if (
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS,
     }),
   );
 }
@@ -253,6 +283,10 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       allowDangerousEmailAccountLinking:
         env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING === "true",
       issuer: env.AUTH_GITLAB_ISSUER,
+      client: {
+        token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_GITLAB_CHECKS,
     }),
   );
 
@@ -268,6 +302,10 @@ if (
       tenantId: env.AUTH_AZURE_AD_TENANT_ID,
       allowDangerousEmailAccountLinking:
         env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AZURE_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_AZURE_CHECKS,
     }),
   );
 
@@ -281,9 +319,12 @@ if (
       clientId: env.AUTH_COGNITO_CLIENT_ID,
       clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
       issuer: env.AUTH_COGNITO_ISSUER,
-      checks: "nonce",
+      checks: env.AUTH_COGNITO_CHECKS ?? "nonce",
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+      },
     }),
   );
 
@@ -299,14 +340,19 @@ if (
       issuer: env.AUTH_KEYCLOAK_ISSUER,
       allowDangerousEmailAccountLinking:
         env.AUTH_KEYCLOAK_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_KEYCLOAK_CHECKS,
     }),
   );
 
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
+const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
 const extendedPrismaAdapter: Adapter = {
   ...prismaAdapter,
-  async createUser(profile) {
+  async createUser(profile: Omit<AdapterUser, "id">) {
     if (!prismaAdapter.createUser)
       throw new Error("createUser not implemented");
     if (
@@ -329,7 +375,7 @@ const extendedPrismaAdapter: Adapter = {
     return user;
   },
 
-  async linkAccount(data) {
+  async linkAccount(data: AdapterAccount) {
     if (!prismaAdapter.linkAccount)
       throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
 
@@ -340,6 +386,14 @@ const extendedPrismaAdapter: Adapter = {
     if (data.provider === "keycloak") {
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
+    }
+
+    // Optionally, remove fields returned by the provider that cause issues with the adapter
+    // Configure via AUTH_IGNORE_ACCOUNT_FIELDS
+    for (const ignoredField of ignoredAccountFields) {
+      if (ignoredField in data) {
+        delete data[ignoredField];
+      }
     }
 
     await prismaAdapter.linkAccount(data);
