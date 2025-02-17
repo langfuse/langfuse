@@ -26,6 +26,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
+import { logger } from "../logger";
 
 export const checkTraceExists = async (
   projectId: string,
@@ -89,6 +90,18 @@ export const checkTraceExists = async (
     AND timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
     GROUP BY t.id, t.project_id
   `;
+
+  logger.info(`query: ${query}`);
+  logger.info(
+    `params: ${JSON.stringify({
+      projectId,
+      ...tracesFilterRes.params,
+      ...(observationFilterRes ? observationFilterRes.params : {}),
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
+    })}`,
+  );
 
   const rows = await queryClickhouse<{ id: string; project_id: string }>({
     query,

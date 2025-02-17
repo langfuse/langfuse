@@ -206,21 +206,37 @@ export const handleBatchActionJob = async (
         targetObject === "dataset" &&
         assertIsDatasetRunItemTableRecord(record)
       ) {
+        logger.info(
+          `Processing dataset item ${record.datasetItemId} and trace ${record.traceId}, ${JSON.stringify(
+            {
+              projectId: record.projectId,
+              datasetItemId: record.datasetItemId,
+              traceId: record.traceId,
+              observationId: record.observationId ?? undefined,
+              configId: configId,
+              timestamp: new Date("2023-01-01"), // we need to set this. Otherwise, the eval
+            },
+          )}`,
+        );
         const payload = {
           projectId: record.projectId,
           datasetItemId: record.datasetItemId,
           traceId: record.traceId,
           observationId: record.observationId ?? undefined,
           configId: configId,
-          timestamp: new Date(0),
+          timestamp: new Date("2023-01-01"), // we need to set this. Otherwise, the eval
         };
 
-        await evalCreatorQueue.add(QueueJobs.CreateEvalJob, {
-          payload,
-          id: randomUUID(),
-          timestamp: new Date(),
-          name: QueueJobs.CreateEvalJob as const,
-        });
+        await evalCreatorQueue.add(
+          QueueJobs.CreateEvalJob,
+          {
+            payload,
+            id: randomUUID(),
+            timestamp: new Date(),
+            name: QueueJobs.CreateEvalJob as const,
+          },
+          { delay: config.delay },
+        );
         count++;
       } else {
         logger.error(

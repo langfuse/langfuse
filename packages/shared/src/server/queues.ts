@@ -96,6 +96,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
 export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
   z.object({
     configId: z.string(),
+    timestamp: z.date(),
   }),
 ).or(
   TraceQueueEventSchema.and(

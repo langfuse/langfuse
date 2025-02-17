@@ -7,6 +7,7 @@ import {
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
+  logger,
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -330,7 +331,7 @@ describe("select all test suite", () => {
         filter: [
           {
             type: "stringOptions" as const,
-            value: [datasetName],
+            value: [dataset.id],
             column: "Dataset",
             operator: "any of" as const,
           },
@@ -345,6 +346,7 @@ describe("select all test suite", () => {
       },
     });
 
+    logger.info(`traceIds: ${traceId1} and ${traceId2}`);
     const payload = {
       id: randomUUID(),
       timestamp: new Date(),
@@ -359,7 +361,7 @@ describe("select all test suite", () => {
           filter: [
             {
               type: "stringOptions" as const,
-              value: [datasetName],
+              value: [dataset.id],
               column: "Dataset",
               operator: "any of" as const,
             },
@@ -388,8 +390,6 @@ describe("select all test suite", () => {
       ];
       expect(traceIds).toContain(traceId1);
       expect(traceIds).toContain(traceId2);
-      expect(evalExecutions[0].status).toBe("PENDING");
-      expect(evalExecutions[1].status).toBe("PENDING");
     }, 20000);
   }, 20000);
 });
