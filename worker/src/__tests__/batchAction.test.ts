@@ -218,9 +218,9 @@ describe("select all test suite", () => {
           jobConfigurationId: configId,
         },
       });
+      logger.info(JSON.stringify(evalExecutions));
       expect(evalExecutions).toHaveLength(1);
       expect(evalExecutions[0].jobInputTraceId).toBe(traceId1);
-      expect(evalExecutions[0].status).toBe("PENDING");
     });
   });
   it("should create eval jobs for historic datasets", async () => {

@@ -27,7 +27,6 @@ export class CreateEvalQueue {
               removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
               removeOnFail: 100_000,
               attempts: 5,
-              delay: 15_000, // 15 seconds
               backoff: {
                 type: "exponential",
                 delay: 5000,

@@ -17,7 +17,6 @@ import {
   Prisma,
   TimeScopeSchema,
   JobConfigState,
-  JobExecutionStatus,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -525,25 +524,29 @@ export const evalRouter = createTRPCRouter({
           if (!batchJobQueue) {
             throw new Error("Batch job queue not found");
           }
-          await batchJobQueue.add(QueueJobs.BatchActionProcessingJob, {
-            name: QueueJobs.BatchActionProcessingJob,
-            timestamp: new Date(),
-            id: uuidv4(),
-            payload: {
-              projectId: input.projectId,
-              actionId: "eval-create",
-              configId: job.id,
-              cutoffCreatedAt: new Date(),
-              targetObject: input.target,
-              query: {
-                where: input.filter ?? [],
-                orderBy: {
-                  column: "timestamp",
-                  order: "DESC",
+          await batchJobQueue.add(
+            QueueJobs.BatchActionProcessingJob,
+            {
+              name: QueueJobs.BatchActionProcessingJob,
+              timestamp: new Date(),
+              id: uuidv4(),
+              payload: {
+                projectId: input.projectId,
+                actionId: "eval-create",
+                configId: job.id,
+                cutoffCreatedAt: new Date(),
+                targetObject: input.target,
+                query: {
+                  where: input.filter ?? [],
+                  orderBy: {
+                    column: "timestamp",
+                    order: "DESC",
+                  },
                 },
               },
             },
-          });
+            { delay: input.delay },
+          );
         }
       } catch (e) {
         logger.error(e);
@@ -722,25 +725,29 @@ export const evalRouter = createTRPCRouter({
         if (!batchJobQueue) {
           throw new Error("Batch job queue not found");
         }
-        await batchJobQueue.add(QueueJobs.BatchActionProcessingJob, {
-          name: QueueJobs.BatchActionProcessingJob,
-          timestamp: new Date(),
-          id: uuidv4(),
-          payload: {
-            projectId: projectId,
-            actionId: "eval-create",
-            configId: evalConfigId,
-            cutoffCreatedAt: new Date(),
-            targetObject: config.target,
-            query: {
-              where: config.filter ?? [],
-              orderBy: {
-                column: "timestamp",
-                order: "DESC",
+        await batchJobQueue.add(
+          QueueJobs.BatchActionProcessingJob,
+          {
+            name: QueueJobs.BatchActionProcessingJob,
+            timestamp: new Date(),
+            id: uuidv4(),
+            payload: {
+              projectId: projectId,
+              actionId: "eval-create",
+              configId: evalConfigId,
+              cutoffCreatedAt: new Date(),
+              targetObject: existingJob?.targetObject,
+              query: {
+                where: config.filter ?? [],
+                orderBy: {
+                  column: "timestamp",
+                  order: "DESC",
+                },
               },
             },
           },
-        });
+          { delay: config.delay },
+        );
       }
     }),
 

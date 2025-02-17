@@ -267,9 +267,6 @@ export const createEvalJobs = async ({
             delay: config.delay,
           },
         },
-        {
-          delay: config.delay, // milliseconds
-        },
       );
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
