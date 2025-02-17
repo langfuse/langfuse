@@ -59,14 +59,17 @@ const PageHeader = ({
               )}
               <div className="relative mr-2 inline-block min-w-0">
                 <h2 className="line-clamp-2 inline h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
-                  <span className="inline-flex break-all md:break-normal md:break-words">
+                  <span className="break-all md:break-normal md:break-words">
                     {title}
                     {help && (
-                      <DocPopup
-                        description={help.description}
-                        href={help.href}
-                        className={help.className}
-                      />
+                      <span className="whitespace-nowrap">
+                        &nbsp;
+                        <DocPopup
+                          description={help.description}
+                          href={help.href}
+                          className={help.className}
+                        />
+                      </span>
                     )}
                   </span>
                 </h2>
