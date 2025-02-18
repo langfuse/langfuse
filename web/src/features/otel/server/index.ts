@@ -131,6 +131,13 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
+  // MLFlow sets mlflow.spanInputs and mlflow.spanOutputs
+  input = attributes["mlflow.spanInputs"];
+  output = attributes["mlflow.spanOutputs"];
+  if (input || output) {
+    return { input, output };
+  }
+
   // TraceLoop sets traceloop.entity.input and traceloop.entity.output
   input = attributes["traceloop.entity.input"];
   output = attributes["traceloop.entity.output"];
@@ -225,6 +232,7 @@ const extractModelName = (
     "gen_ai.request.model",
     "gen_ai.response.model",
     "llm.model_name",
+    "model",
   ];
   for (const key of modelNameKeys) {
     if (attributes[key]) {

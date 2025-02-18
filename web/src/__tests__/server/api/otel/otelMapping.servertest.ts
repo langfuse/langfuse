@@ -526,6 +526,34 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map mlflow.spanInputs to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "mlflow.spanInputs",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              question: "What is LLM Observability?",
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            question: "What is LLM Observability?",
+          }),
+        },
+      ],
+      [
+        "should map model to model",
+        {
+          entity: "observation",
+          otelAttributeKey: "model",
+          otelAttributeValue: {
+            stringValue: "gpt-4o-mini",
+          },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gpt-4o-mini",
+        },
+      ],
+      [
         "#5412: should map input.value to input for smolagents",
         {
           entity: "observation",
