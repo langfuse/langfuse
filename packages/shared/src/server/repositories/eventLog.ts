@@ -121,6 +121,8 @@ export const getEventLogByProjectIdAndTraceIds = (
       from filtered_scores
     )
 
+    -- We use a semi join because we only use the 'filtered_events' as a filter.
+    -- There is no need to build the cartesian product (i.e. the combination) between the event log and the events.
     select el.*
     from event_log el
     left semi join filtered_events fe

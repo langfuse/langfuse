@@ -12,9 +12,9 @@ const entitlements = [
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
   "prompt-experiments",
-  "trace-deletion",
+  "trace-deletion", // Not in use anymore, but necessary to use the TableAction type.
   "audit-logs",
-  "data-retention", // Not in use anymore, but necessary to use the TableAction type.
+  "data-retention",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
