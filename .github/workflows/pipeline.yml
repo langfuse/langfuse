@@ -87,6 +87,15 @@ jobs:
       - name: Check server health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
+      - name: Notify Slack # Remove after testing
+        uses: ravsamhq/notify-slack-action@v2
+        if: always()
+        with:
+          status: ${{ job.status }}
+          mention_groups: '!channel'
+          mention_groups_when: "failure"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   tests-web-sync:
     timeout-minutes: 20
