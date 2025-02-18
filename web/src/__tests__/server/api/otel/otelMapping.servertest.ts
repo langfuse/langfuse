@@ -344,6 +344,26 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract public on trace from langfuse.public",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.public",
+          otelAttributeValue: { boolValue: true },
+          entityAttributeKey: "public",
+          entityAttributeValue: true,
+        },
+      ],
+      [
+        "should not treat truthy values as public true",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.public",
+          otelAttributeValue: { stringValue: "false" },
+          entityAttributeKey: "public",
+          entityAttributeValue: false,
+        },
+      ],
+      [
         "should extract userId on trace from user.id",
         {
           entity: "trace",
