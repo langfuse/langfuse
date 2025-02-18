@@ -536,3 +536,12 @@ jobs:
           platforms: |
             linux/amd64
             ${{ startsWith(github.ref, 'refs/tags/') && 'linux/arm64' || '' }}
+      - name: Notify Slack
+        uses: ravsamhq/notify-slack-action@v2
+        if: always()
+        with:
+          status: ${{ job.status }}
+          mention_groups: '!channel'
+          mention_groups_when: "failure"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
