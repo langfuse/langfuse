@@ -80,8 +80,6 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server
     user: "101:101"
-    container_name: clickhouse
-    hostname: clickhouse
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
@@ -101,7 +99,6 @@ services:
 
   minio:
     image: minio/minio
-    container_name: minio
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
