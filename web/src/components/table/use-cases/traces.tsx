@@ -54,7 +54,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { Separator } from "@/src/components/ui/separator";
 import React from "react";
@@ -64,6 +64,13 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
+import {
+  DropdownMenuContent,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -833,14 +840,25 @@ export default function TracesTable({
         return traceId &&
           typeof traceId === "string" &&
           hasTraceDeletionEntitlement ? (
-          <DeleteButton
-            itemId={traceId}
-            projectId={projectId}
-            scope="traces:delete"
-            invalidateFunc={() => void utils.traces.all.invalidate()}
-            type="trace"
-            isTableAction={true}
-          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem asChild>
+                <DeleteButton
+                  itemId={traceId}
+                  projectId={projectId}
+                  scope="traces:delete"
+                  invalidateFunc={() => void utils.traces.all.invalidate()}
+                  type="trace"
+                  isTableAction={true}
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : undefined;
       },
     },
