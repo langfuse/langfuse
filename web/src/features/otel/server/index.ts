@@ -316,9 +316,17 @@ export const convertOtelSpanToIngestionEvent = (
             resourceAttributes,
             scope: scopeSpan?.scope,
           },
-          version: resourceAttributes?.["service.version"] ?? null,
+          version:
+            attributes?.["langfuse.version"] ??
+            resourceAttributes?.["service.version"] ??
+            null,
+          release: attributes?.["langfuse.release"] ?? null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
+          public:
+            attributes?.["langfuse.public"] === true ||
+            attributes?.["langfuse.public"] === "true",
+          tags: attributes?.["langfuse.tags"] ?? [],
 
           // Input and Output
           ...extractInputAndOutput(span?.events ?? [], attributes),
@@ -356,8 +364,16 @@ export const convertOtelSpanToIngestionEvent = (
           span.status?.code === 2
             ? ObservationLevel.ERROR
             : ObservationLevel.DEFAULT,
+        statusMessage: span.status?.message ?? null,
+        version:
+          attributes?.["langfuse.version"] ??
+          resourceAttributes?.["service.version"] ??
+          null,
         modelParameters: extractModelParameters(attributes) as any,
         model: extractModelName(attributes),
+
+        promptName: attributes?.["langfuse.prompt.name"] ?? null,
+        promptVersion: attributes?.["langfuse.prompt.version"] ?? null,
 
         usageDetails: extractUsageDetails(attributes) as any,
         costDetails: extractCostDetails(attributes) as any,

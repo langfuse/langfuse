@@ -334,6 +334,16 @@ describe("OTel Resource Span Mapping", () => {
 
     it.each([
       [
+        "should extract promptName on observation from langfuse.prompt.name",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.prompt.name",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "promptName",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
         "should extract userId on trace from user.id",
         {
           entity: "trace",
