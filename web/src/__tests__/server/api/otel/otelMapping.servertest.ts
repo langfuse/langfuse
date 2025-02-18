@@ -535,7 +535,7 @@ describe("OTel Resource Span Mapping", () => {
               question: "What is LLM Observability?",
             }),
           },
-          entityAttributeKey: "output",
+          entityAttributeKey: "input",
           entityAttributeValue: JSON.stringify({
             question: "What is LLM Observability?",
           }),
