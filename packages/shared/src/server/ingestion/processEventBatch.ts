@@ -66,10 +66,10 @@ const getDelay = (delay: number | null) => {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
   }
 
-  // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
+  // Use 10s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
   // we use this instead.
   // Values should be revisited based on a cost/performance trade-off.
-  return Math.min(5000, env.LANGFUSE_INGESTION_QUEUE_DELAY_MS);
+  return Math.min(10000, env.LANGFUSE_INGESTION_QUEUE_DELAY_MS);
 };
 
 /**
