@@ -166,11 +166,12 @@ export const datasetRouter = createTRPCRouter({
         user: ctx.session.user,
         pgExecution: async () => {
           const scoresByRunId = await ctx.prisma.$queryRaw<
-            Array<{ scores: Array<ScoreSimplified>; runId: string }>
+            Array<{ scores: Array<ScoreSimplified>; runId: string; createdAt: Date}>
           >(Prisma.sql`
         SELECT
-          runs.id "runId",
-          array_agg(s.score) AS "scores"
+          runs.id AS "runId",
+          array_agg(s.score) AS "scores",
+          runs.created_at AS "createdAt"
         FROM
           dataset_runs runs
           JOIN datasets ON datasets.id = runs.dataset_id AND datasets.project_id = ${input.projectId}
@@ -193,7 +194,10 @@ export const datasetRouter = createTRPCRouter({
           AND runs.project_id = ${input.projectId}
           AND s.score IS NOT NULL
         GROUP BY
-          runs.id
+          runs.id,
+          runs.created_at
+        ORDER BY
+          runs.created_at DESC
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
       `);
