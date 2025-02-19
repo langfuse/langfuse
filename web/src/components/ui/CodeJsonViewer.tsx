@@ -12,6 +12,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { SubHeaderLabel } from "@/src/components/layouts/header";
 
 const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -24,6 +25,7 @@ export function JSONView(props: {
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
+  scrollable?: boolean;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
@@ -47,19 +49,11 @@ export function JSONView(props: {
     });
   };
 
-  return (
-    <div className={cn(props.className)}>
-      {props.title ? (
-        <MarkdownJsonViewHeader
-          title={props.title}
-          canEnableMarkdown={props.canEnableMarkdown ?? false}
-          handleOnValueChange={handleOnValueChange}
-          handleOnCopy={handleOnCopy}
-        />
-      ) : null}
+  const body = (
+    <>
       <div
         className={cn(
-          "flex gap-2 whitespace-pre-wrap break-words rounded-sm border p-3 text-xs",
+          "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
           props.codeClassName,
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
@@ -67,6 +61,7 @@ export function JSONView(props: {
           props.title === "system" || props.title === "Input"
             ? "bg-primary-foreground"
             : "",
+          props.scrollable ? "" : "rounded-sm border",
         )}
       >
         {props.isLoading ? (
@@ -109,6 +104,35 @@ export function JSONView(props: {
           </div>
         </>
       )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        props.className,
+        props.scrollable
+          ? "flex max-h-full min-h-0 flex-col overflow-hidden"
+          : "",
+      )}
+    >
+      {props.title ? (
+        <MarkdownJsonViewHeader
+          title={props.title}
+          canEnableMarkdown={props.canEnableMarkdown ?? false}
+          handleOnValueChange={handleOnValueChange}
+          handleOnCopy={handleOnCopy}
+        />
+      ) : null}
+      {props.scrollable ? (
+        <div className="flex h-full min-h-0 overflow-hidden rounded-sm border">
+          <div className="max-h-full min-h-0 w-full overflow-y-auto">
+            {body}
+          </div>
+        </div>
+      ) : (
+        body
+      )}
     </div>
   );
 }
@@ -117,8 +141,8 @@ export function CodeView(props: {
   content: string | undefined | null;
   className?: string;
   defaultCollapsed?: boolean;
-  scrollable?: boolean;
   title?: string;
+  scrollable?: boolean;
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
@@ -132,24 +156,45 @@ export function CodeView(props: {
   const handleShowAll = () => setCollapsed(!isCollapsed);
 
   return (
-    <div className={cn("max-w-full rounded-md border", props.className)}>
-      {props.title ? (
-        <div className="border-b px-3 py-1 text-xs font-medium">
-          {props.title}
-        </div>
-      ) : undefined}
-      <div className="flex gap-2">
+    <div
+      className={cn(
+        "flex max-w-full flex-col",
+        props.className,
+        props.scrollable && "max-h-full min-h-0",
+      )}
+    >
+      <div className="my-1 flex flex-shrink-0 items-center justify-between">
+        {props.title ? <SubHeaderLabel title={props.title} /> : undefined}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={handleCopy}
+          className=""
+        >
+          {isCopied ? (
+            <Check className="h-3 w-3" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
+        </Button>
+      </div>
+      <div
+        className={cn(
+          "flex flex-col gap-2 rounded-md border",
+          props.scrollable ? "max-h-full min-h-0 overflow-hidden" : "",
+        )}
+      >
         <code
           className={cn(
             "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
             isCollapsed ? `line-clamp-6` : "block",
-            props.scrollable ? "max-h-60 overflow-y-scroll" : undefined,
+            props.scrollable ? "overflow-y-auto" : "",
           )}
         >
           {props.content}
         </code>
-        <div className="flex gap-2 py-2 pr-2">
-          {props.defaultCollapsed ? (
+        {props.defaultCollapsed ? (
+          <div className="flex gap-2 py-2 pr-2">
             <Button variant="secondary" size="xs" onClick={handleShowAll}>
               {isCollapsed ? (
                 <ChevronsUpDown className="h-3 w-3" />
@@ -157,20 +202,8 @@ export function CodeView(props: {
                 <ChevronsDownUp className="h-3 w-3" />
               )}
             </Button>
-          ) : undefined}
-          <Button
-            variant="secondary"
-            size="icon-xs"
-            onClick={handleCopy}
-            className=""
-          >
-            {isCopied ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </Button>
-        </div>
+          </div>
+        ) : undefined}
       </div>
     </div>
   );
