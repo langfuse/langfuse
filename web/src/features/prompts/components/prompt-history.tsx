@@ -1,11 +1,11 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
 import { useState, useRef, useEffect } from "react";
 import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
+import { Timeline, TimelineItem } from "@/src/components/ui/timeline";
+import { Badge } from "@/src/components/ui/badge";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -18,7 +18,6 @@ const PromptHistoryTraceNode = (props: {
   totalCount: number;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isPromptDiffOpen, setIsPromptDiffOpen] = useState(false);
   const { prompt } = props;
 
@@ -55,20 +54,17 @@ const PromptHistoryTraceNode = (props: {
           type={label}
           key={label}
           className="break-all sm:break-normal"
+          isLive={label === PRODUCTION_LABEL}
         />
       );
     });
 
   return (
-    <div
+    <TimelineItem
       ref={currentPromptRef}
-      className={`group mb-2 flex w-full cursor-pointer flex-col gap-1 rounded-sm p-2 hover:bg-primary-foreground ${
-        props.currentPromptVersion === prompt.version ? "bg-muted" : ""
-      }`}
+      isActive={props.currentPromptVersion === prompt.version}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        if (!isLabelPopoverOpen) setIsHovered(false);
-      }}
+      onMouseLeave={() => setIsHovered(false)}
       onClick={() => {
         props.index === 0
           ? props.setCurrentPromptVersion(undefined)
@@ -76,18 +72,13 @@ const PromptHistoryTraceNode = (props: {
       }}
     >
       <div className="flex h-full min-h-6 flex-wrap gap-1">
-        <span className="text-nowrap rounded-sm bg-input p-1 text-xs">
-          Version {prompt.version}
-        </span>
+        <Badge variant="outline" className="h-6 bg-background/50">
+          # {prompt.version}
+        </Badge>
         {badges}
       </div>
       <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
-        <div className="min-w-0">
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground">
-              {prompt.createdAt.toLocaleString()}
-            </span>
-          </div>
+        <div className="min-h-7 min-w-0">
           {prompt.commitMessage && (
             <div className="flex flex-1 flex-nowrap gap-2">
               <span
@@ -98,17 +89,16 @@ const PromptHistoryTraceNode = (props: {
               </span>
             </div>
           )}
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground">
-              by {prompt.creator || prompt.createdBy}
-            </span>
+          <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
+            {prompt.createdAt.toLocaleString()} by{" "}
+            {prompt.creator || prompt.createdBy}
           </div>
         </div>
-        {(isHovered ||
-          props.currentPromptVersion === prompt.version ||
-          isPromptDiffOpen) && (
-          <div className="flex flex-row justify-end space-x-1">
-            {props.currentPrompt &&
+        <div className="flex flex-row justify-end space-x-1">
+          {(isHovered ||
+            props.currentPromptVersion === prompt.version ||
+            isPromptDiffOpen) &&
+            (props.currentPrompt &&
             props.currentPromptVersion !== prompt.version ? (
               <PromptVersionDiffDialog
                 isOpen={isPromptDiffOpen}
@@ -119,24 +109,10 @@ const PromptHistoryTraceNode = (props: {
                 leftPrompt={prompt}
                 rightPrompt={props.currentPrompt}
               />
-            ) : null}
-            <SetPromptVersionLabels
-              prompt={prompt}
-              isOpen={isLabelPopoverOpen}
-              setIsOpen={(open) => {
-                setIsLabelPopoverOpen(open);
-                if (!open) setIsHovered(false);
-              }}
-            />
-            <DeletePromptVersion
-              promptVersionId={prompt.id}
-              version={prompt.version}
-              countVersions={props.totalCount}
-            />
-          </div>
-        )}
+            ) : null)}
+        </div>
       </div>
-    </div>
+    </TimelineItem>
   );
 };
 
@@ -153,7 +129,7 @@ export const PromptHistoryNode = (props: {
   );
 
   return (
-    <div className="w-full flex-1">
+    <Timeline>
       {props.prompts.map((prompt, index) => (
         <PromptHistoryTraceNode
           key={prompt.id}
@@ -167,6 +143,6 @@ export const PromptHistoryNode = (props: {
           totalCount={props.totalCount}
         />
       ))}
-    </div>
+    </Timeline>
   );
 };
