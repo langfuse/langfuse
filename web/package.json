@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "2.95.2",
+  "version": "2.95.4",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -193,7 +193,7 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.0.7"
+      "jsonpath-plus": "10.3.0"
     }
   }
 }

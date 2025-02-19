@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "2.95.2",
+  "version": "2.95.4",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -82,7 +82,7 @@
   },
   "pnpm": {
     "overrides": {
-      "jsonpath-plus": "10.2.0"
+      "jsonpath-plus": "10.3.0"
     }
   }
 }
