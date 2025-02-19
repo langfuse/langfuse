@@ -15,6 +15,7 @@ import {
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { SubHeaderLabel } from "@/src/components/layouts/header";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -206,22 +207,20 @@ export const OpenAiMessageView: React.FC<{
   );
 
   return (
-    <div className="rounded-md border">
-      {title && (
-        <div className="border-b px-3 py-1 text-xs font-medium">{title}</div>
-      )}
-      <div className="flex flex-col gap-2 p-3">
-        {messages
-          .filter(
-            (_, i) =>
-              // show all if not collapsed or null; show first and last n if collapsed
-              !isCollapsed ||
-              i == 0 ||
-              i > messages.length - COLLAPSE_THRESHOLD,
-          )
-          .map((message, index) => (
-            <Fragment key={index}>
-              <div>
+    <div className="flex max-h-full min-h-0 flex-col gap-2">
+      {title && <SubHeaderLabel title={title} className="mt-1" />}
+      <div className="flex max-h-full min-h-0 flex-col gap-2 overflow-hidden rounded-md border p-3 pt-0">
+        <div className="flex flex-col gap-2 overflow-y-auto">
+          {messages
+            .filter(
+              (_, i) =>
+                // show all if not collapsed or null; show first and last n if collapsed
+                !isCollapsed ||
+                i == 0 ||
+                i > messages.length - COLLAPSE_THRESHOLD,
+            )
+            .map((message, index) => (
+              <Fragment key={index}>
                 {(!!message.content || !!message.audio) &&
                   (shouldRenderMarkdown ? (
                     <MarkdownJsonView
@@ -255,42 +254,42 @@ export const OpenAiMessageView: React.FC<{
                     )}
                   />
                 )}
-              </div>
-              {isCollapsed !== null && index === 0 ? (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => setCollapsed((v) => !v)}
-                >
-                  {isCollapsed
-                    ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
-                    : "Hide history"}
-                </Button>
-              ) : null}
-            </Fragment>
-          ))}
-      </div>
-      {additionalInput && (
-        <div className="p-3 pt-1">
-          <JSONView title="Additional Input" json={additionalInput} />
-        </div>
-      )}
-      {media && media.length > 0 && (
-        <>
-          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
-            Media
-          </div>
-          <div className="flex flex-wrap gap-2 p-4 pt-1">
-            {media.map((m) => (
-              <LangfuseMediaView
-                mediaAPIReturnValue={m}
-                asFileIcon={true}
-                key={m.mediaId}
-              />
+                {isCollapsed !== null && index === 0 ? (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setCollapsed((v) => !v)}
+                  >
+                    {isCollapsed
+                      ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
+                      : "Hide history"}
+                  </Button>
+                ) : null}
+              </Fragment>
             ))}
+        </div>
+        {additionalInput && (
+          <div className="p-3 pt-1">
+            <JSONView title="Additional Input" json={additionalInput} />
           </div>
-        </>
-      )}
+        )}
+        {media && media.length > 0 && (
+          <>
+            <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+              Media
+            </div>
+            <div className="flex flex-wrap gap-2 p-4 pt-1">
+              {media.map((m) => (
+                <LangfuseMediaView
+                  mediaAPIReturnValue={m}
+                  asFileIcon={true}
+                  key={m.mediaId}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };
