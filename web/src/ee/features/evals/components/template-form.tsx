@@ -142,7 +142,7 @@ const formSchema = z.object({
     .string()
     .min(1, "Enter a prompt")
     .refine((val) => {
-      const variables = extractVariables(val);
+      const variables = extractVariables(val).uniqueMatches;
       const matches = variables.map((variable) => {
         // check regex here
         if (variable.match(/^[A-Za-z_]+$/)) {
@@ -270,7 +270,9 @@ export const InnerEvalTemplateForm = (props: {
   }, [props.preFilledFormValues, form, props.existingEvalTemplateName]);
 
   const extractedVariables = form.watch("prompt")
-    ? extractVariables(form.watch("prompt")).filter(getIsCharOrUnderscore)
+    ? extractVariables(form.watch("prompt")).uniqueMatches.filter(
+        getIsCharOrUnderscore,
+      )
     : undefined;
 
   const utils = api.useUtils();

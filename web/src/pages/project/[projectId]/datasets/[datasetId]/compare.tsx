@@ -241,6 +241,7 @@ export default function DatasetCompare() {
             title="Select runs"
             placeholder="Select runs to compare"
             className="w-fit"
+            variant="outline"
             hideClearButton
             options={runs.map((run) => ({
               key: run.key,

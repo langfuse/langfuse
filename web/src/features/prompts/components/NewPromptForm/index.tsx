@@ -104,7 +104,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     currentType === PromptType.Text
       ? form.watch("textPrompt")
       : JSON.stringify(form.watch("chatPrompt"), null, 2),
-  ).filter(getIsCharOrUnderscore);
+  ).uniqueMatches.filter(getIsCharOrUnderscore);
 
   const createPromptMutation = api.prompts.create.useMutation({
     onSuccess: () => utils.prompts.invalidate(),
