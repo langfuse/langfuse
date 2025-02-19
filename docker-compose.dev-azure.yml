@@ -2,8 +2,6 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server
     user: "101:101"
-    container_name: clickhouse
-    hostname: clickhouse
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
@@ -19,7 +17,6 @@ services:
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
-    container_name: azurite
     command: azurite-blob --blobHost 0.0.0.0
     ports:
       - "10000:10000"
