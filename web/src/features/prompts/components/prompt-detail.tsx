@@ -56,6 +56,7 @@ import { cn } from "@/src/utils/tailwind";
 import { SubHeader, SubHeaderLabel } from "@/src/components/layouts/header";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { Command, CommandInput } from "@/src/components/ui/command";
 
 const PromptVariables = ({
   variablesToCount,
@@ -320,12 +321,14 @@ export const PromptDetail = () => {
       }}
     >
       <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden md:grid-cols-4">
-        <div className="text-m flex flex-col overflow-y-auto border-r pr-3 font-medium">
-          <div className="mb-4 mt-2 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-light text-muted-foreground">
-              <Search className="h-4 w-4" />
-              Search versions
-            </div>
+        <Command className="text-m flex flex-col overflow-y-auto border-r pr-3 font-medium">
+          <div className="mb-2 mt-2 flex items-center justify-between">
+            <CommandInput
+              showBorder={false}
+              placeholder="Search versions"
+              className="border-none text-sm font-light text-muted-foreground"
+            />
+
             <Button
               size="icon"
               onClick={() => {
@@ -347,7 +350,7 @@ export const PromptDetail = () => {
               totalCount={promptHistory.data.totalCount}
             />
           </div>
-        </div>
+        </Command>
         <div className="col-span-2 flex max-h-full min-h-0 flex-col md:col-span-3">
           <div className="flex flex-col items-start gap-2">
             <div className="mb-2 flex w-full flex-row items-center justify-between">

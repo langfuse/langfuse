@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
 import { Timeline, TimelineItem } from "@/src/components/ui/timeline";
 import { Badge } from "@/src/components/ui/badge";
+import { CommandItem } from "@/src/components/ui/command";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -71,47 +72,60 @@ const PromptHistoryTraceNode = (props: {
           : props.setCurrentPromptVersion(prompt.version);
       }}
     >
-      <div className="flex h-full min-h-6 flex-wrap gap-1">
-        <Badge variant="outline" className="h-6 bg-background/50">
-          # {prompt.version}
-        </Badge>
-        {badges}
-      </div>
-      <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
-        <div className="min-h-7 min-w-0">
-          {prompt.commitMessage && (
-            <div className="flex flex-1 flex-nowrap gap-2">
-              <span
-                className="min-w-0 max-w-full truncate text-xs text-muted-foreground"
-                title={prompt.commitMessage}
-              >
-                {prompt.commitMessage}
-              </span>
+      <CommandItem
+        className="items-start gap-1 space-y-1 rounded-none bg-none"
+        style={{
+          ["--selected-bg" as string]: "none",
+          backgroundColor: "var(--selected-bg)",
+          display: "inline-block",
+          paddingLeft: 0,
+          paddingRight: 0,
+          paddingTop: 0,
+          paddingBottom: 0,
+        }}
+      >
+        <div className="flex h-full min-h-6 flex-wrap gap-1">
+          <Badge variant="outline" className="h-6 bg-background/50">
+            # {prompt.version}
+          </Badge>
+          {badges}
+        </div>
+        <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
+          <div className="min-h-7 min-w-0">
+            {prompt.commitMessage && (
+              <div className="flex flex-1 flex-nowrap gap-2">
+                <span
+                  className="min-w-0 max-w-full truncate text-xs text-muted-foreground"
+                  title={prompt.commitMessage}
+                >
+                  {prompt.commitMessage}
+                </span>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
+              {prompt.createdAt.toLocaleString()} by{" "}
+              {prompt.creator || prompt.createdBy}
             </div>
-          )}
-          <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-            {prompt.createdAt.toLocaleString()} by{" "}
-            {prompt.creator || prompt.createdBy}
+          </div>
+          <div className="flex flex-row justify-end space-x-1">
+            {(isHovered ||
+              props.currentPromptVersion === prompt.version ||
+              isPromptDiffOpen) &&
+              (props.currentPrompt &&
+              props.currentPromptVersion !== prompt.version ? (
+                <PromptVersionDiffDialog
+                  isOpen={isPromptDiffOpen}
+                  setIsOpen={(open) => {
+                    setIsPromptDiffOpen(open);
+                    if (!open) setIsHovered(false);
+                  }}
+                  leftPrompt={prompt}
+                  rightPrompt={props.currentPrompt}
+                />
+              ) : null)}
           </div>
         </div>
-        <div className="flex flex-row justify-end space-x-1">
-          {(isHovered ||
-            props.currentPromptVersion === prompt.version ||
-            isPromptDiffOpen) &&
-            (props.currentPrompt &&
-            props.currentPromptVersion !== prompt.version ? (
-              <PromptVersionDiffDialog
-                isOpen={isPromptDiffOpen}
-                setIsOpen={(open) => {
-                  setIsPromptDiffOpen(open);
-                  if (!open) setIsHovered(false);
-                }}
-                leftPrompt={prompt}
-                rightPrompt={props.currentPrompt}
-              />
-            ) : null)}
-        </div>
-      </div>
+      </CommandItem>
     </TimelineItem>
   );
 };
