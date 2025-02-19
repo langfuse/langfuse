@@ -169,7 +169,7 @@ export const deleteEventLogByProjectIdAndIds = async (
       ids,
     },
     clickhouseConfigs: {
-      request_timeout: 120_000, // 2 minutes
+      request_timeout: 300_000, // 5 minutes
     },
     tags: {
       feature: "eventLog",
