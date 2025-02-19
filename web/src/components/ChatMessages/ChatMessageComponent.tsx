@@ -1,7 +1,11 @@
 import { capitalize } from "lodash";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
 import { useState } from "react";
-import { ChatMessageRole, type ChatMessageWithId } from "@langfuse/shared";
+import {
+  ChatMessageRole,
+  SYSTEM_ROLES,
+  type ChatMessageWithId,
+} from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { CodeMirrorEditor } from "@/src/components/editor";
@@ -14,6 +18,28 @@ type ChatMessageProps = Pick<
   MessagesContext,
   "deleteMessage" | "updateMessage" | "availableRoles"
 > & { message: ChatMessageWithId; index: number };
+
+const ROLES: string[] = [
+  ChatMessageRole.User,
+  ChatMessageRole.System,
+  ChatMessageRole.Developer,
+  ChatMessageRole.Assistant,
+];
+
+const getRoleNamePlaceholder = (role: string) => {
+  switch (role) {
+    case ChatMessageRole.System:
+      return "a system";
+    case ChatMessageRole.Developer:
+      return "a developer";
+    case ChatMessageRole.Assistant:
+      return "an assistant";
+    case ChatMessageRole.User:
+      return "a user";
+    default:
+      return `a ${role}`;
+  }
+};
 
 export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   message,
@@ -44,19 +70,23 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       setRoleIndex(roleIndex + 1);
     } else {
       // if user has not set custom roles, we toggle through default roles (assistant, user)
-      updateMessage(
-        message.id,
-        "role",
-        message.role === ChatMessageRole.User
-          ? ChatMessageRole.Assistant
-          : message.role === ChatMessageRole.Assistant && index === 0
-            ? ChatMessageRole.System
+      if (index === 0) {
+        const currentIndex = ROLES.indexOf(message.role);
+        const nextRole = ROLES[(currentIndex + 1) % ROLES.length];
+        updateMessage(message.id, "role", nextRole);
+      } else {
+        updateMessage(
+          message.id,
+          "role",
+          message.role === ChatMessageRole.User
+            ? ChatMessageRole.Assistant
             : ChatMessageRole.User,
-      );
+        );
+      }
     }
   };
 
-  const placeholder = `Enter ${message.role === ChatMessageRole.User ? "a user" : message.role === ChatMessageRole.System ? "a system" : "an assistant"} message here.`;
+  const placeholder = `Enter ${getRoleNamePlaceholder(message.role)} message here.`;
 
   return (
     <Card
@@ -70,7 +100,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         "group relative whitespace-nowrap p-3",
       )}
     >
-      {message.role !== ChatMessageRole.System && (
+      {!SYSTEM_ROLES.includes(message.role) && (
         <div
           {...attributes}
           {...listeners}

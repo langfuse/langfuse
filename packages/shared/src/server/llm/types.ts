@@ -25,7 +25,13 @@ export enum ChatMessageRole {
   System = "system",
   User = "user",
   Assistant = "assistant",
+  Developer = "developer",
 }
+
+export const SYSTEM_ROLES: string[] = [
+  ChatMessageRole.System,
+  ChatMessageRole.Developer,
+];
 
 export const ChatMessageDefaultRoleSchema = z.nativeEnum(ChatMessageRole);
 
