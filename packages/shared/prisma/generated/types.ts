@@ -267,6 +267,7 @@ export type JobConfiguration = {
     variable_mapping: unknown;
     sampling: string;
     delay: number;
+    time_scope: Generated<string[]>;
 };
 export type JobExecution = {
     id: string;

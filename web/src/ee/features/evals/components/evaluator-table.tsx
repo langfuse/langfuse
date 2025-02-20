@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
@@ -7,6 +8,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect } from "react";
@@ -25,6 +27,11 @@ export type EvaluatorDataRow = {
   scoreName: string;
   target: string; // "trace" or "dataset"
   filter: FilterState;
+  result: {
+    level: string;
+    count: number;
+    symbol: string;
+  }[];
 };
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
@@ -75,7 +82,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 80,
       cell: (row) => {
         const status = row.getValue();
-        return <StatusBadge type={status.toLowerCase()} />;
+        return (
+          <StatusBadge
+            type={status.toLowerCase()}
+            className={row.getValue() === "FINISHED" ? "pl-3" : ""}
+          />
+        );
+      },
+    }),
+    columnHelper.accessor("result", {
+      header: "Result",
+      id: "result",
+      size: 150,
+      cell: (row) => {
+        const result = row.getValue();
+        return <LevelCountsDisplay counts={result} />;
       },
     }),
     columnHelper.accessor("createdAt", {
@@ -148,9 +169,50 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
+    const statusCounts = jobConfig.jobExecutions.reduce(
+      (acc, je) => {
+        acc[je.status.toString()] = (acc[je.status.toString()] || 0) + 1;
+        return acc;
+      },
+      {
+        PENDING: 0,
+        ERROR: 0,
+        COMPLETED: 0,
+      } as Record<string, number>,
+    );
+
+    const result = [
+      {
+        level: "pending",
+        count: statusCounts.PENDING,
+        symbol: "🕒",
+        customNumberFormatter: compactNumberFormatter,
+      },
+      {
+        level: "error",
+        count: statusCounts.ERROR,
+        symbol: "❌",
+        customNumberFormatter: compactNumberFormatter,
+      },
+      {
+        level: "succeeded",
+        count: statusCounts.COMPLETED,
+        symbol: "✅",
+        customNumberFormatter: compactNumberFormatter,
+      },
+    ];
+
+    const finalStatus =
+      jobConfig.timeScope.length === 1 &&
+      jobConfig.timeScope[0] === "EXISTING" &&
+      !jobConfig.jobExecutions.some((je) => je.status === "PENDING") &&
+      jobConfig.jobExecutions.length > 0
+        ? "FINISHED"
+        : jobConfig.status;
+
     return {
       id: jobConfig.id,
-      status: jobConfig.status,
+      status: finalStatus,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
         ? {
@@ -162,6 +224,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       scoreName: jobConfig.scoreName,
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),
+      result: result,
     };
   };
 

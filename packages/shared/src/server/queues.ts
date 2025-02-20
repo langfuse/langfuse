@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { z } from "zod";
 import { eventTypes } from ".";
 import {
@@ -61,16 +62,55 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
-export const BatchActionProcessingEventSchema = z.object({
-  projectId: z.string(),
-  actionId: z.string(),
-  query: BatchActionQuerySchema,
-  tableName: z.nativeEnum(BatchExportTableName),
-  cutoffCreatedAt: z.date(),
-  targetId: z.string().optional(),
-  type: z.nativeEnum(BatchActionType),
-});
+export const BatchActionProcessingEventSchema = z.discriminatedUnion(
+  "actionId",
+  [
+    z.object({
+      actionId: z.literal("trace-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.nativeEnum(BatchExportTableName),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.nativeEnum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("trace-add-to-annotation-queue"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.nativeEnum(BatchExportTableName),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.nativeEnum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("eval-create"),
+      targetObject: z.enum(["trace", "dataset"]),
+      configId: z.string(),
+      projectId: z.string(),
+      cutoffCreatedAt: z.date(),
+      query: BatchActionQuerySchema,
+    }),
+  ],
+);
 
+export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
+  z.object({
+    configId: z.string(),
+    timestamp: z.date(),
+  }),
+).or(
+  TraceQueueEventSchema.and(
+    z.object({
+      timestamp: z.date(),
+      configId: z.string(),
+    }),
+  ),
+);
+
+export type CreateEvalQueueEventType = z.infer<
+  typeof CreateEvalQueueEventSchema
+>;
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
@@ -111,6 +151,7 @@ export enum QueueName {
   DataRetentionQueue = "data-retention-queue",
   DataRetentionProcessingQueue = "data-retention-processing-queue",
   BatchActionQueue = "batch-action-queue",
+  CreateEvalQueue = "create-eval-queue",
 }
 
 export enum QueueJobs {
@@ -131,6 +172,7 @@ export enum QueueJobs {
   DataRetentionJob = "data-retention-job",
   DataRetentionProcessingJob = "data-retention-processing-job",
   BatchActionProcessingJob = "batch-action-processing-job",
+  CreateEvalJob = "create-eval-job",
 }
 
 export type TQueueJobTypes = {
@@ -205,5 +247,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: BatchActionProcessingEventType;
     name: QueueJobs.BatchActionProcessingJob;
+  };
+  [QueueName.CreateEvalQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: CreateEvalQueueEventType;
+    name: QueueJobs.CreateEvalJob;
   };
 };

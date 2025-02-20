@@ -21,6 +21,7 @@ import {
   TraceQueueEventType,
   StorageService,
   StorageServiceFactory,
+  CreateEvalQueueEventType,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -36,6 +37,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   variableMapping,
+  JobTimeScope,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -66,16 +68,37 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 // there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   event,
+  enforcedJobTimeScope,
 }: {
-  event: TraceQueueEventType | DatasetRunItemUpsertEventType;
+  event:
+    | TraceQueueEventType
+    | DatasetRunItemUpsertEventType
+    | CreateEvalQueueEventType;
+  enforcedJobTimeScope?: JobTimeScope;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
-  const configs = await kyselyPrisma.$kysely
+  let configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .execute();
+    .where("project_id", "=", event.projectId);
+
+  if ("configId" in event) {
+    // if configid is set in the event, we only want to fetch the one config
+    configsQuery = configsQuery.where("id", "=", event.configId);
+  }
+
+  // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on configs,
+  // which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
+  if (enforcedJobTimeScope) {
+    configsQuery = configsQuery.where(
+      "time_scope",
+      "@>",
+      sql<string[]>`ARRAY[${enforcedJobTimeScope}]`,
+    );
+  }
+
+  const configs = await configsQuery.execute();
 
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);
@@ -99,7 +122,7 @@ export const createEvalJobs = async ({
     const traceExists = await checkTraceExists(
       event.projectId,
       event.traceId,
-      new Date(),
+      "timestamp" in event ? new Date(event.timestamp) : new Date(),
       config.target_object === "trace" ? validatedFilter : [],
     );
 
@@ -137,7 +160,6 @@ export const createEvalJobs = async ({
             AND dri.trace_id = ${event.traceId}
             ${condition}
         `);
-
         datasetItem = datasetItems.shift();
       }
     }
