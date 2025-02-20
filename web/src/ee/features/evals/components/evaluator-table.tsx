@@ -99,7 +99,7 @@ export default function EvaluatorTable({
     columnHelper.accessor("result", {
       header: "Result",
       id: "result",
-      size: 80,
+      size: 150,
       cell: (row) => {
         const result = row.getValue();
         return <LevelCountsDisplay counts={result} />;

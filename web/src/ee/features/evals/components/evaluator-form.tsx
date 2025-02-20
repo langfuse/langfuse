@@ -1,4 +1,4 @@
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -629,7 +629,10 @@ export const InnerEvalConfigForm = (props: {
                               htmlFor="newObjects"
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
-                              New objects
+                              New{" "}
+                              {form.watch("target") === "trace"
+                                ? "traces"
+                                : "dataset items"}
                             </label>
                           </div>
                         </div>
@@ -654,7 +657,10 @@ export const InnerEvalConfigForm = (props: {
                               htmlFor="existingObjects"
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
-                              Existing objects
+                              Existing{" "}
+                              {form.watch("target") === "trace"
+                                ? "traces"
+                                : "dataset items"}
                             </label>
                           </div>
                         </div>
@@ -686,8 +692,7 @@ export const InnerEvalConfigForm = (props: {
                         />
                       </FormControl>
                       <FormDescription>
-                        This will run on all future traces that match these
-                        filters
+                        {TimeScopeDescription(form.watch("timeScope"), "trace")}
                       </FormDescription>
                       <FormMessage />
                     </>
@@ -705,7 +710,10 @@ export const InnerEvalConfigForm = (props: {
                         />
                       </FormControl>
                       <FormDescription>
-                        This will run on all future dataset experiment runs
+                        {TimeScopeDescription(
+                          form.watch("timeScope"),
+                          "dataset_item",
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </>
@@ -1030,3 +1038,24 @@ function VariableMappingDescription(p: {
     </div>
   );
 }
+
+export const TimeScopeDescription = (
+  timeScope: ("NEW" | "EXISTING")[],
+  target: "trace" | "dataset_item",
+) => {
+  if (timeScope.length === 0) {
+    return "Select a time scope to run this configuration on.";
+  }
+  return (
+    <div>
+      This configuration will run on{" "}
+      {timeScope.includes("NEW") && timeScope.includes("EXISTING")
+        ? "all future and existing"
+        : timeScope.includes("NEW")
+          ? "all future"
+          : "all existing"}{" "}
+      {target === "trace" ? "traces" : "dataset items"} that match these filters
+      these filters
+    </div>
+  );
+};

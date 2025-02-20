@@ -199,6 +199,7 @@ export const handleBatchActionJob = async (
           timestamp: new Date(),
           name: QueueJobs.CreateEvalJob as const,
         });
+        count++;
       } else if (
         targetObject === "dataset" &&
         assertIsDatasetRunItemTableRecord(record)

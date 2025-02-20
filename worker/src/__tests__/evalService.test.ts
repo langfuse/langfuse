@@ -756,7 +756,7 @@ describe("eval service tests", () => {
       expect(jobs[0].end_time).not.toBeNull();
     }, 10_000);
 
-    test("does not create eval job for existing traces if time scope is EXISTING", async () => {
+    test("does not create eval job for existing traces if time scope is EXISTING but handler enforces NEW only", async () => {
       const traceId = randomUUID();
 
       const trace = createTrace({
