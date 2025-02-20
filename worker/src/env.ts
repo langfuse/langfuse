@@ -94,7 +94,7 @@ const EnvSchema = z.object({
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
-    .default(5),
+    .default(2),
   LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
