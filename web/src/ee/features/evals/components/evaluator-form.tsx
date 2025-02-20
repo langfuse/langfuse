@@ -1050,7 +1050,7 @@ export const TimeScopeDescription = (props: {
   timeScope: ("NEW" | "EXISTING")[] | undefined;
   target: "trace" | "dataset_item" | undefined;
 }) => {
-  if (props.timeScope && props.timeScope.length === 0) {
+  if (!props.timeScope || props.timeScope.length === 0) {
     return "Select a time scope to run this configuration on.";
   }
 
