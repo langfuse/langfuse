@@ -172,25 +172,25 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     const result = [
       {
         level: "pending",
-        count: jobConfig.jobExecutionsByState.filter(
-          (je) => je.status === "PENDING",
-        ).length,
+        count:
+          jobConfig.jobExecutionsByState.find((je) => je.status === "PENDING")
+            ?._count || 0,
         symbol: "🕒",
         customNumberFormatter: compactNumberFormatter,
       },
       {
         level: "error",
-        count: jobConfig.jobExecutionsByState.filter(
-          (je) => je.status === "ERROR",
-        ).length,
+        count:
+          jobConfig.jobExecutionsByState.find((je) => je.status === "ERROR")
+            ?._count || 0,
         symbol: "❌",
         customNumberFormatter: compactNumberFormatter,
       },
       {
         level: "succeeded",
-        count: jobConfig.jobExecutionsByState.filter(
-          (je) => je.status === "COMPLETED",
-        ).length,
+        count:
+          jobConfig.jobExecutionsByState.find((je) => je.status === "COMPLETED")
+            ?._count || 0,
         symbol: "✅",
         customNumberFormatter: compactNumberFormatter,
       },
