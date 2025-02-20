@@ -12,7 +12,7 @@ const entitlements = [
   "self-host-ui-customization",
   "self-host-allowed-organization-creators",
   "prompt-experiments",
-  "trace-deletion",
+  "trace-deletion", // Not in use anymore, but necessary to use the TableAction type.
   "audit-logs",
   "data-retention",
 ] as const;
@@ -25,6 +25,7 @@ const cloudAllPlansEntitlements: Entitlement[] = [
   "integration-posthog",
   "annotation-queues",
   "prompt-experiments",
+  "trace-deletion",
 ];
 
 const selfHostedAllPlansEntitlements: Entitlement[] = ["trace-deletion"];

@@ -11,7 +11,7 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { type ReactNode, useEffect } from "react";
+import { useEffect } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
@@ -34,13 +34,7 @@ export type EvaluatorDataRow = {
   }[];
 };
 
-export default function EvaluatorTable({
-  projectId,
-  menuItems,
-}: {
-  projectId: string;
-  menuItems?: ReactNode;
-}) {
+export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -236,7 +230,7 @@ export default function EvaluatorTable({
 
   return (
     <>
-      <DataTableToolbar columns={columns} actionButtons={menuItems} />
+      <DataTableToolbar columns={columns} />
       <DataTable
         columns={columns}
         data={

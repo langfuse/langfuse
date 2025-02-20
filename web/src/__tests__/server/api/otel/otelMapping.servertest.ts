@@ -334,6 +334,36 @@ describe("OTel Resource Span Mapping", () => {
 
     it.each([
       [
+        "should extract promptName on observation from langfuse.prompt.name",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.prompt.name",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "promptName",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract public on trace from langfuse.public",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.public",
+          otelAttributeValue: { boolValue: true },
+          entityAttributeKey: "public",
+          entityAttributeValue: true,
+        },
+      ],
+      [
+        "should not treat truthy values as public true",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.public",
+          otelAttributeValue: { stringValue: "false" },
+          entityAttributeKey: "public",
+          entityAttributeValue: false,
+        },
+      ],
+      [
         "should extract userId on trace from user.id",
         {
           entity: "trace",
@@ -523,6 +553,34 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "output",
           entityAttributeValue: "Observing LLMs",
+        },
+      ],
+      [
+        "should map mlflow.spanInputs to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "mlflow.spanInputs",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              question: "What is LLM Observability?",
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            question: "What is LLM Observability?",
+          }),
+        },
+      ],
+      [
+        "should map model to model",
+        {
+          entity: "observation",
+          otelAttributeKey: "model",
+          otelAttributeValue: {
+            stringValue: "gpt-4o-mini",
+          },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gpt-4o-mini",
         },
       ],
       [

@@ -9,7 +9,6 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
-  getClickhouseEntityType,
   getEventLogByProjectAndEntityId,
   getObservationById,
   getScoreById,

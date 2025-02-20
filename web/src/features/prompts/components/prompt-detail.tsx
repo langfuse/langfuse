@@ -3,7 +3,11 @@ import { useRouter } from "next/router";
 import { NumberParam, useQueryParam } from "use-query-params";
 import type { z } from "zod";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -151,10 +155,24 @@ export const PromptDetail = () => {
             href: `/project/${projectId}/prompts/`,
           },
           {
-            name: `${prompt.name} (latest)`,
+            name: prompt.name,
             href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
           },
         ],
+        tabsComponent: (
+          <TabsBar value="editor">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="editor">Editor</TabsBarTrigger>
+              <TabsBarTrigger value="metrics" asChild>
+                <Link
+                  href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
+                >
+                  Metrics
+                </Link>
+              </TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
+        ),
         actionButtonsRight: (
           <>
             <JumpToPlaygroundButton
@@ -236,18 +254,6 @@ export const PromptDetail = () => {
               path={(entry) => `/project/${projectId}/prompts/${entry.id}`}
               listKey="prompts"
             />
-            <Tabs value="editor">
-              <TabsList>
-                <TabsTrigger value="editor">Editor</TabsTrigger>
-                <TabsTrigger value="metrics" asChild>
-                  <Link
-                    href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/metrics`}
-                  >
-                    Metrics
-                  </Link>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
           </>
         ),
       }}

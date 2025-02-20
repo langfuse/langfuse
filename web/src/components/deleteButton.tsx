@@ -13,6 +13,7 @@ import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 interface DeleteButtonProps {
   itemId: string;
@@ -23,6 +24,7 @@ interface DeleteButtonProps {
   type: "trace" | "dataset";
   redirectUrl?: string;
   deleteConfirmation?: string;
+  icon?: boolean;
 }
 
 export function DeleteButton({
@@ -34,6 +36,7 @@ export function DeleteButton({
   type,
   redirectUrl,
   deleteConfirmation,
+  icon = false,
 }: DeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -44,6 +47,11 @@ export function DeleteButton({
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       setIsDeleted(true);
+      showSuccessToast({
+        title: "Trace deleted",
+        description:
+          "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+      });
       !isTableAction && redirectUrl
         ? void router.push(redirectUrl)
         : invalidateFunc();
@@ -62,23 +70,31 @@ export function DeleteButton({
     <Popover key={itemId}>
       <PopoverTrigger asChild>
         <Button
-          variant={isTableAction ? "ghost" : "outline"}
-          size={isTableAction ? "xs" : "icon"}
+          variant={icon ? "outline" : "ghost"}
+          size={icon ? "icon" : "default"}
           disabled={!hasAccess}
-          onClick={() =>
+          onClick={(e) => {
+            e.stopPropagation();
             type === "trace"
               ? capture("trace:delete_form_open", {
                   source: isTableAction ? "table-single-row" : "trace detail",
                 })
               : capture("datasets:delete_form_open", {
                   source: "dataset",
-                })
-          }
+                });
+          }}
         >
-          <TrashIcon className="h-4 w-4" />
+          {icon ? (
+            <TrashIcon className="h-4 w-4" />
+          ) : (
+            <>
+              <TrashIcon className="mr-2 h-4 w-4" />
+              Delete
+            </>
+          )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent>
+      <PopoverContent onClick={(e) => e.stopPropagation()}>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action cannot be undone and removes all the data associated with

@@ -54,7 +54,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -67,6 +67,13 @@ import {
   LevelCountsDisplay,
   type LevelCount,
 } from "@/src/components/level-counts-display";
+import {
+  DropdownMenuContent,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { Button } from "@/src/components/ui/button";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -271,7 +278,8 @@ export default function TracesTable({
     onSuccess: () => {
       showSuccessToast({
         title: "Traces deleted",
-        description: "Selected traces will be deleted. This may take a minute.",
+        description:
+          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
       });
     },
     onSettled: () => {
@@ -335,8 +343,6 @@ export default function TracesTable({
   };
 
   const tableActions: TableAction[] = [
-    // temporary: hide if no entitlement until we support trace deletion on cloud again
-    // https://github.com/orgs/langfuse/discussions/5313
     ...(hasTraceDeletionEntitlement
       ? [
           {
@@ -344,7 +350,7 @@ export default function TracesTable({
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description:
-              "This action permanently deletes traces and cannot be undone.",
+              "This action permanently deletes traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.",
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
@@ -825,14 +831,25 @@ export default function TracesTable({
         return traceId &&
           typeof traceId === "string" &&
           hasTraceDeletionEntitlement ? (
-          <DeleteButton
-            itemId={traceId}
-            projectId={projectId}
-            scope="traces:delete"
-            invalidateFunc={() => void utils.traces.all.invalidate()}
-            type="trace"
-            isTableAction={true}
-          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem asChild>
+                <DeleteButton
+                  itemId={traceId}
+                  projectId={projectId}
+                  scope="traces:delete"
+                  invalidateFunc={() => void utils.traces.all.invalidate()}
+                  type="trace"
+                  isTableAction={true}
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : undefined;
       },
     },

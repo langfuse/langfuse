@@ -383,7 +383,9 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: `${trace.data.name}: ${trace.data.id}`,
+        title: trace.data.name
+          ? `${trace.data.name}: ${trace.data.id}`
+          : trace.data.id,
         itemType: "TRACE",
         breadcrumb: [
           {
@@ -437,6 +439,7 @@ export function TracePage({
                 type="trace"
                 redirectUrl={`/project/${router.query.projectId as string}/traces`}
                 deleteConfirmation={trace.data.name ?? ""}
+                icon
               />
             )}
           </>
