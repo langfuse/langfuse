@@ -63,10 +63,20 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
+  "cloud:lite": {
+    entitlements: [...cloudAllPlansEntitlements],
+    entitlementLimits: {
+      "organization-member-count": false,
+      "data-access-days": 90,
+      "annotation-queue-count": 3,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
   "cloud:pro": {
     entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
-      "annotation-queue-count": 3,
+      "annotation-queue-count": false,
       "organization-member-count": false,
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
