@@ -169,34 +169,28 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
-    const statusCounts = jobConfig.jobExecutions.reduce(
-      (acc, je) => {
-        acc[je.status.toString()] = (acc[je.status.toString()] || 0) + 1;
-        return acc;
-      },
-      {
-        PENDING: 0,
-        ERROR: 0,
-        COMPLETED: 0,
-      } as Record<string, number>,
-    );
-
     const result = [
       {
         level: "pending",
-        count: statusCounts.PENDING,
+        count: jobConfig.jobExecutionsByState.filter(
+          (je) => je.status === "PENDING",
+        ).length,
         symbol: "🕒",
         customNumberFormatter: compactNumberFormatter,
       },
       {
         level: "error",
-        count: statusCounts.ERROR,
+        count: jobConfig.jobExecutionsByState.filter(
+          (je) => je.status === "ERROR",
+        ).length,
         symbol: "❌",
         customNumberFormatter: compactNumberFormatter,
       },
       {
         level: "succeeded",
-        count: statusCounts.COMPLETED,
+        count: jobConfig.jobExecutionsByState.filter(
+          (je) => je.status === "COMPLETED",
+        ).length,
         symbol: "✅",
         customNumberFormatter: compactNumberFormatter,
       },
@@ -205,8 +199,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     const finalStatus =
       jobConfig.timeScope.length === 1 &&
       jobConfig.timeScope[0] === "EXISTING" &&
-      !jobConfig.jobExecutions.some((je) => je.status === "PENDING") &&
-      jobConfig.jobExecutions.length > 0
+      !jobConfig.jobExecutionsByState.some((je) => je.status === "PENDING") &&
+      jobConfig.jobExecutionsByState.length > 0
         ? "FINISHED"
         : jobConfig.status;
 

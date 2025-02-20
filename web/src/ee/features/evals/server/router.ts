@@ -161,7 +161,6 @@ export const evalRouter = createTRPCRouter({
         },
         include: {
           evalTemplate: true,
-          JobExecution: true,
         },
         orderBy: {
           status: "asc",
@@ -176,10 +175,24 @@ export const evalRouter = createTRPCRouter({
           jobType: "EVAL",
         },
       });
+
+      const jobExecutionsByState = await ctx.prisma.jobExecution.groupBy({
+        where: {
+          jobConfiguration: {
+            projectId: input.projectId,
+            jobType: "EVAL",
+          },
+        },
+        by: ["status", "jobConfigurationId"],
+        _count: true,
+      });
+
       return {
         configs: configs.map((config) => ({
           ...config,
-          jobExecutions: config.JobExecution,
+          jobExecutionsByState: jobExecutionsByState.filter(
+            (je) => je.jobConfigurationId === config.id,
+          ),
         })),
         totalCount: count,
       };
