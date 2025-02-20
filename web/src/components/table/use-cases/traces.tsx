@@ -56,7 +56,6 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { Separator } from "@/src/components/ui/separator";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -64,6 +63,10 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
+import {
+  LevelCountsDisplay,
+  type LevelCount,
+} from "@/src/components/level-counts-display";
 import {
   DropdownMenuContent,
   DropdownMenu,
@@ -736,27 +739,15 @@ export default function TracesTable({
           row.getValue("levelCounts");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
 
-        const nonZeroCounts = Object.entries(value).filter(
-          ([_, count]) => count > 0,
+        const counts: LevelCount[] = Object.entries(value).map(
+          ([level, count]) => ({
+            level: formatAsLabel(level),
+            count,
+            symbol: LevelSymbols[formatAsLabel(level)],
+          }),
         );
 
-        return (
-          <div className="flex min-h-6 flex-row gap-2 overflow-x-auto whitespace-nowrap">
-            {nonZeroCounts.map(([level, count], index) => (
-              <React.Fragment key={level}>
-                <div className="flex min-w-6 flex-row gap-2">
-                  <span className="text-xs">
-                    {LevelSymbols[formatAsLabel(level)]}{" "}
-                    {numberFormatter(count, 0)}
-                  </span>
-                </div>
-                {index < nonZeroCounts.length - 1 && (
-                  <Separator orientation="vertical" className="h-5" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        );
+        return <LevelCountsDisplay counts={counts} />;
       },
       enableHiding: true,
     },

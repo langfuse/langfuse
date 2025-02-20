@@ -3,7 +3,7 @@
 
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["tracing", "views", "relationJoins", "metrics"]
+  previewFeatures = ["views", "relationJoins", "metrics"]
 }
 
 datasource db {
@@ -853,6 +853,7 @@ model JobConfiguration {
   variableMapping Json           @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
+  timeScope       String[]       @default(["NEW"]) @map("time_scope")
   JobExecution    JobExecution[]
 
   @@index([projectId, id])

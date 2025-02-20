@@ -17,7 +17,10 @@ export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
-    await createEvalJobs({ event: job.data.payload });
+    await createEvalJobs({
+      event: job.data.payload,
+      enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
+    });
     return true;
   } catch (e) {
     logger.error(
@@ -33,11 +36,32 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>,
 ) => {
   try {
-    await createEvalJobs({ event: job.data.payload });
+    await createEvalJobs({
+      event: job.data.payload,
+      enforcedJobTimeScope: "NEW", // we must not execute evals which are intended for existing data only.
+    });
     return true;
   } catch (e) {
     logger.error(
       `Failed job Evaluation for dataset item: ${job.data.payload.datasetItemId}`,
+      e,
+    );
+    traceException(e);
+    throw e;
+  }
+};
+
+export const evalJobCreatorQueueProcessor = async (
+  job: Job<TQueueJobTypes[QueueName.CreateEvalQueue]>,
+) => {
+  try {
+    await createEvalJobs({
+      event: job.data.payload,
+    });
+    return true;
+  } catch (e) {
+    logger.error(
+      `Failed to create evaluation jobs: ${JSON.stringify(job.data.payload)}`,
       e,
     );
     traceException(e);

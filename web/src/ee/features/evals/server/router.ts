@@ -13,24 +13,30 @@ import {
   ChatMessageRole,
   paginationZod,
   type JobConfiguration,
-  JobConfigState,
   JobType,
   Prisma,
+  TimeScopeSchema,
+  JobConfigState,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   decryptAndParseExtraHeaders,
   fetchLLMCompletion,
+  getQueue,
   getScoresByIds,
-  LLMApiKeySchema,
   logger,
+  QueueName,
+  QueueJobs,
+  LLMApiKeySchema,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
+import { v4 as uuidv4 } from "uuid";
+import { env } from "@/src/env.mjs";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -93,11 +99,12 @@ const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(),
+  target: z.string(z.enum(["trace", "dataset-run-item"])),
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
+  timeScope: TimeScopeSchema,
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -107,9 +114,26 @@ const UpdateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.nativeEnum(EvaluatorStatus).optional(),
+  timeScope: TimeScopeSchema.optional(),
 });
 
 export const evalRouter = createTRPCRouter({
+  globalJobConfigs: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+      return env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT;
+    }),
   allConfigs: protectedProjectProcedure
     .input(
       z.object({
@@ -137,6 +161,7 @@ export const evalRouter = createTRPCRouter({
         },
         include: {
           evalTemplate: true,
+          JobExecution: true,
         },
         orderBy: {
           status: "asc",
@@ -152,7 +177,10 @@ export const evalRouter = createTRPCRouter({
         },
       });
       return {
-        configs: configs,
+        configs: configs.map((config) => ({
+          ...config,
+          jobExecutions: config.JobExecution,
+        })),
         totalCount: count,
       };
     }),
@@ -479,8 +507,17 @@ export const evalRouter = createTRPCRouter({
           throw new Error("Template not found");
         }
 
+        const jobId = uuidv4();
+        await auditLog({
+          session: ctx.session,
+          resourceType: "job",
+          resourceId: jobId,
+          action: "create",
+        });
+
         const job = await ctx.prisma.jobConfiguration.create({
           data: {
+            id: jobId,
             projectId: input.projectId,
             jobType: "EVAL",
             evalTemplateId: input.evalTemplateId,
@@ -491,14 +528,42 @@ export const evalRouter = createTRPCRouter({
             sampling: input.sampling,
             delay: input.delay,
             status: "ACTIVE",
+            timeScope: input.timeScope,
           },
         });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "job",
-          resourceId: job.id,
-          action: "create",
-        });
+
+        if (input.timeScope.includes("EXISTING")) {
+          logger.info(
+            `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
+          );
+          const batchJobQueue = getQueue(QueueName.BatchActionQueue);
+          if (!batchJobQueue) {
+            throw new Error("Batch job queue not found");
+          }
+          await batchJobQueue.add(
+            QueueJobs.BatchActionProcessingJob,
+            {
+              name: QueueJobs.BatchActionProcessingJob,
+              timestamp: new Date(),
+              id: uuidv4(),
+              payload: {
+                projectId: input.projectId,
+                actionId: "eval-create",
+                configId: job.id,
+                cutoffCreatedAt: new Date(),
+                targetObject: input.target,
+                query: {
+                  where: input.filter ?? [],
+                  orderBy: {
+                    column: "timestamp",
+                    order: "DESC",
+                  },
+                },
+              },
+            },
+            { delay: input.delay },
+          );
+        }
       } catch (e) {
         logger.error(e);
         throw e;
@@ -625,32 +690,81 @@ export const evalRouter = createTRPCRouter({
         config: UpdateEvalJobSchema,
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ ctx, input: { config, projectId, evalConfigId } }) => {
       throwIfNoEntitlement({
         entitlement: "model-based-evaluations",
-        projectId: input.projectId,
+        projectId: projectId,
         sessionUser: ctx.session.user,
       });
       throwIfNoProjectAccess({
         session: ctx.session,
-        projectId: input.projectId,
+        projectId: projectId,
         scope: "evalJob:CUD",
       });
 
-      await ctx.prisma.jobConfiguration.update({
+      const existingJob = await ctx.prisma.jobConfiguration.findUnique({
         where: {
-          id: input.evalConfigId,
-          projectId: input.projectId,
+          id: evalConfigId,
+          projectId: projectId,
         },
-        data: input.config,
       });
+
+      if (
+        existingJob?.timeScope.includes("EXISTING") &&
+        !config.timeScope?.includes("EXISTING")
+      ) {
+        throw new Error(
+          "The evaluator ran on existing traces already. This cannot be changed anymore.",
+        );
+      }
 
       await auditLog({
         session: ctx.session,
         resourceType: "job",
-        resourceId: input.evalConfigId,
+        resourceId: evalConfigId,
         action: "update",
       });
+
+      await ctx.prisma.jobConfiguration.update({
+        where: {
+          id: evalConfigId,
+          projectId: projectId,
+        },
+        data: config,
+      });
+
+      if (config.timeScope?.includes("EXISTING")) {
+        logger.info(
+          `Applying to historical traces for job ${evalConfigId} and project ${projectId}`,
+        );
+        const batchJobQueue = getQueue(QueueName.BatchActionQueue);
+        if (!batchJobQueue) {
+          throw new Error("Batch job queue not found");
+        }
+        await batchJobQueue.add(
+          QueueJobs.BatchActionProcessingJob,
+          {
+            name: QueueJobs.BatchActionProcessingJob,
+            timestamp: new Date(),
+            id: uuidv4(),
+            payload: {
+              projectId: projectId,
+              actionId: "eval-create",
+              configId: evalConfigId,
+              cutoffCreatedAt: new Date(),
+              targetObject: existingJob?.targetObject,
+              query: {
+                where: config.filter ?? [],
+                orderBy: {
+                  column: "timestamp",
+                  order: "DESC",
+                },
+              },
+            },
+          },
+          { delay: config.delay },
+        );
+      }
     }),
 
   getLogs: protectedProjectProcedure

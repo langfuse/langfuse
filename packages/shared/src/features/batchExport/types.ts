@@ -21,6 +21,7 @@ export enum BatchExportTableName {
   Sessions = "sessions",
   Traces = "traces",
   Generations = "generations",
+  DatasetRunItems = "dataset_run_items",
 }
 
 export const exportOptions: Record<

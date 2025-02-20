@@ -62,14 +62,14 @@ function MinioCompletionHandler() {
 }
 
 function ClickHouseCompletionHandler() {
-  return http.all("http://localhost:8123*", async (request) => {
+  return http.all("http://localhost:8123*", async () => {
     logger.info("clickhouse handler");
     return passthrough();
   });
 }
 
 function AzuriteCompletionHandler() {
-  return http.all("http://localhost:10000*", async (request) => {
+  return http.all("http://localhost:10000*", async () => {
     logger.info("handle azurite");
     return passthrough();
   });
