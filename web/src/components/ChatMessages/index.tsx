@@ -2,7 +2,7 @@ import { PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import { ChatMessageRole } from "@langfuse/shared";
+import { ChatMessageRole, SYSTEM_ROLES } from "@langfuse/shared";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
 
@@ -57,7 +57,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
           return;
         }
         // prevent reordering system messages
-        if (messages[newIndex].role === ChatMessageRole.System) {
+        if (SYSTEM_ROLES.includes(messages[newIndex].role)) {
           return;
         }
         const newMessages = arrayMove(messages, oldIndex, newIndex);
