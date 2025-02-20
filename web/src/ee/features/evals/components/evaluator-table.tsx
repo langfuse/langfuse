@@ -200,7 +200,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       jobConfig.timeScope.length === 1 &&
       jobConfig.timeScope[0] === "EXISTING" &&
       !jobConfig.jobExecutionsByState.some((je) => je.status === "PENDING") &&
-      jobConfig.jobExecutionsByState.length > 0
+      jobConfig.jobExecutionsByState.reduce((acc, je) => acc + je._count, 0) > 0
         ? "FINISHED"
         : jobConfig.status;
 
