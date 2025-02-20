@@ -121,6 +121,17 @@ export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
       return env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT;
     }),
   allConfigs: protectedProjectProcedure
