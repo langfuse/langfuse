@@ -571,6 +571,7 @@ export type TraceSession = {
     project_id: string;
     bookmarked: Generated<boolean>;
     public: Generated<boolean>;
+    environment: Generated<string>;
 };
 export type TraceView = {
     id: string;
