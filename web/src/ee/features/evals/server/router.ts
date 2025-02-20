@@ -181,7 +181,9 @@ export const evalRouter = createTRPCRouter({
           jobConfiguration: {
             projectId: input.projectId,
             jobType: "EVAL",
+            id: { in: configs.map((c) => c.id) },
           },
+          projectId: input.projectId,
         },
         by: ["status", "jobConfigurationId"],
         _count: true,
