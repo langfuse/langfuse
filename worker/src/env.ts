@@ -48,7 +48,7 @@ const EnvSchema = z.object({
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
     .positive()
-    .default(100_000),
+    .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce

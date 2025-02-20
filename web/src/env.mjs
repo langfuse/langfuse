@@ -284,7 +284,7 @@ export const env = createEnv({
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z
       .number()
       .positive()
-      .default(100_000),
+      .default(50_000),
   },
 
   /**
