@@ -20,11 +20,16 @@ export function getOrganizationPlanServerSide(
         switch (cloudConfig.plan) {
           case "Hobby":
             return "cloud:hobby";
+          case "Lite":
+            return "cloud:lite";
           case "Pro":
             return "cloud:pro";
           case "Team":
           case "Enterprise":
             return "cloud:team";
+          default:
+            const exhaustiveCheck: never = cloudConfig.plan;
+            throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
         }
       }
       // stripe plan via product id
