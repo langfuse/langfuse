@@ -7,6 +7,7 @@ const entitlements = [
   "model-based-evaluations",
   "rbac-project-roles",
   "cloud-billing",
+  "cloud-multi-tenant-sso",
   "integration-posthog",
   "annotation-queues",
   "self-host-ui-customization",
@@ -89,6 +90,7 @@ export const entitlementAccess: Record<
       "rbac-project-roles",
       "audit-logs",
       "data-retention",
+      "cloud-multi-tenant-sso",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

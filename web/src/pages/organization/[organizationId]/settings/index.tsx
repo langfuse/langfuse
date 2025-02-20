@@ -9,14 +9,18 @@ import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
+import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+import { isCloudPlan } from "@langfuse/shared";
 
 const OrgSettingsPage = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
   const { page } = router.query;
   const showBillingSettings = useHasEntitlement("cloud-billing");
+  const plan = usePlan();
+  const isLangfuseCloud = isCloudPlan(plan);
 
   if (!organization) return null;
 
@@ -75,6 +79,12 @@ const OrgSettingsPage = () => {
             slug: "billing",
             content: <BillingSettings />,
             show: showBillingSettings,
+          },
+          {
+            title: "SSO",
+            slug: "sso",
+            content: <SSOSettings />,
+            show: isLangfuseCloud,
           },
           {
             title: "Projects",
