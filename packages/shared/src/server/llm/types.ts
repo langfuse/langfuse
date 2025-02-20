@@ -4,6 +4,9 @@ import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSch
 import { TokenCountDelegate } from "../ingestion/processEventBatch";
 import { AuthHeaderValidVerificationResult } from "../auth/types";
 
+/* eslint-disable no-unused-vars */
+// disable lint as this is exported and used in web/worker
+
 export type PromptVariable = { name: string; value: string; isUsed: boolean };
 
 export type ChatMessage = {
