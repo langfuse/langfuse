@@ -13,7 +13,7 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
-import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -89,7 +89,7 @@ export default function DatasetItems() {
                   </div>
                   <div>
                     <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownOrJsonView
+                    <MarkdownJsonView
                       content={dataset.data?.metadata ?? null}
                     />
                   </div>

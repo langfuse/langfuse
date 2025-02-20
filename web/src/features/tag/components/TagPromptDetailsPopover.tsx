@@ -77,6 +77,7 @@ export function TagPromptDetailsPopover({
 
   return (
     <TagManager
+      itemName="prompt"
       tags={tags}
       allTags={availableTags}
       hasAccess={hasAccess}

@@ -1,5 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import { TagIcon } from "lucide-react";
 import React from "react";
 
 export const TagButton: React.FC<{
@@ -9,17 +10,16 @@ export const TagButton: React.FC<{
 }> = React.memo(({ tag, loading, viewOnly = false }) => (
   <Button
     key={tag}
-    variant="secondary"
-    size="xs"
+    variant="tertiary"
+    size="icon-sm"
     disabled={viewOnly}
-    className={cn(
-      "text-xs font-semibold",
-      !viewOnly && "hover:bg-background",
-      viewOnly && "cursor-default",
-    )}
+    className={cn(viewOnly && "cursor-default", "h-fit min-h-6")}
     loading={loading}
   >
-    {tag}
+    <TagIcon className="mr-1 h-3.5 w-3.5" />
+    <span className="w-full min-w-6 whitespace-normal break-all text-xs sm:min-w-0 sm:break-normal sm:break-words">
+      {tag}
+    </span>
   </Button>
 ));
 TagButton.displayName = "TagButton";

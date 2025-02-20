@@ -46,7 +46,7 @@ export const StatusBadge = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-sm px-2 py-1 text-xs",
+        "inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs",
         badgeColor,
         className,
       )}

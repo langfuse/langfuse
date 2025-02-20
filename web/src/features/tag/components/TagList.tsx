@@ -1,16 +1,19 @@
 import { Button } from "@/src/components/ui/button";
 import { TagButton } from "@/src/features/tag/components/TagButton";
+import { TagIcon } from "lucide-react";
 
 type TagListProps = {
   selectedTags: string[];
   isLoading: boolean;
   viewOnly?: boolean;
+  showCreateOnlyOnHover?: boolean;
 };
 
 const TagList = ({
   selectedTags,
   isLoading,
   viewOnly = false,
+  showCreateOnlyOnHover = false,
 }: TagListProps) => {
   return selectedTags.length > 0 || viewOnly ? (
     selectedTags.map((tag) => (
@@ -18,11 +21,11 @@ const TagList = ({
     ))
   ) : (
     <Button
-      variant="outline"
-      size="xs"
-      className="text-xs font-semibold opacity-0 hover:bg-background hover:opacity-100"
+      variant="tertiary"
+      size="icon-xs"
+      className={showCreateOnlyOnHover ? "opacity-0 hover:opacity-100" : ""}
     >
-      Add tag
+      <TagIcon className="h-3.5 w-3.5" />
     </Button>
   );
 };

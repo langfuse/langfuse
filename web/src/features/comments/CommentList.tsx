@@ -125,7 +125,7 @@ export function CommentList({
         )}
       >
         <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-xs text-muted-foreground opacity-60">
+        <span className="text-sm text-muted-foreground opacity-60">
           Loading comments...
         </span>
       </div>
@@ -138,9 +138,11 @@ export function CommentList({
       )}
       {hasWriteAccess && (
         <div className="mx-2 mb-2 mt-2 rounded-md border">
-          <div className="flex flex-row border-b px-3 py-1 text-xs">
+          <div className="flex flex-row border-b px-3 py-1 text-sm">
             <div className="flex-1 font-medium">New comment</div>
-            <div className="text-muted-foreground"> supports markdown</div>
+            <div className="text-xs text-muted-foreground">
+              supports markdown
+            </div>
             <BsMarkdown className="ml-2 h-4 w-4 text-muted-foreground" />
           </div>
           <Form {...form}>
@@ -155,10 +157,10 @@ export function CommentList({
                         placeholder="Add comment..."
                         {...field}
                         onKeyDown={handleKeyDown} // cmd+enter to submit
-                        className="border-none text-xs focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                        className="border-none text-sm focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
                       />
                     </FormControl>
-                    <FormMessage className="ml-2 text-xs" />
+                    <FormMessage className="ml-2 text-sm" />
                   </FormItem>
                 )}
               />
@@ -199,13 +201,13 @@ export function CommentList({
                   : (comment.authorUserId ?? "U")}
               </AvatarFallback>
             </Avatar>
-            <div className="relative rounded-md border">
-              <div className="flex h-8 flex-row items-center justify-between border-b px-3 py-1 text-xs">
+            <div className="relative rounded-md">
+              <div className="flex h-8 flex-row items-center justify-between px-1 py-1 text-sm">
                 <div className="font-medium">
                   {comment.authorUserName ?? comment.authorUserId ?? "User"}
                 </div>
                 <div className="flex flex-row items-center gap-2">
-                  <div className="text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     {comment.timestamp}
                   </div>
                   <div className="hidden min-h-6 justify-end group-hover:flex">
@@ -213,7 +215,7 @@ export function CommentList({
                       <Button
                         type="button"
                         size="icon-xs"
-                        variant="destructive-secondary"
+                        variant="destructive"
                         title="Delete comment"
                         loading={deleteCommentMutation.isLoading}
                         className="-mr-2"
@@ -237,10 +239,7 @@ export function CommentList({
                   </div>
                 </div>
               </div>
-              <MarkdownView
-                markdown={comment.content}
-                className="select-text border-none text-xs"
-              />
+              <MarkdownView markdown={comment.content} />
             </div>
           </div>
         ))}

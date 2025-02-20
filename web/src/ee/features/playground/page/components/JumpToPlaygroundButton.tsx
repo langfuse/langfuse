@@ -89,7 +89,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     >
       <span>
         <Terminal className="h-4 w-4" />
-        <span className="ml-2">
+        <span className="hidden md:ml-2 md:inline">
           {props.source === "generation" ? "Test in playground" : "Playground"}
         </span>
       </span>

@@ -59,16 +59,15 @@ export function DeletePromptVersion({
     >
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           type="button"
-          size="icon"
-          className="h-7 w-7 px-0"
           disabled={!hasAccess}
           onClick={(event) => {
             event.stopPropagation();
           }}
         >
-          <Trash className="h-4 w-4" />
+          <Trash className="mr-2 h-4 w-4" />
+          Delete version
         </Button>
       </PopoverTrigger>
       <PopoverContent>

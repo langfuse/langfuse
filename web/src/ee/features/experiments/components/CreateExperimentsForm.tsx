@@ -250,7 +250,7 @@ export const CreateExperimentsForm = ({
       prompt.type === PromptType.Text
         ? (prompt?.prompt?.toString() ?? "")
         : JSON.stringify(prompt?.prompt),
-    );
+    ).uniqueMatches;
   }, [promptId, promptMeta.data]);
 
   useEffect(() => {

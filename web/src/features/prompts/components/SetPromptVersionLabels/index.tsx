@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-
-import { PlusIcon, TagIcon } from "lucide-react";
-
+import { PencilIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   InputCommand,
@@ -101,9 +99,7 @@ export function SetPromptVersionLabels({
     >
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7 px-0"
+          variant="ghost"
           aria-label="Set prompt labels"
           title="Set prompt labels"
           disabled={!hasAccess}
@@ -111,7 +107,8 @@ export function SetPromptVersionLabels({
             event.stopPropagation();
           }}
         >
-          <TagIcon className="h-4 w-4" />
+          <PencilIcon className="mr-2 h-4 w-4" />
+          Edit version labels
         </Button>
       </PopoverTrigger>
       <PopoverContent>
