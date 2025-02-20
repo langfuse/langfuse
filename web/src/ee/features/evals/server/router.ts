@@ -36,6 +36,7 @@ import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
+import { env } from "@/src/env.mjs";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -117,6 +118,11 @@ const UpdateEvalJobSchema = z.object({
 });
 
 export const evalRouter = createTRPCRouter({
+  globalJobConfigs: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      return env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT;
+    }),
   allConfigs: protectedProjectProcedure
     .input(
       z.object({

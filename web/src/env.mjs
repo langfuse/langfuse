@@ -281,6 +281,10 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_INIT_USER_NAME: z.string().optional(),
     LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
+    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z
+      .number()
+      .positive()
+      .default(100_000),
   },
 
   /**
@@ -377,9 +381,11 @@ export const env = createEnv({
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
     AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING:
-      process.env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING ?? process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING, // fallback on old env var
+      process.env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING ??
+      process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING, // fallback on old env var
     AUTH_AZURE_AD_CLIENT_AUTH_METHOD:
-      process.env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD ?? process.env.AUTH_AZURE_CLIENT_AUTH_METHOD, // fallback on old env var
+      process.env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD ??
+      process.env.AUTH_AZURE_CLIENT_AUTH_METHOD, // fallback on old env var
     AUTH_AZURE_AD_CHECKS:
       process.env.AUTH_AZURE_AD_CHECKS ?? process.env.AUTH_AZURE_CHECKS, // fallback on old env var
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
@@ -543,6 +549,8 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
+      process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

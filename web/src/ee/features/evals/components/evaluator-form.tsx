@@ -67,6 +67,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/src/components/ui/dialog";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -692,7 +693,11 @@ export const InnerEvalConfigForm = (props: {
                         />
                       </FormControl>
                       <FormDescription>
-                        {TimeScopeDescription(form.watch("timeScope"), "trace")}
+                        <TimeScopeDescription
+                          projectId={props.projectId}
+                          timeScope={form.watch("timeScope")}
+                          target="trace"
+                        />
                       </FormDescription>
                       <FormMessage />
                     </>
@@ -710,10 +715,11 @@ export const InnerEvalConfigForm = (props: {
                         />
                       </FormControl>
                       <FormDescription>
-                        {TimeScopeDescription(
-                          form.watch("timeScope"),
-                          "dataset_item",
-                        )}
+                        <TimeScopeDescription
+                          projectId={props.projectId}
+                          timeScope={form.watch("timeScope")}
+                          target="dataset_item"
+                        />
                       </FormDescription>
                       <FormMessage />
                     </>
@@ -1039,23 +1045,31 @@ function VariableMappingDescription(p: {
   );
 }
 
-export const TimeScopeDescription = (
-  timeScope: ("NEW" | "EXISTING")[],
-  target: "trace" | "dataset_item",
-) => {
-  if (timeScope.length === 0) {
+export const TimeScopeDescription = (props: {
+  projectId: string;
+  timeScope: ("NEW" | "EXISTING")[] | undefined;
+  target: "trace" | "dataset_item" | undefined;
+}) => {
+  if (props.timeScope && props.timeScope.length === 0) {
     return "Select a time scope to run this configuration on.";
   }
+
+  const globalConfig = api.evals.globalJobConfigs.useQuery({
+    projectId: props.projectId,
+  });
   return (
     <div>
       This configuration will run on{" "}
-      {timeScope.includes("NEW") && timeScope.includes("EXISTING")
+      {props.timeScope?.includes("NEW") && props.timeScope?.includes("EXISTING")
         ? "all future and existing"
-        : timeScope.includes("NEW")
+        : props.timeScope?.includes("NEW")
           ? "all future"
           : "all existing"}{" "}
-      {target === "trace" ? "traces" : "dataset items"} that match these filters
-      these filters
+      {props.target === "trace" ? "traces" : "dataset items"} that match these
+      filters.{" "}
+      {globalConfig.data && props.timeScope?.includes("EXISTING")
+        ? `We execute the evaluation on up to ${compactNumberFormatter(globalConfig.data)} historic evaluations.`
+        : null}
     </div>
   );
 };
