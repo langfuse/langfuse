@@ -144,7 +144,7 @@ export const projectDeleteProcessor: Processor = async (
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025" || e.code === "P2016") {
-        logger.warning(
+        logger.warn(
           `Tried to delete project ${projectId} in org ${orgId}, but it does not exist`,
         );
         return;
