@@ -28,7 +28,7 @@ export const stripeProducts: StripeProduct[] = [
       description:
         "Great to get started for most projects with unlimited users and 90 days data access.",
       price: "$59 / month",
-      usagePrice: "$10/100k events (100k included)",
+      usagePrice: "$8/100k events (100k included)",
       mainFeatures: [
         "90 days data access",
         "Unlimited users",
@@ -49,12 +49,13 @@ export const stripeProducts: StripeProduct[] = [
       description:
         "For projects that scale and need unlimited data access, high rate limits, and Slack support.",
       price: "$199 / month",
-      usagePrice: "$10/100k events (100k included)",
+      usagePrice: "$8/100k events (100k included)",
       mainFeatures: [
         "Everything in Lite",
         "Unlimited data access",
         "Unlimited annotation queues",
         "High rate limits",
+        "SOC2, ISO27001 reports",
         "Support via Slack",
       ],
     },
@@ -71,13 +72,12 @@ export const stripeProducts: StripeProduct[] = [
       description:
         "Organizational controls and dedicated support for larger teams.",
       price: "$499 / month",
-      usagePrice: "$10/100k events (100k included)",
+      usagePrice: "$8/100k events (100k included)",
       mainFeatures: [
         "Everything in Pro",
         "Enterprise SSO (e.g. Okta)",
         "SSO enforcement",
         "Fine-grained RBAC",
-        "SOC2, ISO27001",
         "Dedicated support",
       ],
     },
