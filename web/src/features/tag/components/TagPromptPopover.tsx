@@ -64,12 +64,14 @@ export function TagPromptPopover({
 
   return (
     <TagManager
+      itemName="prompt"
       tags={tags}
       allTags={availableTags}
       hasAccess={hasAccess}
       isLoading={isLoading}
       mutateTags={mutateTags}
       className={className}
+      isTableCell
     />
   );
 }

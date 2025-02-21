@@ -11,23 +11,28 @@ import {
 import { Command, CommandList, CommandGroup } from "cmdk";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Label } from "@/src/components/ui/label";
 
 type TagManagerProps = {
+  itemName: "prompt" | "trace";
   tags: string[];
   allTags: string[];
   hasAccess: boolean;
   isLoading: boolean;
   mutateTags: (value: string[]) => void;
   className?: string;
+  isTableCell?: boolean;
 };
 
 const TagManager = ({
+  itemName,
   tags,
   allTags,
   hasAccess,
   isLoading,
   mutateTags,
   className,
+  isTableCell = false,
 }: TagManagerProps) => {
   const {
     selectedTags,
@@ -55,17 +60,35 @@ const TagManager = ({
   };
 
   if (!hasAccess) {
-    return <TagList selectedTags={selectedTags} isLoading={isLoading} />;
+    return (
+      <TagList
+        selectedTags={selectedTags}
+        isLoading={isLoading}
+        viewOnly
+        isTableCell={isTableCell}
+      />
+    );
   }
 
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
-        <div className={cn("flex gap-x-2 gap-y-1", className)}>
-          <TagList selectedTags={selectedTags} isLoading={isLoading} />
+        <div
+          className={cn(
+            "flex gap-x-1 gap-y-1",
+            className,
+            !isTableCell && "flex-wrap",
+          )}
+        >
+          <TagList
+            selectedTags={selectedTags}
+            isLoading={isLoading}
+            isTableCell={isTableCell}
+          />
         </div>
       </PopoverTrigger>
-      <PopoverContent>
+      <PopoverContent className="space-y-2">
+        <Label className="text-base capitalize">{itemName} Tags</Label>
         <Command
           shouldFilter={false} // we do not use cmdk's filter feature as it does not support virtualization for large lists
         >
@@ -77,9 +100,10 @@ const TagManager = ({
           />
           <CommandList>
             <CommandGroup
+              heading={filteredTags.length > 0 ? "Available Tags" : ""}
               className={cn(
-                "mt-2 max-h-52 overflow-auto",
-                filteredTags.length > 0 && "mb-2 border-b",
+                "mt-2 max-h-52 overflow-auto text-sm font-medium [&>[cmdk-group-heading]]:mb-2",
+                filteredTags.length > 0 && "mb-2",
               )}
             >
               {filteredTags.slice(0, 20).map((value: string) => (

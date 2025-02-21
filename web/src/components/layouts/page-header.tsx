@@ -46,10 +46,10 @@ const PageHeader = ({
         </div>
 
         {/* Bottom Row */}
-        <div className="bg-muted">
+        <div className="bg-header">
           <div
             className={cn(
-              "grid min-h-12 grid-cols-[minmax(auto,1fr)_auto] items-center justify-between px-3 py-1",
+              "grid min-h-12 grid-cols-[minmax(auto,1fr)_auto] items-center justify-between gap-1 px-3 py-1",
               container && "lg:container",
             )}
           >

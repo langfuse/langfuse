@@ -16,6 +16,9 @@
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
 
+    --header: 210 40% 98%;
+    --header-foreground: var(--foreground);
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
 
@@ -24,6 +27,9 @@
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --tertiary: 214 32% 91%;
+    --tertiary-foreground: 222.2 47.4% 11.2%;
 
     --accent: 210 40% 96.1%;
     --accent-foreground: 220 8.9% 46.1%;
@@ -82,6 +88,9 @@
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 88%;
 
+    --header: 217.2 32.6% 15%;
+    --header-foreground: var(--foreground);
+
     --border: 217.2 32.6% 27.5%;
     --input: 217.2 32.6% 27.5%;
 
@@ -90,6 +99,9 @@
 
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 88%;
+
+    --tertiary: 217.2 32.6% 30%;
+    --tertiary-foreground: 210 40% 88%;
 
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 20% 98%;

@@ -7,12 +7,14 @@ type PageContainerProps = {
   children: React.ReactNode;
   headerProps: Omit<PageHeaderProps, "container">;
   scrollable?: boolean;
+  withPadding?: boolean;
 };
 
 const Page = ({
   children,
   headerProps,
   scrollable = false,
+  withPadding = true,
 }: PageContainerProps) => {
   return (
     <div
@@ -25,9 +27,11 @@ const Page = ({
         <PageHeader {...headerProps} container={false} />
       </header>
       <main
-        className={`flex flex-1 flex-col p-3 ${
-          scrollable ? "relative flex min-h-svh" : "h-full overflow-hidden"
-        }`}
+        className={cn(
+          "flex flex-1 flex-col",
+          scrollable ? "relative flex min-h-svh" : "h-full overflow-hidden",
+          withPadding && "p-3",
+        )}
       >
         {children}
       </main>

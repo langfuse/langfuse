@@ -7,7 +7,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
-import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
@@ -48,14 +47,14 @@ export function CommentDrawerButton({
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button
-          type="button"
-          variant={variant}
-          size="icon"
-          className={className}
-        >
+        <Button type="button" variant={variant} className={className}>
           {!!count ? (
-            <CommentCountIcon count={count} />
+            <div className="flex items-center gap-1">
+              <MessageCircleIcon className="h-4 w-4" />
+              <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
+                {count > 99 ? "99+" : count}
+              </span>
+            </div>
           ) : (
             <MessageCircleIcon className="h-4 w-4" />
           )}
