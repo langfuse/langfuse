@@ -111,7 +111,7 @@ export function JSONView(props: {
       className={cn(
         "flex max-h-full min-h-0 flex-col",
         props.className,
-        props.scrollable ? "overflow-hidden" : "overflow-y-auto",
+        props.scrollable ? "overflow-hidden" : "",
       )}
     >
       {props.title ? (

@@ -110,7 +110,7 @@ export function SetPromptVersionLabels({
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
       <PopoverTrigger asChild data-version-trigger="true">
-        <div className="flex cursor-pointer flex-wrap gap-1">
+        <div className="flex min-w-0 max-w-full cursor-pointer flex-wrap gap-1">
           {title && title}
           {sortedLabels.map((label) => (
             <StatusBadge

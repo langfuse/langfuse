@@ -322,9 +322,9 @@ export const PromptDetail = () => {
         </Command>
         <div className="col-span-2 mt-3 flex max-h-full min-h-0 flex-col md:col-span-3">
           <div className="flex flex-col items-start gap-2">
-            <div className="flex w-full flex-row items-center justify-between">
-              <div className="flex flex-shrink flex-col">
-                <div className="flex flex-wrap items-start gap-1">
+            <div className="grid w-full min-w-0 grid-cols-[auto,auto] items-center justify-between">
+              <div className="flex min-w-0 max-w-full flex-shrink flex-col">
+                <div className="flex min-w-0 max-w-full flex-wrap items-start gap-1">
                   <SetPromptVersionLabels
                     title={
                       <div
@@ -339,7 +339,7 @@ export const PromptDetail = () => {
                         </Badge>
                         <SubHeader
                           title={prompt.commitMessage ?? prompt.name}
-                          className="mb-0"
+                          className="mb-0 min-w-0 max-w-full"
                         />
                       </div>
                     }
@@ -427,7 +427,7 @@ export const PromptDetail = () => {
             className="min-h-0"
             onValueChange={(value) => setCurrentTab(value)}
           >
-            <TabsBarList className="justify-start">
+            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
               <TabsBarTrigger value="prompt">Prompt</TabsBarTrigger>
               <TabsBarTrigger value="config">Config</TabsBarTrigger>
               <TabsBarTrigger value="linked-generations">

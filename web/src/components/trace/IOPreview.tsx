@@ -209,8 +209,8 @@ export const OpenAiMessageView: React.FC<{
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
-      <div className="flex max-h-full min-h-0 flex-col gap-2 overflow-hidden">
-        <div className="flex flex-col gap-2 overflow-y-auto">
+      <div className="flex max-h-full min-h-0 flex-col gap-2">
+        <div className="flex flex-col gap-2">
           {messages
             .filter(
               (_, i) =>
