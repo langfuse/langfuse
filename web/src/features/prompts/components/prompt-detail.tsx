@@ -69,8 +69,7 @@ prompt = langfuse.get_prompt("${name}")
 # You can use as many labels as you'd like to identify different deployment targets
 ${labels.length > 0 ? labels.map((label) => `prompt = langfuse.get_prompt("${name}", label=["${label}"])`).join("\n") : ""}
 
-# Get by version number
-# Usually not recommended as it requires code changes to deploy new prompt versions
+# Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
 langfuse.get_prompt("${name}", version=${version})
 `;
 
@@ -90,8 +89,7 @@ const prompt = await langfuse.getPrompt("${name}");
 // You can use as many labels as you'd like to identify different deployment targets
 ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPrompt("${name}", label=["${label}"])`).join("\n") : ""}
 
-// Get by version number
-// Usually not recommended as it requires code changes to deploy new prompt versions
+// Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
 langfuse.getPrompt("${name}", version=${version})
 
 }`;
@@ -311,17 +309,17 @@ export const PromptDetail = () => {
             />
 
             <Button
-              size="icon"
               onClick={() => {
                 capture("prompts:update_form_open");
               }}
-              className="shrink-0"
+              className="h-6 w-6 shrink-0 px-3 md:h-8 md:w-fit"
             >
               <Link
-                className="grid w-full place-items-center"
+                className="grid w-full place-items-center md:grid-flow-col"
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">New</span>
               </Link>
             </Button>
           </div>
@@ -473,7 +471,7 @@ export const PromptDetail = () => {
                     collapseLongHistory={false}
                   />
                 ) : typeof prompt.prompt === "string" ? (
-                  <CodeView content={prompt.prompt} title="Text prompt" />
+                  <CodeView content={prompt.prompt} title="Text Prompt" />
                 ) : (
                   <JSONView json={prompt.prompt} title="Prompt" />
                 )}
@@ -508,7 +506,8 @@ export const PromptDetail = () => {
                   >
                     documentation
                   </a>{" "}
-                  for more details on how to use prompts in frameworks.
+                  for more details on how to use prompts in frameworks such as
+                  Langchain.
                 </p>
               </div>
             </TabsBarContent>
