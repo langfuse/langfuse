@@ -3,6 +3,7 @@ import type { ZodSchema } from "zod";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
+import { ChatLivekit } from "@livekit/agents"; // Import for Livekit's LLM class
 import {
   AIMessage,
   BaseMessage,
@@ -146,7 +147,8 @@ export async function fetchLLMCompletion(
     | ChatOpenAI
     | ChatAnthropic
     | ChatBedrockConverse
-    | ChatVertexAI;
+    | ChatVertexAI
+    | ChatLivekit; // Add ChatLivekit to the union type
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
@@ -218,6 +220,19 @@ export async function fetchLLMCompletion(
         projectId: credentials.project_id,
         credentials,
       },
+    });
+  } else if (modelParams.adapter === LLMAdapter.Livekit) {
+    chatModel = new ChatLivekit({
+      livekitApiKey: apiKey,
+      modelName: modelParams.model,
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks: finalCallbacks,
+      maxRetries,
+      baseURL,
+      extraHeaders,
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
     });
   } else {
     // eslint-disable-next-line no-unused-vars
