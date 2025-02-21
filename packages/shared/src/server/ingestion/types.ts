@@ -5,12 +5,7 @@ import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { type ScoreSourceType } from "../repositories";
 
-export const ObservationLevel = z.enum([
-  "DEBUG",
-  "DEFAULT",
-  "WARNING",
-  "ERROR",
-]);
+const ObservationLevel = z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
