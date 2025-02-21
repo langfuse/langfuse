@@ -101,7 +101,7 @@ export const experimentsRouter = createTRPCRouter({
         prompt?.type === PromptType.Text
           ? (prompt.prompt?.toString() ?? "")
           : JSON.stringify(prompt.prompt),
-      ).uniqueMatches;
+      );
 
       if (!Boolean(extractedVariables.length)) {
         return {
