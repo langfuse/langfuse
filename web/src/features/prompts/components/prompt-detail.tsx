@@ -301,6 +301,7 @@ export const PromptDetail = () => {
               onClick={() => {
                 capture("prompts:update_form_open");
               }}
+              className="shrink-0"
             >
               <Link
                 className="grid w-full place-items-center"
