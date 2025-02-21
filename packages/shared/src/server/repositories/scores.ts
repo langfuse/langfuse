@@ -1,5 +1,5 @@
 import { ScoreDataType } from "@prisma/client";
-import { Score, ScoreSource } from "./types";
+import { Score, ScoreSourceType } from "./types";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -77,7 +77,7 @@ export const searchExistingAnnotationScore = async (
 export const getScoreById = async (
   projectId: string,
   scoreId: string,
-  source?: ScoreSource,
+  source?: ScoreSourceType,
 ) => {
   const query = `
     SELECT *
@@ -110,7 +110,7 @@ export const getScoreById = async (
 export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
-  source?: ScoreSource,
+  source?: ScoreSourceType,
 ) => {
   const query = `
     SELECT *
@@ -281,7 +281,7 @@ export const getScoresGroupedByNameSourceType = async (
 
   return rows.map((row) => ({
     name: row.name,
-    source: row.source as ScoreSource,
+    source: row.source as ScoreSourceType,
     dataType: row.data_type as ScoreDataType,
   }));
 };
@@ -437,7 +437,7 @@ export const getScoresUiTable = async (props: {
     stringValue: row.string_value,
     comment: row.comment,
     dataType: row.data_type as ScoreDataType,
-    source: row.source as ScoreSource,
+    source: row.source as ScoreSourceType,
     name: row.name,
     value: row.value,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),

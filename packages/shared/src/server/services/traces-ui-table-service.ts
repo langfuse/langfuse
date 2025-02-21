@@ -12,18 +12,17 @@ import {
 } from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
-import {
-  parseClickhouseUTCDateTimeFormat,
-  queryClickhouse,
-} from "../repositories/clickhouse";
 import { TraceRecordReadType } from "../repositories/definitions";
+import Decimal from "decimal.js";
+import { ScoreAggregate } from "../../features/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-} from "../repositories/constants";
-import Decimal from "decimal.js";
-import { ScoreAggregate } from "../../features/scores";
-import { ObservationLevel, reduceUsageOrCostDetails } from "../repositories";
+  ObservationLevelType,
+  reduceUsageOrCostDetails,
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "../repositories";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -61,7 +60,7 @@ export type TracesMetricsUiReturnType = {
   completionTokens: bigint;
   totalTokens: bigint;
   latency: number | null;
-  level: ObservationLevel;
+  level: ObservationLevelType;
   observationCount: bigint;
   calculatedTotalCost: Decimal | null;
   calculatedInputCost: Decimal | null;
@@ -139,7 +138,7 @@ export type TracesTableMetricsClickhouseReturnType = {
   id: string;
   project_id: string;
   timestamp: Date;
-  level: ObservationLevel;
+  level: ObservationLevelType;
   observation_count: number | null;
   latency: string | null;
   usage_details: Record<string, number>;

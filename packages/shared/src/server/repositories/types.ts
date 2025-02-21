@@ -18,14 +18,14 @@ export const ObservationLevel = {
   WARNING: "WARNING",
   ERROR: "ERROR",
 } as const;
-export type ObservationLevel =
+export type ObservationLevelType =
   (typeof ObservationLevel)[keyof typeof ObservationLevel];
 export const ScoreSource = {
   ANNOTATION: "ANNOTATION",
   API: "API",
   EVAL: "EVAL",
 } as const;
-export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
+export type ScoreSourceType = (typeof ScoreSource)[keyof typeof ScoreSource];
 
 export type Observation = {
   id: string;
@@ -37,7 +37,7 @@ export type Observation = {
   name: string | null;
   metadata: unknown | null;
   parentObservationId: string | null;
-  level: ObservationLevel;
+  level: ObservationLevelType;
   statusMessage: string | null;
   version: string | null;
   createdAt: Date;
@@ -72,7 +72,7 @@ export type ObservationView = {
   name: string | null;
   metadata: unknown | null;
   parentObservationId: string | null;
-  level: ObservationLevel;
+  level: ObservationLevelType;
   statusMessage: string | null;
   version: string | null;
   createdAt: Date;
@@ -106,7 +106,7 @@ export type Score = {
   projectId: string;
   name: string;
   value: number | null;
-  source: ScoreSource;
+  source: ScoreSourceType;
   authorUserId: string | null;
   comment: string | null;
   traceId: string;

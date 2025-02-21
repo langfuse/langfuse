@@ -7,7 +7,7 @@ import {
   Observation,
   ObservationView,
   ObservationType,
-  ObservationLevel,
+  ObservationLevelType,
 } from "./types";
 
 export const convertObservationToView = (
@@ -69,7 +69,7 @@ export const convertObservation = (
           val && parseJsonPrioritised(val),
         ]),
       ),
-    level: record.level as ObservationLevel,
+    level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
     input: (record.input
