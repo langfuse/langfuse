@@ -27,14 +27,14 @@ import ConfigureRetention from "@/src/features/projects/components/ConfigureRete
 import { env } from "@/src/env.mjs";
 import ContainerPage from "@/src/components/layouts/container-page";
 
-export type SettingsPage = {
+type ProjectSettingsPage = {
   title: string;
   slug: string;
   show?: boolean | (() => boolean);
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
-export function useProjectSettingsPages(): SettingsPage[] {
+export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const router = useRouter();
   const { project, organization } = useQueryProject();
   const showBillingSettings = useHasEntitlement("cloud-billing");
@@ -62,7 +62,7 @@ export const getProjectSettingsPages = ({
   organization: { id: string; name: string };
   showBillingSettings: boolean;
   isLangfuseCloud: boolean;
-}): SettingsPage[] => [
+}): ProjectSettingsPage[] => [
   {
     title: "General",
     slug: "index",
