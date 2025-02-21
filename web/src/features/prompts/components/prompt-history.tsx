@@ -81,6 +81,7 @@ const PromptHistoryTraceNode = (props: {
             prompt={prompt}
             isOpen={isLabelPopoverOpen}
             setIsOpen={setIsLabelPopoverOpen}
+            showEditButton
           />
         </div>
 
