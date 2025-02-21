@@ -36,23 +36,11 @@ function HeaderTitle({
 }) {
   switch (level) {
     case "h3":
-      return (
-        <h3 className="text-xl font-bold leading-7 sm:tracking-tight">
-          {title}
-        </h3>
-      );
+      return <h3 className="text-xl font-bold leading-7">{title}</h3>;
     case "h4":
-      return (
-        <h4 className="text-lg font-medium leading-6 sm:tracking-tight">
-          {title}
-        </h4>
-      );
+      return <h4 className="text-lg font-medium leading-6">{title}</h4>;
     case "h5":
-      return (
-        <h5 className="text-base font-medium leading-6 sm:tracking-tight">
-          {title}
-        </h5>
-      );
+      return <h5 className="text-base font-medium leading-6">{title}</h5>;
   }
 }
 

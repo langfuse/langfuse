@@ -12,7 +12,6 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
-import { SubHeaderLabel } from "@/src/components/layouts/header";
 
 const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -110,10 +109,9 @@ export function JSONView(props: {
   return (
     <div
       className={cn(
+        "flex max-h-full min-h-0 flex-col",
         props.className,
-        props.scrollable
-          ? "flex max-h-full min-h-0 flex-col overflow-hidden"
-          : "",
+        props.scrollable ? "overflow-hidden" : "overflow-y-auto",
       )}
     >
       {props.title ? (
@@ -163,8 +161,10 @@ export function CodeView(props: {
         props.scrollable && "max-h-full min-h-0",
       )}
     >
-      <div className="my-1 flex flex-shrink-0 items-center justify-between">
-        {props.title ? <SubHeaderLabel title={props.title} /> : undefined}
+      <div className="my-1 flex flex-shrink-0 items-center justify-between pl-1">
+        {props.title ? (
+          <div className="text-sm font-medium">{props.title}</div>
+        ) : undefined}
         <Button
           variant="ghost"
           size="icon-xs"

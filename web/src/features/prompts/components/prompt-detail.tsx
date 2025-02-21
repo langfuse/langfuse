@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { NumberParam, useQueryParam } from "use-query-params";
+import {
+  NumberParam,
+  StringParam,
+  useQueryParam,
+  withDefault,
+} from "use-query-params";
 import type { z } from "zod";
 import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
 import {
@@ -20,14 +25,7 @@ import { PromptHistoryNode } from "./prompt-history";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import Generations from "@/src/components/table/use-cases/observations";
-import {
-  ChevronLeft,
-  ChevronRight,
-  FlaskConical,
-  MoreVertical,
-  Plus,
-  Search,
-} from "lucide-react";
+import { FlaskConical, MoreVertical, Plus } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -37,7 +35,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
@@ -58,60 +56,44 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
 
-const PromptVariables = ({
-  variablesToCount,
-  showVariables,
-  setShowVariables,
-}: {
-  variablesToCount: Map<string, number>;
-  showVariables: boolean;
-  setShowVariables: (show: boolean) => void;
-}) => {
-  if (!showVariables)
-    return (
-      <div className="h-full">
-        <div className="relative flex flex-row items-center justify-between">
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Show variables"
-            onClick={() => setShowVariables(true)}
-            className="absolute right-0 top-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="h-full w-10 border-l" />
-      </div>
-    );
+const getPythonCode = (
+  name: string,
+  version: number,
+  variables: string[],
+) => `from langfuse import Langfuse
 
-  return (
-    <div className="border-l pl-4 pr-2 pt-4">
-      <div className="relative flex flex-row items-center justify-between">
-        <SubHeaderLabel title="Variables" />
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setShowVariables(false)}
-          className="absolute -right-2 -top-2"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="mt-1.5 h-1 w-[calc(100%+8px)] border-b" />
-      <div className="mt-5 flex flex-col gap-2">
-        {Array.from(variablesToCount.entries()).map(([variable, count]) => (
-          <div key={variable} className="flex flex-wrap justify-between gap-2">
-            <div className="text-sm text-primary-accent">
-              {`{{${variable}}}`}
-            </div>
-            <div className="text-right text-sm">used {count} times</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+# Initialize Langfuse client
+langfuse = Langfuse()
+
+# Get this prompt version 
+prompt = langfuse.get_prompt("${name}", version=${version})
+
+${
+  variables.length > 0
+    ? `# Insert variables into prompt template
+compiled_prompt = prompt.compile(${variables.map((v) => `${v}=${v}`).join(", ")})`
+    : ""
+}
+`;
+
+const getJsCode = (
+  name: string,
+  version: number,
+  variables: string[],
+) => `import { Langfuse } from "langfuse";
+
+// Initialize the Langfuse client
+const langfuse = new Langfuse();
+
+// Get this prompt version 
+const prompt = await langfuse.getPrompt("${name}", ${version});
+
+${
+  variables.length > 0
+    ? `// Insert variables into prompt template
+const compiledPrompt = prompt.compile(${variables.map((v) => `${v}: ${v}`).join(", ")});`
+    : ""
+}`;
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -121,8 +103,10 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
-  const [showVariables, setShowVariables] = useState(true);
-  const [currentTab, setCurrentTab] = useState("overview");
+  const [currentTab, setCurrentTab] = useQueryParam(
+    "tab",
+    withDefault(StringParam, "prompt"),
+  );
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
@@ -147,14 +131,6 @@ export const PromptDetail = () => {
         (prompt) => prompt.version === currentPromptVersion,
       )
     : promptHistory.data?.promptVersions[0];
-
-  const extractedVariables = prompt
-    ? extractVariables(
-        prompt?.type === PromptType.Text
-          ? (prompt.prompt?.toString() ?? "")
-          : JSON.stringify(prompt.prompt),
-      )
-    : { uniqueMatches: [], uniqueMatchesToCount: new Map() };
 
   let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
   try {
@@ -226,13 +202,22 @@ export const PromptDetail = () => {
     },
   );
 
-  const hasConfig = prompt?.config && JSON.stringify(prompt.config) !== "{}";
-  // hook to run only ONCE when prompt.id changes
-  useEffect(() => {
-    if (!hasConfig && currentTab === "config") {
-      setCurrentTab("overview");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { pythonCode, jsCode } = useMemo(() => {
+    if (!prompt?.id) return { pythonCode: null, jsCode: null };
+    const extractedVariables = extractVariables(
+      prompt?.type === PromptType.Text
+        ? (prompt.prompt?.toString() ?? "")
+        : JSON.stringify(prompt.prompt),
+    );
+
+    return {
+      pythonCode: getPythonCode(
+        prompt.name,
+        prompt.version,
+        extractedVariables,
+      ),
+      jsCode: getJsCode(prompt.name, prompt.version, extractedVariables),
+    };
   }, [prompt?.id]);
 
   if (!promptHistory.data || !prompt) {
@@ -260,6 +245,7 @@ export const PromptDetail = () => {
 
   return (
     <Page
+      withPadding={false}
       headerProps={{
         title: prompt.name,
         itemType: "PROMPT",
@@ -313,20 +299,22 @@ export const PromptDetail = () => {
             <DetailPageNav
               key="nav"
               currentId={promptName}
-              path={(entry) => `/project/${projectId}/prompts/${entry.id}`}
+              path={(entry) =>
+                `/project/${projectId}/prompts/${entry.id}?tab=${currentTab}`
+              }
               listKey="prompts"
             />
           </>
         ),
       }}
     >
-      <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden md:grid-cols-4">
-        <Command className="text-m flex flex-col overflow-y-auto border-r pr-3 font-medium">
-          <div className="mb-2 mt-2 flex items-center justify-between">
+      <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden px-3 md:grid-cols-4">
+        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium">
+          <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
               placeholder="Search versions"
-              className="border-none text-sm font-light text-muted-foreground"
+              className="h-fit border-none py-0 text-sm font-light text-muted-foreground"
             />
 
             <Button
@@ -351,9 +339,9 @@ export const PromptDetail = () => {
             />
           </div>
         </Command>
-        <div className="col-span-2 flex max-h-full min-h-0 flex-col md:col-span-3">
+        <div className="col-span-2 mt-3 flex max-h-full min-h-0 flex-col md:col-span-3">
           <div className="flex flex-col items-start gap-2">
-            <div className="mb-2 flex w-full flex-row items-center justify-between">
+            <div className="flex w-full flex-row items-center justify-between">
               <div className="flex flex-shrink flex-col">
                 <div className="flex flex-1 flex-wrap items-center gap-1">
                   <Badge variant="outline" className="mr-1 h-6 text-nowrap">
@@ -452,17 +440,16 @@ export const PromptDetail = () => {
             onValueChange={(value) => setCurrentTab(value)}
           >
             <TabsBarList className="justify-start">
-              <TabsBarTrigger value="overview">Overview</TabsBarTrigger>
-              {hasConfig && (
-                <TabsBarTrigger value="config">Config</TabsBarTrigger>
-              )}
+              <TabsBarTrigger value="prompt">Prompt</TabsBarTrigger>
+              <TabsBarTrigger value="config">Config</TabsBarTrigger>
               <TabsBarTrigger value="linked-generations">
                 Linked Generations
               </TabsBarTrigger>
+              <TabsBarTrigger value="use-prompt">Use Prompt</TabsBarTrigger>
             </TabsBarList>
             <TabsBarContent
               value="linked-generations"
-              className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
+              className="mt-0 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
                 <Generations
@@ -473,44 +460,35 @@ export const PromptDetail = () => {
                 />
               </div>
             </TabsBarContent>
-            {hasConfig && (
-              <TabsBarContent
-                value="config"
-                className="mt-4 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
-              >
-                <JSONView json={prompt.config} title="Config" />
-              </TabsBarContent>
-            )}
             <TabsBarContent
-              value="overview"
-              className={cn(
-                "mt-0 grid min-h-0 flex-1 gap-4 overflow-hidden",
-                extractedVariables.uniqueMatches.length > 0 && showVariables
-                  ? "grid-cols-[1fr,33%]"
-                  : "grid-cols-[1fr,auto]",
-              )}
+              value="config"
+              className="mt-0 flex max-h-full min-h-0 flex-1 flex-col"
             >
-              <div className="mt-2 flex max-h-full min-h-0 flex-col overflow-hidden">
-                <div className="mt-2 max-h-full min-h-0 flex-shrink overflow-hidden">
-                  {prompt.type === PromptType.Chat && chatMessages ? (
-                    <OpenAiMessageView
-                      messages={chatMessages}
-                      collapseLongHistory={false}
-                      title="Chat prompt"
-                    />
-                  ) : typeof prompt.prompt === "string" ? (
-                    <CodeView
-                      content={prompt.prompt}
-                      scrollable
-                      title="Text prompt"
-                    />
-                  ) : (
-                    <JSONView json={prompt.prompt} title="Prompt" scrollable />
-                  )}
-                </div>
-
-                <p className="mt-6 text-xs text-muted-foreground">
-                  Fetch prompts via Python or JS/TS SDKs. See{" "}
+              <JSONView json={prompt.config} title="Config" className="pb-2" />
+            </TabsBarContent>
+            <TabsBarContent
+              value="prompt"
+              className={cn("mt-0 grid min-h-0 flex-1 gap-4 overflow-hidden")}
+            >
+              <div className="mb-2 flex max-h-full min-h-0 flex-col overflow-y-auto">
+                {prompt.type === PromptType.Chat && chatMessages ? (
+                  <OpenAiMessageView
+                    messages={chatMessages}
+                    collapseLongHistory={false}
+                  />
+                ) : typeof prompt.prompt === "string" ? (
+                  <CodeView content={prompt.prompt} title="Text prompt" />
+                ) : (
+                  <JSONView json={prompt.prompt} title="Prompt" />
+                )}
+              </div>
+            </TabsBarContent>
+            <TabsBarContent value="use-prompt" className="mt-0 flex-1">
+              <div className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto pb-10">
+                {pythonCode && <CodeView content={pythonCode} title="Python" />}
+                {jsCode && <CodeView content={jsCode} title="JS/TS" />}
+                <p className="pl-1 text-xs text-muted-foreground">
+                  See{" "}
                   <a
                     href="https://langfuse.com/docs/prompts"
                     className="underline"
@@ -519,16 +497,9 @@ export const PromptDetail = () => {
                   >
                     documentation
                   </a>{" "}
-                  for details.
+                  for more details.
                 </p>
               </div>
-              {extractedVariables.uniqueMatches.length > 0 && (
-                <PromptVariables
-                  variablesToCount={extractedVariables.uniqueMatchesToCount}
-                  showVariables={showVariables}
-                  setShowVariables={setShowVariables}
-                />
-              )}
             </TabsBarContent>
           </TabsBar>
         </div>
