@@ -12,25 +12,25 @@ export const Role = {
     NONE: "NONE"
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
-export const LegacyObservationType = {
+export const LegacyPrismaObservationType = {
     SPAN: "SPAN",
     EVENT: "EVENT",
     GENERATION: "GENERATION"
 } as const;
-export type LegacyObservationType = (typeof LegacyObservationType)[keyof typeof LegacyObservationType];
-export const LegacyObservationLevel = {
+export type LegacyPrismaObservationType = (typeof LegacyPrismaObservationType)[keyof typeof LegacyPrismaObservationType];
+export const LegacyPrismaObservationLevel = {
     DEBUG: "DEBUG",
     DEFAULT: "DEFAULT",
     WARNING: "WARNING",
     ERROR: "ERROR"
 } as const;
-export type LegacyObservationLevel = (typeof LegacyObservationLevel)[keyof typeof LegacyObservationLevel];
-export const LegacyScoreSource = {
+export type LegacyPrismaObservationLevel = (typeof LegacyPrismaObservationLevel)[keyof typeof LegacyPrismaObservationLevel];
+export const LegacyPrismaScoreSource = {
     ANNOTATION: "ANNOTATION",
     API: "API",
     EVAL: "EVAL"
 } as const;
-export type LegacyScoreSource = (typeof LegacyScoreSource)[keyof typeof LegacyScoreSource];
+export type LegacyPrismaScoreSource = (typeof LegacyPrismaScoreSource)[keyof typeof LegacyPrismaScoreSource];
 export const ScoreDataType = {
     CATEGORICAL: "CATEGORICAL",
     NUMERIC: "NUMERIC",
@@ -284,17 +284,17 @@ export type JobExecution = {
     job_input_dataset_item_id: string | null;
     job_output_score_id: string | null;
 };
-export type LegacyObservation = {
+export type LegacyPrismaObservation = {
     id: string;
     trace_id: string | null;
     project_id: string;
-    type: LegacyObservationType;
+    type: LegacyPrismaObservationType;
     start_time: Generated<Timestamp>;
     end_time: Timestamp | null;
     name: string | null;
     metadata: unknown | null;
     parent_observation_id: string | null;
-    level: Generated<LegacyObservationLevel>;
+    level: Generated<LegacyPrismaObservationLevel>;
     status_message: string | null;
     version: string | null;
     created_at: Generated<Timestamp>;
@@ -318,13 +318,13 @@ export type LegacyObservation = {
     completion_start_time: Timestamp | null;
     prompt_id: string | null;
 };
-export type LegacyScore = {
+export type LegacyPrismaScore = {
     id: string;
     timestamp: Generated<Timestamp>;
     project_id: string;
     name: string;
     value: number | null;
-    source: LegacyScoreSource;
+    source: LegacyPrismaScoreSource;
     author_user_id: string | null;
     comment: string | null;
     trace_id: string;
@@ -336,7 +336,7 @@ export type LegacyScore = {
     updated_at: Generated<Timestamp>;
     data_type: Generated<ScoreDataType>;
 };
-export type LegacyTrace = {
+export type LegacyPrismaTrace = {
     id: string;
     external_id: string | null;
     timestamp: Generated<Timestamp>;
@@ -576,7 +576,7 @@ export type DB = {
     membership_invitations: MembershipInvitation;
     models: Model;
     observation_media: ObservationMedia;
-    observations: LegacyObservation;
+    observations: LegacyPrismaObservation;
     organization_memberships: OrganizationMembership;
     organizations: Organization;
     posthog_integrations: PosthogIntegration;
@@ -586,12 +586,12 @@ export type DB = {
     prompts: Prompt;
     queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
-    scores: LegacyScore;
+    scores: LegacyPrismaScore;
     Session: Session;
     sso_configs: SsoConfig;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
-    traces: LegacyTrace;
+    traces: LegacyPrismaTrace;
     users: User;
     verification_tokens: VerificationToken;
 };
