@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel, ScoreSource } from "../repositories";
+import { ObservationLevel, type ScoreSourceType } from "../repositories";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -230,7 +230,9 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
-  source: z.nativeEnum(ScoreSource).default("API"),
+  source: z
+    .enum(["API", "EVAL", "ANNOTATION"])
+    .default("API" as ScoreSourceType),
 });
 
 /**

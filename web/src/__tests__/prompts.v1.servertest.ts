@@ -522,13 +522,9 @@ describe("/api/public/prompts API Endpoint", () => {
 
     expect(response.status).toBe(207);
 
-    const dbGeneration = await prisma.observation.findUnique({
-      where: {
-        id: generationId,
-      },
-    });
-
-    expect(dbGeneration).toBeNull();
+    expect(
+      getObservationById(generationId, "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"),
+    ).rejects.toThrow("not found");
   });
 
   it("should create empty object if no config is provided", async () => {
