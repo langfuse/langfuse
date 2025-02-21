@@ -22,7 +22,7 @@ interface TimelineItemProps {
   ref?: React.RefObject<HTMLDivElement>;
   className?: string;
   isActive?: boolean;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
 }

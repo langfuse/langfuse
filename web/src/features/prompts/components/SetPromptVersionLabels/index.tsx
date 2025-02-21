@@ -80,6 +80,12 @@ export function SetPromptVersionLabels({
     },
   });
 
+  const sortedLabels = promptLabels.sort((a, b) => {
+    if (a === PRODUCTION_LABEL) return -1;
+    if (b === PRODUCTION_LABEL) return 1;
+    return a.localeCompare(b);
+  });
+
   const handleSubmitLabels = async () => {
     if (!projectId) {
       alert("Project ID is missing");
@@ -103,10 +109,10 @@ export function SetPromptVersionLabels({
 
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger asChild data-version-trigger="true">
         <div className="flex cursor-pointer flex-wrap gap-1">
           {title && title}
-          {promptLabels.map((label) => (
+          {sortedLabels.map((label) => (
             <StatusBadge
               type={label}
               key={label}

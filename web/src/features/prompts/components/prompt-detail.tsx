@@ -35,13 +35,11 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
 import Page from "@/src/components/layouts/page";
-import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -438,7 +436,7 @@ export const PromptDetail = () => {
             </TabsBarList>
             <TabsBarContent
               value="linked-generations"
-              className="mt-0 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
+              className="mb-2 mt-0 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
                 <Generations

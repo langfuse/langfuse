@@ -1,4 +1,3 @@
-import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
 import { useState, useRef, useEffect } from "react";
@@ -44,11 +43,20 @@ const PromptHistoryTraceNode = (props: {
 
   return (
     <TimelineItem
+      key={prompt.id}
       ref={currentPromptRef}
       isActive={props.currentPromptVersion === prompt.version}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => {
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        if (
+          target.closest('[role="button"]') ||
+          target.closest('[data-version-trigger="true"]')
+        ) {
+          return;
+        }
+
         props.index === 0
           ? props.setCurrentPromptVersion(undefined)
           : props.setCurrentPromptVersion(prompt.version);
@@ -71,9 +79,15 @@ const PromptHistoryTraceNode = (props: {
           <SetPromptVersionLabels
             title={
               <Badge
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.index === 0
+                    ? props.setCurrentPromptVersion(undefined)
+                    : props.setCurrentPromptVersion(prompt.version);
+                }}
                 variant="outline"
                 className="h-6 shrink-0 bg-background/50"
+                data-version-trigger="false"
               >
                 # {prompt.version}
               </Badge>
@@ -113,7 +127,6 @@ const PromptHistoryTraceNode = (props: {
                   isOpen={isPromptDiffOpen}
                   setIsOpen={(open) => {
                     setIsPromptDiffOpen(open);
-                    if (!open) setIsHovered(false);
                   }}
                   leftPrompt={prompt}
                   rightPrompt={props.currentPrompt}

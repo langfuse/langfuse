@@ -7,7 +7,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
-import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
