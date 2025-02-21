@@ -1,4 +1,5 @@
-import { ScoreDataType, ScoreSource } from "@prisma/client";
+import { ScoreDataType } from "@prisma/client";
+import { ScoreSource } from "../../server";
 
 export type CategoricalAggregate = {
   type: "CATEGORICAL";

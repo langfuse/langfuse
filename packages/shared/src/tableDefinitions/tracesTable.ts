@@ -1,4 +1,4 @@
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "../server";
 import { ColumnDefinition, OptionsDefinition } from "..";
 
 export const tracesOnlyCols: ColumnDefinition[] = [

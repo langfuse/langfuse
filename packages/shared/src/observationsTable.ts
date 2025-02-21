@@ -1,8 +1,8 @@
-import { ObservationLevel } from "@prisma/client";
 import {
   type OptionsDefinition,
   type ColumnDefinition,
-} from "./tableDefinitions/types";
+} from "./tableDefinitions";
+import { ObservationLevel } from "./server";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [

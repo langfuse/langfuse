@@ -1,4 +1,3 @@
-import { ObservationLevel } from "@prisma/client";
 import { OrderByState } from "../../interfaces/orderBy";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions";
 import { FilterState } from "../../types";
@@ -24,7 +23,7 @@ import {
 } from "../repositories/constants";
 import Decimal from "decimal.js";
 import { ScoreAggregate } from "../../features/scores";
-import { reduceUsageOrCostDetails } from "../repositories";
+import { ObservationLevel, reduceUsageOrCostDetails } from "../repositories";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,

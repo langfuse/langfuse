@@ -12,25 +12,6 @@ export const Role = {
     NONE: "NONE"
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
-export const ObservationType = {
-    SPAN: "SPAN",
-    EVENT: "EVENT",
-    GENERATION: "GENERATION"
-} as const;
-export type ObservationType = (typeof ObservationType)[keyof typeof ObservationType];
-export const ObservationLevel = {
-    DEBUG: "DEBUG",
-    DEFAULT: "DEFAULT",
-    WARNING: "WARNING",
-    ERROR: "ERROR"
-} as const;
-export type ObservationLevel = (typeof ObservationLevel)[keyof typeof ObservationLevel];
-export const ScoreSource = {
-    ANNOTATION: "ANNOTATION",
-    API: "API",
-    EVAL: "EVAL"
-} as const;
-export type ScoreSource = (typeof ScoreSource)[keyof typeof ScoreSource];
 export const ScoreDataType = {
     CATEGORICAL: "CATEGORICAL",
     NUMERIC: "NUMERIC",
@@ -340,40 +321,6 @@ export type Model = {
     tokenizer_id: string | null;
     tokenizer_config: unknown | null;
 };
-export type Observation = {
-    id: string;
-    trace_id: string | null;
-    project_id: string;
-    type: ObservationType;
-    start_time: Generated<Timestamp>;
-    end_time: Timestamp | null;
-    name: string | null;
-    metadata: unknown | null;
-    parent_observation_id: string | null;
-    level: Generated<ObservationLevel>;
-    status_message: string | null;
-    version: string | null;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    model: string | null;
-    internal_model: string | null;
-    internal_model_id: string | null;
-    modelParameters: unknown | null;
-    input: unknown | null;
-    output: unknown | null;
-    prompt_tokens: Generated<number>;
-    completion_tokens: Generated<number>;
-    total_tokens: Generated<number>;
-    unit: string | null;
-    input_cost: string | null;
-    output_cost: string | null;
-    total_cost: string | null;
-    calculated_input_cost: string | null;
-    calculated_output_cost: string | null;
-    calculated_total_cost: string | null;
-    completion_start_time: Timestamp | null;
-    prompt_id: string | null;
-};
 export type ObservationMedia = {
     id: string;
     project_id: string;
@@ -383,43 +330,6 @@ export type ObservationMedia = {
     trace_id: string;
     observation_id: string;
     field: string;
-};
-export type ObservationView = {
-    id: string;
-    trace_id: string | null;
-    project_id: string;
-    type: ObservationType;
-    start_time: Timestamp;
-    end_time: Timestamp | null;
-    name: string | null;
-    metadata: unknown | null;
-    parent_observation_id: string | null;
-    level: Generated<ObservationLevel>;
-    status_message: string | null;
-    version: string | null;
-    created_at: Timestamp;
-    updated_at: Timestamp;
-    model: string | null;
-    modelParameters: unknown | null;
-    input: unknown | null;
-    output: unknown | null;
-    prompt_tokens: Generated<number>;
-    completion_tokens: Generated<number>;
-    total_tokens: Generated<number>;
-    unit: string | null;
-    completion_start_time: Timestamp | null;
-    prompt_id: string | null;
-    prompt_name: string | null;
-    prompt_version: number | null;
-    model_id: string | null;
-    input_price: string | null;
-    output_price: string | null;
-    total_price: string | null;
-    calculated_input_cost: string | null;
-    calculated_output_cost: string | null;
-    calculated_total_cost: string | null;
-    latency: number | null;
-    time_to_first_token: number | null;
 };
 export type Organization = {
     id: string;
@@ -492,24 +402,6 @@ export type QueueBackUp = {
     content: unknown;
     created_at: Generated<Timestamp>;
 };
-export type Score = {
-    id: string;
-    timestamp: Generated<Timestamp>;
-    project_id: string;
-    name: string;
-    value: number | null;
-    source: ScoreSource;
-    author_user_id: string | null;
-    comment: string | null;
-    trace_id: string;
-    observation_id: string | null;
-    config_id: string | null;
-    string_value: string | null;
-    queue_id: string | null;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-    data_type: Generated<ScoreDataType>;
-};
 export type ScoreConfig = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -536,25 +428,6 @@ export type SsoConfig = {
     auth_provider: string;
     auth_config: unknown | null;
 };
-export type Trace = {
-    id: string;
-    external_id: string | null;
-    timestamp: Generated<Timestamp>;
-    name: string | null;
-    user_id: string | null;
-    metadata: unknown | null;
-    release: string | null;
-    version: string | null;
-    project_id: string;
-    public: Generated<boolean>;
-    bookmarked: Generated<boolean>;
-    tags: Generated<string[]>;
-    input: unknown | null;
-    output: unknown | null;
-    session_id: string | null;
-    created_at: Generated<Timestamp>;
-    updated_at: Generated<Timestamp>;
-};
 export type TraceMedia = {
     id: string;
     project_id: string;
@@ -572,26 +445,6 @@ export type TraceSession = {
     bookmarked: Generated<boolean>;
     public: Generated<boolean>;
     environment: Generated<string>;
-};
-export type TraceView = {
-    id: string;
-    external_id: string | null;
-    timestamp: Generated<Timestamp>;
-    name: string | null;
-    user_id: string | null;
-    metadata: unknown | null;
-    release: string | null;
-    version: string | null;
-    project_id: string;
-    public: Generated<boolean>;
-    bookmarked: Generated<boolean>;
-    tags: Generated<string[]>;
-    input: unknown | null;
-    output: unknown | null;
-    session_id: string | null;
-    created_at: Timestamp;
-    updated_at: Timestamp;
-    duration: number | null;
 };
 export type User = {
     id: string;
@@ -633,8 +486,6 @@ export type DB = {
     membership_invitations: MembershipInvitation;
     models: Model;
     observation_media: ObservationMedia;
-    observations: Observation;
-    observations_view: ObservationView;
     organization_memberships: OrganizationMembership;
     organizations: Organization;
     posthog_integrations: PosthogIntegration;
@@ -644,13 +495,10 @@ export type DB = {
     prompts: Prompt;
     queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
-    scores: Score;
     Session: Session;
     sso_configs: SsoConfig;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
-    traces: Trace;
-    traces_view: TraceView;
     users: User;
     verification_tokens: VerificationToken;
 };

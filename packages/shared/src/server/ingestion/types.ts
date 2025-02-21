@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel, ScoreSource } from "@prisma/client";
+import { ObservationLevel, ScoreSource } from "../repositories";
 
 export const Usage = z.object({
   input: z.number().int().nullish(),

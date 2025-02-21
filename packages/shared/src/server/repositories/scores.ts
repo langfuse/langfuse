@@ -1,4 +1,5 @@
-import { Score, ScoreDataType, ScoreSource } from "@prisma/client";
+import { ScoreDataType } from "@prisma/client";
+import { Score, ScoreSource } from "./types";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -6,7 +7,7 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
+import { FilterList, orderByToClickhouseSql } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -17,7 +18,6 @@ import {
   dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
 } from "../../tableDefinitions";
-import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import {
   convertScoreAggregation,
   convertToScore,

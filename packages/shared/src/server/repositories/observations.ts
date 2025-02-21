@@ -5,7 +5,6 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import { ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import { prisma } from "../../db";

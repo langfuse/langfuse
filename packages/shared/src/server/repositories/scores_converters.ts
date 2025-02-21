@@ -1,5 +1,6 @@
-import { ScoreSource, ScoreDataType, Score } from "@prisma/client";
+import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
+import { Score, ScoreSource } from "./types";
 
 export type ScoreAggregation = {
   id: string;

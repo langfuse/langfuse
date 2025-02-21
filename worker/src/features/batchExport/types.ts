@@ -1,4 +1,4 @@
-import { ObservationLevel } from "@langfuse/shared";
+import { ObservationLevel } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 
 export type BatchExportSessionsRow = {
