@@ -21,7 +21,7 @@ export const stripeProducts: StripeProduct[] = [
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_RoBuRrXjIUBIJ8" // test
-        : "prod_xxxxxxxx", // live
+        : "prod_RoYirvRQ4Kc6po", // live
     mappedPlan: "cloud:core",
     checkout: {
       title: "Core",
