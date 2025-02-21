@@ -1,4 +1,3 @@
-import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type NextRouter, useRouter } from "next/router";
@@ -7,6 +6,7 @@ import { PromptVersionDiffDialog } from "./PromptVersionDiffDialog";
 import { Timeline, TimelineItem } from "@/src/components/ui/timeline";
 import { Badge } from "@/src/components/ui/badge";
 import { CommandItem } from "@/src/components/ui/command";
+import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 
 const PromptHistoryTraceNode = (props: {
   index: number;
@@ -20,6 +20,7 @@ const PromptHistoryTraceNode = (props: {
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isPromptDiffOpen, setIsPromptDiffOpen] = useState(false);
+  const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const { prompt } = props;
 
   // Add ref for scroll into view
@@ -40,25 +41,6 @@ const PromptHistoryTraceNode = (props: {
     // Should only trigger a single time on initial render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPromptRef.current]);
-
-  let badges: JSX.Element[] = prompt.labels
-    .sort((a, b) =>
-      a === PRODUCTION_LABEL
-        ? -1
-        : b === PRODUCTION_LABEL
-          ? 1
-          : a.localeCompare(b),
-    )
-    .map((label) => {
-      return (
-        <StatusBadge
-          type={label}
-          key={label}
-          className="break-all sm:break-normal"
-          isLive={label === PRODUCTION_LABEL}
-        />
-      );
-    });
 
   return (
     <TimelineItem
@@ -84,12 +66,24 @@ const PromptHistoryTraceNode = (props: {
           paddingBottom: 0,
         }}
       >
-        <div className="flex h-full min-h-6 flex-wrap gap-1">
-          <Badge variant="outline" className="h-6 bg-background/50">
-            # {prompt.version}
-          </Badge>
-          {badges}
+        <div className="flex flex-wrap items-start gap-1">
+          <SetPromptVersionLabels
+            title={
+              <Badge
+                onClick={(e) => e.stopPropagation()}
+                variant="outline"
+                className="h-6 shrink-0 bg-background/50"
+              >
+                # {prompt.version}
+              </Badge>
+            }
+            promptLabels={prompt.labels}
+            prompt={prompt}
+            isOpen={isLabelPopoverOpen}
+            setIsOpen={setIsLabelPopoverOpen}
+          />
         </div>
+
         <div className="grid w-full grid-cols-1 items-start justify-between gap-1 md:grid-cols-[1fr,auto]">
           <div className="min-h-7 min-w-0">
             {prompt.commitMessage && (

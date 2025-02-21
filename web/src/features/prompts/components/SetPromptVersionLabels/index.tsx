@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { PencilIcon, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -21,15 +21,21 @@ import { LabelCommandItem } from "./LabelCommandItem";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { Badge } from "@/src/components/ui/badge";
 
 export function SetPromptVersionLabels({
+  promptLabels,
   prompt,
   isOpen,
   setIsOpen,
+  title,
 }: {
+  promptLabels: string[];
   prompt: Prompt;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  title?: ReactNode;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -88,31 +94,38 @@ export function SetPromptVersionLabels({
     setIsOpen(false);
   };
 
+  const handleOnOpenChange = (open: boolean) => {
+    if (!hasAccess) setIsOpen(false);
+    else setIsOpen(open);
+  };
+
   return (
-    <Popover
-      key={prompt.id}
-      open={isOpen}
-      onOpenChange={(open) => {
-        setIsOpen(open);
-        setIsAddingLabel(false);
-      }}
-    >
+    <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          aria-label="Set prompt labels"
-          title="Set prompt labels"
-          disabled={!hasAccess}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          <PencilIcon className="mr-2 h-4 w-4" />
-          Edit version labels
-        </Button>
+        <div className="flex cursor-pointer flex-wrap gap-1">
+          {title && title}
+          {promptLabels.map((label) => (
+            <StatusBadge
+              type={label}
+              key={label}
+              className="break-all sm:break-normal"
+              isLive={label === PRODUCTION_LABEL}
+            />
+          ))}
+        </div>
       </PopoverTrigger>
-      <PopoverContent>
-        <div onClick={(event) => event.stopPropagation()}>
+      <PopoverContent
+        className="fixed max-h-[50vh] overflow-y-auto"
+        style={{
+          top: "var(--popover-top)",
+          left: "var(--popover-left)",
+          transform: "none",
+        }}
+      >
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className="flex flex-col"
+        >
           <h2 className="text-md mb-3 font-semibold">Prompt version labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}

@@ -50,8 +50,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
-import { cn } from "@/src/utils/tailwind";
-import { SubHeader, SubHeaderLabel } from "@/src/components/layouts/header";
+import { SubHeader } from "@/src/components/layouts/header";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -71,7 +70,7 @@ prompt = langfuse.get_prompt("${name}", version=${version})
 ${
   variables.length > 0
     ? `# Insert variables into prompt template
-compiled_prompt = prompt.compile(${variables.map((v) => `${v}=${v}`).join(", ")})`
+compiled_prompt = prompt.compile(${variables.map((v) => `${v}="${v}"`).join(", ")})`
     : ""
 }
 `;
@@ -91,7 +90,7 @@ const prompt = await langfuse.getPrompt("${name}", ${version});
 ${
   variables.length > 0
     ? `// Insert variables into prompt template
-const compiledPrompt = prompt.compile(${variables.map((v) => `${v}: ${v}`).join(", ")});`
+const compiledPrompt = prompt.compile(${variables.map((v) => `${v}: "${v}"`).join(", ")});`
     : ""
 }`;
 
@@ -218,30 +217,12 @@ export const PromptDetail = () => {
       ),
       jsCode: getJsCode(prompt.name, prompt.version, extractedVariables),
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt?.id]);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;
   }
-
-  const badges = prompt.labels
-    .sort((a, b) =>
-      a === PRODUCTION_LABEL
-        ? -1
-        : b === PRODUCTION_LABEL
-          ? 1
-          : a.localeCompare(b),
-    )
-    .map((label) => {
-      return (
-        <StatusBadge
-          type={label}
-          key={label}
-          className="break-all sm:break-normal"
-          isLive={label === PRODUCTION_LABEL}
-        />
-      );
-    });
 
   return (
     <Page
@@ -343,16 +324,32 @@ export const PromptDetail = () => {
           <div className="flex flex-col items-start gap-2">
             <div className="flex w-full flex-row items-center justify-between">
               <div className="flex flex-shrink flex-col">
-                <div className="flex flex-1 flex-wrap items-center gap-1">
-                  <Badge variant="outline" className="mr-1 h-6 text-nowrap">
-                    # {prompt.version}
-                  </Badge>
-                  <SubHeader
-                    title={prompt.commitMessage ?? prompt.name}
-                    className="mb-0"
+                <div className="flex flex-wrap items-start gap-1">
+                  <SetPromptVersionLabels
+                    title={
+                      <div
+                        className="contents !cursor-default"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Badge
+                          variant="outline"
+                          className="mr-1 h-6 text-nowrap"
+                        >
+                          # {prompt.version}
+                        </Badge>
+                        <SubHeader
+                          title={prompt.commitMessage ?? prompt.name}
+                          className="mb-0"
+                        />
+                      </div>
+                    }
+                    promptLabels={prompt.labels}
+                    prompt={prompt}
+                    isOpen={isLabelPopoverOpen}
+                    setIsOpen={setIsLabelPopoverOpen}
                   />
-                  {badges}
                 </div>
+
                 <div className="min-h-1 flex-1" />
               </div>
               <div className="flex flex-wrap justify-end gap-1">
@@ -414,15 +411,6 @@ export const PromptDetail = () => {
                     className="flex flex-col [&>*]:w-full [&>*]:justify-start"
                   >
                     <DropdownMenuItem asChild>
-                      <SetPromptVersionLabels
-                        prompt={prompt}
-                        isOpen={isLabelPopoverOpen}
-                        setIsOpen={(open) => {
-                          setIsLabelPopoverOpen(open);
-                        }}
-                      />
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
                       <DeletePromptVersion
                         promptVersionId={prompt.id}
                         version={prompt.version}
@@ -461,16 +449,10 @@ export const PromptDetail = () => {
               </div>
             </TabsBarContent>
             <TabsBarContent
-              value="config"
-              className="mt-0 flex max-h-full min-h-0 flex-1 flex-col"
-            >
-              <JSONView json={prompt.config} title="Config" className="pb-2" />
-            </TabsBarContent>
-            <TabsBarContent
               value="prompt"
-              className={cn("mt-0 grid min-h-0 flex-1 gap-4 overflow-hidden")}
+              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
             >
-              <div className="mb-2 flex max-h-full min-h-0 flex-col overflow-y-auto">
+              <div className="mb-2 flex max-h-full min-h-0 w-full flex-col overflow-y-auto">
                 {prompt.type === PromptType.Chat && chatMessages ? (
                   <OpenAiMessageView
                     messages={chatMessages}
@@ -483,8 +465,23 @@ export const PromptDetail = () => {
                 )}
               </div>
             </TabsBarContent>
-            <TabsBarContent value="use-prompt" className="mt-0 flex-1">
-              <div className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto pb-10">
+            <TabsBarContent
+              value="config"
+              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
+            >
+              <div className="flex max-h-full min-h-0 w-full flex-col overflow-y-auto pb-4">
+                <JSONView
+                  json={prompt.config}
+                  title="Config"
+                  className="pb-2"
+                />
+              </div>
+            </TabsBarContent>
+            <TabsBarContent
+              value="use-prompt"
+              className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
+            >
+              <div className="flex h-full min-h-0 w-full flex-col gap-2 overflow-y-auto pb-4">
                 {pythonCode && <CodeView content={pythonCode} title="Python" />}
                 {jsCode && <CodeView content={jsCode} title="JS/TS" />}
                 <p className="pl-1 text-xs text-muted-foreground">
