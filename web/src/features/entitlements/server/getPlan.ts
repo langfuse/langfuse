@@ -20,8 +20,8 @@ export function getOrganizationPlanServerSide(
         switch (cloudConfig.plan) {
           case "Hobby":
             return "cloud:hobby";
-          case "Lite":
-            return "cloud:lite";
+          case "Core":
+            return "cloud:core";
           case "Pro":
             return "cloud:pro";
           case "Team":

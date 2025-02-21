@@ -1,7 +1,7 @@
 export const planLabels = {
   oss: "OSS",
   "cloud:hobby": "Hobby",
-  "cloud:lite": "Lite",
+  "cloud:core": "Core",
   "cloud:pro": "Pro",
   "cloud:team": "Team",
   "self-hosted:pro": "Pro (self-hosted)",

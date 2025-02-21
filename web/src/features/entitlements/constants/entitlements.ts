@@ -64,7 +64,7 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
-  "cloud:lite": {
+  "cloud:core": {
     entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
       "organization-member-count": false,

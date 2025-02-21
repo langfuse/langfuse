@@ -22,9 +22,9 @@ export const stripeProducts: StripeProduct[] = [
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
         ? "prod_RoBuRrXjIUBIJ8" // test
         : "prod_xxxxxxxx", // live
-    mappedPlan: "cloud:lite",
+    mappedPlan: "cloud:core",
     checkout: {
-      title: "Lite",
+      title: "Core",
       description:
         "Great to get started for most projects with unlimited users and 90 days data access.",
       price: "$59 / month",
@@ -51,7 +51,7 @@ export const stripeProducts: StripeProduct[] = [
       price: "$199 / month",
       usagePrice: "$8/100k events (100k included)",
       mainFeatures: [
-        "Everything in Lite",
+        "Everything in Core",
         "Unlimited data access",
         "Unlimited annotation queues",
         "High rate limits",
@@ -78,7 +78,7 @@ export const stripeProducts: StripeProduct[] = [
         "Enterprise SSO (e.g. Okta)",
         "SSO enforcement",
         "Fine-grained RBAC",
-        "Dedicated support",
+        "Data retention management",
       ],
     },
   },
