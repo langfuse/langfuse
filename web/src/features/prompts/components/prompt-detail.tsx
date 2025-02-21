@@ -244,10 +244,6 @@ export const PromptDetail = () => {
             name: "Prompts",
             href: `/project/${projectId}/prompts/`,
           },
-          {
-            name: prompt.name,
-            href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
-          },
         ],
         tabsComponent: (
           <TabsBar value="versions">
