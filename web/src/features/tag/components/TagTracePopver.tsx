@@ -65,12 +65,14 @@ export function TagTracePopover({
 
   return (
     <TagManager
+      itemName="trace"
       tags={tags}
       allTags={availableTags}
       hasAccess={hasAccess}
       isLoading={isLoading}
       mutateTags={mutateTags}
       className={className}
+      isTableCell
     />
   );
 }
