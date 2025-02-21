@@ -137,8 +137,9 @@ model Project {
   TraceMedia          TraceMedia[]
   Media               Media[]
   ObservationMedia    ObservationMedia[]
-  TraceLegacy         TraceLegacy[]
-  ObservationLegacy   ObservationLegacy[]
+  LegacyTrace         LegacyTrace[]
+  LegacyObservation   LegacyObservation[]
+  LegacyScore         LegacyScore[]
 
   @@index([orgId])
   @@map("projects")
@@ -300,7 +301,7 @@ model LegacyTrace {
   sessionId  String?  @map("session_id")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
-  Project    Project  @relation(fields: [projectId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
 
   @@index([projectId, timestamp])
   @@index([sessionId])
@@ -397,6 +398,7 @@ model LegacyScore {
   updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at")
   dataType      ScoreDataType     @default(NUMERIC) @map("data_type")
   scoreConfig   ScoreConfig?      @relation(fields: [configId], references: [id], onDelete: SetNull)
+  project       Project           @relation(fields: [projectId], references: [id])
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index(timestamp)
@@ -430,6 +432,7 @@ model ScoreConfig {
   maxValue    Float?        @map("max_value")
   categories  Json?         @map("categories")
   description String?
+  legacyScore LegacyScore[]
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index([dataType])
