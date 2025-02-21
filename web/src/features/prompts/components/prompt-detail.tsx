@@ -56,40 +56,44 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 const getPythonCode = (
   name: string,
   version: number,
-  variables: string[],
+  labels: string[],
 ) => `from langfuse import Langfuse
 
 # Initialize Langfuse client
 langfuse = Langfuse()
 
-# Get this prompt version 
-prompt = langfuse.get_prompt("${name}", version=${version})
+# Get production prompt 
+prompt = langfuse.get_prompt("${name}")
 
-${
-  variables.length > 0
-    ? `# Insert variables into prompt template
-compiled_prompt = prompt.compile(${variables.map((v) => `${v}="${v}"`).join(", ")})`
-    : ""
-}
+# Get by label
+# You can use as many labels as you'd like to identify different deployment targets
+${labels.length > 0 ? labels.map((label) => `prompt = langfuse.get_prompt("${name}", label=["${label}"])`).join("\n") : ""}
+
+# Get by version number
+# Usually not recommended as it requires code changes to deploy new prompt versions
+langfuse.get_prompt("${name}", version=${version})
 `;
 
 const getJsCode = (
   name: string,
   version: number,
-  variables: string[],
+  labels: string[],
 ) => `import { Langfuse } from "langfuse";
 
 // Initialize the Langfuse client
 const langfuse = new Langfuse();
 
-// Get this prompt version 
-const prompt = await langfuse.getPrompt("${name}", ${version});
+// Get production prompt 
+const prompt = await langfuse.getPrompt("${name}");
 
-${
-  variables.length > 0
-    ? `// Insert variables into prompt template
-const compiledPrompt = prompt.compile(${variables.map((v) => `${v}: "${v}"`).join(", ")});`
-    : ""
+// Get by label
+// You can use as many labels as you'd like to identify different deployment targets
+${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPrompt("${name}", label=["${label}"])`).join("\n") : ""}
+
+// Get by version number
+// Usually not recommended as it requires code changes to deploy new prompt versions
+langfuse.getPrompt("${name}", version=${version})
+
 }`;
 
 export const PromptDetail = () => {
@@ -504,7 +508,7 @@ export const PromptDetail = () => {
                   >
                     documentation
                   </a>{" "}
-                  for more details.
+                  for more details on how to use prompts in frameworks.
                 </p>
               </div>
             </TabsBarContent>
