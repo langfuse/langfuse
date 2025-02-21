@@ -20,20 +20,12 @@ export function isValidVariableName(variable: string): boolean {
   return VARIABLE_REGEX.test(variable);
 }
 
-export function extractVariables(mustacheString: string): {
-  uniqueMatches: string[];
-  uniqueMatchesToCount: Map<string, number>;
-} {
+export function extractVariables(mustacheString: string): string[] {
   const matches = Array.from(mustacheString.matchAll(MUSTACHE_REGEX))
     .map((match) => match[1])
     .filter(isValidVariableName);
 
-  const uniqueMatchesToCount = matches.reduce((acc, variable) => {
-    acc.set(variable, (acc.get(variable) || 0) + 1);
-    return acc;
-  }, new Map<string, number>());
-
-  return { uniqueMatches: [...new Set(matches)], uniqueMatchesToCount };
+  return [...new Set(matches)];
 }
 
 export function stringifyValue(value: unknown) {

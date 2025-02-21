@@ -190,7 +190,7 @@ export const createExperimentJob = async ({
     prompt?.type === "text"
       ? (prompt.prompt?.toString() ?? "")
       : JSON.stringify(prompt.prompt),
-  ).uniqueMatches;
+  );
 
   // validate dataset items against prompt configuration
   const validatedDatasetItems = datasetItems

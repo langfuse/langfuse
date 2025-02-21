@@ -108,7 +108,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const updatePromptVariables = useCallback(() => {
     const messageContents = messages.map((m) => m.content).join("\n");
     const variables = extractVariables(messageContents)
-      .uniqueMatches.map((v) => v.trim())
+      .map((v) => v.trim())
       .filter(Boolean);
 
     setPromptVariables((prev) => {
@@ -169,7 +169,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
         const finalMessages = getFinalMessages(promptVariables, messages);
         const leftOverVariables = extractVariables(
           finalMessages.map((m) => m.content).join("\n"),
-        ).uniqueMatches;
+        );
 
         if (!modelParams.provider.value || !modelParams.model.value) {
           throw new Error("Please select a model");
