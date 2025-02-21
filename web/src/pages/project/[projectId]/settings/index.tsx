@@ -27,12 +27,165 @@ import ConfigureRetention from "@/src/features/projects/components/ConfigureRete
 import { env } from "@/src/env.mjs";
 import ContainerPage from "@/src/components/layouts/container-page";
 
+export type SettingsPage = {
+  title: string;
+  slug: string;
+  show?: boolean | (() => boolean);
+  cmdKTitle?: string;
+} & ({ content: React.ReactNode } | { href: string });
+
+export function useProjectSettingsPages(): SettingsPage[] {
+  const router = useRouter();
+  const { project, organization } = useQueryProject();
+  const showBillingSettings = useHasEntitlement("cloud-billing");
+  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+  if (!project || !organization || !router.query.projectId) {
+    return [];
+  }
+
+  return getProjectSettingsPages({
+    project,
+    organization,
+    showBillingSettings,
+    isLangfuseCloud,
+  });
+}
+
+export const getProjectSettingsPages = ({
+  project,
+  organization,
+  showBillingSettings,
+  isLangfuseCloud,
+}: {
+  project: { id: string; name: string };
+  organization: { id: string; name: string };
+  showBillingSettings: boolean;
+  isLangfuseCloud: boolean;
+}): SettingsPage[] => [
+  {
+    title: "General",
+    slug: "index",
+    cmdKTitle: "Project Settings > General",
+    content: (
+      <div className="flex flex-col gap-6">
+        <HostNameProject />
+        <RenameProject />
+        {isLangfuseCloud && <ConfigureRetention />}
+        <div>
+          <Header title="Debug Information" />
+          <JSONView
+            title="Metadata"
+            json={{
+              project: { name: project.name, id: project.id },
+              org: { name: organization.name, id: organization.id },
+            }}
+          />
+        </div>
+        <SettingsDangerZone
+          items={[
+            {
+              title: "Transfer ownership",
+              description:
+                "Transfer this project to another organization where you have the ability to create projects.",
+              button: <TransferProjectButton />,
+            },
+            {
+              title: "Delete this project",
+              description:
+                "Once you delete a project, there is no going back. Please be certain.",
+              button: <DeleteProjectButton />,
+            },
+          ]}
+        />
+      </div>
+    ),
+  },
+  {
+    title: "API Keys",
+    slug: "api-keys",
+    cmdKTitle: "Project Settings > API Keys",
+    content: (
+      <div className="flex flex-col gap-6">
+        <ApiKeyList projectId={project.id} />
+        <LlmApiKeyList projectId={project.id} />
+      </div>
+    ),
+  },
+  {
+    title: "Models",
+    slug: "models",
+    cmdKTitle: "Project Settings > Models",
+    content: <ModelsSettings projectId={project.id} />,
+  },
+  {
+    title: "Scores / Evaluation",
+    slug: "scores",
+    cmdKTitle: "Project Settings > Scores & Evaluation",
+    content: <ScoreConfigSettings projectId={project.id} />,
+  },
+  {
+    title: "Members",
+    slug: "members",
+    cmdKTitle: "Project Settings > Members",
+    content: (
+      <div>
+        <Header title="Project Members" />
+        <div>
+          <MembersTable
+            orgId={organization.id}
+            project={{ id: project.id, name: project.name }}
+          />
+        </div>
+        <div>
+          <MembershipInvitesPage
+            orgId={organization.id}
+            projectId={project.id}
+          />
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "Integrations",
+    slug: "integrations",
+    cmdKTitle: "Project Settings > Integrations",
+    content: <Integrations projectId={project.id} />,
+  },
+  {
+    title: "Exports",
+    slug: "exports",
+    cmdKTitle: "Project Settings > Exports",
+    content: <BatchExportsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Audit Logs",
+    slug: "audit-logs",
+    cmdKTitle: "Project Settings > Audit Logs",
+    content: <AuditLogsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Billing",
+    slug: "billing",
+    cmdKTitle: "Project Settings > Billing",
+    href: `/organization/${organization.id}/settings/billing`,
+    show: showBillingSettings,
+  },
+  {
+    title: "Organization Settings",
+    slug: "organization",
+    cmdKTitle: "Organization Settings",
+    href: `/organization/${organization.id}/settings`,
+  },
+];
+
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
   const router = useRouter();
-  const showBillingSettings = useHasEntitlement("cloud-billing");
-  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const pages = useProjectSettingsPages();
+
   if (!project || !organization) return null;
+
   return (
     <ContainerPage
       headerProps={{
@@ -41,112 +194,7 @@ export default function SettingsPage() {
     >
       <PagedSettingsContainer
         activeSlug={router.query.page as string | undefined}
-        pages={[
-          {
-            title: "General",
-            slug: "index",
-            content: (
-              <div className="flex flex-col gap-6">
-                <HostNameProject />
-                <RenameProject />
-                {isLangfuseCloud && <ConfigureRetention />}
-                <div>
-                  <Header title="Debug Information" />
-                  <JSONView
-                    title="Metadata"
-                    json={{
-                      project: { name: project.name, id: project.id },
-                      org: { name: organization.name, id: organization.id },
-                    }}
-                  />
-                </div>
-                <SettingsDangerZone
-                  items={[
-                    {
-                      title: "Transfer ownership",
-                      description:
-                        "Transfer this project to another organization where you have the ability to create projects.",
-                      button: <TransferProjectButton />,
-                    },
-                    {
-                      title: "Delete this project",
-                      description:
-                        "Once you delete a project, there is no going back. Please be certain.",
-                      button: <DeleteProjectButton />,
-                    },
-                  ]}
-                />
-              </div>
-            ),
-          },
-          {
-            title: "API Keys",
-            slug: "api-keys",
-            content: (
-              <div className="flex flex-col gap-6">
-                <ApiKeyList projectId={project.id} />
-                <LlmApiKeyList projectId={project.id} />
-              </div>
-            ),
-          },
-          {
-            title: "Models",
-            slug: "models",
-            content: <ModelsSettings projectId={project.id} />,
-          },
-          {
-            title: "Scores / Evaluation",
-            slug: "scores",
-            content: <ScoreConfigSettings projectId={project.id} />,
-          },
-          {
-            title: "Members",
-            slug: "members",
-            content: (
-              <div>
-                <Header title="Project Members" />
-                <div>
-                  <MembersTable
-                    orgId={organization.id}
-                    project={{ id: project.id, name: project.name }}
-                  />
-                </div>
-                <div>
-                  <MembershipInvitesPage
-                    orgId={organization.id}
-                    projectId={project.id}
-                  />
-                </div>
-              </div>
-            ),
-          },
-          {
-            title: "Integrations",
-            slug: "integrations",
-            content: <Integrations projectId={project.id} />,
-          },
-          {
-            title: "Exports",
-            slug: "exports",
-            content: <BatchExportsSettingsPage projectId={project.id} />,
-          },
-          {
-            title: "Audit Logs",
-            slug: "audit-logs",
-            content: <AuditLogsSettingsPage projectId={project.id} />,
-          },
-          {
-            title: "Billing",
-            slug: "billing",
-            href: `/organization/${organization.id}/settings/billing`,
-            show: showBillingSettings,
-          },
-          {
-            title: "Organization Settings",
-            slug: "organization",
-            href: `/organization/${organization.id}/settings`,
-          },
-        ]}
+        pages={pages}
       />
     </ContainerPage>
   );

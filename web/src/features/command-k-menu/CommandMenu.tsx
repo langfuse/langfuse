@@ -15,6 +15,7 @@ import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
+import { useProjectSettingsPages } from "@/src/pages/project/[projectId]/settings";
 
 export function CommandMenu({
   mainNavigation,
@@ -24,6 +25,14 @@ export function CommandMenu({
   const { open, setOpen } = useCommandMenu();
   const router = useRouter();
   const { allProjectItems } = useNavigationItems();
+  const settingsPages = useProjectSettingsPages();
+  const projectSettingsItems = settingsPages
+    .filter((page) => page.show !== false && !("href" in page))
+    .map((page) => ({
+      title: page.title,
+      cmdKTitle: page.cmdKTitle,
+      url: `/project/${router.query.projectId}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
+    }));
   const capture = usePostHogClientCapture();
 
   const debouncedSearchChange = useDebounce(
@@ -132,6 +141,30 @@ export function CommandMenu({
                   }}
                 >
                   {item.title}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+        {projectSettingsItems.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Project Settings">
+              {projectSettingsItems.map((item) => (
+                <CommandItem
+                  key={item.url}
+                  value={item.cmdKTitle || item.title}
+                  onSelect={() => {
+                    router.push(item.url);
+                    capture("cmd_k_menu:navigated", {
+                      type: "project_settings",
+                      title: item.title,
+                      url: item.url,
+                    });
+                    setOpen(false);
+                  }}
+                >
+                  {item.cmdKTitle || item.title}
                 </CommandItem>
               ))}
             </CommandGroup>
