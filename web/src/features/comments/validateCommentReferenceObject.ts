@@ -1,36 +1,6 @@
-import {
-  CommentObjectType,
-  type PrismaClient,
-  type CreateCommentData,
-} from "@langfuse/shared";
+import { CommentObjectType, type CreateCommentData } from "@langfuse/shared";
 import { type z } from "zod";
 import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
-
-type PrismaModelName = keyof Omit<
-  PrismaClient,
-  | "$connect"
-  | "$disconnect"
-  | "$on"
-  | "$transaction"
-  | "$use"
-  | "$extends"
-  | "$executeRaw"
-  | "$executeRawUnsafe"
-  | "$queryRaw"
-  | "$queryRawUnsafe"
-  | "$metrics"
-  | symbol
->;
-
-const COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL: Record<
-  CommentObjectType,
-  PrismaModelName
-> = {
-  [CommentObjectType.TRACE]: "trace",
-  [CommentObjectType.OBSERVATION]: "observation",
-  [CommentObjectType.SESSION]: "traceSession",
-  [CommentObjectType.PROMPT]: "prompt",
-} as const;
 
 const isObservationOrTrace = (objectType: CommentObjectType) => {
   return (
@@ -62,7 +32,12 @@ export const validateCommentReferenceObject = async ({
           errorMessage: `Reference object, ${objectType}: ${objectId} not found in Clickhouse. Skipping creating comment.`,
         };
   } else {
-    const prismaModel = COMMENT_OBJECT_TYPE_TO_PRISMA_MODEL[objectType];
+    const prismaModel =
+      objectType === CommentObjectType.SESSION
+        ? "traceSession"
+        : objectType === CommentObjectType.PROMPT
+          ? "prompt"
+          : null;
 
     if (!prismaModel) {
       return {

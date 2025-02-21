@@ -1,4 +1,4 @@
-import { ScoreDataType } from "@prisma/client";
+import { Prisma, ScoreDataType } from "@prisma/client";
 import Decimal from "decimal.js";
 
 export type TableCount = {
@@ -35,7 +35,7 @@ export type Observation = {
   startTime: Date;
   endTime: Date | null;
   name: string | null;
-  metadata: unknown | null;
+  metadata: Prisma.JsonValue | null;
   parentObservationId: string | null;
   level: ObservationLevelType;
   statusMessage: string | null;
@@ -70,7 +70,7 @@ export type ObservationView = {
   startTime: Date;
   endTime: Date | null;
   name: string | null;
-  metadata: unknown | null;
+  metadata: Prisma.JsonValue | null;
   parentObservationId: string | null;
   level: ObservationLevelType;
   statusMessage: string | null;
@@ -124,7 +124,7 @@ export type Trace = {
   timestamp: Date;
   name: string | null;
   userId: string | null;
-  metadata: unknown | null;
+  metadata: Prisma.JsonValue | null;
   release: string | null;
   version: string | null;
   projectId: string;

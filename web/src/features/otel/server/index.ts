@@ -1,6 +1,6 @@
 import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "@langfuse/shared";
 
 const convertNanoTimestampToISO = (
   timestamp:
