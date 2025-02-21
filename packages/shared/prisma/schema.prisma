@@ -137,6 +137,8 @@ model Project {
   TraceMedia          TraceMedia[]
   Media               Media[]
   ObservationMedia    ObservationMedia[]
+  TraceLegacy         TraceLegacy[]
+  ObservationLegacy   ObservationLegacy[]
 
   @@index([orgId])
   @@map("projects")
@@ -293,6 +295,7 @@ model ScoreConfig {
   maxValue    Float?        @map("max_value")
   categories  Json?         @map("categories")
   description String?
+  LegacyScore LegacyScore[]
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index([dataType])
@@ -809,4 +812,139 @@ model BillingMeterBackup {
   @@unique([stripeCustomerId, meterId, startTime, endTime])
   @@index([stripeCustomerId, meterId, startTime, endTime])
   @@map("billing_meter_backups")
+}
+
+model LegacyTrace {
+  id         String   @id @default(cuid())
+  externalId String?  @map("external_id")
+  timestamp  DateTime @default(now())
+  name       String?
+  userId     String?  @map("user_id")
+  metadata   Json?
+  release    String?
+  version    String?
+  projectId  String   @map("project_id")
+  public     Boolean  @default(false)
+  bookmarked Boolean  @default(false)
+  tags       String[] @default([])
+  input      Json?
+  output     Json?
+  sessionId  String?  @map("session_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+  Project    Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, timestamp])
+  @@index([sessionId])
+  @@index([name])
+  @@index([userId])
+  @@index([id, userId])
+  @@index(timestamp)
+  @@index(createdAt)
+  @@index([tags(ops: ArrayOps)], type: Gin)
+  @@map("traces")
+}
+
+model LegacyObservation {
+  id                   String                 @id @default(cuid())
+  traceId              String?                @map("trace_id")
+  projectId            String                 @map("project_id")
+  type                 LegacyObservationType
+  startTime            DateTime               @default(now()) @map("start_time")
+  endTime              DateTime?              @map("end_time")
+  name                 String?
+  metadata             Json?
+  parentObservationId  String?                @map("parent_observation_id")
+  level                LegacyObservationLevel @default(DEFAULT)
+  statusMessage        String?                @map("status_message")
+  version              String?
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at")
+  // GENERATION ONLY
+  model                String? // user-provided model attribute
+  internalModel        String?                @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
+  internalModelId      String?                @map("internal_model_id") // matched model.id that is matched at ingestion time
+  modelParameters      Json?
+  input                Json?
+  output               Json?
+  promptTokens         Int                    @default(0) @map("prompt_tokens")
+  completionTokens     Int                    @default(0) @map("completion_tokens")
+  totalTokens          Int                    @default(0) @map("total_tokens")
+  unit                 String?
+  // User provided cost at ingestion
+  inputCost            Decimal?               @map("input_cost")
+  outputCost           Decimal?               @map("output_cost")
+  totalCost            Decimal?               @map("total_cost")
+  // Calculated cost
+  calculatedInputCost  Decimal?               @map("calculated_input_cost")
+  calculatedOutputCost Decimal?               @map("calculated_output_cost")
+  calculatedTotalCost  Decimal?               @map("calculated_total_cost")
+  completionStartTime  DateTime?              @map("completion_start_time")
+  project              Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  promptId             String?                @map("prompt_id") // no fk constraint, prompt can be deleted
+
+  @@unique([id, projectId])
+  @@index([projectId, internalModel, startTime, unit])
+  @@index([traceId, projectId, type, startTime])
+  @@index([traceId, projectId, startTime])
+  @@index([type])
+  @@index(startTime)
+  @@index(createdAt)
+  @@index(model)
+  @@index(internalModel)
+  @@index([projectId, promptId])
+  @@index(promptId)
+  @@index([projectId, startTime, type])
+  @@map("observations")
+}
+
+enum LegacyObservationType {
+  SPAN
+  EVENT
+  GENERATION
+}
+
+enum LegacyObservationLevel {
+  DEBUG
+  DEFAULT
+  WARNING
+  ERROR
+}
+
+model LegacyScore {
+  id            String            @id @default(cuid())
+  timestamp     DateTime          @default(now())
+  projectId     String            @map("project_id")
+  name          String
+  value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
+  source        LegacyScoreSource
+  authorUserId  String?           @map("author_user_id")
+  comment       String?
+  traceId       String            @map("trace_id")
+  observationId String?           @map("observation_id")
+  configId      String?           @map("config_id")
+  stringValue   String?           @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
+  queueId       String?           @map("queue_id")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at")
+  dataType      ScoreDataType     @default(NUMERIC) @map("data_type")
+  scoreConfig   ScoreConfig?      @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  @@unique([id, projectId]) // used for upserts via prisma
+  @@index(timestamp)
+  @@index([value])
+  @@index([projectId, name])
+  @@index([authorUserId])
+  @@index([configId])
+  @@index([traceId], type: Hash)
+  @@index([observationId], type: Hash)
+  @@index([source])
+  @@index([createdAt])
+  @@map("scores")
+}
+
+enum LegacyScoreSource {
+  ANNOTATION
+  API
+  EVAL
 }
