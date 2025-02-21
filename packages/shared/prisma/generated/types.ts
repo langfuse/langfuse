@@ -12,6 +12,25 @@ export const Role = {
     NONE: "NONE"
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
+export const LegacyObservationType = {
+    SPAN: "SPAN",
+    EVENT: "EVENT",
+    GENERATION: "GENERATION"
+} as const;
+export type LegacyObservationType = (typeof LegacyObservationType)[keyof typeof LegacyObservationType];
+export const LegacyObservationLevel = {
+    DEBUG: "DEBUG",
+    DEFAULT: "DEFAULT",
+    WARNING: "WARNING",
+    ERROR: "ERROR"
+} as const;
+export type LegacyObservationLevel = (typeof LegacyObservationLevel)[keyof typeof LegacyObservationLevel];
+export const LegacyScoreSource = {
+    ANNOTATION: "ANNOTATION",
+    API: "API",
+    EVAL: "EVAL"
+} as const;
+export type LegacyScoreSource = (typeof LegacyScoreSource)[keyof typeof LegacyScoreSource];
 export const ScoreDataType = {
     CATEGORICAL: "CATEGORICAL",
     NUMERIC: "NUMERIC",
@@ -265,6 +284,77 @@ export type JobExecution = {
     job_input_dataset_item_id: string | null;
     job_output_score_id: string | null;
 };
+export type LegacyObservation = {
+    id: string;
+    trace_id: string | null;
+    project_id: string;
+    type: LegacyObservationType;
+    start_time: Generated<Timestamp>;
+    end_time: Timestamp | null;
+    name: string | null;
+    metadata: unknown | null;
+    parent_observation_id: string | null;
+    level: Generated<LegacyObservationLevel>;
+    status_message: string | null;
+    version: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    model: string | null;
+    internal_model: string | null;
+    internal_model_id: string | null;
+    modelParameters: unknown | null;
+    input: unknown | null;
+    output: unknown | null;
+    prompt_tokens: Generated<number>;
+    completion_tokens: Generated<number>;
+    total_tokens: Generated<number>;
+    unit: string | null;
+    input_cost: string | null;
+    output_cost: string | null;
+    total_cost: string | null;
+    calculated_input_cost: string | null;
+    calculated_output_cost: string | null;
+    calculated_total_cost: string | null;
+    completion_start_time: Timestamp | null;
+    prompt_id: string | null;
+};
+export type LegacyScore = {
+    id: string;
+    timestamp: Generated<Timestamp>;
+    project_id: string;
+    name: string;
+    value: number | null;
+    source: LegacyScoreSource;
+    author_user_id: string | null;
+    comment: string | null;
+    trace_id: string;
+    observation_id: string | null;
+    config_id: string | null;
+    string_value: string | null;
+    queue_id: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    data_type: Generated<ScoreDataType>;
+};
+export type LegacyTrace = {
+    id: string;
+    external_id: string | null;
+    timestamp: Generated<Timestamp>;
+    name: string | null;
+    user_id: string | null;
+    metadata: unknown | null;
+    release: string | null;
+    version: string | null;
+    project_id: string;
+    public: Generated<boolean>;
+    bookmarked: Generated<boolean>;
+    tags: Generated<string[]>;
+    input: unknown | null;
+    output: unknown | null;
+    session_id: string | null;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type LlmApiKeys = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -486,6 +576,7 @@ export type DB = {
     membership_invitations: MembershipInvitation;
     models: Model;
     observation_media: ObservationMedia;
+    observations: LegacyObservation;
     organization_memberships: OrganizationMembership;
     organizations: Organization;
     posthog_integrations: PosthogIntegration;
@@ -495,10 +586,12 @@ export type DB = {
     prompts: Prompt;
     queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
+    scores: LegacyScore;
     Session: Session;
     sso_configs: SsoConfig;
     trace_media: TraceMedia;
     trace_sessions: TraceSession;
+    traces: LegacyTrace;
     users: User;
     verification_tokens: VerificationToken;
 };
