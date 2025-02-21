@@ -110,7 +110,12 @@ export function SetPromptVersionLabels({
   return (
     <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
       <PopoverTrigger asChild data-version-trigger="true">
-        <div className="flex min-w-0 max-w-full cursor-pointer flex-wrap gap-1">
+        <div
+          className={cn(
+            "flex min-w-0 max-w-full cursor-pointer flex-wrap gap-1",
+            !hasAccess && "cursor-not-allowed",
+          )}
+        >
           {title && title}
           {sortedLabels.map((label) => (
             <StatusBadge
@@ -126,6 +131,7 @@ export function SetPromptVersionLabels({
               className={cn(
                 "h-6 w-6 bg-muted-gray text-primary",
                 showOnlyOnHover && "opacity-0 group-hover:opacity-100",
+                !hasAccess && "cursor-not-allowed group-hover:opacity-50",
               )}
             >
               <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
