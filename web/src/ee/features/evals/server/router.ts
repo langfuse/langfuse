@@ -724,13 +724,48 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      if (
-        existingJob?.timeScope.includes("EXISTING") &&
-        !config.timeScope?.includes("EXISTING")
-      ) {
-        throw new Error(
-          "The evaluator ran on existing traces already. This cannot be changed anymore.",
+      if (!existingJob) {
+        logger.warn(
+          `Job for update not found for project ${projectId} and id ${evalConfigId}`,
         );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Job not found",
+        });
+      }
+
+      if (
+        // check if:
+        // - existing job ran on existing traces
+        // - user wants to update the time scope
+        // - new time scope does not include EXISTING
+        existingJob.timeScope.includes("EXISTING") &&
+        config.timeScope &&
+        !config.timeScope.includes("EXISTING")
+      ) {
+        logger.error(
+          `Job ${evalConfigId} for project ${projectId} ran on existing traces already. This cannot be changed anymore`,
+        );
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "The evaluator ran on existing traces already. This cannot be changed anymore.",
+        });
+      }
+
+      if (
+        existingJob.timeScope.includes("EXISTING") &&
+        !existingJob.timeScope.includes("NEW") &&
+        config.status === "INACTIVE"
+      ) {
+        logger.error(
+          `Job ${evalConfigId} for project ${projectId} is running on existing traces only and cannot be deactivated`,
+        );
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "The evaluator is running on existing traces only and cannot be deactivated.",
+        });
       }
 
       await auditLog({
@@ -740,7 +775,7 @@ export const evalRouter = createTRPCRouter({
         action: "update",
       });
 
-      await ctx.prisma.jobConfiguration.update({
+      const updatedJob = await ctx.prisma.jobConfiguration.update({
         where: {
           id: evalConfigId,
           projectId: projectId,
@@ -780,6 +815,8 @@ export const evalRouter = createTRPCRouter({
           { delay: config.delay },
         );
       }
+
+      return updatedJob;
     }),
 
   getLogs: protectedProjectProcedure

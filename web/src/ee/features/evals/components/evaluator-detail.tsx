@@ -223,7 +223,11 @@ export function DeactivateEvaluator({
       <PopoverTrigger asChild>
         <div className="flex items-center">
           <Switch
-            disabled={!hasAccess}
+            disabled={
+              !hasAccess ||
+              (evaluator?.timeScope?.length === 1 &&
+                evaluator.timeScope[0] === "EXISTING")
+            }
             checked={isActive}
             className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
           />
