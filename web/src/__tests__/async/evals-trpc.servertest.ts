@@ -144,4 +144,182 @@ describe("evals trpc", () => {
       });
     });
   });
+
+  describe("evals.updateConfig", () => {
+    it("should update an evaluator configuration", async () => {
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      const response = await caller.evals.updateEvalJob({
+        projectId,
+        evalConfigId: evalJobConfig.id,
+        config: {
+          status: "INACTIVE",
+        },
+      });
+
+      expect(response.id).toEqual(evalJobConfig.id);
+      expect(response.status).toEqual("INACTIVE");
+      expect(response.timeScope).toEqual(["NEW"]);
+
+      const updatedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJobConfig.id,
+        },
+      });
+
+      expect(updatedJob).not.toBeNull();
+      expect(updatedJob?.id).toEqual(evalJobConfig.id);
+      expect(updatedJob?.status).toEqual("INACTIVE");
+      expect(updatedJob?.timeScope).toEqual(["NEW"]);
+    });
+
+    it("when the evaluator ran on existing traces, time scope cannot be changed to NEW only", async () => {
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["EXISTING"],
+        },
+      });
+
+      expect(
+        caller.evals.updateEvalJob({
+          projectId,
+          evalConfigId: evalJobConfig.id,
+          config: {
+            timeScope: ["NEW"],
+          },
+        }),
+      ).rejects.toThrow(
+        "The evaluator ran on existing traces already. This cannot be changed anymore.",
+      );
+    });
+
+    it("when the evaluator ran on existing traces, time scope can be changed to NEW also", async () => {
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["EXISTING"],
+        },
+      });
+
+      const response = await caller.evals.updateEvalJob({
+        projectId,
+        evalConfigId: evalJobConfig.id,
+        config: {
+          timeScope: ["EXISTING", "NEW"],
+        },
+      });
+
+      expect(response.id).toEqual(evalJobConfig.id);
+      expect(response.timeScope).toEqual(["EXISTING", "NEW"]);
+
+      const updatedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJobConfig.id,
+        },
+      });
+
+      expect(updatedJob).not.toBeNull();
+      expect(updatedJob?.id).toEqual(evalJobConfig.id);
+      expect(updatedJob?.timeScope).toEqual(["EXISTING", "NEW"]);
+    });
+
+    it("when the evaluator ran on existing traces, it cannot be deactivated", async () => {
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["EXISTING"],
+        },
+      });
+
+      expect(
+        caller.evals.updateEvalJob({
+          projectId,
+          evalConfigId: evalJobConfig.id,
+          config: {
+            status: "INACTIVE",
+          },
+        }),
+      ).rejects.toThrow(
+        "The evaluator is running on existing traces only and cannot be deactivated.",
+      );
+    });
+
+    it("when the evaluator ran on existing traces, it can be deactivated if it should also run on new traces", async () => {
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["EXISTING", "NEW"],
+        },
+      });
+
+      const response = await caller.evals.updateEvalJob({
+        projectId,
+        evalConfigId: evalJobConfig.id,
+        config: {
+          status: "INACTIVE",
+        },
+      });
+
+      expect(response.id).toEqual(evalJobConfig.id);
+      expect(response.status).toEqual("INACTIVE");
+      expect(response.timeScope).toEqual(["EXISTING", "NEW"]);
+
+      const updatedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJobConfig.id,
+        },
+      });
+
+      expect(updatedJob).not.toBeNull();
+      expect(updatedJob?.id).toEqual(evalJobConfig.id);
+      expect(updatedJob?.status).toEqual("INACTIVE");
+      expect(updatedJob?.timeScope).toEqual(["EXISTING", "NEW"]);
+    });
+  });
 });
