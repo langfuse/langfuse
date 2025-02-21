@@ -1,5 +1,6 @@
 export default async function teardown() {
   const { redis } = await import("@langfuse/shared/src/server");
+  const { prisma } = await import("@langfuse/shared/src/db");
   console.log(`Redis status ${redis?.status}`);
   if (!redis) {
     return;
@@ -9,5 +10,6 @@ export default async function teardown() {
     return;
   }
   redis?.disconnect();
+  await prisma.$disconnect();
   console.log("Teardown complete");
 }

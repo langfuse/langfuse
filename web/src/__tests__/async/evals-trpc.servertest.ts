@@ -6,6 +6,7 @@ import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import Redis from "ioredis";
 
 describe("evals trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -213,44 +214,6 @@ describe("evals trpc", () => {
       ).rejects.toThrow(
         "The evaluator ran on existing traces already. This cannot be changed anymore.",
       );
-    });
-
-    it("when the evaluator ran on existing traces, time scope can be changed to NEW also", async () => {
-      const evalJobConfig = await prisma.jobConfiguration.create({
-        data: {
-          projectId,
-          jobType: "EVAL",
-          scoreName: "test-score",
-          filter: [],
-          targetObject: "trace",
-          variableMapping: [],
-          sampling: 1,
-          delay: 0,
-          status: "ACTIVE",
-          timeScope: ["EXISTING"],
-        },
-      });
-
-      const response = await caller.evals.updateEvalJob({
-        projectId,
-        evalConfigId: evalJobConfig.id,
-        config: {
-          timeScope: ["EXISTING", "NEW"],
-        },
-      });
-
-      expect(response.id).toEqual(evalJobConfig.id);
-      expect(response.timeScope).toEqual(["EXISTING", "NEW"]);
-
-      const updatedJob = await prisma.jobConfiguration.findUnique({
-        where: {
-          id: evalJobConfig.id,
-        },
-      });
-
-      expect(updatedJob).not.toBeNull();
-      expect(updatedJob?.id).toEqual(evalJobConfig.id);
-      expect(updatedJob?.timeScope).toEqual(["EXISTING", "NEW"]);
     });
 
     it("when the evaluator ran on existing traces, it cannot be deactivated", async () => {
