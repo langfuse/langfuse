@@ -22,6 +22,7 @@ import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
   promptLabels,
@@ -29,14 +30,14 @@ export function SetPromptVersionLabels({
   isOpen,
   setIsOpen,
   title,
-  showEditButton = false,
+  showOnlyOnHover = false,
 }: {
   promptLabels: string[];
   prompt: Prompt;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   title?: ReactNode;
-  showEditButton?: boolean;
+  showOnlyOnHover?: boolean;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -113,12 +114,15 @@ export function SetPromptVersionLabels({
               isLive={label === PRODUCTION_LABEL}
             />
           ))}
-          {promptLabels.length === 0 && showEditButton && (
+          {promptLabels.length === 0 && (
             <Button
               variant="outline"
-              className="h-6 w-6 bg-muted-gray text-primary opacity-0 group-hover:opacity-100"
+              className={cn(
+                "h-6 w-6 bg-muted-gray text-primary",
+                showOnlyOnHover && "opacity-0 group-hover:opacity-100",
+              )}
             >
-              <CircleFadingArrowUp className="h-3.5 w-3.5" />
+              <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
             </Button>
           )}
         </div>

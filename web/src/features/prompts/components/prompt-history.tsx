@@ -64,6 +64,7 @@ const PromptHistoryTraceNode = (props: {
           paddingRight: 0,
           paddingTop: 0,
           paddingBottom: 0,
+          cursor: "pointer",
         }}
       >
         <div className="flex flex-wrap items-start gap-1">
@@ -81,7 +82,7 @@ const PromptHistoryTraceNode = (props: {
             prompt={prompt}
             isOpen={isLabelPopoverOpen}
             setIsOpen={setIsLabelPopoverOpen}
-            showEditButton
+            showOnlyOnHover
           />
         </div>
 

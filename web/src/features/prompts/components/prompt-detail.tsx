@@ -290,12 +290,12 @@ export const PromptDetail = () => {
       }}
     >
       <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden px-3 md:grid-cols-4">
-        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium">
+        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 data-[focus]:ring-0">
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
               placeholder="Search versions"
-              className="h-fit border-none py-0 text-sm font-light text-muted-foreground"
+              className="h-fit border-none py-0 text-sm font-light text-muted-foreground focus:ring-0"
             />
 
             <Button
@@ -305,6 +305,7 @@ export const PromptDetail = () => {
               }}
             >
               <Link
+                className="grid w-full place-items-center"
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
                 <Plus className="h-4 w-4" />
@@ -352,7 +353,7 @@ export const PromptDetail = () => {
 
                 <div className="min-h-1 flex-1" />
               </div>
-              <div className="flex flex-wrap justify-end gap-1">
+              <div className="flex h-full flex-wrap items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundButton
                   source="prompt"
                   prompt={prompt}
