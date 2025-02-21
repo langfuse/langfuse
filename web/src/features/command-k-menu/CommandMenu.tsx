@@ -29,9 +29,9 @@ export function CommandMenu({
   const projectSettingsItems = settingsPages
     .filter((page) => page.show !== false && !("href" in page))
     .map((page) => ({
-      title: page.title,
-      cmdKTitle: page.cmdKTitle,
+      title: `Project Settings > ${page.title}`,
       url: `/project/${router.query.projectId}/settings${page.slug === "index" ? "" : `/${page.slug}`}`,
+      keywords: page.cmdKKeywords || [],
     }));
   const capture = usePostHogClientCapture();
 
@@ -89,8 +89,12 @@ export function CommandMenu({
       onOpenChange={setOpen}
       filter={(value, search, keywords) => {
         const extendValue = value + " " + keywords?.join(" ");
-        if (extendValue.toLowerCase().includes(search.toLowerCase())) return 1;
-        return 0;
+        const searchTerms = search.toLowerCase().split(" ");
+        return searchTerms.every((term) =>
+          extendValue.toLowerCase().includes(term),
+        )
+          ? 1
+          : 0;
       }}
     >
       <CommandInput
@@ -153,7 +157,8 @@ export function CommandMenu({
               {projectSettingsItems.map((item) => (
                 <CommandItem
                   key={item.url}
-                  value={item.cmdKTitle || item.title}
+                  value={item.title}
+                  keywords={item.keywords}
                   onSelect={() => {
                     router.push(item.url);
                     capture("cmd_k_menu:navigated", {
@@ -164,7 +169,7 @@ export function CommandMenu({
                     setOpen(false);
                   }}
                 >
-                  {item.cmdKTitle || item.title}
+                  {item.title}
                 </CommandItem>
               ))}
             </CommandGroup>

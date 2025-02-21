@@ -31,7 +31,7 @@ export type SettingsPage = {
   title: string;
   slug: string;
   show?: boolean | (() => boolean);
-  cmdKTitle?: string;
+  cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
 export function useProjectSettingsPages(): SettingsPage[] {
@@ -66,7 +66,7 @@ export const getProjectSettingsPages = ({
   {
     title: "General",
     slug: "index",
-    cmdKTitle: "Project Settings > General",
+    cmdKKeywords: ["name", "id", "delete", "transfer", "ownership"],
     content: (
       <div className="flex flex-col gap-6">
         <HostNameProject />
@@ -104,7 +104,7 @@ export const getProjectSettingsPages = ({
   {
     title: "API Keys",
     slug: "api-keys",
-    cmdKTitle: "Project Settings > API Keys",
+    cmdKKeywords: ["auth"],
     content: (
       <div className="flex flex-col gap-6">
         <ApiKeyList projectId={project.id} />
@@ -115,19 +115,19 @@ export const getProjectSettingsPages = ({
   {
     title: "Models",
     slug: "models",
-    cmdKTitle: "Project Settings > Models",
+    cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
   },
   {
     title: "Scores / Evaluation",
     slug: "scores",
-    cmdKTitle: "Project Settings > Scores & Evaluation",
+    cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
   },
   {
     title: "Members",
     slug: "members",
-    cmdKTitle: "Project Settings > Members",
+    cmdKKeywords: ["invite", "user"],
     content: (
       <div>
         <Header title="Project Members" />
@@ -149,32 +149,30 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKTitle: "Project Settings > Integrations",
+    cmdKKeywords: ["posthog"],
     content: <Integrations projectId={project.id} />,
   },
   {
     title: "Exports",
     slug: "exports",
-    cmdKTitle: "Project Settings > Exports",
+    cmdKKeywords: ["csv", "download", "json", "batch"],
     content: <BatchExportsSettingsPage projectId={project.id} />,
   },
   {
     title: "Audit Logs",
     slug: "audit-logs",
-    cmdKTitle: "Project Settings > Audit Logs",
+    cmdKKeywords: ["trail"],
     content: <AuditLogsSettingsPage projectId={project.id} />,
   },
   {
     title: "Billing",
     slug: "billing",
-    cmdKTitle: "Project Settings > Billing",
     href: `/organization/${organization.id}/settings/billing`,
     show: showBillingSettings,
   },
   {
     title: "Organization Settings",
     slug: "organization",
-    cmdKTitle: "Organization Settings",
     href: `/organization/${organization.id}/settings`,
   },
 ];
