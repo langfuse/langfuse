@@ -7,7 +7,8 @@ export const TagButton: React.FC<{
   tag: string;
   loading: boolean;
   viewOnly?: boolean;
-}> = React.memo(({ tag, loading, viewOnly = false }) => (
+  isTableCell?: boolean;
+}> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => (
   <Button
     key={tag}
     variant="tertiary"
@@ -16,8 +17,14 @@ export const TagButton: React.FC<{
     className={cn(viewOnly && "cursor-default", "h-fit min-h-6")}
     loading={loading}
   >
-    <TagIcon className="mr-1 h-3.5 w-3.5" />
-    <span className="w-full min-w-6 whitespace-normal break-all text-xs sm:min-w-0 sm:break-normal sm:break-words">
+    <TagIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
+    <span
+      className={cn(
+        "w-full whitespace-nowrap",
+        !isTableCell &&
+          "min-w-6 whitespace-normal break-all text-xs sm:min-w-0 sm:break-normal sm:break-words",
+      )}
+    >
       {tag}
     </span>
   </Button>

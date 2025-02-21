@@ -72,7 +72,7 @@ export function TagTracePopover({
       isLoading={isLoading}
       mutateTags={mutateTags}
       className={className}
-      showCreateOnlyOnHover
+      isTableCell
     />
   );
 }

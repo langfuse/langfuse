@@ -21,7 +21,7 @@ type TagManagerProps = {
   isLoading: boolean;
   mutateTags: (value: string[]) => void;
   className?: string;
-  showCreateOnlyOnHover?: boolean;
+  isTableCell?: boolean;
 };
 
 const TagManager = ({
@@ -32,7 +32,7 @@ const TagManager = ({
   isLoading,
   mutateTags,
   className,
-  showCreateOnlyOnHover = false,
+  isTableCell = false,
 }: TagManagerProps) => {
   const {
     selectedTags,
@@ -61,18 +61,29 @@ const TagManager = ({
 
   if (!hasAccess) {
     return (
-      <TagList selectedTags={selectedTags} isLoading={isLoading} viewOnly />
+      <TagList
+        selectedTags={selectedTags}
+        isLoading={isLoading}
+        viewOnly
+        isTableCell={isTableCell}
+      />
     );
   }
 
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
       <PopoverTrigger className="select-none" asChild>
-        <div className={cn("flex flex-wrap gap-x-2 gap-y-1", className)}>
+        <div
+          className={cn(
+            "flex gap-x-1 gap-y-1",
+            className,
+            !isTableCell && "flex-wrap",
+          )}
+        >
           <TagList
             selectedTags={selectedTags}
             isLoading={isLoading}
-            showCreateOnlyOnHover={showCreateOnlyOnHover}
+            isTableCell={isTableCell}
           />
         </div>
       </PopoverTrigger>

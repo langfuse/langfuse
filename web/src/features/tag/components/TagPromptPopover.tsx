@@ -71,7 +71,7 @@ export function TagPromptPopover({
       isLoading={isLoading}
       mutateTags={mutateTags}
       className={className}
-      showCreateOnlyOnHover
+      isTableCell
     />
   );
 }

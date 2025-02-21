@@ -6,24 +6,31 @@ type TagListProps = {
   selectedTags: string[];
   isLoading: boolean;
   viewOnly?: boolean;
-  showCreateOnlyOnHover?: boolean;
+  isTableCell?: boolean;
+  className?: string;
 };
 
 const TagList = ({
   selectedTags,
   isLoading,
   viewOnly = false,
-  showCreateOnlyOnHover = false,
+  isTableCell = false,
 }: TagListProps) => {
   return selectedTags.length > 0 || viewOnly ? (
     selectedTags.map((tag) => (
-      <TagButton key={tag} tag={tag} loading={isLoading} viewOnly={viewOnly} />
+      <TagButton
+        key={tag}
+        tag={tag}
+        loading={isLoading}
+        viewOnly={viewOnly}
+        isTableCell={isTableCell}
+      />
     ))
   ) : (
     <Button
       variant="tertiary"
       size="icon-xs"
-      className={showCreateOnlyOnHover ? "opacity-0 hover:opacity-100" : ""}
+      className={isTableCell ? "opacity-0 hover:opacity-100" : ""}
     >
       <TagIcon className="h-3.5 w-3.5" />
     </Button>
