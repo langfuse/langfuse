@@ -1,4 +1,4 @@
-import { ObservationLevel } from "../server";
+import { ObservationLevelType } from "../server";
 import { ColumnDefinition, OptionsDefinition } from "..";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
@@ -62,7 +62,12 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     id: "level",
     type: "stringOptions",
     internal: '"level"',
-    options: Object.values(ObservationLevel).map((value) => ({ value })),
+    options: [
+      { value: "DEBUG" },
+      { value: "DEFAULT" },
+      { value: "WARNING" },
+      { value: "ERROR" },
+    ] as { value: ObservationLevelType }[],
   },
   {
     name: "Tags",

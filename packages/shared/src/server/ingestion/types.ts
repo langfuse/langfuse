@@ -230,7 +230,7 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
-  source: z.nativeEnum(ScoreSource).default(ScoreSource.API),
+  source: z.nativeEnum(ScoreSource).default("API"),
 });
 
 /**
