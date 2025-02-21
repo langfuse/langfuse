@@ -11,10 +11,7 @@ export const pruneDatabase = async () => {
     throw new Error("You cannot prune database unless running on localhost.");
   }
 
-  await prisma.score.deleteMany();
   await prisma.scoreConfig.deleteMany();
-  await prisma.observation.deleteMany();
-  await prisma.trace.deleteMany();
   await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
   await prisma.dataset.deleteMany();
