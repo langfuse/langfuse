@@ -80,7 +80,7 @@ export function SetPromptVersionLabels({
     },
   });
 
-  const sortedLabels = promptLabels.sort((a, b) => {
+  const sortedLabels = [...promptLabels].sort((a, b) => {
     if (a === PRODUCTION_LABEL) return -1;
     if (b === PRODUCTION_LABEL) return 1;
     return a.localeCompare(b);
