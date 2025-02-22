@@ -61,12 +61,14 @@ const TagManager = ({
 
   if (!hasAccess) {
     return (
-      <TagList
-        selectedTags={selectedTags}
-        isLoading={isLoading}
-        viewOnly
-        isTableCell={isTableCell}
-      />
+      <div className="flex gap-x-1 gap-y-1">
+        <TagList
+          selectedTags={selectedTags}
+          isLoading={isLoading}
+          viewOnly
+          isTableCell={isTableCell}
+        />
+      </div>
     );
   }
 

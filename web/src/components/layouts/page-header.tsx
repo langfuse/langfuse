@@ -49,19 +49,19 @@ const PageHeader = ({
         <div className="bg-header">
           <div
             className={cn(
-              "grid min-h-12 grid-cols-[minmax(auto,1fr)_auto] items-center justify-between gap-1 px-3 py-1",
+              "grid min-h-12 min-w-0 max-w-full grid-cols-[minmax(auto,1fr)_auto] items-center justify-between gap-1 px-3 py-1",
               container && "lg:container",
             )}
           >
-            <div className="flex w-fit items-center gap-1">
+            <div className="flex min-w-0 max-w-full items-center gap-1">
               {itemType && (
                 <div className="flex h-12 items-center">
                   <ItemBadge type={itemType} showLabel />
                 </div>
               )}
-              <div className="relative mr-2 inline-block min-w-20">
+              <div className="relative inline-block min-w-20">
                 <h2 className="line-clamp-2 inline h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
-                  <span className="break-all md:break-normal md:break-words">
+                  <span className="line-clamp-2 break-all md:break-normal md:break-words">
                     {title}
                     {help && (
                       <span className="whitespace-nowrap">
