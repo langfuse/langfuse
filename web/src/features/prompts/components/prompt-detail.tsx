@@ -302,7 +302,7 @@ export const PromptDetail = () => {
               onClick={() => {
                 capture("prompts:update_form_open");
               }}
-              className="h-6 w-6 shrink-0 px-3 md:h-8 md:w-fit"
+              className="h-6 w-6 shrink-0 px-1 md:h-8 md:w-fit md:px-3"
             >
               <Link
                 className="grid w-full place-items-center md:grid-flow-col"
@@ -353,7 +353,7 @@ export const PromptDetail = () => {
 
                 <div className="min-h-1 flex-1" />
               </div>
-              <div className="flex h-full flex-wrap items-start justify-end gap-1 lg:flex-nowrap">
+              <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundButton
                   source="prompt"
                   prompt={prompt}
