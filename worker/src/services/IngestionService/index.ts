@@ -945,6 +945,7 @@ export class IngestionService {
         release: trace.body.release,
         version: trace.body.version,
         project_id: projectId,
+        environment: trace.body.environment,
         public: trace.body.public ?? false,
         bookmarked: false,
         tags: trace.body.tags ?? [],
@@ -1058,6 +1059,7 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
+        environment: obs.body.environment,
         start_time: this.getMillisecondTimestamp(
           obs.body.startTime ?? obs.timestamp,
         ),

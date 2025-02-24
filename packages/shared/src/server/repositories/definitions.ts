@@ -36,6 +36,7 @@ export const observationRecordBaseSchema = z.object({
   project_id: z.string(),
   type: z.string(),
   parent_observation_id: z.string().nullish(),
+  environment: z.string().nullish(),
   name: z.string().nullish(),
   metadata: z.record(z.string()),
   level: z.string().nullish(),
@@ -52,9 +53,6 @@ export const observationRecordBaseSchema = z.object({
   prompt_version: z.number().nullish(),
   is_deleted: z.number(),
 });
-export type ObservationRecordBaseType = z.infer<
-  typeof observationRecordBaseSchema
->;
 
 export const observationRecordReadSchema = observationRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
@@ -98,6 +96,7 @@ export const traceRecordBaseSchema = z.object({
   release: z.string().nullish(),
   version: z.string().nullish(),
   project_id: z.string(),
+  environment: z.string().nullish(),
   public: z.boolean(),
   bookmarked: z.boolean(),
   tags: z.array(z.string()),
@@ -106,7 +105,6 @@ export const traceRecordBaseSchema = z.object({
   session_id: z.string().nullish(),
   is_deleted: z.number(),
 });
-export type TraceRecordBaseType = z.infer<typeof traceRecordBaseSchema>;
 
 export const traceRecordReadSchema = traceRecordBaseSchema.extend({
   timestamp: clickhouseStringDateSchema,
@@ -129,6 +127,7 @@ export const scoreRecordBaseSchema = z.object({
   project_id: z.string(),
   trace_id: z.string(),
   observation_id: z.string().nullish(),
+  environment: z.string().nullish(),
   name: z.string(),
   value: z.number().nullish(),
   source: z.string(),
@@ -140,7 +139,6 @@ export const scoreRecordBaseSchema = z.object({
   queue_id: z.string().nullish(),
   is_deleted: z.number(),
 });
-export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
 
 export const scoreRecordReadSchema = scoreRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
