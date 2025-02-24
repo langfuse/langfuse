@@ -2,39 +2,21 @@ import { type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
-import { Badge } from "@/src/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectLabel,
-  SelectGroup,
-} from "@/src/components/ui/select";
-import { AggUsageBadge } from "@/src/components/token-usage-badge";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
+  StringParam,
+  UrlUpdateType,
+  useQueryParam,
+  withDefault,
+} from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
-import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
-import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
-import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Toggle } from "@/src/components/ui/toggle";
-import {
-  Award,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  FilterIcon,
-  ListTree,
-  Network,
-  Percent,
-  Share2Icon,
-} from "lucide-react";
-import { usdFormatter } from "@/src/utils/numbers";
+import { Settings2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -42,19 +24,30 @@ import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore, ObservationLevel } from "@langfuse/shared";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import {
-  TabsBar,
-  TabsBarContent,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import { Switch } from "@/src/components/ui/switch";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
+} from "@/src/components/ui/dropdown-menu";
+import { cn } from "@/src/utils/tailwind";
 
 export function Trace(props: {
-  observations: Array<ObservationReturnType>;
+  observations: Array<ObservationReturnTypeWithMetadata>;
   trace: Omit<Trace, "input" | "output"> & {
     input: string | undefined;
     output: string | undefined;
@@ -64,6 +57,11 @@ export function Trace(props: {
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;
   defaultMinObservationLevel?: ObservationLevel;
+  selectedTab?: string;
+  setSelectedTab?: (
+    newValue?: string | null,
+    updateType?: UrlUpdateType,
+  ) => void;
 }) {
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
@@ -82,6 +80,7 @@ export function Trace(props: {
     colorCodeMetricsOnObservationTree,
     setColorCodeMetricsOnObservationTree,
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
+  const [showComments, setShowComments] = useLocalStorage("showComments", true);
 
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
@@ -177,8 +176,189 @@ export function Trace(props: {
   }, []);
 
   return (
-    <div className="grid gap-4 md:h-full md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-      <div className="overflow-y-auto md:col-span-3 md:h-full lg:col-span-4 xl:col-span-5">
+    <div
+      className={cn(
+        "grid flex-1 gap-4 md:h-full md:grid-cols-5",
+        props.selectedTab === "timeline"
+          ? "md:grid-cols-[3fr_2fr] xl:grid-cols-[4fr_2fr]"
+          : "md:grid-cols-[2fr_3fr] xl:grid-cols-[2fr_4fr]",
+      )}
+    >
+      <div className="border-r md:flex md:h-full md:flex-col md:overflow-hidden">
+        <Command className="mt-1 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
+          <div className="flex flex-row justify-between px-3">
+            <CommandInput
+              showBorder={false}
+              placeholder="Search nodes..."
+              className="h-9 border-0 focus:ring-0"
+            />
+            <div className="flex flex-row items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      asChild
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="mr-2">Show Comments</span>
+                        <Switch
+                          checked={showComments}
+                          onCheckedChange={(e) => {
+                            setShowComments(e);
+                          }}
+                        />
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="mr-2">Show Scores</span>
+                        <Switch
+                          checked={scoresOnObservationTree}
+                          onCheckedChange={(e) => {
+                            capture(
+                              "trace_detail:observation_tree_toggle_scores",
+                              {
+                                show: e,
+                              },
+                            );
+                            setScoresOnObservationTree(e);
+                          }}
+                        />
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="mr-2">Show Metrics</span>
+                        <Switch
+                          checked={metricsOnObservationTree}
+                          onCheckedChange={(e) => {
+                            capture(
+                              "trace_detail:observation_tree_toggle_metrics",
+                              {
+                                show: e,
+                              },
+                            );
+                            setMetricsOnObservationTree(e);
+                          }}
+                        />
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      asChild
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="mr-2">Color Code Metrics</span>
+                        <Switch
+                          checked={colorCodeMetricsOnObservationTree}
+                          onCheckedChange={(e) =>
+                            setColorCodeMetricsOnObservationTree(e)
+                          }
+                        />
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <span className="flex items-center">
+                        Min Level: {minObservationLevel}
+                      </span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuLabel className="font-semibold">
+                        Minimum Level
+                      </DropdownMenuLabel>
+                      {Object.values(ObservationLevel).map((level) => (
+                        <DropdownMenuItem
+                          key={level}
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            setMinObservationLevel(level);
+                          }}
+                        >
+                          {level}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Switch
+                checked={props.selectedTab === "timeline"}
+                onCheckedChange={(checked) =>
+                  props.setSelectedTab?.(checked ? "timeline" : "preview")
+                }
+              />
+            </div>
+          </div>
+          <div className="overflow-y-auto px-3">
+            {props.selectedTab === "timeline" ? (
+              <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                <TraceTimelineView
+                  key={props.trace.id}
+                  trace={props.trace}
+                  scores={props.scores}
+                  observations={props.observations}
+                  projectId={props.trace.projectId}
+                />
+                {isLanggraphTrace(props.observations) ? (
+                  <div className="h-full flex-1 overflow-hidden">
+                    <TraceGraphView
+                      key={props.trace.id}
+                      trace={props.trace}
+                      scores={props.scores}
+                      observations={props.observations}
+                      projectId={props.trace.projectId}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <ObservationTree
+                observations={props.observations}
+                collapsedObservations={collapsedObservations}
+                toggleCollapsedObservation={toggleCollapsedObservation}
+                collapseAll={collapseAll}
+                expandAll={expandAll}
+                trace={props.trace}
+                scores={props.scores}
+                currentObservationId={currentObservationId ?? undefined}
+                setCurrentObservationId={setCurrentObservationId}
+                showMetrics={metricsOnObservationTree}
+                showScores={scoresOnObservationTree}
+                showComments={showComments}
+                colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                observationCommentCounts={observationCommentCounts.data}
+                traceCommentCounts={traceCommentCounts.data}
+                className="flex w-full flex-col"
+                minLevel={minObservationLevel}
+                setMinLevel={setMinObservationLevel}
+              />
+            )}
+          </div>
+        </Command>
+      </div>
+      <div className="overflow-hidden md:h-full">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -200,98 +380,6 @@ export function Trace(props: {
             viewType={viewType}
           />
         ) : null}
-      </div>
-      <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
-        <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
-          <Toggle
-            pressed={scoresOnObservationTree}
-            onPressedChange={(e) => {
-              capture("trace_detail:observation_tree_toggle_scores", {
-                show: e,
-              });
-              setScoresOnObservationTree(e);
-            }}
-            size="xs"
-            title="Show scores"
-          >
-            <Award className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            pressed={metricsOnObservationTree}
-            onPressedChange={(e) => {
-              capture("trace_detail:observation_tree_toggle_metrics", {
-                show: e,
-              });
-              setMetricsOnObservationTree(e);
-            }}
-            size="xs"
-            title="Show metrics"
-          >
-            {metricsOnObservationTree ? (
-              <ChevronsDownUp className="h-4 w-4" />
-            ) : (
-              <ChevronsUpDown className="h-4 w-4" />
-            )}
-          </Toggle>
-          <Toggle
-            pressed={colorCodeMetricsOnObservationTree}
-            onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
-            size="xs"
-            title="Color code metrics (>50% yellow, >75% red)"
-          >
-            <Percent className="h-4 w-4" />
-          </Toggle>
-          <Select
-            onValueChange={(v: ObservationLevel) => setMinObservationLevel(v)}
-            value={minObservationLevel}
-          >
-            <SelectTrigger
-              hideDownIcon
-              className="focus:ring-none h-auto w-auto border-none px-0 py-0 text-sm focus:outline-none focus:ring-0 focus:ring-offset-0"
-            >
-              <Toggle
-                pressed={colorCodeMetricsOnObservationTree}
-                onPressedChange={(e) => setColorCodeMetricsOnObservationTree(e)}
-                size="xs"
-                title="Color code metrics (>50% yellow, >75% red)"
-              >
-                <FilterIcon className="h-4 w-4" />
-              </Toggle>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel className="py-1 text-sm font-semibold">
-                  Min. Level
-                </SelectLabel>
-                {Object.values(ObservationLevel).map((level) => (
-                  <SelectItem value={level} key={level}>
-                    {level}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <ObservationTree
-          observations={props.observations}
-          collapsedObservations={collapsedObservations}
-          toggleCollapsedObservation={toggleCollapsedObservation}
-          collapseAll={collapseAll}
-          expandAll={expandAll}
-          trace={props.trace}
-          scores={props.scores}
-          currentObservationId={currentObservationId ?? undefined}
-          setCurrentObservationId={setCurrentObservationId}
-          showMetrics={metricsOnObservationTree}
-          showScores={scoresOnObservationTree}
-          colorCodeMetrics={colorCodeMetricsOnObservationTree}
-          observationCommentCounts={observationCommentCounts.data}
-          traceCommentCounts={traceCommentCounts.data}
-          minLevel={minObservationLevel}
-          setMinLevel={setMinObservationLevel}
-          className="flex w-full flex-col overflow-y-auto"
-        />
       </div>
     </div>
   );
@@ -328,30 +416,6 @@ export function TracePage({
     },
   );
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId: trace.data?.projectId ?? "",
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      enabled:
-        !!trace.data?.projectId &&
-        trace.isSuccess &&
-        isAuthenticatedAndProjectMember,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
-
   const totalCost = calculateDisplayTotalCost({
     allObservations: trace.data?.observations ?? [],
   });
@@ -382,6 +446,7 @@ export function TracePage({
 
   return (
     <Page
+      withPadding={false}
       headerProps={{
         title: trace.data.name
           ? `${trace.data.name}: ${trace.data.id}`
@@ -446,108 +511,17 @@ export function TracePage({
         ),
       }}
     >
-      <div className="flex flex-wrap gap-2">
-        {trace.data.sessionId ? (
-          <Link
-            href={`/project/${
-              router.query.projectId as string
-            }/sessions/${encodeURIComponent(trace.data.sessionId)}`}
-          >
-            <Badge>Session: {trace.data.sessionId}</Badge>
-          </Link>
-        ) : null}
-        {trace.data.userId ? (
-          <Link
-            href={`/project/${
-              router.query.projectId as string
-            }/users/${encodeURIComponent(trace.data.userId)}`}
-          >
-            <Badge>User ID: {trace.data.userId}</Badge>
-          </Link>
-        ) : null}
-        <AggUsageBadge observations={trace.data.observations} />
-        {totalCost ? (
-          <Badge variant="outline">{usdFormatter(totalCost.toNumber())}</Badge>
-        ) : undefined}
+      <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
+        <Trace
+          key={trace.data.id}
+          trace={trace.data}
+          scores={trace.data.scores}
+          projectId={trace.data.projectId}
+          observations={trace.data.observations}
+          selectedTab={selectedTab}
+          setSelectedTab={setSelectedTab}
+        />
       </div>
-      <div className="mt-3 rounded-lg border bg-card font-semibold text-card-foreground">
-        <div className="flex flex-row items-center gap-3 px-3 py-1">
-          <span className="text-sm">Tags</span>
-          <TagTraceDetailsPopover
-            tags={trace.data.tags}
-            availableTags={allTags}
-            traceId={trace.data.id}
-            projectId={trace.data.projectId}
-            className="flex-wrap"
-            key={trace.data.id}
-          />
-        </div>
-      </div>
-      <TabsBar
-        value={selectedTab}
-        onValueChange={(tab) => {
-          setSelectedTab(tab);
-          capture("trace_detail:display_mode_switch", { view: tab });
-        }}
-      >
-        <TabsBarList className="mt-2 w-full justify-end">
-          <TabsBarTrigger value="details">
-            <Network className="mr-1 h-4 w-4"></Network>
-            Tree
-          </TabsBarTrigger>
-          <TabsBarTrigger value="timeline">
-            <ListTree className="mr-1 h-4 w-4"></ListTree>
-            Timeline
-          </TabsBarTrigger>
-          {isLanggraphTrace(trace.data.observations) ? (
-            <TabsBarTrigger value="graph">
-              <span className="flex flex-row items-center">
-                <Share2Icon className="mr-1 h-4 w-4"></Share2Icon>
-                Graph
-              </span>
-              <Badge className="ml-2">Beta</Badge>
-            </TabsBarTrigger>
-          ) : null}
-        </TabsBarList>
-        <TabsBarContent
-          value="details"
-          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
-        >
-          <Trace
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            projectId={trace.data.projectId}
-            observations={trace.data.observations}
-          />
-        </TabsBarContent>
-        <TabsBarContent
-          value="timeline"
-          className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
-        >
-          <TraceTimelineView
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            observations={trace.data.observations}
-            projectId={trace.data.projectId}
-          />
-        </TabsBarContent>
-        {isLanggraphTrace(trace.data.observations) ? (
-          <TabsBarContent
-            value="graph"
-            className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
-          >
-            <TraceGraphView
-              key={trace.data.id}
-              trace={trace.data}
-              scores={trace.data.scores}
-              observations={trace.data.observations}
-              projectId={trace.data.projectId}
-            />
-          </TabsBarContent>
-        ) : null}
-      </TabsBar>
     </Page>
   );
 }

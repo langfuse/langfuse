@@ -1,11 +1,15 @@
+import { Badge } from "@/src/components/ui/badge";
+
 type Accuracy = "minute" | "second" | "millisecond";
 
 export const LocalIsoDate = ({
   date,
   accuracy = "second",
+  type = "span",
 }: {
   date: Date;
   accuracy?: Accuracy;
+  type?: "span" | "badge";
 }) => {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
     return null;
@@ -37,5 +41,9 @@ export const LocalIsoDate = ({
   const localDateString = formatDate(date, false, accuracy);
   const utcDateString = formatDate(date, true, "millisecond");
 
-  return <span title={`UTC: ${utcDateString}`}>{localDateString}</span>;
+  return type === "span" ? (
+    <span title={`UTC: ${utcDateString}`}>{localDateString}</span>
+  ) : (
+    <Badge title={`UTC: ${utcDateString}`}>{localDateString}</Badge>
+  );
 };

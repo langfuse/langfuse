@@ -15,7 +15,7 @@ export function CommentCountIcon({
       <MessageCircleMore className="h-4 w-4" />
       <span
         className={cn(
-          "absolute -top-0.5 left-2.5 flex max-h-[0.8rem] min-w-[0.8rem] items-center justify-center rounded-full border border-muted-foreground bg-accent-light-blue px-[0.2rem] text-[8px]",
+          "absolute -top-0.5 left-2.5 flex max-h-[0.8rem] min-w-[0.8rem] items-center justify-center rounded-sm border border-muted-foreground bg-accent-light-blue px-[0.2rem] text-[8px] shadow-sm",
           className,
         )}
       >

@@ -166,8 +166,8 @@ export const IOPreview: React.FC<{
             <JSONView
               title="Input"
               json={input ?? null}
-              isLoading={isLoading}
               className="flex-1"
+              isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
             />
           ) : null}
@@ -175,8 +175,8 @@ export const IOPreview: React.FC<{
             <JSONView
               title="Output"
               json={outputClean}
-              isLoading={isLoading}
               className="flex-1"
+              isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
             />
           ) : null}
