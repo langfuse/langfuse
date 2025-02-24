@@ -325,12 +325,12 @@ describe("trpc.sessions", () => {
 
   it("LFE-4113: should GET correct metrics for a list of sessions without observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
-    const sessionId1 = v4();
+    const sessionId = v4();
 
     await prisma.traceSession.createMany({
       data: [
         {
-          id: sessionId1,
+          id: sessionId,
           projectId: projectId,
         },
       ],
@@ -338,17 +338,12 @@ describe("trpc.sessions", () => {
 
     const traces = [
       createTrace({
-        session_id: sessionId1,
+        session_id: sessionId,
         project_id: projectId,
         user_id: "user1",
       }),
       createTrace({
-        session_id: sessionId1,
-        project_id: projectId,
-        user_id: "user2",
-      }),
-      createTrace({
-        session_id: sessionId1,
+        session_id: sessionId,
         project_id: projectId,
         user_id: "user3",
       }),
@@ -356,15 +351,15 @@ describe("trpc.sessions", () => {
 
     await createTracesCh(traces);
 
-    // Only sessionId2 has traces with observations
+    // Only trace 2 has observations
     const observations = [
       createObservation({
-        trace_id: traces[2].id,
+        trace_id: traces[1].id,
         project_id: projectId,
         start_time: new Date().getTime() - 1000,
       }),
       createObservation({
-        trace_id: traces[2].id,
+        trace_id: traces[1].id,
         project_id: projectId,
         start_time: new Date().getTime(),
       }),
@@ -379,7 +374,7 @@ describe("trpc.sessions", () => {
           column: "id",
           type: "stringOptions",
           operator: "any of",
-          value: [sessionId1],
+          value: [sessionId],
         },
       ],
     });
