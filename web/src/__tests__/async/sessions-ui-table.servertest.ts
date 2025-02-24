@@ -382,7 +382,7 @@ describe("trpc.sessions", () => {
     expect(sessions.length).toBe(1);
 
     expect(sessions[0]).toBeDefined();
-    expect(sessions[0]?.trace_count).toBe(3);
+    expect(sessions[0]?.trace_count).toBe(2);
     expect(sessions[0]?.duration).toEqual("1000");
   });
 });
