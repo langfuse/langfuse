@@ -40,7 +40,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         trace_id,
         project_id,
         type,
-        start_time,
+        toUnixTimestamp(start_time),
       FROM observations o ${shouldUseSkipIndexes ? "" : "FINAL"}
       ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
       WHERE o.project_id = {projectId: String}
@@ -82,7 +82,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
       FROM observations o ${shouldUseSkipIndexes ? "" : "FINAL"}
       
       WHERE o.project_id = {projectId: String}
-      AND (id, trace_id, project_id, type, start_time) in (select * from clickhouse_keys)
+      AND (id, trace_id, project_id, type, toUnixTimestamp(start_time)) in (select * from clickhouse_keys)
 
       ${shouldUseSkipIndexes ? "ORDER BY start_time desc, event_ts desc LIMIT 1 by id, project_id" : "ORDER BY start_time DESC"}
       `;
