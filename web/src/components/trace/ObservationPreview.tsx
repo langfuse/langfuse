@@ -52,6 +52,7 @@ export const ObservationPreview = ({
   traceId,
   commentCounts,
   viewType = "detailed",
+  isTimeline,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
@@ -60,6 +61,7 @@ export const ObservationPreview = ({
   traceId: string;
   commentCounts?: Map<string, number>;
   viewType?: "focused" | "detailed";
+  isTimeline?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
@@ -122,14 +124,68 @@ export const ObservationPreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-2 overflow-hidden">
-        <div className="mt-3 grid w-full min-w-0 grid-cols-[auto,auto] items-center justify-between">
+        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-center justify-between gap-2">
+          <div className="flex w-full flex-row items-center gap-2">
+            <ItemBadge type={preloadedObservation.type} isSmall />
+            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+              {preloadedObservation.name}
+            </span>
+          </div>
+          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
+            {observationWithInputAndOutput.data && (
+              <NewDatasetItemFromTrace
+                traceId={preloadedObservation.traceId}
+                observationId={preloadedObservation.id}
+                projectId={projectId}
+                input={observationWithInputAndOutput.data.input}
+                output={observationWithInputAndOutput.data.output}
+                metadata={observationWithInputAndOutput.data.metadata}
+                key={preloadedObservation.id}
+              />
+            )}
+            {viewType === "detailed" && (
+              <>
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + preloadedObservation.id}
+                    projectId={projectId}
+                    traceId={traceId}
+                    observationId={preloadedObservation.id}
+                    scores={scores}
+                    emptySelectedConfigIds={emptySelectedConfigIds}
+                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                    type="observation"
+                    hasGroupedButton={hasEntitlement}
+                  />
+                  {hasEntitlement && (
+                    <CreateNewAnnotationQueueItem
+                      projectId={projectId}
+                      objectId={preloadedObservation.id}
+                      objectType={AnnotationQueueObjectType.OBSERVATION}
+                    />
+                  )}
+                </div>
+                {observationWithInputAndOutput.data?.type === "GENERATION" && (
+                  <JumpToPlaygroundButton
+                    source="generation"
+                    generation={observationWithInputAndOutput.data}
+                    analyticsEventName="trace_detail:test_in_playground_button_click"
+                    className={cn(isTimeline ? "!hidden" : "")}
+                  />
+                )}
+                <CommentDrawerButton
+                  projectId={preloadedObservation.projectId}
+                  objectId={preloadedObservation.id}
+                  objectType="OBSERVATION"
+                  count={commentCounts?.get(preloadedObservation.id)}
+                />
+              </>
+            )}
+          </div>
+        </div>
+        <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 space-x-1">
-              <ItemBadge type={preloadedObservation.type} isSmall />
-              <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
-                {preloadedObservation.name}
-              </span>
-
               {preloadedObservation.model && (
                 <Link
                   href={`/project/${projectId}/models/${encodeURIComponent(
@@ -280,57 +336,6 @@ export const ObservationPreview = ({
                 </>
               )}
             </div>
-          </div>
-
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
-            {observationWithInputAndOutput.data && (
-              <NewDatasetItemFromTrace
-                traceId={preloadedObservation.traceId}
-                observationId={preloadedObservation.id}
-                projectId={projectId}
-                input={observationWithInputAndOutput.data.input}
-                output={observationWithInputAndOutput.data.output}
-                metadata={observationWithInputAndOutput.data.metadata}
-                key={preloadedObservation.id}
-              />
-            )}
-            {viewType === "detailed" && (
-              <>
-                <div className="flex items-start">
-                  <AnnotateDrawer
-                    key={"annotation-drawer" + preloadedObservation.id}
-                    projectId={projectId}
-                    traceId={traceId}
-                    observationId={preloadedObservation.id}
-                    scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    type="observation"
-                    hasGroupedButton={hasEntitlement}
-                  />
-                  {hasEntitlement && (
-                    <CreateNewAnnotationQueueItem
-                      projectId={projectId}
-                      objectId={preloadedObservation.id}
-                      objectType={AnnotationQueueObjectType.OBSERVATION}
-                    />
-                  )}
-                </div>
-                {observationWithInputAndOutput.data?.type === "GENERATION" && (
-                  <JumpToPlaygroundButton
-                    source="generation"
-                    generation={observationWithInputAndOutput.data}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                  />
-                )}
-                <CommentDrawerButton
-                  projectId={preloadedObservation.projectId}
-                  objectId={preloadedObservation.id}
-                  objectType="OBSERVATION"
-                  count={commentCounts?.get(preloadedObservation.id)}
-                />
-              </>
-            )}
           </div>
         </div>
 

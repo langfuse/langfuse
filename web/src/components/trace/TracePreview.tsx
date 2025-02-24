@@ -15,7 +15,10 @@ import {
 } from "@/src/components/ui/card";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
-import { type ObservationReturnType } from "@/src/server/api/routers/traces";
+import {
+  ObservationReturnTypeWithMetadata,
+  type ObservationReturnType,
+} from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
@@ -58,7 +61,7 @@ export const TracePreview = ({
     input: string | undefined;
     output: string | undefined;
   };
-  observations: ObservationReturnType[];
+  observations: ObservationReturnTypeWithMetadata[];
   scores: APIScore[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
@@ -129,34 +132,70 @@ export const TracePreview = ({
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-2 overflow-hidden">
-        <div className="mt-3 grid w-full min-w-0 grid-cols-[auto,auto] items-center justify-between">
+        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-center justify-between gap-2">
+          <div className="flex w-full flex-row items-center gap-2">
+            <ItemBadge type="TRACE" isSmall />
+            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+              {trace.name}
+            </span>
+          </div>
+          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
+            <NewDatasetItemFromTrace
+              traceId={trace.id}
+              projectId={trace.projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
+            />
+            {viewType === "detailed" && (
+              <>
+                <div className="flex items-start">
+                  <AnnotateDrawer
+                    key={"annotation-drawer" + trace.id}
+                    projectId={trace.projectId}
+                    traceId={trace.id}
+                    scores={scores}
+                    emptySelectedConfigIds={emptySelectedConfigIds}
+                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
+                    hasGroupedButton={hasEntitlement}
+                  />
+                  {hasEntitlement && (
+                    <CreateNewAnnotationQueueItem
+                      projectId={trace.projectId}
+                      objectId={trace.id}
+                      objectType={AnnotationQueueObjectType.TRACE}
+                    />
+                  )}
+                </div>
+                <CommentDrawerButton
+                  projectId={trace.projectId}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={commentCounts?.get(trace.id)}
+                />
+              </>
+            )}
+          </div>
+        </div>
+        <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 space-x-1">
-              <ItemBadge type="TRACE" isSmall />
-              <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
-                {trace.name}
-              </span>
-
               {trace.sessionId ? (
                 <Link
-                  href={`/project/${
-                    trace.projectId
-                  }/sessions/${encodeURIComponent(trace.sessionId)}`}
+                  href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
                 >
                   <Badge>Session: {trace.sessionId}</Badge>
                 </Link>
               ) : null}
               {trace.userId ? (
                 <Link
-                  href={`/project/${
-                    trace.projectId as string
-                  }/users/${encodeURIComponent(trace.userId)}`}
+                  href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
                 >
                   <Badge>User ID: {trace.userId}</Badge>
                 </Link>
               ) : null}
-              {/* TODO: fix this */}
-              {/* <AggUsageBadge observations={trace.observations} /> */}
+              <AggUsageBadge observations={observations} />
               {totalCost ? (
                 <Badge variant="outline">
                   {usdFormatter(totalCost.toNumber())}
@@ -216,46 +255,6 @@ export const TracePreview = ({
                 </>
               )}
             </div>
-
-            <div className="min-h-1 flex-1" />
-          </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
-            <NewDatasetItemFromTrace
-              traceId={trace.id}
-              projectId={trace.projectId}
-              input={trace.input}
-              output={trace.output}
-              metadata={trace.metadata}
-              key={trace.id}
-            />
-            {viewType === "detailed" && (
-              <>
-                <div className="flex items-start">
-                  <AnnotateDrawer
-                    key={"annotation-drawer" + trace.id}
-                    projectId={trace.projectId}
-                    traceId={trace.id}
-                    scores={scores}
-                    emptySelectedConfigIds={emptySelectedConfigIds}
-                    setEmptySelectedConfigIds={setEmptySelectedConfigIds}
-                    hasGroupedButton={hasEntitlement}
-                  />
-                  {hasEntitlement && (
-                    <CreateNewAnnotationQueueItem
-                      projectId={trace.projectId}
-                      objectId={trace.id}
-                      objectType={AnnotationQueueObjectType.TRACE}
-                    />
-                  )}
-                </div>
-                <CommentDrawerButton
-                  projectId={trace.projectId}
-                  objectId={trace.id}
-                  objectType="TRACE"
-                  count={commentCounts?.get(trace.id)}
-                />
-              </>
-            )}
           </div>
         </div>
 

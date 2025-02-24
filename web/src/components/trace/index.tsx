@@ -4,19 +4,19 @@ import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
 import {
   StringParam,
-  UrlUpdateType,
+  type UrlUpdateType,
   useQueryParam,
   withDefault,
 } from "use-query-params";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
-import { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Settings2 } from "lucide-react";
+import { PlusSquareIcon, MinusSquare, Settings2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -45,6 +45,7 @@ import {
   DropdownMenuGroup,
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
+import useSessionStorage from "@/src/components/useSessionStorage";
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -175,22 +176,27 @@ export function Trace(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
+    `${props.trace.id}-expanded`,
+    [`trace-${props.trace.id}`],
+  );
+
   return (
     <div
       className={cn(
         "grid flex-1 gap-4 md:h-full md:grid-cols-5",
-        props.selectedTab === "timeline"
+        props.selectedTab?.includes("timeline")
           ? "md:grid-cols-[3fr_2fr] xl:grid-cols-[4fr_2fr]"
           : "md:grid-cols-[2fr_3fr] xl:grid-cols-[2fr_4fr]",
       )}
     >
       <div className="border-r md:flex md:h-full md:flex-col md:overflow-hidden">
         <Command className="mt-1 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
-          <div className="flex flex-row justify-between px-3">
+          <div className="flex flex-row justify-between px-3 pl-5">
             <CommandInput
               showBorder={false}
               placeholder="Search nodes..."
-              className="h-9 border-0 focus:ring-0"
+              className="-ml-2 h-9 border-0 focus:ring-0"
             />
             <div className="flex flex-row items-center gap-2">
               <DropdownMenu>
@@ -304,15 +310,41 @@ export function Trace(props: {
                 </DropdownMenuContent>
               </DropdownMenu>
               <Switch
-                checked={props.selectedTab === "timeline"}
+                checked={props.selectedTab?.includes("timeline")}
                 onCheckedChange={(checked) =>
                   props.setSelectedTab?.(checked ? "timeline" : "preview")
                 }
-              />
+              ></Switch>
+              <span className="text-sm">Timeline</span>
+              {props.selectedTab?.includes("timeline") ? (
+                <div className="flex h-full items-center">
+                  <Button
+                    onClick={() => {
+                      setExpandedItems([
+                        `trace-${props.trace.id}`,
+                        // ...nestedObservationKeys,
+                      ]);
+                    }}
+                    size="xs"
+                    variant="ghost"
+                    title="Expand all"
+                  >
+                    <PlusSquareIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={() => setExpandedItems([])}
+                    size="xs"
+                    variant="ghost"
+                    title="Collapse all"
+                  >
+                    <MinusSquare className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="overflow-y-auto px-3">
-            {props.selectedTab === "timeline" ? (
+            {props.selectedTab?.includes("timeline") ? (
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
                 <TraceTimelineView
                   key={props.trace.id}
@@ -320,6 +352,10 @@ export function Trace(props: {
                   scores={props.scores}
                   observations={props.observations}
                   projectId={props.trace.projectId}
+                  currentObservationId={currentObservationId ?? null}
+                  setCurrentObservationId={setCurrentObservationId}
+                  expandedItems={expandedItems}
+                  setExpandedItems={setExpandedItems}
                 />
                 {isLanggraphTrace(props.observations) ? (
                   <div className="h-full flex-1 overflow-hidden">
@@ -378,6 +414,7 @@ export function Trace(props: {
             traceId={props.trace.id}
             commentCounts={observationCommentCounts.data}
             viewType={viewType}
+            isTimeline={props.selectedTab?.includes("timeline")}
           />
         ) : null}
       </div>
@@ -392,12 +429,8 @@ export function TracePage({
   traceId: string;
   timestamp?: Date;
 }) {
-  const capture = usePostHogClientCapture();
   const router = useRouter();
   const utils = api.useUtils();
-  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
-    router.query.projectId as string,
-  );
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
@@ -416,9 +449,9 @@ export function TracePage({
     },
   );
 
-  const totalCost = calculateDisplayTotalCost({
-    allObservations: trace.data?.observations ?? [],
-  });
+  // const totalCost = calculateDisplayTotalCost({
+  //   allObservations: trace.data?.observations ?? [],
+  // });
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
