@@ -133,7 +133,10 @@ export async function fetchLLMCompletion(
     finalMessages = messages.map((message) => {
       if (message.role === ChatMessageRole.User)
         return new HumanMessage(message.content);
-      if (message.role === ChatMessageRole.System)
+      if (
+        message.role === ChatMessageRole.System ||
+        message.role === ChatMessageRole.Developer
+      )
         return new SystemMessage(message.content);
 
       return new AIMessage(message.content);
@@ -244,8 +247,8 @@ export async function fetchLLMCompletion(
     /*
   Workaround OpenAI reasoning models:
   
-  This is a temporary workaround to avoid sending system messages to OpenAI's O1 models.
-  O1 models do not support in beta:
+  This is a temporary workaround to avoid sending unsupported parameters to OpenAI's O1 models.
+  O1 models do not support:
   - system messages
   - top_p
   - max_tokens at all, one has to use max_completion_tokens instead
@@ -257,6 +260,12 @@ export async function fetchLLMCompletion(
       modelParams.model.startsWith("o1-") ||
       modelParams.model.startsWith("o3-")
     ) {
+      const filteredMessages = finalMessages.filter((message) => {
+        return (
+          modelParams.model.startsWith("o3-") || message._getType() !== "system"
+        );
+      });
+
       return {
         completion: await new ChatOpenAI({
           openAIApiKey: apiKey,
@@ -275,10 +284,7 @@ export async function fetchLLMCompletion(
           timeout: 1000 * 60 * 2, // 2 minutes timeout
         })
           .pipe(new StringOutputParser())
-          .invoke(
-            finalMessages.filter((message) => message._getType() !== "system"),
-            runConfig,
-          ),
+          .invoke(filteredMessages, runConfig),
         processTracedEvents,
       };
     }
