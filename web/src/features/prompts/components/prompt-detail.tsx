@@ -48,48 +48,50 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
-import { SubHeader } from "@/src/components/layouts/header";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
+import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 
 const getPythonCode = (
   name: string,
   version: number,
-  variables: string[],
+  labels: string[],
 ) => `from langfuse import Langfuse
 
 # Initialize Langfuse client
 langfuse = Langfuse()
 
-# Get this prompt version 
-prompt = langfuse.get_prompt("${name}", version=${version})
+# Get production prompt 
+prompt = langfuse.get_prompt("${name}")
 
-${
-  variables.length > 0
-    ? `# Insert variables into prompt template
-compiled_prompt = prompt.compile(${variables.map((v) => `${v}="${v}"`).join(", ")})`
-    : ""
-}
+# Get by label
+# You can use as many labels as you'd like to identify different deployment targets
+${labels.length > 0 ? labels.map((label) => `prompt = langfuse.get_prompt("${name}", label="${label}")`).join("\n") : ""}
+
+# Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
+langfuse.get_prompt("${name}", version=${version})
 `;
 
 const getJsCode = (
   name: string,
   version: number,
-  variables: string[],
+  labels: string[],
 ) => `import { Langfuse } from "langfuse";
 
 // Initialize the Langfuse client
 const langfuse = new Langfuse();
 
-// Get this prompt version 
-const prompt = await langfuse.getPrompt("${name}", ${version});
+// Get production prompt 
+const prompt = await langfuse.getPrompt("${name}");
 
-${
-  variables.length > 0
-    ? `// Insert variables into prompt template
-const compiledPrompt = prompt.compile(${variables.map((v) => `${v}: "${v}"`).join(", ")});`
-    : ""
+// Get by label
+// You can use as many labels as you'd like to identify different deployment targets
+${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPrompt("${name}", undefined, { label: "${label}" })`).join("\n") : ""}
+
+// Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
+langfuse.getPrompt("${name}", ${version})
+
 }`;
 
 export const PromptDetail = () => {
@@ -201,19 +203,15 @@ export const PromptDetail = () => {
 
   const { pythonCode, jsCode } = useMemo(() => {
     if (!prompt?.id) return { pythonCode: null, jsCode: null };
-    const extractedVariables = extractVariables(
-      prompt?.type === PromptType.Text
-        ? (prompt.prompt?.toString() ?? "")
-        : JSON.stringify(prompt.prompt),
-    );
+    const sortedLabels = [...prompt.labels].sort((a, b) => {
+      if (a === PRODUCTION_LABEL) return -1;
+      if (b === PRODUCTION_LABEL) return 1;
+      return a.localeCompare(b);
+    });
 
     return {
-      pythonCode: getPythonCode(
-        prompt.name,
-        prompt.version,
-        extractedVariables,
-      ),
-      jsCode: getJsCode(prompt.name, prompt.version, extractedVariables),
+      pythonCode: getPythonCode(prompt.name, prompt.version, sortedLabels),
+      jsCode: getJsCode(prompt.name, prompt.version, sortedLabels),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt?.id]);
@@ -221,6 +219,14 @@ export const PromptDetail = () => {
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;
   }
+
+  const extractedVariables = prompt
+    ? extractVariables(
+        prompt?.type === PromptType.Text
+          ? (prompt.prompt?.toString() ?? "")
+          : JSON.stringify(prompt.prompt),
+      )
+    : [];
 
   return (
     <Page
@@ -237,10 +243,6 @@ export const PromptDetail = () => {
           {
             name: "Prompts",
             href: `/project/${projectId}/prompts/`,
-          },
-          {
-            name: prompt.name,
-            href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
           },
         ],
         tabsComponent: (
@@ -297,17 +299,17 @@ export const PromptDetail = () => {
             />
 
             <Button
-              size="icon"
               onClick={() => {
                 capture("prompts:update_form_open");
               }}
-              className="shrink-0"
+              className="h-6 w-6 shrink-0 px-1 md:h-8 md:w-fit md:px-3"
             >
               <Link
-                className="grid w-full place-items-center"
+                className="grid w-full place-items-center md:grid-flow-col"
                 href={`/project/${projectId}/prompts/new?promptId=${encodeURIComponent(prompt.id)}`}
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">New</span>
               </Link>
             </Button>
           </div>
@@ -337,10 +339,9 @@ export const PromptDetail = () => {
                         >
                           # {prompt.version}
                         </Badge>
-                        <SubHeader
-                          title={prompt.commitMessage ?? prompt.name}
-                          className="mb-0 min-w-0 max-w-full"
-                        />
+                        <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+                          {prompt.commitMessage ?? prompt.name}
+                        </span>
                       </div>
                     }
                     promptLabels={prompt.labels}
@@ -352,7 +353,7 @@ export const PromptDetail = () => {
 
                 <div className="min-h-1 flex-1" />
               </div>
-              <div className="flex h-full flex-wrap items-start justify-end gap-1 lg:flex-nowrap">
+              <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
                 <JumpToPlaygroundButton
                   source="prompt"
                   prompt={prompt}
@@ -452,16 +453,33 @@ export const PromptDetail = () => {
               value="prompt"
               className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
             >
-              <div className="mb-2 flex max-h-full min-h-0 w-full flex-col overflow-y-auto">
+              <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
                 {prompt.type === PromptType.Chat && chatMessages ? (
                   <OpenAiMessageView
                     messages={chatMessages}
                     collapseLongHistory={false}
                   />
                 ) : typeof prompt.prompt === "string" ? (
-                  <CodeView content={prompt.prompt} title="Text prompt" />
+                  <CodeView content={prompt.prompt} title="Text Prompt" />
                 ) : (
                   <JSONView json={prompt.prompt} title="Prompt" />
+                )}
+                {extractedVariables.length > 0 && (
+                  <div className="flex flex-col">
+                    <div className="my-1 flex flex-shrink-0 items-center justify-between pl-1 text-sm font-medium">
+                      Variables
+                    </div>
+                    <div className="flex flex-wrap gap-2 rounded-md">
+                      {extractedVariables.map((variable) => (
+                        <div
+                          key={variable}
+                          className="flex flex-col gap-1 rounded-md border p-2 text-sm"
+                        >
+                          {`{{${variable}}}`}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </TabsBarContent>
@@ -494,7 +512,8 @@ export const PromptDetail = () => {
                   >
                     documentation
                   </a>{" "}
-                  for more details.
+                  for more details on how to use prompts in frameworks such as
+                  Langchain.
                 </p>
               </div>
             </TabsBarContent>
