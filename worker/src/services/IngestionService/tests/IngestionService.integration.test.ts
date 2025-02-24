@@ -1115,54 +1115,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
   });
 
-  it("should upsert traces from event and postgres in right order", async () => {
-    const traceId = randomUUID();
-
-    const latestEvent = new Date();
-    const oldEvent = new Date(latestEvent).setSeconds(
-      latestEvent.getSeconds() - 1,
-    );
-
-    await prisma.trace.create({
-      data: {
-        id: traceId,
-        name: "trace-name",
-        userId: "user-2",
-        projectId,
-        timestamp: new Date(oldEvent),
-      },
-    });
-
-    const traceEventList: TraceEventType[] = [
-      {
-        id: randomUUID(),
-        type: "trace-create",
-        timestamp: latestEvent.toISOString(),
-        body: {
-          id: traceId,
-          timestamp: latestEvent.toISOString(),
-          name: "trace-name",
-          userId: "user-1",
-        },
-      },
-    ];
-
-    await ingestionService.processTraceEventList({
-      projectId,
-      entityId: traceId,
-      createdAtTimestamp: new Date(),
-      traceEventList,
-    });
-
-    await clickhouseWriter.flushAll(true);
-
-    const trace = await getClickhouseRecord(TableName.Traces, traceId);
-
-    expect(trace.name).toBe("trace-name");
-    expect(trace.user_id).toBe("user-1");
-    expect(trace.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
-  });
-
   it("should merge observations and set negative tokens and cost to null", async () => {
     await prisma.model.create({
       data: {
@@ -1197,29 +1149,6 @@ describe("Ingestion end-to-end tests", () => {
         modelId: "clyrjpbe20000t0mzcbwc42rg",
         price: 0.0000006,
         usageType: "output",
-      },
-    });
-
-    await prisma.observation.create({
-      data: {
-        id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
-        name: "extract_location",
-        startTime: "2024-11-04T16:13:51.495868Z",
-        endTime: "2024-11-04T16:13:52.156248Z",
-        type: "GENERATION",
-        traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
-        internalModel: "gpt-4o-mini-2024-07-18",
-        internalModelId: "clyrjpbe20000t0mzcbwc42rg",
-        modelParameters: {
-          temperature: "0.4",
-          max_tokens: 1000,
-        },
-        input: "Sample input",
-        output: "Sample output",
-        projectId,
-        completionTokens: -7,
-        promptTokens: 4,
-        totalTokens: -3,
       },
     });
 
@@ -1334,32 +1263,6 @@ describe("Ingestion end-to-end tests", () => {
         modelId: "clyrjpbe20000t0mzcbwc42rg",
         price: 0.0000006,
         usageType: "output",
-      },
-    });
-
-    await prisma.observation.create({
-      data: {
-        id: "c8d30f61-4097-407f-a337-5fb1e0c100f2",
-        name: "extract_location",
-        startTime: "2024-11-04T16:13:51.495868Z",
-        endTime: "2024-11-04T16:13:52.156248Z",
-        type: "GENERATION",
-        traceId: "82c480bc-1c4e-4ba8-a153-0bd9f9e1a28e",
-        internalModel: "gpt-4o-mini-2024-07-18",
-        internalModelId: "clyrjpbe20000t0mzcbwc42rg",
-        modelParameters: {
-          temperature: "0.4",
-          max_tokens: 1000,
-        },
-        input: "Sample input",
-        output: "Sample output",
-        projectId,
-        completionTokens: 18,
-        promptTokens: 1295,
-        totalTokens: 1313,
-        calculatedInputCost: 0.00019425,
-        calculatedOutputCost: 0.0000108,
-        calculatedTotalCost: 0.00020505,
       },
     });
 

@@ -1,8 +1,7 @@
 import { z } from "zod";
 
-import { Score } from "@prisma/client";
-
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
+import { Score } from "../../server";
 import {
   NonEmptyString,
   paginationMetaResponseZod,

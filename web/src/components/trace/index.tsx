@@ -39,7 +39,11 @@ import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScore, ObservationLevel } from "@langfuse/shared";
+import {
+  ObservationLevel,
+  type APIScore,
+  type ObservationLevelType,
+} from "@langfuse/shared";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
@@ -63,7 +67,7 @@ export function Trace(props: {
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;
-  defaultMinObservationLevel?: ObservationLevel;
+  defaultMinObservationLevel?: ObservationLevelType;
 }) {
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
@@ -88,7 +92,7 @@ export function Trace(props: {
   );
 
   const [minObservationLevel, setMinObservationLevel] =
-    useState<ObservationLevel>(
+    useState<ObservationLevelType>(
       props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
     );
 
@@ -242,7 +246,9 @@ export function Trace(props: {
             <Percent className="h-4 w-4" />
           </Toggle>
           <Select
-            onValueChange={(v: ObservationLevel) => setMinObservationLevel(v)}
+            onValueChange={(v: ObservationLevelType) =>
+              setMinObservationLevel(v)
+            }
             value={minObservationLevel}
           >
             <SelectTrigger

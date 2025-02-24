@@ -3,7 +3,9 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel, ScoreSource } from "@prisma/client";
+import { type ScoreSourceType } from "../repositories";
+
+const ObservationLevel = z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -142,7 +144,7 @@ export const OptionalObservationBody = z.object({
   metadata: jsonSchema.nullish(),
   input: z.any().nullish(),
   output: z.any().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   parentObservationId: z.string().nullish(),
   version: z.string().nullish(),
@@ -230,7 +232,9 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
-  source: z.nativeEnum(ScoreSource).default(ScoreSource.API),
+  source: z
+    .enum(["API", "EVAL", "ANNOTATION"])
+    .default("API" as ScoreSourceType),
 });
 
 /**
@@ -281,7 +285,7 @@ export const LegacySpanPostSchema = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
@@ -295,7 +299,7 @@ export const LegacySpanPatchSchema = z.object({
   metadata: jsonSchema.nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
@@ -319,7 +323,7 @@ export const LegacyGenerationsCreateSchema = z.object({
   usage: usage,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
@@ -342,7 +346,7 @@ export const LegacyGenerationPatchSchema = z.object({
   completion: jsonSchema.nullish(),
   usage: usage,
   metadata: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
@@ -369,7 +373,7 @@ export const LegacyObservationBody = z.object({
   costDetails: UsageOrCostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });

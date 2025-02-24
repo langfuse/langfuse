@@ -20,11 +20,11 @@ import {
   UpdateAnnotationScoreData,
   validateDbScore,
   ScoreSource,
+  type Score,
   LangfuseNotFoundError,
   InvalidRequestError,
   InternalServerError,
 } from "@langfuse/shared";
-import { type Score } from "@langfuse/shared/src/db";
 import {
   getScoresGroupedByNameSourceType,
   getScoresUiCount,

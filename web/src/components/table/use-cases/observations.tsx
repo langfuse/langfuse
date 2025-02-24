@@ -16,7 +16,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
-  type ObservationLevel,
+  type ObservationLevelType,
   type FilterState,
   type ObservationOptions,
   BatchExportTableName,
@@ -51,7 +51,7 @@ export type ObservationsTableRow = {
   id: string;
   traceId?: string;
   startTime: Date;
-  level?: ObservationLevel;
+  level?: ObservationLevelType;
   statusMessage?: string;
   endTime?: Date;
   completionStartTime?: Date;
@@ -452,7 +452,7 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       cell({ row }) {
-        const value: ObservationLevel | undefined = row.getValue("level");
+        const value: ObservationLevelType | undefined = row.getValue("level");
         return value ? (
           <span
             className={cn(
