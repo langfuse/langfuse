@@ -240,6 +240,13 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         <>
           <FormItem>
             <FormLabel>Prompt</FormLabel>
+            <FormDescription>
+              Define your prompt template. You can use{" "}
+              <code className="text-xs">{"{{variable}}"}</code> to insert
+              variables into your prompt.
+              <b className="font-semibold"> Note:</b> Variables must be
+              alphabetical characters or underscores.
+            </FormDescription>
             <Tabs
               value={form.watch("type")}
               onValueChange={(e) => {
@@ -319,6 +326,11 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Config</FormLabel>
+              <FormDescription>
+                Arbitrary JSON configuration that is available on the prompt.
+                Use this to track LLM parameters, function definitions, or any
+                other metadata.
+              </FormDescription>
               <CodeMirrorEditor
                 value={field.value}
                 onChange={field.onChange}
@@ -327,10 +339,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 mode="json"
                 minHeight="none"
               />
-              <FormDescription>
-                Track configs for LLM API calls such as function definitions or
-                LLM parameters.
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -343,6 +351,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Labels</FormLabel>
+              <FormDescription>
+                This version will be labeled as the version to be used in
+                production for this prompt. Labels can be updated later.
+              </FormDescription>
               <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
                 <FormControl>
                   <Checkbox
@@ -354,10 +366,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   <FormLabel>Set the &quot;production&quot; label</FormLabel>
                 </div>
               </div>
-              <FormDescription>
-                This version will be labeled as the version to be used in
-                production for this prompt. Can be updated later.
-              </FormDescription>
             </FormItem>
           )}
         />

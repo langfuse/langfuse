@@ -163,27 +163,43 @@ export function CodeView(props: {
     >
       <div className="my-1 flex flex-shrink-0 items-center justify-between pl-1">
         {props.title ? (
-          <div className="text-sm font-medium">{props.title}</div>
+          <>
+            <div className="text-sm font-medium">{props.title}</div>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={handleCopy}
+              className=""
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+          </>
         ) : undefined}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={handleCopy}
-          className=""
-        >
-          {isCopied ? (
-            <Check className="h-3 w-3" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
-        </Button>
       </div>
       <div
         className={cn(
-          "flex flex-col gap-2 rounded-md border",
+          "relative flex flex-col gap-2 rounded-md border",
           props.scrollable ? "max-h-full min-h-0 overflow-hidden" : "",
         )}
       >
+        {!props.title && (
+          <Button
+            variant="secondary"
+            size="icon-xs"
+            onClick={handleCopy}
+            className="absolute right-2 top-2 z-10"
+          >
+            {isCopied ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
+        )}
         <code
           className={cn(
             "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
