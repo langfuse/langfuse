@@ -87,6 +87,7 @@ export const IOPreview: React.FC<{
     if (isPrettyViewAvailable) {
       props.setIsPrettyViewAvailable?.(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPrettyViewAvailable]);
 
   // If there are additional input fields beyond the messages, render them

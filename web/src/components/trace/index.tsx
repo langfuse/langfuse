@@ -6,25 +6,16 @@ import {
   StringParam,
   type UrlUpdateType,
   useQueryParam,
-  withDefault,
 } from "use-query-params";
-import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useRouter } from "next/router";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
-import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
-import { ErrorPage } from "@/src/components/error-page";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useCallback, useState } from "react";
-import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore, ObservationLevel } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import Page from "@/src/components/layouts/page";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
 import { Command, CommandInput } from "@/src/components/ui/command";
@@ -242,125 +233,127 @@ export function Trace(props: {
                 className="-ml-2 h-9 border-0 focus:ring-0"
               />
             )}
-            <div className="flex flex-row items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Settings</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
+            {viewType === "detailed" && (
+              <div className="flex flex-row items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
 
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      <div className="flex w-full items-center justify-between">
-                        <span className="mr-2">Show Comments</span>
-                        <Switch
-                          checked={showComments}
-                          onCheckedChange={(e) => {
-                            setShowComments(e);
-                          }}
-                        />
-                      </div>
-                    </DropdownMenuItem>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Show Comments</span>
+                          <Switch
+                            checked={showComments}
+                            onCheckedChange={(e) => {
+                              setShowComments(e);
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuItem>
 
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      <div className="flex w-full items-center justify-between">
-                        <span className="mr-2">Show Scores</span>
-                        <Switch
-                          checked={scoresOnObservationTree}
-                          onCheckedChange={(e) => {
-                            capture(
-                              "trace_detail:observation_tree_toggle_scores",
-                              {
-                                show: e,
-                              },
-                            );
-                            setScoresOnObservationTree(e);
-                          }}
-                        />
-                      </div>
-                    </DropdownMenuItem>
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Show Scores</span>
+                          <Switch
+                            checked={scoresOnObservationTree}
+                            onCheckedChange={(e) => {
+                              capture(
+                                "trace_detail:observation_tree_toggle_scores",
+                                {
+                                  show: e,
+                                },
+                              );
+                              setScoresOnObservationTree(e);
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuItem>
 
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      <div className="flex w-full items-center justify-between">
-                        <span className="mr-2">Show Metrics</span>
-                        <Switch
-                          checked={metricsOnObservationTree}
-                          onCheckedChange={(e) => {
-                            capture(
-                              "trace_detail:observation_tree_toggle_metrics",
-                              {
-                                show: e,
-                              },
-                            );
-                            setMetricsOnObservationTree(e);
-                          }}
-                        />
-                      </div>
-                    </DropdownMenuItem>
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Show Metrics</span>
+                          <Switch
+                            checked={metricsOnObservationTree}
+                            onCheckedChange={(e) => {
+                              capture(
+                                "trace_detail:observation_tree_toggle_metrics",
+                                {
+                                  show: e,
+                                },
+                              );
+                              setMetricsOnObservationTree(e);
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuItem>
 
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      <div className="flex w-full items-center justify-between">
-                        <span className="mr-2">Color Code Metrics</span>
-                        <Switch
-                          checked={colorCodeMetricsOnObservationTree}
-                          onCheckedChange={(e) =>
-                            setColorCodeMetricsOnObservationTree(e)
-                          }
-                        />
-                      </div>
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Color Code Metrics</span>
+                          <Switch
+                            checked={colorCodeMetricsOnObservationTree}
+                            onCheckedChange={(e) =>
+                              setColorCodeMetricsOnObservationTree(e)
+                            }
+                          />
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
 
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <span className="flex items-center">
-                        Min Level: {minObservationLevel}
-                      </span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuLabel className="font-semibold">
-                        Minimum Level
-                      </DropdownMenuLabel>
-                      {Object.values(ObservationLevel).map((level) => (
-                        <DropdownMenuItem
-                          key={level}
-                          onSelect={(e) => {
-                            e.preventDefault();
-                            setMinObservationLevel(level);
-                          }}
-                        >
-                          {level}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Switch
-                checked={props.selectedTab?.includes("timeline")}
-                onCheckedChange={(checked) =>
-                  props.setSelectedTab?.(checked ? "timeline" : "preview")
-                }
-              ></Switch>
-              <span className="text-sm">Timeline</span>
-            </div>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span className="flex items-center">
+                          Min Level: {minObservationLevel}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuLabel className="font-semibold">
+                          Minimum Level
+                        </DropdownMenuLabel>
+                        {Object.values(ObservationLevel).map((level) => (
+                          <DropdownMenuItem
+                            key={level}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setMinObservationLevel(level);
+                            }}
+                          >
+                            {level}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Switch
+                  checked={props.selectedTab?.includes("timeline")}
+                  onCheckedChange={(checked) =>
+                    props.setSelectedTab?.(checked ? "timeline" : "preview")
+                  }
+                ></Switch>
+                <span className="text-sm">Timeline</span>
+              </div>
+            )}
           </div>
           <div className="overflow-y-auto">
             {props.selectedTab?.includes("timeline") ? (
@@ -466,142 +459,5 @@ export function Trace(props: {
         ) : null}
       </div>
     </div>
-  );
-}
-
-export function TracePage({
-  traceId,
-  timestamp,
-}: {
-  traceId: string;
-  timestamp?: Date;
-}) {
-  const router = useRouter();
-  const utils = api.useUtils();
-  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-    {
-      traceId,
-      timestamp,
-      projectId: router.query.projectId as string,
-    },
-    {
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
-    },
-  );
-
-  // const totalCost = calculateDisplayTotalCost({
-  //   allObservations: trace.data?.observations ?? [],
-  // });
-
-  const [selectedTab, setSelectedTab] = useQueryParam(
-    "display",
-    withDefault(StringParam, "details"),
-  );
-
-  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
-
-  if (trace.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this trace." />;
-
-  if (trace.error?.data?.code === "NOT_FOUND")
-    return (
-      <ErrorPage
-        title="Trace not found"
-        message="The trace is either still being processed or has been deleted."
-        additionalButton={{
-          label: "Retry",
-          onClick: () => void window.location.reload(),
-        }}
-      />
-    );
-
-  if (!trace.data) return <div className="p-3">Loading...</div>;
-
-  return (
-    <Page
-      withPadding={false}
-      headerProps={{
-        title: trace.data.name
-          ? `${trace.data.name}: ${trace.data.id}`
-          : trace.data.id,
-        itemType: "TRACE",
-        breadcrumb: [
-          {
-            name: "Traces",
-            href: `/project/${router.query.projectId as string}/traces`,
-          },
-        ],
-        actionButtonsLeft: (
-          <>
-            <StarTraceDetailsToggle
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              value={trace.data.bookmarked}
-            />
-            <PublishTraceSwitch
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              isPublic={trace.data.public}
-            />
-          </>
-        ),
-        actionButtonsRight: (
-          <>
-            <DetailPageNav
-              currentId={traceId}
-              path={(entry) => {
-                const { view, display, projectId } = router.query;
-                const queryParams = new URLSearchParams({
-                  ...(typeof view === "string" ? { view } : {}),
-                  ...(typeof display === "string" ? { display } : {}),
-                });
-                const queryParamString = Boolean(queryParams.size)
-                  ? `?${queryParams.toString()}`
-                  : "";
-
-                const timestamp =
-                  entry.params && entry.params.timestamp
-                    ? encodeURIComponent(entry.params.timestamp)
-                    : undefined;
-
-                return `/project/${projectId as string}/traces/${entry.id}${queryParamString}${timestamp ? `?timestamp=${timestamp}` : ""}`;
-              }}
-              listKey="traces"
-            />
-            {hasTraceDeletionEntitlement && (
-              <DeleteButton
-                itemId={traceId}
-                projectId={trace.data.projectId}
-                scope="traces:delete"
-                invalidateFunc={() => void utils.traces.all.invalidate()}
-                type="trace"
-                redirectUrl={`/project/${router.query.projectId as string}/traces`}
-                deleteConfirmation={trace.data.name ?? ""}
-                icon
-              />
-            )}
-          </>
-        ),
-      }}
-    >
-      <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
-        <Trace
-          key={trace.data.id}
-          trace={trace.data}
-          scores={trace.data.scores}
-          projectId={trace.data.projectId}
-          observations={trace.data.observations}
-          selectedTab={selectedTab}
-          setSelectedTab={setSelectedTab}
-        />
-      </div>
-    </Page>
   );
 }

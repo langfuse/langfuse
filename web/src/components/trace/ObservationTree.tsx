@@ -7,7 +7,7 @@ import {
   ObservationLevel,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { Fragment, useMemo, useRef, useEffect, useState } from "react";
+import { Fragment, useMemo, useRef, useEffect } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatIntervalSeconds } from "@/src/utils/dates";
