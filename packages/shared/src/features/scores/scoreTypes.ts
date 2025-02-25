@@ -45,6 +45,7 @@ const ScoreBase = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   projectId: z.string(),
+  environment: z.string().nullish(),
   name: z.string(),
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
