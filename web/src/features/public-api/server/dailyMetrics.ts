@@ -13,6 +13,7 @@ type QueryType = {
   userId?: string;
   tags?: string | string[];
   traceName?: string;
+  observationName?: string;
   fromTimestamp?: string;
   toTimestamp?: string;
 };
@@ -23,6 +24,9 @@ export const generateDailyMetrics = async (props: QueryType) => {
     filterParams,
   );
   const appliedFilter = filter.apply();
+
+  // Check if we need to filter by observation name
+  const hasObservationFilter = filter.some(f => f.clickhouseTable === "observations");
 
   const timeFilter = filter.find(
     (f) =>
@@ -36,6 +40,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       SELECT
         toDate(o.start_time) as date,
         o.provided_model_name as model,
+        o.name as observationName,
         count(o.id) as countObservations,
         count(distinct t.id) as countTraces,
         sum(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, o.usage_details)))) as inputUsage,
@@ -48,7 +53,7 @@ export const generateDailyMetrics = async (props: QueryType) => {
       AND t.project_id = {projectId: String}
       ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-      GROUP BY date, model
+      GROUP BY date, model, observationName
     ), daily_model_usage AS (
       SELECT
         "date",
@@ -70,8 +75,15 @@ export const generateDailyMetrics = async (props: QueryType) => {
         toDate(t.timestamp) as date,
         count(t.id) as countTraces
       FROM traces t FINAL
-      WHERE t.project_id = {projectId: String}
-      ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+      ${hasObservationFilter ? `
+        LEFT JOIN observations o FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
+        WHERE t.project_id = {projectId: String}
+        AND o.project_id = {projectId: String}
+        ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+      ` : `
+        WHERE t.project_id = {projectId: String}
+        ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+      `}
       GROUP BY date
     )
       
@@ -137,11 +149,21 @@ export const getDailyMetricsCount = async (props: QueryType) => {
   );
   const appliedFilter = filter.apply();
 
+  // Check if we need to filter by observation name for the count query as well
+  const hasObservationFilter = filter.some(f => f.clickhouseTable === "observations");
+
   const query = `
-    SELECT count(distinct toDate(timestamp)) as count
+    SELECT count(distinct toDate(t.timestamp)) as count
     FROM traces t
-    WHERE project_id = {projectId: String}
-    ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+    ${hasObservationFilter ? `
+      LEFT JOIN observations o ON o.trace_id = t.id AND o.project_id = t.project_id
+      WHERE t.project_id = {projectId: String}
+      AND o.project_id = {projectId: String}
+      ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+    ` : `
+      WHERE t.project_id = {projectId: String}
+      ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}
+    `}
   `;
 
   const records = await queryClickhouse<{ count: string }>({
@@ -172,6 +194,13 @@ const filterParams = [
     filterType: "ArrayOptionsFilter",
     clickhouseTable: "traces",
     clickhousePrefix: "t",
+  },
+  {
+    id:"observationName",
+    clickhouseSelect:"name",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
   },
   {
     id: "fromTimestamp",

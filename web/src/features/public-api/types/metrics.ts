@@ -14,6 +14,7 @@ export const GetMetricsDailyV1Query = z.object({
   ...publicApiPaginationZod,
   traceName: z.string().nullish(),
   userId: z.string().nullish(),
+  observationName:z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
