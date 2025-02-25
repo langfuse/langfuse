@@ -274,14 +274,16 @@ export const TracePreview = ({
             className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden pr-4"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
-              <IOPreview
-                key={trace.id + "-io"}
-                input={trace.input ?? undefined}
-                output={trace.output ?? undefined}
-                media={traceMedia.data}
-                currentView={currentView}
-                setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-              />
+              <div>
+                <IOPreview
+                  key={trace.id + "-io"}
+                  input={trace.input ?? undefined}
+                  output={trace.output ?? undefined}
+                  media={traceMedia.data}
+                  currentView={currentView}
+                  setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+                />
+              </div>
               <JSONView
                 key={trace.id + "-metadata"}
                 title="Metadata"

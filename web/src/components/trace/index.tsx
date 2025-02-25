@@ -362,7 +362,7 @@ export function Trace(props: {
               <span className="text-sm">Timeline</span>
             </div>
           </div>
-          <div className="overflow-y-auto px-3">
+          <div className="overflow-y-auto">
             {props.selectedTab?.includes("timeline") ? (
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
                 {isLanggraphTrace(props.observations) ? (
@@ -433,7 +433,7 @@ export function Trace(props: {
                 colorCodeMetrics={colorCodeMetricsOnObservationTree}
                 observationCommentCounts={observationCommentCounts.data}
                 traceCommentCounts={traceCommentCounts.data}
-                className="flex w-full flex-col"
+                className="flex w-full flex-col px-3"
                 minLevel={minObservationLevel}
                 setMinLevel={setMinObservationLevel}
               />

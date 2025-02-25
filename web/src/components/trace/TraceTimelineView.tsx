@@ -5,7 +5,6 @@ import {
   type Trace,
   ObservationLevel,
 } from "@langfuse/shared";
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
@@ -30,7 +29,6 @@ import { usdFormatter } from "@/src/utils/numbers";
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 900;
 const STEP_SIZE = 100;
-const MIN_LABEL_WIDTH = 10;
 const TREE_INDENTATION = 12; // default in MUI X TreeView
 
 const PREDEFINED_STEP_SIZES = [
@@ -363,7 +361,12 @@ function TraceTreeItem({
         }`,
         selected: "!bg-background !important",
         label: "!min-w-fit",
-        iconContainer: "absolute left-1 top-1/2 z-10 -translate-y-1/2",
+        iconContainer: `absolute top-1/2 z-10 -translate-y-1/2`,
+      }}
+      sx={{
+        "& .MuiTreeItem-iconContainer": {
+          left: startOffset > 0 ? `${startOffset + 4}px` : "4px",
+        },
       }}
       label={
         <TreeItemInner
@@ -541,7 +544,7 @@ export function TraceTimelineView({
   const totalDuration = latency * 1000; // Convert to milliseconds for consistency
 
   return (
-    <div ref={parentRef} className="h-full w-full">
+    <div ref={parentRef} className="h-full w-full px-3">
       <div className="flex max-h-full flex-col" style={{ width: cardWidth }}>
         <div style={{ width: `${SCALE_WIDTH + 8}px` }} className="mb-2 ml-2">
           <div

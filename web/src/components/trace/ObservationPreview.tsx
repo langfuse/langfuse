@@ -1,16 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  AnnotationQueueObjectType,
-  type APIScore,
-  type ScoreSource,
-} from "@langfuse/shared";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
+import { AnnotationQueueObjectType, type APIScore } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -20,7 +9,6 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";

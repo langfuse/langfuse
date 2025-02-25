@@ -4,9 +4,7 @@ import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
@@ -16,8 +14,6 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
-import { Switch } from "@/src/components/ui/switch";
-import { Toggle } from "@/src/components/ui/toggle";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
