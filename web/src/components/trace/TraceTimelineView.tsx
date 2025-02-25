@@ -1,46 +1,35 @@
-import { Card } from "@/src/components/ui/card";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import {
-  type ObservationReturnTypeWithMetadata,
-  type ObservationReturnType,
-} from "@/src/server/api/routers/traces";
-import { isPresent, type APIScore, type Trace } from "@langfuse/shared";
+  isPresent,
+  type APIScore,
+  type Trace,
+  ObservationLevel,
+} from "@langfuse/shared";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-
-import {
-  MinusIcon,
-  PlusIcon,
-  PanelRightOpen,
-  PlusSquareIcon,
-  MinusSquare,
-} from "lucide-react";
+import Decimal from "decimal.js";
+import { InfoIcon } from "lucide-react";
 import { nestObservations } from "@/src/components/trace/lib/helpers";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
-import { Button } from "@/src/components/ui/button";
 import {
   type TreeItemType,
   treeItemColors,
+  calculateDisplayTotalCost,
 } from "@/src/components/trace/lib/helpers";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-} from "@/src/components/ui/drawer";
-import { TracePreview } from "@/src/components/trace/TracePreview";
-import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
-import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+import { usdFormatter } from "@/src/utils/numbers";
 
 // Fixed widths for styling for v1
 const SCALE_WIDTH = 1070;
 const STEP_SIZE = 100;
-const CARD_PADDING = 60;
-const LABEL_WIDTH = 35;
 const MIN_LABEL_WIDTH = 10;
 const TREE_INDENTATION = 12; // default in MUI X TreeView
 
@@ -48,24 +37,6 @@ const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
   35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500,
 ];
-
-const getNestedObservationKeys = (
-  observations: NestedObservation[],
-): string[] => {
-  const keys: string[] = [];
-
-  const collectKeys = (obs: NestedObservation[]) => {
-    obs.forEach((observation) => {
-      keys.push(`observation-${observation.id}`);
-      if (observation.children) {
-        collectKeys(observation.children);
-      }
-    });
-  };
-
-  collectKeys(observations);
-  return keys;
-};
 
 const calculateStepSize = (latency: number, scaleWidth: number) => {
   const calculatedStepSize = latency / (scaleWidth / STEP_SIZE);
@@ -75,6 +46,34 @@ const calculateStepSize = (latency: number, scaleWidth: number) => {
   );
 };
 
+const heatMapTextColor = (p: {
+  min?: Decimal | number;
+  max: Decimal | number;
+  value: Decimal | number;
+}) => {
+  const { min, max, value } = p;
+  const minDecimal = min ? new Decimal(min) : new Decimal(0);
+  const maxDecimal = new Decimal(max);
+  const valueDecimal = new Decimal(value);
+
+  const cutOffs: [number, string][] = [
+    [0.75, "text-dark-red"], // 75%
+    [0.5, "text-dark-yellow"], // 50%
+  ];
+  const standardizedValueOnStartEndScale = valueDecimal
+    .sub(minDecimal)
+    .div(maxDecimal.sub(minDecimal));
+  const ratio = standardizedValueOnStartEndScale.toNumber();
+
+  // pick based on ratio if threshold is exceeded
+  for (const [threshold, color] of cutOffs) {
+    if (ratio >= threshold) {
+      return color;
+    }
+  }
+  return "";
+};
+
 function TreeItemInner({
   latency,
   totalScaleSpan,
@@ -82,11 +81,17 @@ function TreeItemInner({
   startOffset = 0,
   firstTokenTimeOffset,
   name,
-  children,
-  level = 0,
-  cardWidth,
   hasChildren,
   isSelected,
+  showMetrics = true,
+  showScores = true,
+  showComments = true,
+  colorCodeMetrics = false,
+  scores,
+  commentCount,
+  parentTotalDuration,
+  totalCost,
+  parentTotalCost,
 }: {
   latency?: number;
   totalScaleSpan: number;
@@ -94,13 +99,20 @@ function TreeItemInner({
   startOffset?: number;
   firstTokenTimeOffset?: number;
   name?: string | null;
-  children?: React.ReactNode;
-  level?: number;
-  cardWidth: number;
   hasChildren: boolean;
   isSelected: boolean;
+  showMetrics?: boolean;
+  showScores?: boolean;
+  showComments?: boolean;
+  colorCodeMetrics?: boolean;
+  scores?: APIScore[];
+  commentCount?: number;
+  parentTotalDuration?: number;
+  totalCost?: Decimal;
+  parentTotalCost?: Decimal;
 }) {
   const itemWidth = ((latency ?? 0) / totalScaleSpan) * SCALE_WIDTH;
+  const duration = latency ? latency * 1000 : undefined;
 
   return (
     <div
@@ -117,6 +129,7 @@ function TreeItemInner({
                   : "group-hover:ring group-hover:ring-tertiary",
               )}
               style={{ marginLeft: `${startOffset}px` }}
+              title="time to first token"
             >
               <div
                 className={cn(
@@ -138,14 +151,56 @@ function TreeItemInner({
               >
                 <div
                   className={cn(
-                    "ml-1 flex flex-row items-center justify-start gap-2 text-xs text-muted-foreground",
+                    "-ml-8 flex flex-row items-center justify-start gap-2 text-xs text-muted-foreground",
                   )}
                 >
+                  <span className="text-xs text-muted-foreground">TTFT</span>
                   <ItemBadge type={type} isSmall />
                   <span className="whitespace-nowrap text-sm font-medium text-primary">
                     {name}
                   </span>
-                  {isPresent(latency) && `${latency.toFixed(2)}s`}
+                  {showComments && commentCount ? (
+                    <CommentCountIcon
+                      count={commentCount}
+                      className={treeItemColors.get(type)}
+                    />
+                  ) : null}
+                  {showMetrics && isPresent(latency) && (
+                    <span
+                      className={cn(
+                        "text-xs text-muted-foreground",
+                        parentTotalDuration &&
+                          colorCodeMetrics &&
+                          duration &&
+                          heatMapTextColor({
+                            max: parentTotalDuration,
+                            value: duration,
+                          }),
+                      )}
+                    >
+                      {formatIntervalSeconds(latency)}
+                    </span>
+                  )}
+                  {showMetrics && totalCost && (
+                    <span
+                      className={cn(
+                        "text-xs text-muted-foreground",
+                        parentTotalCost &&
+                          colorCodeMetrics &&
+                          heatMapTextColor({
+                            max: parentTotalCost,
+                            value: totalCost,
+                          }),
+                      )}
+                    >
+                      {usdFormatter(totalCost.toNumber())}
+                    </span>
+                  )}
+                  {showScores && scores && scores.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <GroupedScoreBadges scores={scores} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -176,7 +231,48 @@ function TreeItemInner({
                   <span className="whitespace-nowrap text-sm font-medium text-primary">
                     {name}
                   </span>
-                  {isPresent(latency) && `${latency.toFixed(2)}s`}
+                  {showComments && commentCount ? (
+                    <CommentCountIcon
+                      count={commentCount}
+                      className={treeItemColors.get(type)}
+                    />
+                  ) : null}
+                  {showMetrics && isPresent(latency) && (
+                    <span
+                      className={cn(
+                        "text-xs text-muted-foreground",
+                        parentTotalDuration &&
+                          colorCodeMetrics &&
+                          duration &&
+                          heatMapTextColor({
+                            max: parentTotalDuration,
+                            value: duration,
+                          }),
+                      )}
+                    >
+                      {formatIntervalSeconds(latency)}
+                    </span>
+                  )}
+                  {showMetrics && totalCost && (
+                    <span
+                      className={cn(
+                        "text-xs text-muted-foreground",
+                        parentTotalCost &&
+                          colorCodeMetrics &&
+                          heatMapTextColor({
+                            max: parentTotalCost,
+                            value: totalCost,
+                          }),
+                      )}
+                    >
+                      {usdFormatter(totalCost.toNumber())}
+                    </span>
+                  )}
+                  {showScores && scores && scores.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      <GroupedScoreBadges scores={scores} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -199,6 +295,12 @@ function TraceTreeItem({
   commentCounts,
   currentObservationId,
   setCurrentObservationId,
+  showMetrics,
+  showScores,
+  showComments,
+  colorCodeMetrics,
+  parentTotalDuration,
+  parentTotalCost,
 }: {
   observation: NestedObservation;
   level: number;
@@ -211,6 +313,12 @@ function TraceTreeItem({
   commentCounts?: Map<string, number>;
   currentObservationId: string | null;
   setCurrentObservationId: (id: string | null) => void;
+  showMetrics?: boolean;
+  showScores?: boolean;
+  showComments?: boolean;
+  colorCodeMetrics?: boolean;
+  parentTotalDuration?: number;
+  parentTotalCost?: Decimal;
 }) {
   const { startTime, completionStartTime, endTime } = observation || {};
 
@@ -226,6 +334,16 @@ function TraceTreeItem({
         1000) *
       SCALE_WIDTH
     : undefined;
+
+  const observationScores = scores.filter(
+    (s) => s.observationId === observation.id,
+  );
+
+  // Calculate total cost for this observation and its children
+  const unnestedObservations = unnestObservation(observation);
+  const totalCost = calculateDisplayTotalCost({
+    allObservations: unnestedObservations,
+  });
 
   return (
     <TreeItem
@@ -255,10 +373,17 @@ function TraceTreeItem({
           startOffset={startOffset}
           firstTokenTimeOffset={firstTokenTimeOffset}
           totalScaleSpan={totalScaleSpan}
-          level={level}
-          cardWidth={cardWidth}
           hasChildren={!!observation.children?.length}
           isSelected={observation.id === currentObservationId}
+          showMetrics={showMetrics}
+          showScores={showScores}
+          showComments={showComments}
+          colorCodeMetrics={colorCodeMetrics}
+          scores={observationScores}
+          commentCount={commentCounts?.get(observation.id)}
+          parentTotalDuration={parentTotalDuration}
+          totalCost={totalCost}
+          parentTotalCost={parentTotalCost}
         />
       }
     >
@@ -277,12 +402,29 @@ function TraceTreeItem({
               commentCounts={commentCounts}
               currentObservationId={currentObservationId}
               setCurrentObservationId={setCurrentObservationId}
+              showMetrics={showMetrics}
+              showScores={showScores}
+              showComments={showComments}
+              colorCodeMetrics={colorCodeMetrics}
+              parentTotalDuration={parentTotalDuration}
+              parentTotalCost={parentTotalCost}
             />
           ))
         : null}
     </TreeItem>
   );
 }
+
+// Helper function to unnest observations for cost calculation
+const unnestObservation = (nestedObservation: NestedObservation) => {
+  const unnestedObservations = [];
+  const { children, ...observation } = nestedObservation;
+  unnestedObservations.push(observation);
+  children.forEach((child) => {
+    unnestedObservations.push(...unnestObservation(child));
+  });
+  return unnestedObservations;
+};
 
 export function TraceTimelineView({
   trace,
@@ -293,6 +435,12 @@ export function TraceTimelineView({
   setCurrentObservationId,
   expandedItems,
   setExpandedItems,
+  showMetrics = true,
+  showScores = true,
+  showComments = true,
+  colorCodeMetrics = true,
+  minLevel,
+  setMinLevel,
 }: {
   trace: Omit<Trace, "input" | "output"> & {
     latency?: number;
@@ -306,16 +454,31 @@ export function TraceTimelineView({
   setCurrentObservationId: (id: string | null) => void;
   expandedItems: string[];
   setExpandedItems: (items: string[]) => void;
+  showMetrics?: boolean;
+  showScores?: boolean;
+  showComments?: boolean;
+  colorCodeMetrics?: boolean;
+  minLevel?: ObservationLevel;
+  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevel>>;
 }) {
   const { latency, name, id } = trace;
 
-  const { nestedObservations } = useMemo(
-    () => nestObservations(observations),
-    [observations],
+  const { nestedObservations, hiddenObservationsCount } = useMemo(
+    () => nestObservations(observations, minLevel),
+    [observations, minLevel],
   );
 
   const [cardWidth, setCardWidth] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Calculate total cost for all observations
+  const totalCost = useMemo(
+    () =>
+      calculateDisplayTotalCost({
+        allObservations: observations,
+      }),
+    [observations],
+  );
 
   useEffect(() => {
     const handleResize = () => {
@@ -348,7 +511,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: isAuthenticatedAndProjectMember,
+      enabled: isAuthenticatedAndProjectMember && showComments,
     },
   );
 
@@ -365,7 +528,7 @@ export function TraceTimelineView({
         },
       },
       refetchOnMount: false, // prevents refetching loops
-      enabled: isAuthenticatedAndProjectMember,
+      enabled: isAuthenticatedAndProjectMember && showComments,
     },
   );
 
@@ -373,6 +536,9 @@ export function TraceTimelineView({
 
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
   const totalScaleSpan = stepSize * (SCALE_WIDTH / STEP_SIZE);
+
+  const traceScores = scores.filter((s) => s.observationId === null);
+  const totalDuration = latency * 1000; // Convert to milliseconds for consistency
 
   return (
     <div ref={parentRef} className="h-full w-full">
@@ -382,7 +548,7 @@ export function TraceTimelineView({
       >
         <div className="mb-2 grid w-full grid-cols-[1fr,auto] items-center">
           <div
-            className="flex flex-row items-center gap-2"
+            className="flex min-w-1 flex-row items-center gap-2"
             style={{
               maxWidth: `${MIN_LABEL_WIDTH}px`,
             }}
@@ -448,10 +614,16 @@ export function TraceTimelineView({
                   latency={latency}
                   totalScaleSpan={totalScaleSpan}
                   type="TRACE"
-                  cardWidth={cardWidth}
                   hasChildren={!!nestedObservations.length}
                   isSelected={currentObservationId === null}
-                ></TreeItemInner>
+                  showMetrics={showMetrics}
+                  showScores={showScores}
+                  showComments={showComments}
+                  colorCodeMetrics={colorCodeMetrics}
+                  scores={traceScores}
+                  commentCount={traceCommentCounts.data?.get(id)}
+                  totalCost={totalCost}
+                />
               }
             >
               {Boolean(nestedObservations.length)
@@ -469,11 +641,37 @@ export function TraceTimelineView({
                       commentCounts={observationCommentCounts.data}
                       currentObservationId={currentObservationId}
                       setCurrentObservationId={setCurrentObservationId}
+                      showMetrics={showMetrics}
+                      showScores={showScores}
+                      showComments={showComments}
+                      colorCodeMetrics={colorCodeMetrics}
+                      parentTotalDuration={totalDuration}
+                      parentTotalCost={totalCost}
                     />
                   ))
                 : null}
             </TreeItem>
           </SimpleTreeView>
+
+          {minLevel && hiddenObservationsCount > 0 ? (
+            <div className="flex items-center gap-1 p-2 py-4">
+              <InfoIcon className="h-4 w-4 text-muted-foreground" />
+              <span className="flex flex-row gap-1 text-sm text-muted-foreground">
+                <p>
+                  {hiddenObservationsCount} observations below {minLevel} level
+                  are hidden.
+                </p>
+                {setMinLevel && (
+                  <p
+                    className="cursor-pointer underline"
+                    onClick={() => setMinLevel(ObservationLevel.DEBUG)}
+                  >
+                    Show all
+                  </p>
+                )}
+              </span>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

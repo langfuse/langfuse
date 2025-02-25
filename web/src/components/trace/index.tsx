@@ -16,15 +16,13 @@ import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { PlusSquareIcon, MinusSquare, Settings2 } from "lucide-react";
+import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
 import { type APIScore, ObservationLevel } from "@langfuse/shared";
-import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
@@ -46,6 +44,21 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
+
+const getNestedObservationKeys = (
+  observations: ObservationReturnTypeWithMetadata[],
+): string[] => {
+  const keys: string[] = [];
+
+  const collectKeys = (obs: ObservationReturnTypeWithMetadata[]) => {
+    obs.forEach((observation) => {
+      keys.push(`observation-${observation.id}`);
+    });
+  };
+
+  collectKeys(observations);
+  return keys;
+};
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -191,13 +204,44 @@ export function Trace(props: {
       )}
     >
       <div className="border-r md:flex md:h-full md:flex-col md:overflow-hidden">
-        <Command className="mt-1 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
+        <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
           <div className="flex flex-row justify-between px-3 pl-5">
-            <CommandInput
-              showBorder={false}
-              placeholder="Search nodes..."
-              className="-ml-2 h-9 border-0 focus:ring-0"
-            />
+            {props.selectedTab?.includes("timeline") ? (
+              <div className="flex h-full items-center gap-1">
+                <Button
+                  onClick={() => {
+                    setExpandedItems([
+                      `trace-${props.trace.id}`,
+                      ...getNestedObservationKeys(props.observations),
+                    ]);
+                  }}
+                  size="xs"
+                  variant="ghost"
+                  title="Expand all"
+                  className="px-0 text-muted-foreground"
+                >
+                  <ChevronsUpDown className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={() => setExpandedItems([])}
+                  size="xs"
+                  variant="ghost"
+                  title="Collapse all"
+                  className="px-0 text-muted-foreground"
+                >
+                  <ChevronsDownUp className="h-4 w-4" />
+                </Button>
+                <span className="px-1 py-2 text-sm text-muted-foreground">
+                  Node display
+                </span>
+              </div>
+            ) : (
+              <CommandInput
+                showBorder={false}
+                placeholder="Search nodes..."
+                className="-ml-2 h-9 border-0 focus:ring-0"
+              />
+            )}
             <div className="flex flex-row items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -316,31 +360,6 @@ export function Trace(props: {
                 }
               ></Switch>
               <span className="text-sm">Timeline</span>
-              {props.selectedTab?.includes("timeline") ? (
-                <div className="flex h-full items-center">
-                  <Button
-                    onClick={() => {
-                      setExpandedItems([
-                        `trace-${props.trace.id}`,
-                        // ...nestedObservationKeys,
-                      ]);
-                    }}
-                    size="xs"
-                    variant="ghost"
-                    title="Expand all"
-                  >
-                    <PlusSquareIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    onClick={() => setExpandedItems([])}
-                    size="xs"
-                    variant="ghost"
-                    title="Collapse all"
-                  >
-                    <MinusSquare className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : null}
             </div>
           </div>
           <div className="overflow-y-auto px-3">
@@ -356,6 +375,12 @@ export function Trace(props: {
                   setCurrentObservationId={setCurrentObservationId}
                   expandedItems={expandedItems}
                   setExpandedItems={setExpandedItems}
+                  showMetrics={metricsOnObservationTree}
+                  showScores={scoresOnObservationTree}
+                  showComments={showComments}
+                  colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                  minLevel={minObservationLevel}
+                  setMinLevel={setMinObservationLevel}
                 />
                 {isLanggraphTrace(props.observations) ? (
                   <div className="h-full flex-1 overflow-hidden">

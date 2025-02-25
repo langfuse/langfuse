@@ -2,37 +2,23 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   type APIScore,
   type Trace,
-  type ScoreSource,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  ObservationReturnTypeWithMetadata,
-  type ObservationReturnType,
-} from "@/src/server/api/routers/traces";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { IOPreview } from "@/src/components/trace/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -43,11 +29,13 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
-import { InfoIcon, Tag } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import Link from "next/link";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Toggle } from "@/src/components/ui/toggle";
 
 export const TracePreview = ({
   trace,
@@ -70,6 +58,9 @@ export const TracePreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
+  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const capture = usePostHogClientCapture();
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
@@ -99,14 +90,6 @@ export const TracePreview = ({
   const filterOptionTags = traceFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
 
-  const traceScores = scores.filter((s) => s.observationId === null);
-  const traceScoresBySource = traceScores.reduce((acc, score) => {
-    if (!acc.get(score.source)) {
-      acc.set(score.source, []);
-    }
-    acc.get(score.source)?.push(score);
-    return acc;
-  }, new Map<ScoreSource, APIScore[]>());
   const traceMedia = api.media.getByTraceOrObservationId.useQuery(
     {
       traceId: trace.id,
@@ -180,24 +163,23 @@ export const TracePreview = ({
         </div>
         <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 space-x-1">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
               {trace.sessionId ? (
                 <Link
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
                 >
-                  <Badge>Session: {trace.sessionId}</Badge>
+                  <Badge variant="tertiary">Session: {trace.sessionId}</Badge>
                 </Link>
               ) : null}
               {trace.userId ? (
                 <Link
                   href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
                 >
-                  <Badge>User ID: {trace.userId}</Badge>
+                  <Badge variant="tertiary">User ID: {trace.userId}</Badge>
                 </Link>
               ) : null}
-              <AggUsageBadge observations={observations} />
               {totalCost ? (
-                <Badge variant="outline">
+                <Badge variant="tertiary">
                   {usdFormatter(totalCost.toNumber())}
                 </Badge>
               ) : undefined}
@@ -209,7 +191,7 @@ export const TracePreview = ({
               {viewType === "detailed" && (
                 <>
                   {!!trace.latency && (
-                    <Badge variant="outline">
+                    <Badge variant="tertiary">
                       {formatIntervalSeconds(trace.latency)}
                     </Badge>
                   )}
@@ -221,13 +203,14 @@ export const TracePreview = ({
                     <AggUsageBadge
                       observations={observations}
                       rightIcon={<InfoIcon className="h-3 w-3" />}
+                      variant="tertiary"
                     />
                   </BreakdownTooltip>
                   {!!trace.release && (
-                    <Badge variant="outline">Release: {trace.release}</Badge>
+                    <Badge variant="tertiary">Release: {trace.release}</Badge>
                   )}
                   {!!trace.version && (
-                    <Badge variant="outline">Version: {trace.version}</Badge>
+                    <Badge variant="tertiary">Version: {trace.version}</Badge>
                   )}
                   {totalCost && (
                     <BreakdownTooltip
@@ -236,7 +219,7 @@ export const TracePreview = ({
                         .map((o) => o.costDetails)}
                       isCost
                     >
-                      <Badge variant="outline">
+                      <Badge variant="tertiary">
                         <span className="flex items-center gap-1">
                           Total Cost: {usdFormatter(totalCost.toNumber())}
                           <InfoIcon className="h-3 w-3" />
@@ -269,6 +252,20 @@ export const TracePreview = ({
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
+              {selectedTab === "preview" && isPrettyViewAvailable && (
+                <Toggle
+                  className="mb-2 ml-auto mr-3 h-fit py-0.5"
+                  pressed={currentView === "pretty"}
+                  onPressedChange={(pressed) => {
+                    capture("trace_detail:io_mode_switch", {
+                      view: pressed ? "pretty" : "json",
+                    });
+                    setCurrentView(pressed ? "pretty" : "json");
+                  }}
+                >
+                  <span className="text-sm">Pretty</span>
+                </Toggle>
+              )}
             </TabsBarList>
           )}
           {/* show preview always if not detailed view */}
@@ -282,6 +279,8 @@ export const TracePreview = ({
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
                 media={traceMedia.data}
+                currentView={currentView}
+                setIsPrettyViewAvailable={setIsPrettyViewAvailable}
               />
               <JSONView
                 key={trace.id + "-metadata"}

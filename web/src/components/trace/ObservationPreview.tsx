@@ -30,7 +30,7 @@ import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewD
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   TabsBar,
@@ -43,6 +43,8 @@ import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { Toggle } from "@/src/components/ui/toggle";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const ObservationPreview = ({
   observations,
@@ -67,6 +69,9 @@ export const ObservationPreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
+  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const capture = usePostHogClientCapture();
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
@@ -185,19 +190,21 @@ export const ObservationPreview = ({
         </div>
         <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 space-x-1">
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
               {preloadedObservation.model && (
                 <Link
                   href={`/project/${projectId}/models/${encodeURIComponent(
                     preloadedObservation.model,
                   )}`}
                 >
-                  <Badge>Model: {preloadedObservation.model}</Badge>
+                  <Badge variant="tertiary">
+                    Model: {preloadedObservation.model}
+                  </Badge>
                 </Link>
               )}
 
               {thisCost && (
-                <Badge variant="outline">
+                <Badge variant="tertiary">
                   {usdFormatter(thisCost.toNumber())}
                 </Badge>
               )}
@@ -217,7 +224,7 @@ export const ObservationPreview = ({
                     />
                   ) : undefined}
                   {preloadedObservation.timeToFirstToken ? (
-                    <Badge variant="outline">
+                    <Badge variant="tertiary">
                       Time to first token:{" "}
                       {formatIntervalSeconds(
                         preloadedObservation.timeToFirstToken,
@@ -225,7 +232,7 @@ export const ObservationPreview = ({
                     </Badge>
                   ) : null}
                   {preloadedObservation.endTime ? (
-                    <Badge variant="outline">
+                    <Badge variant="tertiary">
                       Latency:{" "}
                       {formatIntervalSeconds(
                         (preloadedObservation.endTime.getTime() -
@@ -240,7 +247,7 @@ export const ObservationPreview = ({
                       isCost={false}
                     >
                       <Badge
-                        variant="outline"
+                        variant="tertiary"
                         className="flex items-center gap-1"
                       >
                         <span>
@@ -253,13 +260,13 @@ export const ObservationPreview = ({
                     </BreakdownTooltip>
                   )}
                   {preloadedObservation.version ? (
-                    <Badge variant="outline">
+                    <Badge variant="tertiary">
                       Version: {preloadedObservation.version}
                     </Badge>
                   ) : undefined}
                   {preloadedObservation.model ? (
                     preloadedObservation.modelId ? (
-                      <Badge>
+                      <Badge variant="tertiary">
                         <Link
                           href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
                           className="flex items-center"
@@ -291,7 +298,7 @@ export const ObservationPreview = ({
                         className="cursor-pointer"
                       >
                         <Badge
-                          variant="outline"
+                          variant="tertiary"
                           className="flex items-center gap-1"
                         >
                           <span>{preloadedObservation.model}</span>
@@ -306,7 +313,7 @@ export const ObservationPreview = ({
                       isCost={true}
                     >
                       <Badge
-                        variant="outline"
+                        variant="tertiary"
                         className="flex items-center gap-1"
                       >
                         <span>{usdFormatter(thisCost.toNumber())}</span>
@@ -315,7 +322,7 @@ export const ObservationPreview = ({
                     </BreakdownTooltip>
                   ) : undefined}
                   {totalCost && totalCost !== thisCost ? (
-                    <Badge variant="outline">
+                    <Badge variant="tertiary">
                       ∑ {usdFormatter(totalCost.toNumber())}
                     </Badge>
                   ) : undefined}
@@ -325,7 +332,7 @@ export const ObservationPreview = ({
                     Object.entries(preloadedObservation.modelParameters)
                       .filter(Boolean)
                       .map(([key, value]) => (
-                        <Badge variant="outline" key={key}>
+                        <Badge variant="tertiary" key={key}>
                           {key}:{" "}
                           {Object.prototype.toString.call(value) ===
                           "[object Object]"
@@ -345,10 +352,24 @@ export const ObservationPreview = ({
           onValueChange={(value) => setSelectedTab(value)}
         >
           {viewType === "detailed" && (
-            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
+            <TabsBarList className="flex min-w-0 max-w-full justify-start overflow-x-auto">
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+              )}
+              {selectedTab === "preview" && isPrettyViewAvailable && (
+                <Toggle
+                  className="mb-2 ml-auto mr-3 h-fit py-0.5"
+                  pressed={currentView === "pretty"}
+                  onPressedChange={(pressed) => {
+                    capture("trace_detail:io_mode_switch", {
+                      view: pressed ? "pretty" : "json",
+                    });
+                    setCurrentView(pressed ? "pretty" : "json");
+                  }}
+                >
+                  <span className="text-sm">Pretty</span>
+                </Toggle>
               )}
             </TabsBarList>
           )}
@@ -366,6 +387,8 @@ export const ObservationPreview = ({
                   }
                   isLoading={observationWithInputAndOutput.isLoading}
                   media={observationMedia.data}
+                  currentView={currentView}
+                  setIsPrettyViewAvailable={setIsPrettyViewAvailable}
                 />
               </div>
               {preloadedObservation.statusMessage && (
@@ -427,7 +450,7 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
     <Link
       href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
     >
-      <Badge>
+      <Badge variant="tertiary">
         Prompt: {prompt.data.name}
         {" - v"}
         {prompt.data.version}

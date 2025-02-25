@@ -11,7 +11,13 @@ import { Fragment, useMemo, useRef, useEffect, useState } from "react";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { LevelColors } from "@/src/components/level-colors";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { InfoIcon, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  InfoIcon,
+  ChevronRight,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronsDownUp,
+} from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -137,21 +143,11 @@ const ObservationTreeTraceNode = (props: {
   showExpandControls?: boolean;
   showComments: boolean;
 }) => {
-  const isExpanded = true;
-  const handleToggle = (ev: React.MouseEvent) => {
-    ev.stopPropagation();
-    if (isExpanded) {
-      props.collapseAll();
-    } else {
-      props.expandAll();
-    }
-  };
-
   return (
     <CommandItem
       value={`${props.trace.name} TRACE`}
       className={cn(
-        "flex w-full px-0",
+        "flex w-full rounded-md px-0",
         (props.currentObservationId === undefined ||
           props.currentObservationId === "") &&
           "bg-muted",
@@ -165,7 +161,11 @@ const ObservationTreeTraceNode = (props: {
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-2">
         <div className="flex w-full flex-wrap items-center gap-2">
-          <ItemBadge type="TRACE" isSmall />
+          <ItemBadge
+            type="TRACE"
+            isSmall={true}
+            className="flex-shrink-0 scale-75"
+          />
           <span className="break-all text-sm">{props.trace.name}</span>
           {props.comments && props.showComments ? (
             <CommentCountIcon count={props.comments.get(props.trace.id)} />
@@ -199,15 +199,20 @@ const ObservationTreeTraceNode = (props: {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleToggle}
-              className="h-4 w-4 flex-shrink-0 hover:text-accent-foreground"
-              title={isExpanded ? "Collapse all" : "Expand all"}
+              onClick={() => props.expandAll()}
+              className="h-4 w-4 flex-shrink-0"
+              title="Expand all"
             >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
+              <ChevronsUpDown className="h-4 w-4 text-foreground" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => props.collapseAll()}
+              className="h-4 w-4 flex-shrink-0"
+              title="Collapse all"
+            >
+              <ChevronsDownUp className="h-4 w-4 text-foreground" />
             </Button>
           </div>
         )}
@@ -357,7 +362,11 @@ const ObservationTreeNodeCard = ({
           ref={currentObservationRef}
         >
           {/* Type badge */}
-          <ItemBadge type={observation.type} isSmall />
+          <ItemBadge
+            type={observation.type}
+            isSmall
+            className="flex-shrink-0 scale-75"
+          />
 
           {/* Name and duration */}
           <div className="flex items-center gap-2">

@@ -44,6 +44,8 @@ export const LocalIsoDate = ({
   return type === "span" ? (
     <span title={`UTC: ${utcDateString}`}>{localDateString}</span>
   ) : (
-    <Badge title={`UTC: ${utcDateString}`}>{localDateString}</Badge>
+    <Badge variant="tertiary" title={`UTC: ${utcDateString}`}>
+      {localDateString}
+    </Badge>
   );
 };
