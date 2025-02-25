@@ -301,7 +301,6 @@ describe("/api/public/ingestion API Endpoint", () => {
       });
 
       expect(response.status).toBe(207);
-      status;
       expect(response.body.errors[0].status).toBe(400);
     },
   );
