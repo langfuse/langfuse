@@ -4,6 +4,8 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import Page from "@/src/components/layouts/page";
+import { AnnotationQueuesOnboarding } from "@/src/ee/features/annotation-queues/components/AnnotationQueuesOnboarding";
+import { api } from "@/src/utils/api";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -13,6 +15,22 @@ export default function AnnotationQueues() {
     scope: "annotationQueues:read",
   });
   const hasEntitlement = useHasEntitlement("annotation-queues");
+
+  // Check if the user has any annotation queues
+  const { data: hasAnyQueue, isLoading } = api.annotationQueues.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const showOnboarding = !isLoading && !hasAnyQueue;
+
   if (!hasAccess || !hasEntitlement) return <SupportOrUpgradePage />;
 
   return (
@@ -25,8 +43,14 @@ export default function AnnotationQueues() {
           href: "https://langfuse.com/docs/scores/annotation",
         },
       }}
+      scrollable={showOnboarding}
     >
-      <AnnotationQueuesTable projectId={projectId} />
+      {/* Show onboarding screen if user has no annotation queues */}
+      {showOnboarding ? (
+        <AnnotationQueuesOnboarding projectId={projectId} />
+      ) : (
+        <AnnotationQueuesTable projectId={projectId} />
+      )}
     </Page>
   );
 }
