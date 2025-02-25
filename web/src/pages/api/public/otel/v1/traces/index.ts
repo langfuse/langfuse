@@ -37,7 +37,7 @@ export default withMiddlewares({
         return res.status(400).json({ error: "Failed to read request body" });
       }
 
-      if (req.headers["content-encoding"] === "gzip") {
+      if (req.headers["content-encoding"]?.includes("gzip")) {
         try {
           body = await new Promise((resolve, reject) => {
             gunzip(body, (err, result) =>
