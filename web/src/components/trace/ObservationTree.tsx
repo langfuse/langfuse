@@ -373,10 +373,7 @@ const ObservationTreeNodeCard = ({
             <span className="text-sm font-medium">{observation.name}</span>
 
             {comments && showComments ? (
-              <CommentCountIcon
-                count={comments.get(observation.id)}
-                className={treeItemColors.get(observation.type)}
-              />
+              <CommentCountIcon count={comments.get(observation.id)} />
             ) : null}
           </div>
           {showMetrics && (

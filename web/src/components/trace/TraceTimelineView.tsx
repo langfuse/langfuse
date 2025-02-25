@@ -158,10 +158,7 @@ function TreeItemInner({
                     {name}
                   </span>
                   {showComments && commentCount ? (
-                    <CommentCountIcon
-                      count={commentCount}
-                      className={treeItemColors.get(type)}
-                    />
+                    <CommentCountIcon count={commentCount} />
                   ) : null}
                   {showMetrics && isPresent(latency) && (
                     <span
@@ -230,10 +227,7 @@ function TreeItemInner({
                     {name}
                   </span>
                   {showComments && commentCount ? (
-                    <CommentCountIcon
-                      count={commentCount}
-                      className={treeItemColors.get(type)}
-                    />
+                    <CommentCountIcon count={commentCount} />
                   ) : null}
                   {showMetrics && isPresent(latency) && (
                     <span
