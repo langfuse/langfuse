@@ -10,6 +10,13 @@ export interface ValueProposition {
   icon?: React.ReactNode;
 }
 
+export interface ActionConfig {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  component?: React.ReactNode;
+}
+
 export interface SplashScreenProps {
   title: string;
   description: string;
@@ -21,16 +28,8 @@ export interface SplashScreenProps {
   };
   videoSrc?: string;
   valuePropositions?: ValueProposition[];
-  primaryAction?: {
-    label: string;
-    href?: string;
-    onClick?: () => void;
-  };
-  secondaryAction?: {
-    label: string;
-    href?: string;
-    onClick?: () => void;
-  };
+  primaryAction?: ActionConfig;
+  secondaryAction?: ActionConfig;
   className?: string;
 }
 
@@ -57,28 +56,28 @@ export function SplashScreen({
       </div>
 
       <div className="mb-8 flex w-full flex-wrap justify-center gap-4">
-        {primaryAction && (
-          <ActionButton
-            size="lg"
-            className="w-full sm:w-auto"
-            onClick={primaryAction.onClick}
-            href={primaryAction.href}
-          >
-            {primaryAction.label}
-          </ActionButton>
-        )}
+        {primaryAction &&
+          (primaryAction.component || (
+            <ActionButton
+              size="lg"
+              onClick={primaryAction.onClick}
+              href={primaryAction.href}
+            >
+              {primaryAction.label}
+            </ActionButton>
+          ))}
 
-        {secondaryAction && (
-          <ActionButton
-            variant="outline"
-            size="lg"
-            className="w-full sm:w-auto"
-            onClick={secondaryAction.onClick}
-            href={secondaryAction.href}
-          >
-            {secondaryAction.label}
-          </ActionButton>
-        )}
+        {secondaryAction &&
+          (secondaryAction.component || (
+            <ActionButton
+              variant="outline"
+              size="lg"
+              onClick={secondaryAction.onClick}
+              href={secondaryAction.href}
+            >
+              {secondaryAction.label}
+            </ActionButton>
+          ))}
       </div>
 
       {videoSrc && (

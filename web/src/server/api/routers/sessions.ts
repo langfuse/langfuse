@@ -30,6 +30,7 @@ import {
   getPublicSessionsFilter,
   logger,
   getSessionsWithMetrics,
+  hasAnySession,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 
@@ -41,6 +42,23 @@ const SessionFilterOptions = z.object({
 });
 
 export const sessionRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        return hasAnySession(input.projectId);
+      } catch (e) {
+        logger.error("Unable to call sessions.hasAny", e);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "unable to check if project has any sessions",
+        });
+      }
+    }),
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {

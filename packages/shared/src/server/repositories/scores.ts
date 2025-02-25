@@ -875,3 +875,24 @@ export const getScoresForPostHog = async function* (
     };
   }
 };
+
+export const hasAnyScore = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM scores
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+    },
+    tags: {
+      source: "hasAnyScore",
+    },
+  });
+
+  return rows.length > 0;
+};

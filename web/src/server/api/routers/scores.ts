@@ -38,6 +38,7 @@ import {
   getScoreById,
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
+  hasAnyScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
@@ -378,5 +379,21 @@ export const scoresRouter = createTRPCRouter({
         source: source,
         dataType: dataType,
       }));
+    }),
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        return hasAnyScore(input.projectId);
+      } catch (e) {
+        logger.error("Unable to call scores.hasAny", e);
+        throw new InternalServerError(
+          "unable to check if project has any scores",
+        );
+      }
     }),
 });

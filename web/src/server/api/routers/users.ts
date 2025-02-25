@@ -9,6 +9,7 @@ import {
   getTotalUserCount,
   getTracesGroupedByUsers,
   getUserMetrics,
+  hasAnyUser,
 } from "@langfuse/shared/src/server";
 
 const UserFilterOptions = z.object({
@@ -25,6 +26,16 @@ const UserAllOptions = UserFilterOptions.extend({
 });
 
 export const userRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await hasAnyUser(input.projectId);
+    }),
+
   all: protectedProjectProcedure
     .input(UserAllOptions)
     .query(async ({ input, ctx }) => {
