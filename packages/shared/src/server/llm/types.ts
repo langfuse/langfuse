@@ -22,6 +22,7 @@ export enum LLMAdapter {
   Azure = "azure",
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
+  GoogleAIStudio = "google-ai-studio",
 }
 
 export enum ChatMessageRole {
@@ -118,6 +119,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
 export const anthropicModels = [
+  "claude-3-7-sonnet-20250219",
   "claude-3-5-sonnet-20241022",
   "claude-3-5-sonnet-20240620",
   "claude-3-opus-20240229",
@@ -139,12 +141,22 @@ export const vertexAIModels = [
   "gemini-1.0-pro",
 ] as const;
 
+export const googleAIStudioModels = [
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite-preview-02-05",
+  "gemini-2.0-flash-thinking-exp-01-21",
+  "gemini-1.5-pro",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+] as const;
+
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
   [LLMAdapter.Anthropic]: anthropicModels,
   [LLMAdapter.OpenAI]: openAIModels,
   [LLMAdapter.VertexAI]: vertexAIModels,
+  [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
 } as const;

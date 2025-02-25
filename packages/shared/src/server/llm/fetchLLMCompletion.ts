@@ -3,6 +3,7 @@ import type { ZodSchema } from "zod";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   AIMessage,
   BaseMessage,
@@ -149,7 +150,8 @@ export async function fetchLLMCompletion(
     | ChatOpenAI
     | ChatAnthropic
     | ChatBedrockConverse
-    | ChatVertexAI;
+    | ChatVertexAI
+    | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     chatModel = new ChatAnthropic({
       anthropicApiKey: apiKey,
@@ -221,6 +223,16 @@ export async function fetchLLMCompletion(
         projectId: credentials.project_id,
         credentials,
       },
+    });
+  } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
+    chatModel = new ChatGoogleGenerativeAI({
+      model: modelParams.model,
+      temperature: modelParams.temperature,
+      maxOutputTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      callbacks: finalCallbacks,
+      maxRetries,
+      apiKey,
     });
   } else {
     // eslint-disable-next-line no-unused-vars

@@ -1,4 +1,4 @@
-import { ObservationLevel } from "@langfuse/shared";
+import { ObservationLevelType } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 
 export type BatchExportSessionsRow = {
@@ -25,7 +25,7 @@ export type BatchExportTracesRow = {
   timestamp: Date;
   name: string;
   userId?: string | null;
-  level?: ObservationLevel | null;
+  level?: ObservationLevelType | null;
   observationCount?: number | null;
   scores?: Record<string, string[] | number[]> | null;
   latency?: number | null;

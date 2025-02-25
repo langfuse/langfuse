@@ -3,8 +3,9 @@ import { cn } from "@/src/utils/tailwind";
 import {
   type APIScore,
   type Trace,
-  type $Enums,
   ObservationLevel,
+  type ObservationLevelType,
+  type ObservationType,
 } from "@langfuse/shared";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Fragment, useMemo, useRef, useEffect } from "react";
@@ -56,8 +57,8 @@ export const ObservationTree = ({
   traceCommentCounts?: Map<string, number>;
   className?: string;
   showExpandControls?: boolean;
-  minLevel?: ObservationLevel;
-  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevel>>;
+  minLevel?: ObservationLevelType;
+  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
   showComments: boolean;
 }) => {
   const { nestedObservations, hiddenObservationsCount } = useMemo(
@@ -498,7 +499,7 @@ const ObservationTreeNodeCard = ({
 };
 
 export const ColorCodedObservationType = (props: {
-  observationType: $Enums.ObservationType;
+  observationType: ObservationType;
 }) => {
   return (
     <span

@@ -2,7 +2,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import {
   type ScoreDataType,
-  type ScoreSource,
+  type ScoreSourceType,
   type FilterState,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -26,7 +26,11 @@ const dropValuesForCategoricalScores = (
 };
 
 const scoreNameSourceDataTypeMatch =
-  (scoreName: string, scoreSource: ScoreSource, scoreDataType: ScoreDataType) =>
+  (
+    scoreName: string,
+    scoreSource: ScoreSourceType,
+    scoreDataType: ScoreDataType,
+  ) =>
   (item: DatabaseRow) =>
     item.scoreName === scoreName &&
     item.scoreSource === scoreSource &&
@@ -139,7 +143,7 @@ export const ScoresTable = ({
 
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
-      const scoreSource = metric.scoreSource as ScoreSource;
+      const scoreSource = metric.scoreSource as ScoreSourceType;
       const scoreDataType = metric.scoreDataType as ScoreDataType;
 
       const zeroValueScore = zeroValueScores.data.find(
