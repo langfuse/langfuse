@@ -87,6 +87,11 @@ const deleteMediaItemsForTraces = async (
     },
     where: {
       projectId,
+      id: {
+        in: [...traceMediaItems, ...observationMediaItems].map(
+          (ref) => ref.mediaId,
+        ),
+      },
       TraceMedia: {
         every: {
           id: {
