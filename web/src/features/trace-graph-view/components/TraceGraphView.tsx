@@ -25,7 +25,7 @@ type TraceGraphViewProps = {
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
-  const { trace, observations, scores, projectId } = props;
+  const { observations } = props;
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(
     () => parseGraph({ observations }),
@@ -65,22 +65,12 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   );
 
   return (
-    <div className="grid h-full grid-rows-[1fr_1.618fr] gap-4">
+    <div className="grid h-full w-full gap-4 pb-2">
       <TraceGraphCanvas
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
       />
-      <div className="h-full overflow-y-auto">
-        <TraceView
-          key={trace.id}
-          trace={trace}
-          scores={scores}
-          projectId={projectId}
-          observations={observations}
-          defaultMinObservationLevel="DEBUG"
-        />
-      </div>
     </div>
   );
 };

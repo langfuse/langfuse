@@ -365,34 +365,56 @@ export function Trace(props: {
           <div className="overflow-y-auto px-3">
             {props.selectedTab?.includes("timeline") ? (
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
-                <TraceTimelineView
-                  key={props.trace.id}
-                  trace={props.trace}
-                  scores={props.scores}
-                  observations={props.observations}
-                  projectId={props.trace.projectId}
-                  currentObservationId={currentObservationId ?? null}
-                  setCurrentObservationId={setCurrentObservationId}
-                  expandedItems={expandedItems}
-                  setExpandedItems={setExpandedItems}
-                  showMetrics={metricsOnObservationTree}
-                  showScores={scoresOnObservationTree}
-                  showComments={showComments}
-                  colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                  minLevel={minObservationLevel}
-                  setMinLevel={setMinObservationLevel}
-                />
                 {isLanggraphTrace(props.observations) ? (
-                  <div className="h-full flex-1 overflow-hidden">
-                    <TraceGraphView
-                      key={props.trace.id}
-                      trace={props.trace}
-                      scores={props.scores}
-                      observations={props.observations}
-                      projectId={props.trace.projectId}
-                    />
+                  <div className="flex h-full w-full flex-col overflow-hidden">
+                    <div className="h-1/2 w-full overflow-y-auto">
+                      <TraceTimelineView
+                        key={`timeline-${props.trace.id}`}
+                        trace={props.trace}
+                        scores={props.scores}
+                        observations={props.observations}
+                        projectId={props.trace.projectId}
+                        currentObservationId={currentObservationId ?? null}
+                        setCurrentObservationId={setCurrentObservationId}
+                        expandedItems={expandedItems}
+                        setExpandedItems={setExpandedItems}
+                        showMetrics={metricsOnObservationTree}
+                        showScores={scoresOnObservationTree}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                        minLevel={minObservationLevel}
+                        setMinLevel={setMinObservationLevel}
+                      />
+                    </div>
+                    <div className="h-1/2 w-full overflow-hidden border-t">
+                      <TraceGraphView
+                        key={`graph-${props.trace.id}`}
+                        trace={props.trace}
+                        scores={props.scores}
+                        observations={props.observations}
+                        projectId={props.trace.projectId}
+                      />
+                    </div>
                   </div>
-                ) : null}
+                ) : (
+                  <TraceTimelineView
+                    key={props.trace.id}
+                    trace={props.trace}
+                    scores={props.scores}
+                    observations={props.observations}
+                    projectId={props.trace.projectId}
+                    currentObservationId={currentObservationId ?? null}
+                    setCurrentObservationId={setCurrentObservationId}
+                    expandedItems={expandedItems}
+                    setExpandedItems={setExpandedItems}
+                    showMetrics={metricsOnObservationTree}
+                    showScores={scoresOnObservationTree}
+                    showComments={showComments}
+                    colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                    minLevel={minObservationLevel}
+                    setMinLevel={setMinObservationLevel}
+                  />
+                )}
               </div>
             ) : (
               <ObservationTree

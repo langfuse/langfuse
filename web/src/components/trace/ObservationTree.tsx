@@ -336,7 +336,7 @@ const ObservationTreeNodeCard = ({
 
   return (
     <CommandItem
-      value={`${observation.name} ${observation.type}`}
+      value={`${observation.name} ${observation.type} ${observation.id}`}
       className={cn(
         "flex w-full px-0",
         currentObservationId === observation.id && "bg-muted",

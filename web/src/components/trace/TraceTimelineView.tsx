@@ -28,7 +28,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 
 // Fixed widths for styling for v1
-const SCALE_WIDTH = 1070;
+const SCALE_WIDTH = 900;
 const STEP_SIZE = 100;
 const MIN_LABEL_WIDTH = 10;
 const TREE_INDENTATION = 12; // default in MUI X TreeView
@@ -542,17 +542,8 @@ export function TraceTimelineView({
 
   return (
     <div ref={parentRef} className="h-full w-full">
-      <div
-        className="flex max-h-full flex-col overflow-x-auto overflow-y-hidden"
-        style={{ width: cardWidth }}
-      >
-        <div className="mb-2 grid w-full grid-cols-[1fr,auto] items-center">
-          <div
-            className="flex min-w-1 flex-row items-center gap-2"
-            style={{
-              maxWidth: `${MIN_LABEL_WIDTH}px`,
-            }}
-          ></div>
+      <div className="flex max-h-full flex-col" style={{ width: cardWidth }}>
+        <div style={{ width: `${SCALE_WIDTH + 8}px` }} className="mb-2 ml-2">
           <div
             className="relative mr-2 h-8"
             style={{ width: `${SCALE_WIDTH}px` }}
@@ -584,7 +575,7 @@ export function TraceTimelineView({
             )}
           </div>
         </div>
-        <div className="min-w-fit overflow-y-auto">
+        <div style={{ width: `${SCALE_WIDTH}px` }} className="overflow-y-auto">
           <SimpleTreeView
             expandedItems={expandedItems}
             onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}

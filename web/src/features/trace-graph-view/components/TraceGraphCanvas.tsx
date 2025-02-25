@@ -162,10 +162,5 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     );
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className="h-[100%] rounded-lg border border-border"
-    />
-  );
+  return <div ref={containerRef} className="h-[100%]" />;
 };
