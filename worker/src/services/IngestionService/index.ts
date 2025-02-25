@@ -1059,7 +1059,8 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
-        environment: obs.body.environment,
+        environment:
+          "environment" in obs.body ? obs.body.environment : undefined,
         start_time: this.getMillisecondTimestamp(
           obs.body.startTime ?? obs.timestamp,
         ),

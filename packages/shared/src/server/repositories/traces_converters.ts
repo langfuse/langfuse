@@ -38,7 +38,7 @@ export const convertClickhouseToDomain = (
     projectId: record.project_id,
     name: record.name ?? null,
     timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
-    environment: record.environment,
+    environment: record.environment ?? null,
     tags: record.tags,
     bookmarked: record.bookmarked,
     release: record.release ?? null,

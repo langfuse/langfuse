@@ -31,6 +31,7 @@ export type Observation = {
   id: string;
   traceId: string | null;
   projectId: string;
+  environment: string | null;
   type: ObservationType;
   startTime: Date;
   endTime: Date | null;
@@ -104,6 +105,7 @@ export type Score = {
   id: string;
   timestamp: Date;
   projectId: string;
+  environment: string | null;
   name: string;
   value: number | null;
   source: ScoreSourceType;
@@ -124,6 +126,7 @@ export type Trace = {
   timestamp: Date;
   name: string | null;
   userId: string | null;
+  environment: string | null;
   metadata: Prisma.JsonValue | null;
   release: string | null;
   version: string | null;

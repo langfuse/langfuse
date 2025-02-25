@@ -372,6 +372,7 @@ export const getScoresUiTable = async (props: {
   const rows = await getScoresUiGeneric<{
     id: string;
     project_id: string;
+    environment: string | null;
     name: string;
     value: number;
     string_value: string | null;
@@ -396,6 +397,7 @@ export const getScoresUiTable = async (props: {
     select: `
         s.id,
         s.project_id,
+        s.environment,
         s.name,
         s.value,
         s.string_value,
@@ -424,6 +426,7 @@ export const getScoresUiTable = async (props: {
 
   return rows.map((row) => ({
     projectId: row.project_id,
+    environment: row.environment,
     authorUserId: row.author_user_id,
     traceId: row.trace_id,
     observationId: row.observation_id,
