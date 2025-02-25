@@ -169,6 +169,7 @@ export const scoresRouter = createTRPCRouter({
       const score = {
         id: v4(),
         projectId: input.projectId,
+        environment: input.environment ?? null,
         traceId: input.traceId,
         observationId: input.observationId ?? null,
         value: input.value ?? null,
