@@ -34,7 +34,6 @@ export default withMiddlewares({
       ]);
 
       const finalCount = count || 0;
-      console.log(usage);
       return {
         data: usage,
         meta: {
