@@ -15,7 +15,6 @@ import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import {
   type TreeItemType,
-  treeItemColors,
   calculateDisplayTotalCost,
 } from "@/src/components/trace/lib/helpers";
 import { api } from "@/src/utils/api";
