@@ -74,7 +74,7 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
     QueueName.TraceUpsert,
     evalJobTraceCreatorQueueProcessor,
     {
-      concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
     },
   );
 }

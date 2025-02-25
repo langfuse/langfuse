@@ -1,4 +1,5 @@
-import { ScoreDataType, ScoreSource } from "@prisma/client";
+import { ScoreDataType } from "@prisma/client";
+import { ScoreSourceType } from "../../server";
 
 export type CategoricalAggregate = {
   type: "CATEGORICAL";
@@ -22,7 +23,7 @@ export type ScoreAggregate = Record<
 export type ScoreSimplified = {
   name: string;
   dataType: ScoreDataType;
-  source: ScoreSource;
+  source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
   stringValue?: string | null;

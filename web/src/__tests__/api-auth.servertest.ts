@@ -10,15 +10,9 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 describe("Authenticate API calls", () => {
   beforeEach(async () => {
-    await prisma.score.deleteMany();
-    await prisma.observation.deleteMany();
-    await prisma.trace.deleteMany();
     await prisma.apiKey.deleteMany();
   });
   afterEach(async () => {
-    await prisma.score.deleteMany();
-    await prisma.observation.deleteMany();
-    await prisma.trace.deleteMany();
     await prisma.apiKey.deleteMany();
   });
 

@@ -1,4 +1,8 @@
-import { ObservationLevel, ObservationType } from "@langfuse/shared";
+import {
+  ObservationLevel,
+  type ObservationLevelType,
+  ObservationType,
+} from "@langfuse/shared";
 import { type NestedObservation } from "@/src/utils/types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
@@ -14,7 +18,7 @@ export const treeItemColors: Map<TreeItemType, string> = new Map([
 
 export function nestObservations(
   list: ObservationReturnType[],
-  minLevel?: ObservationLevel,
+  minLevel?: ObservationLevelType,
 ): {
   nestedObservations: NestedObservation[];
   hiddenObservationsCount: number;
@@ -146,7 +150,7 @@ export function calculateDisplayTotalCost(p: {
   return totalCost;
 }
 
-function getObservationLevels(minLevel: ObservationLevel | undefined) {
+function getObservationLevels(minLevel: ObservationLevelType | undefined) {
   const ascendingLevels = [
     ObservationLevel.DEBUG,
     ObservationLevel.DEFAULT,

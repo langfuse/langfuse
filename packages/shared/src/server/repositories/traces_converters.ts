@@ -1,8 +1,9 @@
-import { Prisma, Trace } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseJsonPrioritised } from "../../utils/json";
+import { Trace } from "./types";
 
 export const convertTraceDomainToClickhouse = (
   trace: Trace,

@@ -19,6 +19,8 @@ const buttonVariants = cva(
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        tertiary:
+          "bg-tertiary text-tertiary-foreground hover:bg-tertiary/80 text-xs font-medium",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         errorNotification:
@@ -31,6 +33,7 @@ const buttonVariants = cva(
         lg: "h-9 rounded-md px-8",
         icon: "h-8 w-8",
         "icon-xs": "h-6 w-6",
+        "icon-sm": "h-6 rounded-md px-2",
       },
     },
     defaultVariants: {

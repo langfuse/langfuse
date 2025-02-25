@@ -1,6 +1,7 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
+  getCurrentSpan,
   logger,
   QueueJobs,
   QueueName,
@@ -111,6 +112,18 @@ export const handleBatchActionJob = async (
     batchActionJob.payload;
 
   const { actionId } = batchActionEvent;
+
+  const span = getCurrentSpan();
+  if (span) {
+    span.setAttribute(
+      "messaging.bullmq.job.input.projectId",
+      batchActionEvent.projectId,
+    );
+    span.setAttribute(
+      "messaging.bullmq.job.input.actionId",
+      batchActionEvent.actionId,
+    );
+  }
 
   if (
     actionId === "trace-delete" ||

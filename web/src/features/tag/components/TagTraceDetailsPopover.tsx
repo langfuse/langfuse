@@ -78,6 +78,7 @@ export function TagTraceDetailsPopover({
 
   return (
     <TagManager
+      itemName="trace"
       tags={tags}
       allTags={availableTags}
       hasAccess={hasAccess}

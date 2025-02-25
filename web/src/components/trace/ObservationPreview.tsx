@@ -2,7 +2,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   AnnotationQueueObjectType,
   type APIScore,
-  type ScoreSource,
+  type ScoreSourceType,
 } from "@langfuse/shared";
 import {
   Card,
@@ -128,7 +128,7 @@ export const ObservationPreview = ({
     }
     acc.get(score.source)?.push(score);
     return acc;
-  }, new Map<ScoreSource, APIScore[]>());
+  }, new Map<ScoreSourceType, APIScore[]>());
 
   return (
     <Card

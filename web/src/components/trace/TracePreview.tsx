@@ -2,7 +2,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   type APIScore,
   type Trace,
-  type ScoreSource,
+  type ScoreSourceType,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import {
@@ -80,7 +80,7 @@ export const TracePreview = ({
     }
     acc.get(score.source)?.push(score);
     return acc;
-  }, new Map<ScoreSource, APIScore[]>());
+  }, new Map<ScoreSourceType, APIScore[]>());
   const traceMedia = api.media.getByTraceOrObservationId.useQuery(
     {
       traceId: trace.id,

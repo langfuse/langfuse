@@ -1,4 +1,4 @@
-import { ObservationView } from "@prisma/client";
+import { ObservationView } from "../repositories";
 
 type AdditionalObservationFields = {
   traceName: string | null;

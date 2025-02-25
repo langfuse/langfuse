@@ -100,26 +100,6 @@ export const projectDeleteProcessor: Processor = async (
     deleteEventLogByProjectId(projectId),
   ]);
 
-  // Try to delete traces, observations, and scores from Prisma individually
-  // as those will take the longest time and might kill a transaction
-  await Promise.all([
-    prisma.trace.deleteMany({
-      where: {
-        projectId,
-      },
-    }),
-    prisma.observation.deleteMany({
-      where: {
-        projectId,
-      },
-    }),
-    prisma.score.deleteMany({
-      where: {
-        projectId,
-      },
-    }),
-  ]);
-
   // Finally, delete the project itself which should delete all related
   // resources due to the referential actions defined via Prisma
   try {

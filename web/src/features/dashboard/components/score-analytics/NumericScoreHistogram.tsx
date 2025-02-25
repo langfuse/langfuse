@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 
 import {
-  type ScoreSource,
+  type ScoreSourceType,
   type FilterState,
   type ScoreDataType,
 } from "@langfuse/shared";
@@ -16,7 +16,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 export function NumericScoreHistogram(props: {
   projectId: string;
   name: string;
-  source: ScoreSource;
+  source: ScoreSourceType;
   dataType: ScoreDataType;
   globalFilterState: FilterState;
 }) {
