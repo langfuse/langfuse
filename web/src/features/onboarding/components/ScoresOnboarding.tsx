@@ -42,7 +42,7 @@ export function ScoresOnboarding() {
         label: "Learn More",
         href: "https://langfuse.com/docs/scores",
       }}
-      videoSrc="/assets/scores-overview.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/scores-overview-v1.mp4"
     />
   );
 }

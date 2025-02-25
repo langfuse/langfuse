@@ -49,7 +49,7 @@ export function TracesOnboarding({ projectId }: TracesOnboardingProps) {
         label: "View Documentation",
         href: "https://langfuse.com/docs/tracing",
       }}
-      videoSrc="/assets/tracing-overview.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/tracing-overview-v1.mp4"
       className="bg-background dark:bg-background dark:text-white"
     />
   );

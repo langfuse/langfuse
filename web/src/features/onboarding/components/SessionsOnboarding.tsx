@@ -40,7 +40,7 @@ export function SessionsOnboarding() {
         label: "Learn More",
         href: "https://langfuse.com/docs/sessions",
       }}
-      videoSrc="/assets/sessions-overview.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/sessions-overview-v1.mp4"
     />
   );
 }

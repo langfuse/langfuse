@@ -12,27 +12,27 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import {
+  useEntitlementLimit,
+  useHasEntitlement,
+} from "@/src/features/entitlements/hooks";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { EvaluatorsOnboarding } from "@/src/ee/features/evals/components/EvaluatorsOnboarding";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
 
-  // only fetched first page to get count of active evaluators
-  // ok as this includes the first 50 active evaluators
-  const evaluatorsFirstPage = api.evals.allConfigs.useQuery({
+  // Fetch counts of evaluator configs and templates
+  const countsQuery = api.evals.counts.useQuery({
     projectId,
-    page: 0,
-    limit: 50,
   });
-  const evaluatorCountFirstPage = evaluatorsFirstPage.data?.configs.filter(
-    (e) => e.status === "ACTIVE",
-  ).length;
 
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
   );
+  const hasEntitlement = useHasEntitlement("model-based-evaluations");
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
@@ -43,8 +43,30 @@ export default function EvaluatorsPage() {
     scope: "evalJob:read",
   });
 
-  if (!hasReadAccess) {
-    return null;
+  const showOnboarding =
+    countsQuery.data?.configCount === 0 &&
+    countsQuery.data?.templateCount === 0;
+
+  if (!hasReadAccess || !hasEntitlement) {
+    return <SupportOrUpgradePage />;
+  }
+
+  if (showOnboarding) {
+    return (
+      <Page
+        headerProps={{
+          title: "Evaluators",
+          help: {
+            description:
+              "Use LLM-as-a-judge evaluators as practical addition to human annotation. Configure an evaluation prompt and a model as judge to evaluate incoming traces.",
+            href: "https://langfuse.com/docs/scores/model-based-evals",
+          },
+        }}
+        scrollable
+      >
+        <EvaluatorsOnboarding projectId={projectId} />
+      </Page>
+    );
   }
 
   return (
@@ -78,7 +100,7 @@ export default function EvaluatorsPage() {
             variant="outline"
             onClick={() => capture("eval_config:new_form_open")}
             href={`/project/${projectId}/evals/new`}
-            limitValue={evaluatorCountFirstPage ?? 0}
+            limitValue={countsQuery.data?.configCount ?? 0}
             limit={evaluatorLimit}
           >
             New evaluator

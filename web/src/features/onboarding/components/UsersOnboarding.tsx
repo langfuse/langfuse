@@ -42,7 +42,7 @@ export function UsersOnboarding() {
         label: "Learn More",
         href: "https://langfuse.com/docs/user-explorer",
       }}
-      videoSrc="/assets/users-overview.mp4"
+      videoSrc="https://static.langfuse.com/prod-assets/onboarding/users-overview-v1.mp4"
       className="bg-background dark:bg-background dark:text-white"
     />
   );

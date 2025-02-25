@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -31,6 +31,44 @@ export interface SplashScreenProps {
   primaryAction?: ActionConfig;
   secondaryAction?: ActionConfig;
   className?: string;
+}
+
+interface VideoPlayerProps {
+  videoSrc: string;
+}
+
+function VideoPlayer({ videoSrc }: VideoPlayerProps) {
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    // Reset states when video source changes
+    setHasError(false);
+    setIsLoaded(false);
+  }, [videoSrc]);
+
+  return (
+    <div
+      className={cn(
+        "my-6 w-full max-w-3xl overflow-hidden rounded-lg border border-border",
+        {
+          hidden: !isLoaded || hasError,
+        },
+      )}
+    >
+      <video
+        src={videoSrc}
+        controls
+        autoPlay
+        muted
+        loop
+        controlsList="nodownload"
+        className="w-full"
+        onError={() => setHasError(true)}
+        onLoadedData={() => setIsLoaded(true)}
+      />
+    </div>
+  );
 }
 
 export function SplashScreen({
@@ -80,19 +118,7 @@ export function SplashScreen({
           ))}
       </div>
 
-      {videoSrc && (
-        <div className="my-6 w-full max-w-3xl overflow-hidden rounded-lg border border-border">
-          <video
-            src={videoSrc}
-            controls
-            autoPlay
-            muted
-            loop
-            controlsList="nodownload"
-            className="w-full"
-          />
-        </div>
-      )}
+      {videoSrc && <VideoPlayer videoSrc={videoSrc} />}
 
       {!videoSrc && image && (
         <div className="my-6 w-full max-w-3xl">
