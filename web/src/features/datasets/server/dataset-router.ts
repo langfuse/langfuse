@@ -31,6 +31,23 @@ const formatDatasetItemData = (data: string | null | undefined) => {
 };
 
 export const datasetRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const dataset = await ctx.prisma.dataset.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+        select: { id: true },
+        take: 1,
+      });
+
+      return dataset !== null;
+    }),
   allDatasetMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {

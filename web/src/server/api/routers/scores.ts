@@ -38,6 +38,7 @@ import {
   getScoreById,
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
+  hasAnyScore,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -375,5 +376,14 @@ export const scoresRouter = createTRPCRouter({
         source: source,
         dataType: dataType,
       }));
+    }),
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await hasAnyScore(input.projectId);
     }),
 });

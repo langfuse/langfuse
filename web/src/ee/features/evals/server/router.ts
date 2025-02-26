@@ -134,6 +134,40 @@ export const evalRouter = createTRPCRouter({
       });
       return env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT;
     }),
+  counts: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const [configCount, templateCount] = await Promise.all([
+        ctx.prisma.jobConfiguration.count({
+          where: {
+            projectId: input.projectId,
+            jobType: "EVAL",
+          },
+        }),
+        ctx.prisma.evalTemplate.count({
+          where: {
+            projectId: input.projectId,
+          },
+        }),
+      ]);
+
+      return {
+        configCount,
+        templateCount,
+      };
+    }),
   allConfigs: protectedProjectProcedure
     .input(
       z.object({

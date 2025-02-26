@@ -196,13 +196,13 @@ export const getTracesBySessionId = async (
 
 export const hasAnyTrace = async (projectId: string) => {
   const query = `
-    SELECT count(*) as count
+    SELECT 1
     FROM traces
     WHERE project_id = {projectId: String}
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<{ count: string }>({
+  const rows = await queryClickhouse<{ 1: number }>({
     query,
     params: {
       projectId,
@@ -210,12 +210,12 @@ export const hasAnyTrace = async (projectId: string) => {
     tags: {
       feature: "tracing",
       type: "trace",
-      kind: "exists",
+      kind: "hasAny",
       projectId,
     },
   });
 
-  return rows.length > 0 && Number(rows[0].count) > 0;
+  return rows.length > 0;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({
@@ -560,6 +560,32 @@ export const deleteTracesByProjectId = async (projectId: string) => {
       projectId,
     },
   });
+};
+
+export const hasAnyUser = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND user_id IS NOT NULL
+    AND user_id != ''
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+    },
+    tags: {
+      feature: "tracing",
+      type: "user",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
 };
 
 export const getTotalUserCount = async (
