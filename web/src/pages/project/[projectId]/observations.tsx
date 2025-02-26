@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import ObservationsTable from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { TracesOnboarding } from "@/src/features/onboarding/components/TracesOnboarding";
+import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 
 export default function Generations() {
   const router = useRouter();

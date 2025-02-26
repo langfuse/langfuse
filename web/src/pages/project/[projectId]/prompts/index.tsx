@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { PromptTable } from "@/src/features/prompts/components/prompts-table";
 import { api } from "@/src/utils/api";
-import { PromptsOnboarding } from "@/src/features/onboarding/components/PromptsOnboarding";
+import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
 
 export default function Prompts() {
   const router = useRouter();

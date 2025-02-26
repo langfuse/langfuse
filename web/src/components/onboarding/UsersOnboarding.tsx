@@ -4,7 +4,7 @@ import {
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
 import { Users, LineChart, Filter, BarChart4 } from "lucide-react";
-
+import Link from "next/link";
 export function UsersOnboarding() {
   const valuePropositions: ValueProposition[] = [
     {
@@ -36,12 +36,21 @@ export function UsersOnboarding() {
   return (
     <SplashScreen
       title="Get Started with User Tracking"
-      description="The User Explorer allows you to attribute data in Langfuse to specific users by adding a userId to your traces. Start tracking users to better understand how they interact with your LLM applications."
+      description="Correlate costs, evaluations and other LLM Application metrics to specific users. Start tracking users to better understand how they interact with your LLM applications."
       valuePropositions={valuePropositions}
-      secondaryAction={{
-        label: "Learn More",
-        href: "https://langfuse.com/docs/user-explorer",
-      }}
+      gettingStarted={
+        <span>
+          To start tracking users, you need to add a `userId` to your traces.
+          See{" "}
+          <Link
+            href="https://langfuse.com/docs/tracing-features/users"
+            className="underline"
+          >
+            documentation
+          </Link>{" "}
+          for more details.
+        </span>
+      }
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/users-overview-v1.mp4"
       className="bg-background dark:bg-background dark:text-white"
     />

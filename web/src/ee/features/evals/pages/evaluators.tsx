@@ -17,7 +17,7 @@ import {
   useHasEntitlement,
 } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { EvaluatorsOnboarding } from "@/src/ee/features/evals/components/EvaluatorsOnboarding";
+import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 
 export default function EvaluatorsPage() {
   const router = useRouter();

@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
-import { ScoresOnboarding } from "@/src/features/onboarding/components/ScoresOnboarding";
+import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
 
 export default function ScoresPage() {
   const router = useRouter();

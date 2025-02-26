@@ -23,7 +23,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
-import { UsersOnboarding } from "@/src/features/onboarding/components/UsersOnboarding";
+import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 
 type RowData = {
   userId: string;

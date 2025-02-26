@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
 import Page from "@/src/components/layouts/page";
-import { SessionsOnboarding } from "@/src/features/onboarding/components/SessionsOnboarding";
+import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
 
 export default function Sessions() {
