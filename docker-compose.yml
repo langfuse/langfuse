@@ -76,12 +76,17 @@ services:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
+      # since clickhouse is memory intensive, use these two variables to tune your memory usage
+      CLICKHOUSE_MAX_MEMORY_USAGE: "800000000"  # ~800MB
+      CLICKHOUSE_MAX_MEMORY_USAGE_FOR_USER: "800000000"  # ~800MB
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
       - "8123:8123"
       - "9000:9000"
+    # use also this to tune your memory usage
+    mem_limit: 800M
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
