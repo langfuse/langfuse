@@ -93,6 +93,7 @@ export const generateTracesForPublicApi = async (
       t.project_id as project_id,
       t.timestamp as timestamp,
       t.name as name,
+      t.environment as environment,
       t.input as input,
       t.output as output,
       t.session_id as session_id,

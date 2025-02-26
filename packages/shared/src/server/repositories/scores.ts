@@ -372,7 +372,7 @@ export const getScoresUiTable = async (props: {
   const rows = await getScoresUiGeneric<{
     id: string;
     project_id: string;
-    environment: string | null;
+    environment: string;
     name: string;
     value: number;
     string_value: string | null;

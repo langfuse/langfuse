@@ -23,6 +23,7 @@ export const APITrace = z
     release: z.string().nullable(),
     version: z.string().nullable(),
     projectId: z.string(),
+    environment: z.string(),
     public: z.boolean(),
     bookmarked: z.boolean(),
     tags: z.array(z.string()),

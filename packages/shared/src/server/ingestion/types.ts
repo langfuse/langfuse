@@ -125,7 +125,7 @@ export const EnvironmentName = z
     /^(?!langfuse-)[a-z0-9-_]+$/,
     "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it should not start with 'langfuse-'",
   )
-  .nullish();
+  .default("default");
 
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.

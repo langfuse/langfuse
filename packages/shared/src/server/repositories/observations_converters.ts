@@ -55,7 +55,7 @@ export const convertObservation = (
     traceId: record.trace_id ?? null,
     projectId: record.project_id,
     type: record.type as ObservationType,
-    environment: record.environment ?? null,
+    environment: record.environment,
     parentObservationId: record.parent_observation_id ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(record.start_time),
     endTime: record.end_time
