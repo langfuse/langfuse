@@ -229,7 +229,7 @@ export function Trace(props: {
             ) : (
               <CommandInput
                 showBorder={false}
-                placeholder="Search nodes..."
+                placeholder="Search (type, title, id)"
                 className="-ml-2 h-9 border-0 focus:ring-0"
               />
             )}

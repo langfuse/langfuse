@@ -457,7 +457,7 @@ const ObservationTreeNodeCard = ({
         {/* Expand/Collapse button */}
 
         {observation.children.length > 0 && (
-          <div className="flex justify-end pt-3">
+          <div className="flex items-center justify-end">
             <Button
               size="icon"
               variant="ghost"
@@ -471,7 +471,7 @@ const ObservationTreeNodeCard = ({
                   { type: "single" },
                 );
               }}
-              className="h-4 w-4 flex-shrink-0"
+              className="h-full flex-shrink-0"
             >
               {collapsed ? (
                 <ChevronRight className="h-4 w-4" />
