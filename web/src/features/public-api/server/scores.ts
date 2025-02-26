@@ -41,6 +41,7 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
           s.id as id,
           s.project_id as project_id,
           s.timestamp as timestamp,
+          s.environment as environment,
           s.name as name,
           s.value as value,
           s.string_value as string_value,

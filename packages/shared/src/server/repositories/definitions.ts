@@ -36,6 +36,7 @@ export const observationRecordBaseSchema = z.object({
   project_id: z.string(),
   type: z.string(),
   parent_observation_id: z.string().nullish(),
+  environment: z.string(),
   name: z.string().nullish(),
   metadata: z.record(z.string()),
   level: z.string().nullish(),
@@ -52,9 +53,6 @@ export const observationRecordBaseSchema = z.object({
   prompt_version: z.number().nullish(),
   is_deleted: z.number(),
 });
-export type ObservationRecordBaseType = z.infer<
-  typeof observationRecordBaseSchema
->;
 
 export const observationRecordReadSchema = observationRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
@@ -98,6 +96,7 @@ export const traceRecordBaseSchema = z.object({
   release: z.string().nullish(),
   version: z.string().nullish(),
   project_id: z.string(),
+  environment: z.string(),
   public: z.boolean(),
   bookmarked: z.boolean(),
   tags: z.array(z.string()),
@@ -106,7 +105,6 @@ export const traceRecordBaseSchema = z.object({
   session_id: z.string().nullish(),
   is_deleted: z.number(),
 });
-export type TraceRecordBaseType = z.infer<typeof traceRecordBaseSchema>;
 
 export const traceRecordReadSchema = traceRecordBaseSchema.extend({
   timestamp: clickhouseStringDateSchema,
@@ -129,6 +127,7 @@ export const scoreRecordBaseSchema = z.object({
   project_id: z.string(),
   trace_id: z.string(),
   observation_id: z.string().nullish(),
+  environment: z.string(),
   name: z.string(),
   value: z.number().nullish(),
   source: z.string(),
@@ -140,7 +139,6 @@ export const scoreRecordBaseSchema = z.object({
   queue_id: z.string().nullish(),
   is_deleted: z.number(),
 });
-export type ScoreRecordBaseType = z.infer<typeof scoreRecordBaseSchema>;
 
 export const scoreRecordReadSchema = scoreRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
@@ -246,6 +244,7 @@ export const convertPostgresTraceToInsert = (
         : Array.isArray(trace.metadata)
           ? { metadata: trace.metadata }
           : trace.metadata,
+    environment: trace.environment,
     release: trace.release,
     version: trace.version,
     project_id: trace.project_id,
@@ -282,6 +281,7 @@ export const convertPostgresObservationToInsert = (
     project_id: observation.project_id,
     type: observation.type,
     parent_observation_id: observation.parent_observation_id,
+    environment: observation.environment,
     start_time: observation.start_time?.getTime(),
     end_time: observation.end_time?.getTime(),
     name: observation.name,
@@ -345,6 +345,7 @@ export const convertPostgresScoreToInsert = (
     project_id: score.project_id,
     trace_id: score.trace_id,
     observation_id: score.observation_id,
+    environment: score.environment,
     name: score.name,
     value: score.value,
     source: score.source,

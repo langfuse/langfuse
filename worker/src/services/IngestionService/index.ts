@@ -171,6 +171,7 @@ export class IngestionService {
           return {
             id: entityId,
             project_id: projectId,
+            environment: validatedScore.environment,
             timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
             name: validatedScore.name,
             value: validatedScore.value,
@@ -411,6 +412,7 @@ export class IngestionService {
         id: finalObservationRecord.id,
         timestamp: finalObservationRecord.start_time,
         project_id: projectId,
+        environment: finalObservationRecord.environment,
         created_at: Date.now(),
         updated_at: Date.now(),
         metadata: {},
@@ -945,6 +947,7 @@ export class IngestionService {
         release: trace.body.release,
         version: trace.body.version,
         project_id: projectId,
+        environment: trace.body.environment,
         public: trace.body.public ?? false,
         bookmarked: false,
         tags: trace.body.tags ?? [],
@@ -1058,6 +1061,8 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
+        environment:
+          "environment" in obs.body ? obs.body.environment : "default",
         start_time: this.getMillisecondTimestamp(
           obs.body.startTime ?? obs.timestamp,
         ),
