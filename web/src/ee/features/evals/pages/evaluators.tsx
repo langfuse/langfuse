@@ -24,11 +24,6 @@ export default function EvaluatorsPage() {
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
 
-  // Fetch counts of evaluator configs and templates
-  const countsQuery = api.evals.counts.useQuery({
-    projectId,
-  });
-
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
   );
@@ -42,6 +37,21 @@ export default function EvaluatorsPage() {
     projectId,
     scope: "evalJob:read",
   });
+
+  // Fetch counts of evaluator configs and templates
+  const countsQuery = api.evals.counts.useQuery(
+    {
+      projectId,
+    },
+    {
+      enabled: !!projectId && hasEntitlement,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
 
   const showOnboarding =
     countsQuery.data?.configCount === 0 &&
