@@ -23,12 +23,14 @@ import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   calculateDisplayTotalCost,
+  heatMapTextColor,
   nestObservations,
   treeItemColors,
+  unnestObservation,
 } from "@/src/components/trace/lib/helpers";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { usdFormatter } from "@/src/utils/numbers";
-import Decimal from "decimal.js";
+import type Decimal from "decimal.js";
 import { CommandItem } from "@/src/components/ui/command";
 import { ItemBadge } from "@/src/components/ItemBadge";
 
@@ -312,7 +314,7 @@ const ObservationTreeNodeCard = ({
   showComments: boolean;
 }) => {
   const capture = usePostHogClientCapture();
-  const unnestedObservations = unnestObservations(observation);
+  const unnestedObservations = unnestObservation(observation);
   const totalCost = calculateDisplayTotalCost({
     allObservations: unnestedObservations,
   });
@@ -379,20 +381,6 @@ const ObservationTreeNodeCard = ({
           </div>
           {showMetrics && (
             <>
-              <div className="flex items-center gap-3">
-                {duration && (
-                  <span className="text-sm text-muted-foreground">
-                    {(duration / 1000).toFixed(2)}s
-                  </span>
-                )}
-
-                {totalCost && (
-                  <span className="text-sm text-muted-foreground">
-                    ${totalCost.toNumber().toFixed(7)}
-                  </span>
-                )}
-              </div>
-
               {(observation.promptTokens ||
                 observation.completionTokens ||
                 observation.totalTokens ||
@@ -511,42 +499,4 @@ export const ColorCodedObservationType = (props: {
       {props.observationType}
     </span>
   );
-};
-
-const unnestObservations = (nestedObservation: NestedObservation) => {
-  const unnestedObservations = [];
-  const { children, ...observation } = nestedObservation;
-  unnestedObservations.push(observation);
-  children.forEach((child) => {
-    unnestedObservations.push(...unnestObservations(child));
-  });
-  return unnestedObservations;
-};
-
-const heatMapTextColor = (p: {
-  min?: Decimal | number;
-  max: Decimal | number;
-  value: Decimal | number;
-}) => {
-  const { min, max, value } = p;
-  const minDecimal = min ? new Decimal(min) : new Decimal(0);
-  const maxDecimal = new Decimal(max);
-  const valueDecimal = new Decimal(value);
-
-  const cutOffs: [number, string][] = [
-    [0.75, "text-dark-red"], // 75%
-    [0.5, "text-dark-yellow"], // 50%
-  ];
-  const standardizedValueOnStartEndScale = valueDecimal
-    .sub(minDecimal)
-    .div(maxDecimal.sub(minDecimal));
-  const ratio = standardizedValueOnStartEndScale.toNumber();
-
-  // pick based on ratio if threshold is exceeded
-  for (const [threshold, color] of cutOffs) {
-    if (ratio >= threshold) {
-      return color;
-    }
-  }
-  return "";
 };

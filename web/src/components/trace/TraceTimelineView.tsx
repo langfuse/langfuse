@@ -9,9 +9,13 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
 import { TreeItem } from "@mui/x-tree-view/TreeItem";
-import Decimal from "decimal.js";
+import type Decimal from "decimal.js";
 import { InfoIcon } from "lucide-react";
-import { nestObservations } from "@/src/components/trace/lib/helpers";
+import {
+  heatMapTextColor,
+  nestObservations,
+  unnestObservation,
+} from "@/src/components/trace/lib/helpers";
 import { type NestedObservation } from "@/src/utils/types";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -42,34 +46,6 @@ const calculateStepSize = (latency: number, scaleWidth: number) => {
     PREDEFINED_STEP_SIZES.find((step) => step >= calculatedStepSize) ||
     PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1]
   );
-};
-
-const heatMapTextColor = (p: {
-  min?: Decimal | number;
-  max: Decimal | number;
-  value: Decimal | number;
-}) => {
-  const { min, max, value } = p;
-  const minDecimal = min ? new Decimal(min) : new Decimal(0);
-  const maxDecimal = new Decimal(max);
-  const valueDecimal = new Decimal(value);
-
-  const cutOffs: [number, string][] = [
-    [0.75, "text-dark-red"], // 75%
-    [0.5, "text-dark-yellow"], // 50%
-  ];
-  const standardizedValueOnStartEndScale = valueDecimal
-    .sub(minDecimal)
-    .div(maxDecimal.sub(minDecimal));
-  const ratio = standardizedValueOnStartEndScale.toNumber();
-
-  // pick based on ratio if threshold is exceeded
-  for (const [threshold, color] of cutOffs) {
-    if (ratio >= threshold) {
-      return color;
-    }
-  }
-  return "";
 };
 
 function TreeItemInner({
@@ -411,17 +387,6 @@ function TraceTreeItem({
     </TreeItem>
   );
 }
-
-// Helper function to unnest observations for cost calculation
-const unnestObservation = (nestedObservation: NestedObservation) => {
-  const unnestedObservations = [];
-  const { children, ...observation } = nestedObservation;
-  unnestedObservations.push(observation);
-  children.forEach((child) => {
-    unnestedObservations.push(...unnestObservation(child));
-  });
-  return unnestedObservations;
-};
 
 export function TraceTimelineView({
   trace,

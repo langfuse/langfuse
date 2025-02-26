@@ -76,18 +76,20 @@ export function TracePage({
           },
         ],
         actionButtonsLeft: (
-          <>
+          <div className="flex items-center gap-0">
             <StarTraceDetailsToggle
               traceId={trace.data.id}
               projectId={trace.data.projectId}
               value={trace.data.bookmarked}
+              size="icon-xs"
             />
             <PublishTraceSwitch
               traceId={trace.data.id}
               projectId={trace.data.projectId}
               isPublic={trace.data.public}
+              size="icon-xs"
             />
-          </>
+          </div>
         ),
         actionButtonsRight: (
           <>
