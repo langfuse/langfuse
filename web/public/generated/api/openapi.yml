@@ -2628,6 +2628,13 @@ components:
           type: boolean
           nullable: true
           description: Public traces are accessible via url without login
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment from which this trace originated. Can be any
+            lowercase alphanumeric string with hyphens and underscores that does
+            not start with 'langfuse'.
       required:
         - id
         - timestamp
@@ -2819,6 +2826,13 @@ components:
             The cost details of the observation. Key is the name of the cost
             metric, value is the cost in USD. The total key is the sum of all
             (non-total) cost metrics or the total value ingested.
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment from which this observation originated. Can be any
+            lowercase alphanumeric string with hyphens and underscores that does
+            not start with 'langfuse'.
       required:
         - id
         - type
@@ -3033,6 +3047,13 @@ components:
           description: >-
             Reference an annotation queue on a score. Populated if the score was
             initially created in an annotation queue.
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment from which this score originated. Can be any
+            lowercase alphanumeric string with hyphens and underscores that does
+            not start with 'langfuse'.
       required:
         - id
         - traceId

@@ -8,6 +8,7 @@ import {
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { convertOtelSpanToIngestionEvent } from "@/src/features/otel/server";
+import { gunzip } from "node:zlib";
 
 export const config = {
   api: {
@@ -34,6 +35,21 @@ export default withMiddlewares({
       } catch (e) {
         logger.error(`Failed to read request body`, e);
         return res.status(400).json({ error: "Failed to read request body" });
+      }
+
+      if (req.headers["content-encoding"]?.includes("gzip")) {
+        try {
+          body = await new Promise((resolve, reject) => {
+            gunzip(body, (err, result) =>
+              err ? reject(err) : resolve(result),
+            );
+          });
+        } catch (e) {
+          logger.error(`Failed to decompress request body`, e);
+          return res
+            .status(400)
+            .json({ error: "Failed to decompress request body" });
+        }
       }
 
       let resourceSpans: any;
