@@ -29,7 +29,6 @@ export const clickhouseClient = (
       log_comment: JSON.stringify(params.tags ?? {}),
       async_insert: 1,
       wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
-      join_use_nulls: 1, // Return `null` if a left join doesn't have a match
     },
   });
 };
