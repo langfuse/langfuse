@@ -4,6 +4,7 @@ import {
   type APIScore,
   type Trace,
   ObservationLevel,
+  type ObservationLevelType,
 } from "@langfuse/shared";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
@@ -454,8 +455,8 @@ export function TraceTimelineView({
   showScores?: boolean;
   showComments?: boolean;
   colorCodeMetrics?: boolean;
-  minLevel?: ObservationLevel;
-  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevel>>;
+  minLevel?: ObservationLevelType;
+  setMinLevel?: React.Dispatch<React.SetStateAction<ObservationLevelType>>;
 }) {
   const { latency, name, id } = trace;
 

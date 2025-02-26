@@ -84,9 +84,8 @@ export const IOPreview: React.FC<{
     inChatMlArray.success || inMarkdown.success || outMarkdown.success;
 
   useEffect(() => {
-    if (isPrettyViewAvailable) {
-      props.setIsPrettyViewAvailable?.(true);
-    }
+    // Reset the pretty view availability when input/output changes
+    props.setIsPrettyViewAvailable?.(isPrettyViewAvailable);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPrettyViewAvailable]);
 

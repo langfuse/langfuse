@@ -242,7 +242,7 @@ export const TracePreview = ({
         </div>
 
         <TabsBar
-          value={selectedTab}
+          value={selectedTab.includes("preview") ? "preview" : "scores"}
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onValueChange={(value) => setSelectedTab(value)}
         >
@@ -252,9 +252,9 @@ export const TracePreview = ({
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
-              {selectedTab === "preview" && isPrettyViewAvailable && (
+              {selectedTab.includes("preview") && isPrettyViewAvailable && (
                 <Toggle
-                  className="mb-2 ml-auto mr-3 h-fit py-0.5"
+                  className="mb-1 ml-auto mr-3 h-fit border px-2 py-0.5"
                   pressed={currentView === "pretty"}
                   onPressedChange={(pressed) => {
                     capture("trace_detail:io_mode_switch", {
@@ -263,7 +263,7 @@ export const TracePreview = ({
                     setCurrentView(pressed ? "pretty" : "json");
                   }}
                 >
-                  <span className="text-sm">Pretty</span>
+                  <span className="text-sm">Format IO</span>
                 </Toggle>
               )}
             </TabsBarList>
@@ -271,7 +271,7 @@ export const TracePreview = ({
           {/* show preview always if not detailed view */}
           <TabsBarContent
             value="preview"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden pr-4"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
               <div>
@@ -297,9 +297,9 @@ export const TracePreview = ({
           {isAuthenticatedAndProjectMember && (
             <TabsBarContent
               value="scores"
-              className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
+              className="mb-2 mr-4 mt-0 flex h-full min-h-0 w-full overflow-hidden md:flex-1"
             >
-              <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+              <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3 md:flex-1">
                 <ScoresTable
                   projectId={trace.projectId}
                   omittedFilter={["Trace ID"]}

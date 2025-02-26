@@ -206,7 +206,7 @@ export function DataTable<TData extends object, TValue>({
       >
         <div
           className={cn(
-            "w-full overflow-auto",
+            "relative w-full overflow-auto",
             isBorderless ? "" : "rounded-md border",
           )}
           style={{ ...columnSizeVars }}
@@ -423,8 +423,8 @@ function TableBodyComponent<TData>({
         ))
       ) : (
         <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={columns.length} className="relative h-24">
-            <div className="pointer-events-none fixed left-[50%] flex -translate-y-1/2 items-center justify-center">
+          <TableCell colSpan={columns.length} className="h-24">
+            <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
               No results.{" "}
               {help && (
                 <DocPopup description={help.description} href={help.href} />

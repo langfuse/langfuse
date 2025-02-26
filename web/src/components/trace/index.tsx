@@ -1,4 +1,4 @@
-import { type Trace } from "@langfuse/shared";
+import { type ObservationLevelType, type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
@@ -61,7 +61,7 @@ export function Trace(props: {
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;
-  defaultMinObservationLevel?: ObservationLevel;
+  defaultMinObservationLevel?: ObservationLevelType;
   selectedTab?: string;
   setSelectedTab?: (
     newValue?: string | null,
@@ -92,7 +92,7 @@ export function Trace(props: {
   );
 
   const [minObservationLevel, setMinObservationLevel] =
-    useState<ObservationLevel>(
+    useState<ObservationLevelType>(
       props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
     );
 
@@ -188,7 +188,7 @@ export function Trace(props: {
   return (
     <div
       className={cn(
-        "grid flex-1 gap-4 md:h-full md:grid-cols-5",
+        "flex-1 gap-4 overflow-y-auto md:grid md:h-full md:grid-cols-5",
         props.selectedTab?.includes("timeline")
           ? "md:grid-cols-[3fr_2fr] xl:grid-cols-[4fr_2fr]"
           : "md:grid-cols-[2fr_3fr] xl:grid-cols-[2fr_4fr]",
@@ -434,7 +434,7 @@ export function Trace(props: {
           </div>
         </Command>
       </div>
-      <div className="overflow-hidden md:h-full">
+      <div className="overflow-hidden pl-3 md:h-full md:p-0">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
