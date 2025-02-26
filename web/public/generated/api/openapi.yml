@@ -3755,6 +3755,9 @@ components:
         version:
           type: string
           nullable: true
+        environment:
+          type: string
+          nullable: true
     CreateEventBody:
       title: CreateEventBody
       type: object
@@ -3922,6 +3925,9 @@ components:
         parentObservationId:
           type: string
           nullable: true
+        environment:
+          type: string
+          nullable: true
       required:
         - type
     TraceBody:
@@ -3961,6 +3967,9 @@ components:
           items:
             type: string
           nullable: true
+        environment:
+          type: string
+          nullable: true
         public:
           type: boolean
           nullable: true
@@ -3985,6 +3994,9 @@ components:
         name:
           type: string
           example: novelty
+        environment:
+          type: string
+          nullable: true
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
