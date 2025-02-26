@@ -147,7 +147,7 @@ export default function Dashboard() {
       scrollable
       headerProps={{
         title: "Dashboard",
-        actionButtonsLeft: <SetupTracingButton />,
+        actionButtonsRight: <SetupTracingButton />,
       }}
     >
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
