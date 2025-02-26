@@ -125,18 +125,17 @@ export function SetPromptVersionLabels({
               isLive={label === PRODUCTION_LABEL}
             />
           ))}
-          {promptLabels.length === 0 && (
-            <Button
-              variant="outline"
-              className={cn(
-                "h-6 w-6 bg-muted-gray text-primary",
-                showOnlyOnHover && "opacity-0 group-hover:opacity-100",
-                !hasAccess && "cursor-not-allowed group-hover:opacity-50",
-              )}
-            >
-              <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            title="Add prompt version label"
+            className={cn(
+              "h-6 w-6 bg-muted-gray text-primary",
+              showOnlyOnHover && "opacity-0 group-hover:opacity-100",
+              !hasAccess && "cursor-not-allowed group-hover:opacity-50",
+            )}
+          >
+            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+          </Button>
         </div>
       </PopoverTrigger>
       <PopoverContent
