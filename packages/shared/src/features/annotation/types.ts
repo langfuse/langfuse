@@ -28,7 +28,7 @@ const BooleanData = z.object({
 const CreateAnnotationScoreBase = z.object({
   name: z.string(),
   projectId: z.string(),
-  environment: z.string().nullish(),
+  environment: z.string().default("default"),
   traceId: z.string(),
   configId: z.string().optional(),
   observationId: z.string().optional(),

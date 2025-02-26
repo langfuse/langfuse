@@ -21,7 +21,7 @@ export const APIObservation = z
     parentObservationId: z.string().nullable(),
     name: z.string().nullable(),
     type: ObservationType,
-    environment: z.string(),
+    environment: z.string().default("default"),
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     version: z.string().nullable(),
