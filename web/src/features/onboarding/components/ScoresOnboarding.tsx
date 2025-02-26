@@ -3,7 +3,7 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { BarChart4, ThumbsUp, Star, LineChart } from "lucide-react";
+import { ThumbsUp, Star, LineChart, Code } from "lucide-react";
 
 export function ScoresOnboarding() {
   const valuePropositions: ValueProposition[] = [
@@ -26,17 +26,17 @@ export function ScoresOnboarding() {
       icon: <LineChart className="h-4 w-4" />,
     },
     {
-      title: "Analyze performance",
+      title: "Use custom metrics",
       description:
-        "Compare scores across different models, prompts, and user segments",
-      icon: <BarChart4 className="h-4 w-4" />,
+        "Langfuse's scores are flexible and can be used to track any metric that's associated with an LLM application",
+      icon: <Code className="h-4 w-4" />,
     },
   ];
 
   return (
     <SplashScreen
       title="Get Started with Scores"
-      description="Scores allow you to evaluate the quality of your LLM outputs through user feedback, model-based evaluations, or manual review. Start collecting scores to improve your application's performance."
+      description="Scores allow you to evaluate the quality/safety of your LLM application through user feedback, model-based evaluations, or manual review. Scores can be used programmatically via the API and SDKs to track custom metrics."
       valuePropositions={valuePropositions}
       secondaryAction={{
         label: "Learn More",

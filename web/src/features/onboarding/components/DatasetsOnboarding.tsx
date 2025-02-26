@@ -3,41 +3,40 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { Database, Beaker, BarChart4, Zap } from "lucide-react";
+import { Database, Beaker, Zap, Code } from "lucide-react";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
     {
-      title: "Benchmark your models",
+      title: "Continuous improvement",
       description:
-        "Create datasets to evaluate and compare the performance of different models and prompts",
+        "Create datasets from production edge cases to improve your application",
+      icon: <Zap className="h-4 w-4" />,
+    },
+    {
+      title: "Pre-deployment testing",
+      description: "Benchmark new releases before deploying to production",
       icon: <Beaker className="h-4 w-4" />,
     },
     {
-      title: "Structured data collection",
+      title: "Structured testing",
       description:
-        "Organize inputs and expected outputs for systematic testing of your LLM applications",
+        "Run experiments on collections of inputs and expected outputs",
       icon: <Database className="h-4 w-4" />,
     },
     {
-      title: "Performance analysis",
+      title: "Custom workflows",
       description:
-        "Track metrics across different runs to identify improvements and regressions",
-      icon: <BarChart4 className="h-4 w-4" />,
-    },
-    {
-      title: "Continuous improvement",
-      description:
-        "Iterate faster by testing new releases against consistent benchmarks before deployment",
-      icon: <Zap className="h-4 w-4" />,
+        "Build custom workflows around your datasets via the API and SDKs, e.g. for fine-tuning, few-shotting",
+      icon: <Code className="h-4 w-4" />,
     },
   ];
 
   return (
     <SplashScreen
       title="Get Started with Datasets"
-      description="Datasets in Langfuse are collections of inputs (and expected outputs) for your LLM application. Use them to benchmark new releases before deployment to production."
+      description="Datasets in Langfuse are collections of inputs (and expected outputs) for your LLM application. You can for example use them to benchmark new releases before deployment to production."
       valuePropositions={valuePropositions}
       primaryAction={{
         label: "Create Dataset",

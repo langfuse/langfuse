@@ -36,7 +36,11 @@ export default function Prompts() {
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if project has no prompts */}
-      {showOnboarding ? <PromptsOnboarding /> : <PromptTable />}
+      {showOnboarding ? (
+        <PromptsOnboarding projectId={projectId} />
+      ) : (
+        <PromptTable />
+      )}
     </Page>
   );
 }

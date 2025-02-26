@@ -4,6 +4,7 @@ import {
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
 import { BarChart4, GitMerge, MessageSquare, Users } from "lucide-react";
+import Link from "next/link";
 
 export function SessionsOnboarding() {
   const valuePropositions: ValueProposition[] = [
@@ -34,12 +35,18 @@ export function SessionsOnboarding() {
   return (
     <SplashScreen
       title="Get Started with Sessions"
-      description="Sessions allow you to group related traces together, such as a conversation or thread. By adding a sessionId to your traces, you can track user interactions over time and analyze conversation flows."
+      description="Sessions allow you to group related traces together, such as a conversation or thread. Use sessions to track interactions over time and analyze conversation/thread flows."
       valuePropositions={valuePropositions}
-      secondaryAction={{
-        label: "Learn More",
-        href: "https://langfuse.com/docs/sessions",
-      }}
+      gettingStarted={
+        <span>
+          To start using sessions, you need to add a `sessionId` to your traces.
+          See{" "}
+          <Link href="https://langfuse.com/docs/sessions" className="underline">
+            documentation
+          </Link>{" "}
+          for more details.
+        </span>
+      }
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/sessions-overview-v1.mp4"
     />
   );

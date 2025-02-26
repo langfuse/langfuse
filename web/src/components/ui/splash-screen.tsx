@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
+import { InfoIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 
@@ -30,6 +31,7 @@ export interface SplashScreenProps {
   valuePropositions?: ValueProposition[];
   primaryAction?: ActionConfig;
   secondaryAction?: ActionConfig;
+  gettingStarted?: string | React.ReactNode;
   className?: string;
 }
 
@@ -79,6 +81,7 @@ export function SplashScreen({
   valuePropositions = [],
   primaryAction,
   secondaryAction,
+  gettingStarted,
   className,
 }: SplashScreenProps) {
   return (
@@ -118,6 +121,14 @@ export function SplashScreen({
           ))}
       </div>
 
+      {gettingStarted && (
+        <Alert className="mb-10 w-full max-w-3xl">
+          <InfoIcon className="mr-2 h-4 w-4" />
+          <AlertTitle>Getting Started</AlertTitle>
+          <AlertDescription>{gettingStarted}</AlertDescription>
+        </Alert>
+      )}
+
       {videoSrc && <VideoPlayer videoSrc={videoSrc} />}
 
       {!videoSrc && image && (
@@ -133,7 +144,7 @@ export function SplashScreen({
       )}
 
       {valuePropositions.length > 0 && (
-        <div className="my-6 grid w-full grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="my-6 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
           {valuePropositions.map((prop, index) => (
             <Alert key={index}>
               {prop.icon}
