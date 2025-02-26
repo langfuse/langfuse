@@ -35,7 +35,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Toggle } from "@/src/components/ui/toggle";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 export const TracePreview = ({
   trace,
@@ -163,31 +163,29 @@ export const TracePreview = ({
         </div>
         <div className="grid w-full min-w-0 items-center justify-between">
           <div className="flex min-w-0 max-w-full flex-shrink flex-col">
+            <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
+              <LocalIsoDate
+                date={trace.timestamp}
+                accuracy="millisecond"
+                className="text-sm"
+              />
+            </div>
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
               {trace.sessionId ? (
                 <Link
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
                 >
-                  <Badge variant="tertiary">Session: {trace.sessionId}</Badge>
+                  <Badge>Session: {trace.sessionId}</Badge>
                 </Link>
               ) : null}
               {trace.userId ? (
                 <Link
                   href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
                 >
-                  <Badge variant="tertiary">User ID: {trace.userId}</Badge>
+                  <Badge>User ID: {trace.userId}</Badge>
                 </Link>
               ) : null}
-              {totalCost ? (
-                <Badge variant="tertiary">
-                  {usdFormatter(totalCost.toNumber())}
-                </Badge>
-              ) : undefined}
-              <LocalIsoDate
-                date={trace.timestamp}
-                accuracy="millisecond"
-                type="badge"
-              />
+
               {viewType === "detailed" && (
                 <>
                   {!!trace.latency && (
@@ -253,18 +251,22 @@ export const TracePreview = ({
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
-                <Toggle
-                  className="mb-1 ml-auto mr-3 h-fit border px-2 py-0.5"
-                  pressed={currentView === "pretty"}
-                  onPressedChange={(pressed) => {
-                    capture("trace_detail:io_mode_switch", {
-                      view: pressed ? "pretty" : "json",
-                    });
-                    setCurrentView(pressed ? "pretty" : "json");
-                  }}
+                <Tabs
+                  className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
+                  value={currentView}
+                  onValueChange={(value) =>
+                    setCurrentView(value as "pretty" | "json")
+                  }
                 >
-                  <span className="text-sm">Format IO</span>
-                </Toggle>
+                  <TabsList>
+                    <TabsTrigger value="pretty" className="h-fit text-sm">
+                      Formatted
+                    </TabsTrigger>
+                    <TabsTrigger value="json" className="h-fit text-sm">
+                      Raw
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               )}
             </TabsBarList>
           )}

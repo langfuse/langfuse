@@ -68,6 +68,10 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           iterations: 500,
         },
       },
+      interaction: {
+        zoomView: false,
+        mouseWheel: false,
+      },
       nodes: {
         shape: "box",
         margin: {

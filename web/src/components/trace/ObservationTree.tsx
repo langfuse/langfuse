@@ -386,7 +386,7 @@ const ObservationTreeNodeCard = ({
                 observation.totalTokens ||
                 duration ||
                 totalCost) && (
-                <div className="flex gap-2">
+                <div className="contents">
                   {duration ? (
                     <span
                       className={cn(

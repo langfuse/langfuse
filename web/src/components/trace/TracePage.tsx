@@ -76,7 +76,7 @@ export function TracePage({
           },
         ],
         actionButtonsLeft: (
-          <div className="flex items-center gap-0">
+          <div className="ml-1 flex items-center gap-0">
             <StarTraceDetailsToggle
               traceId={trace.data.id}
               projectId={trace.data.projectId}
