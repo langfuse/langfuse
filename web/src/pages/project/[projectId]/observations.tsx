@@ -18,6 +18,7 @@ export default function Generations() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 

@@ -18,6 +18,7 @@ export default function Traces() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 

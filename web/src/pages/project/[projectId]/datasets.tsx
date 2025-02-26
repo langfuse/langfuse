@@ -18,6 +18,7 @@ export default function Datasets() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 

@@ -387,13 +387,6 @@ export const scoresRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      try {
-        return hasAnyScore(input.projectId);
-      } catch (e) {
-        logger.error("Unable to call scores.hasAny", e);
-        throw new InternalServerError(
-          "unable to check if project has any scores",
-        );
-      }
+      return await hasAnyScore(input.projectId);
     }),
 });

@@ -26,6 +26,7 @@ export default function AnnotationQueues() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 

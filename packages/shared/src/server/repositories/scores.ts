@@ -890,7 +890,10 @@ export const hasAnyScore = async (projectId: string) => {
       projectId,
     },
     tags: {
-      source: "hasAnyScore",
+      feature: "tracing",
+      type: "score",
+      kind: "hasAny",
+      projectId,
     },
   });
 

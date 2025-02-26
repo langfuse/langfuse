@@ -18,6 +18,7 @@ export default function ScoresPage() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 

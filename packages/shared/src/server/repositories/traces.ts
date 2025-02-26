@@ -210,7 +210,7 @@ export const hasAnyTrace = async (projectId: string) => {
     tags: {
       feature: "tracing",
       type: "trace",
-      kind: "exists",
+      kind: "hasAny",
       projectId,
     },
   });
@@ -580,8 +580,7 @@ export const hasAnyUser = async (projectId: string) => {
     tags: {
       feature: "tracing",
       type: "trace",
-      kind: "analytic",
-      source: "hasAnyUser",
+      kind: "hasAnyUser",
       projectId,
     },
   });

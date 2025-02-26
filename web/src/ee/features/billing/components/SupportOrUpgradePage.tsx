@@ -11,8 +11,8 @@ export const SupportOrUpgradePage = () => {
           <AlertDescription>
             <p className="mb-2">This feature requires additional permissions</p>
             <p>
-              Contact your system administrator for access or upgrade your plan.
-              Need help? Reach out to support.
+              Contact your system/project administrator for access or upgrade
+              your plan. Need help? Reach out to support.
             </p>
           </AlertDescription>
         </Alert>

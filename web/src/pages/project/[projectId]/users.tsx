@@ -48,6 +48,7 @@ export default function UsersPage() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 

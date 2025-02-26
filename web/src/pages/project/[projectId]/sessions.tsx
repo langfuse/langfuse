@@ -12,7 +12,12 @@ export default function Sessions() {
     { projectId },
     {
       enabled: !!projectId,
-      refetchOnWindowFocus: false,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchInterval: 10_000,
     },
   );
 

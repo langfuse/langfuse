@@ -49,15 +49,7 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      try {
-        return hasAnySession(input.projectId);
-      } catch (e) {
-        logger.error("Unable to call sessions.hasAny", e);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "unable to check if project has any sessions",
-        });
-      }
+      return await hasAnySession(input.projectId);
     }),
   all: protectedProjectProcedure
     .input(SessionFilterOptions)

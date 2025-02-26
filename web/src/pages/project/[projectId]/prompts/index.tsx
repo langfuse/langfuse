@@ -18,6 +18,7 @@ export default function Prompts() {
           skipBatch: true,
         },
       },
+      refetchInterval: 10_000,
     },
   );
 
