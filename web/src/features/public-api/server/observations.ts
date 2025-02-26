@@ -55,6 +55,7 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         project_id,
         type,
         parent_observation_id,
+        environment,
         start_time,
         end_time,
         name,

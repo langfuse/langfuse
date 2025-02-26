@@ -14,6 +14,7 @@ import {
   getCurrentSpan,
   instrumentAsync,
   instrumentSync,
+  recordDistribution,
   recordIncrement,
   traceException,
 } from "../instrumentation";
@@ -94,6 +95,8 @@ export const processEventBatch = async (
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
   recordIncrement("langfuse.ingestion.event", input.length);
+  recordDistribution("langfuse.ingestion.event_distribution", input.length);
+
   currentSpan?.setAttribute("langfuse.ingestion.batch_size", input.length);
   currentSpan?.setAttribute("langfuse.project.id", authCheck.scope.projectId);
   currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
