@@ -48,7 +48,7 @@ export const CreateOrEditAnnotationQueueButton = ({
 }: {
   projectId: string;
   queueId?: string;
-  variant?: "secondary" | "ghost";
+  variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
 }) => {
   const [isOpen, setIsOpen] = useState(false);

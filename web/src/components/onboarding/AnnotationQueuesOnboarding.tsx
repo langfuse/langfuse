@@ -31,9 +31,9 @@ export function AnnotationQueuesOnboarding({
       icon: <BarChart4 className="h-4 w-4" />,
     },
     {
-      title: "Improve model performance",
+      title: "Baseline evaluation efforts",
       description:
-        "Use annotation data to identify patterns and improve your models",
+        "Use annotation data as a baseline to evaluate your other evaluation metrics",
       icon: <GitMerge className="h-4 w-4" />,
     },
   ];
@@ -41,13 +41,13 @@ export function AnnotationQueuesOnboarding({
   return (
     <SplashScreen
       title="Get Started with Annotation Queues"
-      description="Annotation queues help you manage scoring workflows for your LLM projects. Create queues, assign annotators, and track progress to improve your model's performance."
+      description="Annotation queues help you manage manual annotation/labeling for your LLM projects. Create queues, define annotation metrics, and track progress."
       valuePropositions={valuePropositions}
       primaryAction={{
         label: "Create Annotation Queue",
         component: (
           <CreateOrEditAnnotationQueueButton
-            variant="secondary"
+            variant="default"
             projectId={projectId}
             size="lg"
           />
