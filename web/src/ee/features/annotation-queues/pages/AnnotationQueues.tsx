@@ -4,7 +4,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import Page from "@/src/components/layouts/page";
-import { AnnotationQueuesOnboarding } from "@/src/ee/features/annotation-queues/components/AnnotationQueuesOnboarding";
+import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
 
 export default function AnnotationQueues() {

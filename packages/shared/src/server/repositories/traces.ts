@@ -579,8 +579,8 @@ export const hasAnyUser = async (projectId: string) => {
     },
     tags: {
       feature: "tracing",
-      type: "trace",
-      kind: "hasAnyUser",
+      type: "user",
+      kind: "hasAny",
       projectId,
     },
   });

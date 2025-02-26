@@ -41,7 +41,10 @@ export function SessionsOnboarding() {
         <span>
           To start using sessions, you need to add a `sessionId` to your traces.
           See{" "}
-          <Link href="https://langfuse.com/docs/sessions" className="underline">
+          <Link
+            href="https://langfuse.com/docs/tracing-features/sessions"
+            className="underline"
+          >
             documentation
           </Link>{" "}
           for more details.
