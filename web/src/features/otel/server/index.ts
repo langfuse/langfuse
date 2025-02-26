@@ -328,6 +328,9 @@ export const convertOtelSpanToIngestionEvent = (
             attributes?.["langfuse.public"] === "true",
           tags: attributes?.["langfuse.tags"] ?? [],
 
+          // TODO: Overwrite to OTel based mapping via LFE-4081
+          environment: "default",
+
           // Input and Output
           ...extractInputAndOutput(span?.events ?? [], attributes),
         };
@@ -353,6 +356,9 @@ export const convertOtelSpanToIngestionEvent = (
         name: span.name,
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
+
+        // TODO: Overwrite to OTel based mapping via LFE-4081
+        environment: "default",
 
         // Additional fields
         metadata: {

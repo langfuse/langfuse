@@ -17,6 +17,7 @@ export const convertToScore = (row: ScoreRecordReadType): Score => {
     id: row.id,
     timestamp: new Date(row.timestamp),
     projectId: row.project_id,
+    environment: row.environment,
     traceId: row.trace_id,
     observationId: row.observation_id ?? null,
     name: row.name,
