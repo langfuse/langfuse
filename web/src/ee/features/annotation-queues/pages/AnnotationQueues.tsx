@@ -20,7 +20,7 @@ export default function AnnotationQueues() {
   const { data: hasAnyQueue, isLoading } = api.annotationQueues.hasAny.useQuery(
     { projectId },
     {
-      enabled: !!projectId,
+      enabled: !!projectId && hasEntitlement,
       trpc: {
         context: {
           skipBatch: true,
