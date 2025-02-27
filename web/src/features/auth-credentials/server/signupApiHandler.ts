@@ -74,7 +74,7 @@ export async function signupApiHandler(
   } catch (error) {
     const message =
       "Signup: Error creating user: " +
-      (error instanceof Error ? error.message : error);
+      (error instanceof Error ? error.message : JSON.stringify(error));
     logger.warn(message, body.email.toLowerCase(), body.name);
     res.status(422).json({ message: message });
 
