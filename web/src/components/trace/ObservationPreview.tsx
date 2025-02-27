@@ -209,11 +209,27 @@ export const ObservationPreview = ({
                       )}
                     </Badge>
                   ) : null}
-                  {thisCost && (
+
+                  {thisCost ? (
+                    <BreakdownTooltip
+                      details={preloadedObservation.costDetails}
+                      isCost={true}
+                    >
+                      <Badge
+                        variant="tertiary"
+                        className="flex items-center gap-1"
+                      >
+                        <span>{usdFormatter(thisCost.toNumber())}</span>
+                        <InfoIcon className="h-3 w-3" />
+                      </Badge>
+                    </BreakdownTooltip>
+                  ) : undefined}
+                  {totalCost && totalCost !== thisCost ? (
                     <Badge variant="tertiary">
-                      {usdFormatter(thisCost.toNumber())}
+                      ∑ {usdFormatter(totalCost.toNumber())}
                     </Badge>
-                  )}
+                  ) : undefined}
+
                   {preloadedObservation.promptId ? (
                     <PromptBadge
                       promptId={preloadedObservation.promptId}
@@ -286,25 +302,6 @@ export const ObservationPreview = ({
                       </UpsertModelFormDrawer>
                     )
                   ) : null}
-                  {thisCost ? (
-                    <BreakdownTooltip
-                      details={preloadedObservation.costDetails}
-                      isCost={true}
-                    >
-                      <Badge
-                        variant="tertiary"
-                        className="flex items-center gap-1"
-                      >
-                        <span>{usdFormatter(thisCost.toNumber())}</span>
-                        <InfoIcon className="h-3 w-3" />
-                      </Badge>
-                    </BreakdownTooltip>
-                  ) : undefined}
-                  {totalCost && totalCost !== thisCost ? (
-                    <Badge variant="tertiary">
-                      ∑ {usdFormatter(totalCost.toNumber())}
-                    </Badge>
-                  ) : undefined}
 
                   <Fragment>
                     {preloadedObservation.modelParameters &&
