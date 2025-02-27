@@ -29,13 +29,10 @@ import {
   convertDateToClickhouseDateTime,
   createTrace,
   createTracesCh,
-  StorageService,
-  StorageServiceFactory,
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
 import { compileHandlebarString } from "../features/utilities";
-import { env } from "../env";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
@@ -46,19 +43,8 @@ const openAIServer = new OpenAIServer({
   hasActiveKey,
   useDefaultResponse: false,
 });
-let storageService: StorageService;
 
-beforeAll(async () => {
-  openAIServer.setup();
-  storageService = StorageServiceFactory.getInstance({
-    accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-    secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-    bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-    endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-    region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-    forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-  });
-});
+beforeAll(openAIServer.setup);
 beforeEach(async () => {
   await pruneDatabase();
   openAIServer.respondWithDefault();
