@@ -178,6 +178,7 @@ export const getObservationForTraceIdByName = async (
     project_id,
     type,
     parent_observation_id,
+    environment,
     start_time,
     end_time,
     name,
