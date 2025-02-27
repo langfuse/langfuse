@@ -177,6 +177,26 @@ const extractInputAndOutput = (
   return { input: null, output: null };
 };
 
+const extractEnvironment = (
+  attributes: Record<string, unknown>,
+  resourceAttributes: Record<string, unknown>,
+): string => {
+  const environmentAttributeKeys = [
+    "langfuse.environment",
+    "deployment.environment.name",
+    "deployment.environment",
+  ];
+  for (const key of environmentAttributeKeys) {
+    if (resourceAttributes[key]) {
+      return resourceAttributes[key] as string;
+    }
+    if (attributes[key]) {
+      return attributes[key] as string;
+    }
+  }
+  return "default";
+};
+
 const extractUserId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
@@ -334,8 +354,7 @@ export const convertOtelSpanToIngestionEvent = (
             attributes?.["langfuse.public"] === "true",
           tags: attributes?.["langfuse.tags"] ?? [],
 
-          // TODO: Overwrite to OTel based mapping via LFE-4081
-          environment: "default",
+          environment: extractEnvironment(attributes, resourceAttributes),
 
           // Input and Output
           ...extractInputAndOutput(span?.events ?? [], attributes),
@@ -359,8 +378,7 @@ export const convertOtelSpanToIngestionEvent = (
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
 
-        // TODO: Overwrite to OTel based mapping via LFE-4081
-        environment: "default",
+        environment: extractEnvironment(attributes, resourceAttributes),
 
         // Additional fields
         metadata: {
