@@ -77,16 +77,12 @@ export async function signupApiHandler(
       body.name,
     );
   } catch (error) {
-    if (error instanceof Error) {
-      logger.warn(
-        "Signup: Error creating user",
-        error.message,
-        body.email.toLowerCase(),
-        body.name,
-        error,
-      );
-      res.status(422).json({ message: error.message });
-    }
+    const message =
+      "Signup: Error creating user: " +
+      (error instanceof Error ? error.message : JSON.stringify(error));
+    logger.warn(message, body.email.toLowerCase(), body.name);
+    res.status(422).json({ message: message });
+
     return;
   }
 
