@@ -362,6 +362,36 @@ describe("OTel Resource Span Mapping", () => {
 
     it.each([
       [
+        "should extract environment on trace for langfuse.environment",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.environment",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract environment on observation for deployment.environment.name",
+        {
+          entity: "observation",
+          otelAttributeKey: "deployment.environment.name",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should fallback to default on observation if no environment present",
+        {
+          entity: "observation",
+          otelAttributeKey: "unused.key",
+          otelAttributeValue: { stringValue: "" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "default",
+        },
+      ],
+      [
         "should extract promptName on observation from langfuse.prompt.name",
         {
           entity: "observation",
@@ -731,6 +761,36 @@ describe("OTel Resource Span Mapping", () => {
           otelResourceAttributeValue: { stringValue: "1.0.5" },
           entityAttributeKey: "version",
           entityAttributeValue: "1.0.5",
+        },
+      ],
+      [
+        "should extract environment on trace for langfuse.environment",
+        {
+          entity: "trace",
+          otelResourceAttributeKey: "langfuse.environment",
+          otelResourceAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract environment on observation for deployment.environment.name",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "deployment.environment.name",
+          otelResourceAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should fallback to default on observation if no environment present",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "unused.key",
+          otelResourceAttributeValue: { stringValue: "" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "default",
         },
       ],
     ])(
