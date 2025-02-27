@@ -18,7 +18,7 @@ import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewD
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   TabsBar,
@@ -188,38 +188,8 @@ export const ObservationPreview = ({
               />
             </div>
             <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
-              {preloadedObservation.model && (
-                <Link
-                  href={`/project/${projectId}/models/${encodeURIComponent(
-                    preloadedObservation.model,
-                  )}`}
-                >
-                  <Badge>Model: {preloadedObservation.model}</Badge>
-                </Link>
-              )}
-
-              {thisCost && (
-                <Badge variant="tertiary">
-                  {usdFormatter(thisCost.toNumber())}
-                </Badge>
-              )}
-
               {viewType === "detailed" && (
-                <>
-                  {preloadedObservation.promptId ? (
-                    <PromptBadge
-                      promptId={preloadedObservation.promptId}
-                      projectId={preloadedObservation.projectId}
-                    />
-                  ) : undefined}
-                  {preloadedObservation.timeToFirstToken ? (
-                    <Badge variant="tertiary">
-                      Time to first token:{" "}
-                      {formatIntervalSeconds(
-                        preloadedObservation.timeToFirstToken,
-                      )}
-                    </Badge>
-                  ) : null}
+                <Fragment>
                   {preloadedObservation.endTime ? (
                     <Badge variant="tertiary">
                       Latency:{" "}
@@ -230,6 +200,26 @@ export const ObservationPreview = ({
                       )}
                     </Badge>
                   ) : null}
+
+                  {preloadedObservation.timeToFirstToken ? (
+                    <Badge variant="tertiary">
+                      Time to first token:{" "}
+                      {formatIntervalSeconds(
+                        preloadedObservation.timeToFirstToken,
+                      )}
+                    </Badge>
+                  ) : null}
+                  {thisCost && (
+                    <Badge variant="tertiary">
+                      {usdFormatter(thisCost.toNumber())}
+                    </Badge>
+                  )}
+                  {preloadedObservation.promptId ? (
+                    <PromptBadge
+                      promptId={preloadedObservation.promptId}
+                      projectId={preloadedObservation.projectId}
+                    />
+                  ) : undefined}
                   {preloadedObservation.type === "GENERATION" && (
                     <BreakdownTooltip
                       details={preloadedObservation.usageDetails}
@@ -255,7 +245,7 @@ export const ObservationPreview = ({
                   ) : undefined}
                   {preloadedObservation.model ? (
                     preloadedObservation.modelId ? (
-                      <Badge variant="tertiary">
+                      <Badge>
                         <Link
                           href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
                           className="flex items-center"
@@ -316,20 +306,23 @@ export const ObservationPreview = ({
                     </Badge>
                   ) : undefined}
 
-                  {preloadedObservation.modelParameters &&
-                    typeof preloadedObservation.modelParameters === "object" &&
-                    Object.entries(preloadedObservation.modelParameters)
-                      .filter(Boolean)
-                      .map(([key, value]) => (
-                        <Badge variant="tertiary" key={key}>
-                          {key}:{" "}
-                          {Object.prototype.toString.call(value) ===
-                          "[object Object]"
-                            ? JSON.stringify(value)
-                            : value?.toString()}
-                        </Badge>
-                      ))}
-                </>
+                  <Fragment>
+                    {preloadedObservation.modelParameters &&
+                    typeof preloadedObservation.modelParameters === "object"
+                      ? Object.entries(preloadedObservation.modelParameters)
+                          .filter(Boolean)
+                          .map(([key, value]) => (
+                            <Badge variant="tertiary" key={key}>
+                              {key}:{" "}
+                              {Object.prototype.toString.call(value) ===
+                              "[object Object]"
+                                ? JSON.stringify(value)
+                                : value?.toString()}
+                            </Badge>
+                          ))
+                      : null}
+                  </Fragment>
+                </Fragment>
               )}
             </div>
           </div>
@@ -350,15 +343,18 @@ export const ObservationPreview = ({
                 <Tabs
                   className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
-                  onValueChange={(value) =>
-                    setCurrentView(value as "pretty" | "json")
-                  }
+                  onValueChange={(value) => {
+                    capture("trace_detail:io_pretty_format_toggle_group", {
+                      viewType: value,
+                    });
+                    setCurrentView(value as "pretty" | "json");
+                  }}
                 >
                   <TabsList>
-                    <TabsTrigger value="pretty" className="h-fit text-sm">
+                    <TabsTrigger value="pretty" className="h-fit text-xs">
                       Formatted
                     </TabsTrigger>
-                    <TabsTrigger value="json" className="h-fit text-sm">
+                    <TabsTrigger value="json" className="h-fit text-xs">
                       JSON
                     </TabsTrigger>
                   </TabsList>

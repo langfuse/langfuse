@@ -367,9 +367,7 @@ const ObservationTreeNodeCard = ({
 
         {/* Node content */}
         <div
-          className={cn(
-            "-space-y- flex w-full flex-wrap items-center gap-2 py-2",
-          )}
+          className={cn("flex w-full flex-wrap items-center gap-2 py-2")}
           ref={currentObservationRef}
         >
           {/* Type badge */}

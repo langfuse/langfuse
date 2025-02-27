@@ -53,7 +53,7 @@ const PageHeader = ({
               container && "lg:container",
             )}
           >
-            <div className="flex min-w-0 max-w-full items-center gap-1">
+            <div className="flex min-w-0 max-w-full items-center gap-1 overflow-y-auto">
               {itemType && (
                 <div className="flex h-12 items-center">
                   <ItemBadge type={itemType} showLabel />

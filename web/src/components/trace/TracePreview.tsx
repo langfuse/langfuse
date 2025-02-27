@@ -34,6 +34,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const TracePreview = ({
   trace,
@@ -65,6 +66,7 @@ export const TracePreview = ({
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
+  const capture = usePostHogClientCapture();
 
   const traceMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -168,25 +170,8 @@ export const TracePreview = ({
                 <>
                   {!!trace.latency && (
                     <Badge variant="tertiary">
-                      {formatIntervalSeconds(trace.latency)}
+                      Latency: {formatIntervalSeconds(trace.latency)}
                     </Badge>
-                  )}
-                  <BreakdownTooltip
-                    details={observations
-                      .filter((o) => o.type === "GENERATION")
-                      .map((o) => o.usageDetails)}
-                  >
-                    <AggUsageBadge
-                      observations={observations}
-                      rightIcon={<InfoIcon className="h-3 w-3" />}
-                      variant="tertiary"
-                    />
-                  </BreakdownTooltip>
-                  {!!trace.release && (
-                    <Badge variant="tertiary">Release: {trace.release}</Badge>
-                  )}
-                  {!!trace.version && (
-                    <Badge variant="tertiary">Version: {trace.version}</Badge>
                   )}
                   {totalCost && (
                     <BreakdownTooltip
@@ -202,6 +187,24 @@ export const TracePreview = ({
                         </span>
                       </Badge>
                     </BreakdownTooltip>
+                  )}
+                  <BreakdownTooltip
+                    details={observations
+                      .filter((o) => o.type === "GENERATION")
+                      .map((o) => o.usageDetails)}
+                  >
+                    <AggUsageBadge
+                      observations={observations}
+                      rightIcon={<InfoIcon className="h-3 w-3" />}
+                      variant="tertiary"
+                    />
+                  </BreakdownTooltip>
+
+                  {!!trace.release && (
+                    <Badge variant="tertiary">Release: {trace.release}</Badge>
+                  )}
+                  {!!trace.version && (
+                    <Badge variant="tertiary">Version: {trace.version}</Badge>
                   )}
                 </>
               )}
@@ -224,15 +227,18 @@ export const TracePreview = ({
                 <Tabs
                   className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
-                  onValueChange={(value) =>
-                    setCurrentView(value as "pretty" | "json")
-                  }
+                  onValueChange={(value) => {
+                    capture("trace_detail:io_pretty_format_toggle_group", {
+                      viewType: value,
+                    });
+                    setCurrentView(value as "pretty" | "json");
+                  }}
                 >
                   <TabsList>
-                    <TabsTrigger value="pretty" className="h-fit text-sm">
+                    <TabsTrigger value="pretty" className="h-fit text-xs">
                       Formatted
                     </TabsTrigger>
-                    <TabsTrigger value="json" className="h-fit text-sm">
+                    <TabsTrigger value="json" className="h-fit text-xs">
                       Raw
                     </TabsTrigger>
                   </TabsList>
