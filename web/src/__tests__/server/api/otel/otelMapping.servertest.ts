@@ -332,6 +332,34 @@ describe("OTel Resource Span Mapping", () => {
       },
     };
 
+    it("should interpret an empty buffer as an unset parentSpanId", async () => {
+      // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
+      // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.
+      // Setup
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                parentSpanId: {
+                  type: "Buffer",
+                  data: [],
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      // Expect a span and a trace to be created
+      expect(langfuseEvents).toHaveLength(2);
+    });
+
     it.each([
       [
         "should extract promptName on observation from langfuse.prompt.name",

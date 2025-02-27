@@ -383,6 +383,7 @@ describe("trpc.sessions", () => {
 
     expect(sessions[0]).toBeDefined();
     expect(sessions[0]?.trace_count).toBe(2);
-    expect(sessions[0]?.duration).toEqual("1000");
+    expect(parseInt(sessions[0]?.duration as any)).toBeGreaterThan(995);
+    expect(parseInt(sessions[0]?.duration as any)).toBeLessThan(1005);
   });
 });

@@ -42,7 +42,9 @@ export async function signupApiHandler(
 
   // check if email domain is blocked from email/password sign up via env
   const blockedDomains =
-    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",")
+      .map((domain) => domain.trim().toLowerCase())
+      .filter(Boolean) ?? [];
   const domain = body.email.split("@")[1]?.toLowerCase();
   if (domain && blockedDomains.includes(domain)) {
     res.status(422).json({
@@ -58,6 +60,7 @@ export async function signupApiHandler(
     res.status(422).json({
       message: "You must sign in via SSO for this domain.",
     });
+    return;
   }
 
   // create the user
