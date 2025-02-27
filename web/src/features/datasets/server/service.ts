@@ -497,7 +497,7 @@ export const getRunItemsByRunIdOrItemId = async (
 ) => {
   const minTimestamp = runItems
     .map((ri) => ri.createdAt)
-    .sort()
+    .sort((a, b) => a.getTime() - b.getTime())
     .shift();
   // We assume that all events started at most 24h before the earliest run item.
   const filterTimestamp = minTimestamp
