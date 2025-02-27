@@ -14,8 +14,10 @@ import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
+  getEnvironmentsForProjectAndTimeFilter,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { timeFilter } from "@langfuse/shared";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -274,5 +276,19 @@ export const projectsRouter = createTRPCRouter({
       await new ApiAuthService(ctx.prisma, redis).invalidateProjectApiKeys(
         input.projectId,
       );
+    }),
+
+  environmentFilterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        timestampFilter: timeFilter.optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return getEnvironmentsForProjectAndTimeFilter({
+        projectId: input.projectId,
+        minTimestamp: input.timestampFilter?.value,
+      });
     }),
 });

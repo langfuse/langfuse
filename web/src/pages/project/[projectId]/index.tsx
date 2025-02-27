@@ -17,7 +17,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -27,6 +27,7 @@ import SetupTracingButton from "@/src/features/setup/components/SetupTracingButt
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -41,6 +42,12 @@ export default function Dashboard() {
   const session = useSession();
   const disableExpensiveDashboardComponents =
     session.data?.environment.disableExpensivePostgresQueries ?? true;
+
+  const [userFilterState, setUserFilterState] = useQueryFilterState(
+    [],
+    "dashboard",
+    projectId,
+  );
 
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
@@ -58,6 +65,29 @@ export default function Dashboard() {
       staleTime: Infinity,
     },
   );
+
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+  const environmentOptions: string[] =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const [selectedEnvironments, setSelectedEnvironments] = useState<string[]>(
+    environmentOptions.filter((env) => !env.startsWith("langfuse")),
+  );
+
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
 
@@ -95,12 +125,6 @@ export default function Dashboard() {
       internal: "internalValue",
     },
   ];
-
-  const [userFilterState, setUserFilterState] = useQueryFilterState(
-    [],
-    "dashboard",
-    projectId,
-  );
 
   const agg = useMemo(
     () =>
@@ -152,6 +176,14 @@ export default function Dashboard() {
     >
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-col gap-2 lg:flex-row">
+          <MultiSelect
+            title="Environment"
+            values={selectedEnvironments}
+            onValueChange={setSelectedEnvironments}
+            options={environmentOptions.map((env) => ({
+              value: env,
+            }))}
+          />
           <DatePickerWithRange
             dateRange={dateRange}
             setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
