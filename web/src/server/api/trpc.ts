@@ -180,6 +180,10 @@ export const protectedProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthed);
 
+export const protectedProcedureWithoutTracing = t.procedure
+  .use(withErrorHandling)
+  .use(enforceUserIsAuthed);
+
 const inputProjectSchema = z.object({
   projectId: z.string(),
 });
