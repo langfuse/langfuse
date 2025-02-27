@@ -29,10 +29,13 @@ import {
   convertDateToClickhouseDateTime,
   createTrace,
   createTracesCh,
+  StorageService,
+  StorageServiceFactory,
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
 import { compileHandlebarString } from "../features/utilities";
+import { env } from "../env";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
@@ -43,8 +46,19 @@ const openAIServer = new OpenAIServer({
   hasActiveKey,
   useDefaultResponse: false,
 });
+let storageService: StorageService;
 
-beforeAll(openAIServer.setup);
+beforeAll(async () => {
+  await openAIServer.setup();
+  storageService = StorageServiceFactory.getInstance({
+    accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+    secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+    bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+    region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+    forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+  });
+});
 beforeEach(async () => {
   await pruneDatabase();
   openAIServer.respondWithDefault();
@@ -732,99 +746,101 @@ describe("eval service tests", () => {
 
       expect(jobs.length).toBe(0);
     }, 10_000);
-  });
 
-  test("does create eval for trace which is way in the past if timestamp is provided", async () => {
-    const traceId = randomUUID();
+    test("does create eval for trace which is way in the past if timestamp is provided", async () => {
+      const traceId = randomUUID();
 
-    const timestamp = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 1);
-    const trace = createTrace({
-      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      id: traceId,
-      timestamp: timestamp.getTime(),
-    });
+      const timestamp = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 1);
+      const trace = createTrace({
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: traceId,
+        timestamp: timestamp.getTime(),
+      });
 
-    await createTracesCh([trace]);
+      await createTracesCh([trace]);
 
-    const jobConfiguration = await prisma.jobConfiguration.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        filter: JSON.parse("[]"),
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: "trace",
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        timeScope: ["NEW"],
-      },
-    });
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          timeScope: ["NEW"],
+        },
+      });
 
-    const payload = {
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      traceId: traceId,
-      configId: jobConfiguration.id,
-      timestamp: timestamp,
-    };
-
-    await createEvalJobs({
-      event: payload,
-      enforcedJobTimeScope: "NEW", // the config must contain NEW
-    });
-
-    const jobs = await kyselyPrisma.$kysely
-      .selectFrom("job_executions")
-      .selectAll()
-      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
-      .where("job_configuration_id", "in", [jobConfiguration.id])
-      .where("job_input_trace_id", "=", traceId)
-      .execute();
-
-    expect(jobs.length).toBe(1);
-  }, 10_000);
-
-  test("creates eval for trace with timestamp in the future", async () => {
-    const traceId = randomUUID();
-
-    await prisma.jobConfiguration.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        filter: JSON.parse("[]"),
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: "trace",
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        timeScope: ["NEW"],
-      },
-    });
-
-    const trace = createTrace({
-      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      id: traceId,
-      timestamp: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1).getTime(),
-    });
-
-    await createTracesCh([trace]);
-
-    await createEvalJobs({
-      event: {
+      const payload = {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         traceId: traceId,
-      },
-    });
+        configId: jobConfiguration.id,
+        timestamp: timestamp,
+      };
 
-    const jobs = await kyselyPrisma.$kysely
-      .selectFrom("job_executions")
-      .selectAll()
-      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
-      .execute();
+      await createEvalJobs({
+        event: payload,
+        enforcedJobTimeScope: "NEW", // the config must contain NEW
+      });
 
-    expect(jobs.length).toBe(1);
-  }, 10_000);
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .where("job_configuration_id", "in", [jobConfiguration.id])
+        .where("job_input_trace_id", "=", traceId)
+        .execute();
+
+      expect(jobs.length).toBe(1);
+    }, 10_000);
+
+    test("creates eval for trace with timestamp in the future", async () => {
+      const traceId = randomUUID();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          timeScope: ["NEW"],
+        },
+      });
+
+      const trace = createTrace({
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: traceId,
+        timestamp: new Date(
+          Date.now() + 1000 * 60 * 60 * 24 * 365 * 1,
+        ).getTime(),
+      });
+
+      await createTracesCh([trace]);
+
+      await createEvalJobs({
+        event: {
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          traceId: traceId,
+        },
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      expect(jobs.length).toBe(1);
+    }, 10_000);
+  });
 
   describe("execute evals", () => {
     test("evals a valid 'trace' event", async () => {
@@ -1294,6 +1310,124 @@ describe("eval service tests", () => {
       expect(jobs[0].start_time).not.toBeNull();
       expect(jobs[0].end_time).not.toBeNull();
     }, 20_000);
+
+    test("propagates the traces's environment to the created score", async () => {
+      openAIServer.respondWithDefault();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        environment: "production",
+        user_id: "a",
+        input: JSON.stringify({ input: "This is a great prompt" }),
+        output: JSON.stringify({ output: "This is a great response" }),
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      const templateId = randomUUID();
+      await kyselyPrisma.$kysely
+        .insertInto("eval_templates")
+        .values({
+          id: templateId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          name: "test-template",
+          version: 1,
+          prompt: "Please evaluate toxicity {{input}} {{output}}",
+          model: "gpt-3.5-turbo",
+          provider: "openai",
+          model_params: {},
+          output_schema: {
+            reasoning: "Please explain your reasoning",
+            score: "Please provide a score between 0 and 1",
+          },
+        })
+        .executeTakeFirst();
+
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: [
+            {
+              type: "string",
+              value: "a",
+              column: "User ID",
+              operator: "contains",
+            },
+          ],
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          evalTemplateId: templateId,
+        },
+      });
+
+      const jobExecutionId = randomUUID();
+
+      await kyselyPrisma.$kysely
+        .insertInto("job_executions")
+        .values({
+          id: jobExecutionId,
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          job_configuration_id: jobConfiguration.id,
+          status: sql`'PENDING'::"JobExecutionStatus"`,
+          start_time: new Date(),
+          job_input_trace_id: traceId,
+        })
+        .execute();
+
+      await kyselyPrisma.$kysely
+        .insertInto("llm_api_keys")
+        .values({
+          id: randomUUID(),
+          project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          secret_key: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          custom_models: [],
+          display_secret_key: "123456",
+        })
+        .execute();
+
+      const payload = {
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        jobExecutionId: jobExecutionId,
+        delay: 1000,
+      };
+
+      // When
+      await evaluate({ event: payload });
+
+      // Then
+      // Get the score id from the job execution
+      const jobExecutions = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .where("id", "=", jobExecutionId)
+        .execute();
+      expect(jobExecutions).toHaveLength(1);
+
+      // File should be written immediately to S3, so we can get the score there and check it
+      try {
+        const files = storageService.listFiles(
+          `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}"7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"/score/${jobExecutions[0].job_output_score_id}`,
+        );
+        expect(files).toHaveLength(1);
+        // Check the content of the score
+        const score = await storageService.download(files[0].file);
+        const parsedScore = JSON.parse(score);
+        expect(parsedScore.environment).toBe("production");
+      } catch (e) {
+        debugger;
+      }
+    });
   });
 
   describe("test variable extraction", () => {
