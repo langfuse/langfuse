@@ -58,7 +58,8 @@ export default function UserPage() {
         title: userId,
         breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
         itemType: "USER",
-        actionButtonsLeft: (
+
+        actionButtonsRight: (
           <>
             <ActionButton
               href={`/project/${projectId}?filter=user%3Bstring%3B%3B%3D%3B${userId}`} // dashboard filter serialization
@@ -67,16 +68,14 @@ export default function UserPage() {
             >
               Dashboard
             </ActionButton>
+            <DetailPageNav
+              currentId={encodeURIComponent(userId)}
+              path={(entry) =>
+                `/project/${projectId}/users/${encodeURIComponent(entry.id)}`
+              }
+              listKey="users"
+            />
           </>
-        ),
-        actionButtonsRight: (
-          <DetailPageNav
-            currentId={encodeURIComponent(userId)}
-            path={(entry) =>
-              `/project/${projectId}/users/${encodeURIComponent(entry.id)}`
-            }
-            listKey="users"
-          />
         ),
       }}
     >

@@ -30,7 +30,7 @@ export default function LogPage() {
   return (
     <Page
       headerProps={{
-        title: "Eval Log",
+        title: "Evaluators",
         help: {
           description: "View of all running evals.",
           href: "https://langfuse.com/docs/scores/model-based-evals",
