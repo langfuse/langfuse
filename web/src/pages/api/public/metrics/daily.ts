@@ -21,6 +21,7 @@ export default withMiddlewares({
         page: query.page ?? undefined,
         limit: query.limit ?? undefined,
         traceName: query.traceName ?? undefined,
+        observationName: query.observationName ?? undefined,
         userId: query.userId ?? undefined,
         tags: query.tags ?? undefined,
         fromTimestamp: query.fromTimestamp ?? undefined,
