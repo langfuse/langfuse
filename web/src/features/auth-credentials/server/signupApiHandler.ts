@@ -5,6 +5,14 @@ import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-ss
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 
+export function getSSOBlockedDomains() {
+  return (
+    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",")
+      .map((domain) => domain.trim().toLowerCase())
+      .filter(Boolean) ?? []
+  );
+}
+
 /*
  * Sign-up endpoint (email/password users), creates user in database.
  * SSO users are created by the NextAuth adapters.
@@ -41,10 +49,7 @@ export async function signupApiHandler(
   const body = validBody.data;
 
   // check if email domain is blocked from email/password sign up via env
-  const blockedDomains =
-    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",")
-      .map((domain) => domain.trim().toLowerCase())
-      .filter(Boolean) ?? [];
+  const blockedDomains = getSSOBlockedDomains();
   const domain = body.email.split("@")[1]?.toLowerCase();
   if (domain && blockedDomains.includes(domain)) {
     res.status(422).json({
