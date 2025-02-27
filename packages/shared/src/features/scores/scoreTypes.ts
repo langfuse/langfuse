@@ -1,8 +1,7 @@
 import { z } from "zod";
 
-import { Score } from "@prisma/client";
-
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
+import { Score } from "../../server";
 import {
   NonEmptyString,
   paginationMetaResponseZod,
@@ -46,6 +45,7 @@ const ScoreBase = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   projectId: z.string(),
+  environment: z.string().default("default"),
   name: z.string(),
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),

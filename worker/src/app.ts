@@ -9,6 +9,7 @@ import MessageResponse from "./interfaces/MessageResponse";
 require("dotenv").config();
 
 import {
+  evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
@@ -73,6 +74,16 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
     QueueName.TraceUpsert,
     evalJobTraceCreatorQueueProcessor,
     {
+      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.CreateEvalQueue,
+    evalJobCreatorQueueProcessor,
+    {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
     },
   );
@@ -107,9 +118,9 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
     limiter: {
-      // Process at most `max` delete jobs per 3 seconds
+      // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
-      duration: 3_000,
+      duration: 15_000,
     },
   });
 }

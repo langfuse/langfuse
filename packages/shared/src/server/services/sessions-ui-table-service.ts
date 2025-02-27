@@ -49,6 +49,7 @@ export const getSessionsTableCount = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
+    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -68,6 +69,7 @@ export const getSessionsTable = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
+    tags: { kind: "list" },
   });
 
   return rows.map((row) => ({
@@ -90,6 +92,7 @@ export const getSessionsWithMetrics = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
+    tags: { kind: "analytic" },
   });
 
   return rows.map((row) => ({
@@ -107,6 +110,7 @@ export type FetchSessionsTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  tags?: Record<string, string>;
 };
 
 const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
@@ -267,7 +271,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                 ? `
             ,
             sum(o.obs_count) as total_observations,
-            date_diff('millisecond', min(min_start_time), max(max_end_time)) as duration,
+            -- Use minIf, because ClickHouse fills 1970-01-01 on left joins. We assume that no
+            -- LLM session started on that date so this behaviour should yield better results.
+            date_diff('millisecond', minIf(min_start_time, min_start_time > '1970-01-01'), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
             sumMap(o.sum_cost_details) as session_cost_details,
             arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
@@ -312,6 +318,12 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       ...(obsStartTimeValue
         ? { observationsStartTime: obsStartTimeValue }
         : {}),
+    },
+    tags: {
+      ...(props.tags ?? {}),
+      feature: "tracing",
+      type: "sessions-table",
+      projectId,
     },
   });
 

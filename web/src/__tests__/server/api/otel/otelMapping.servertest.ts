@@ -332,7 +332,95 @@ describe("OTel Resource Span Mapping", () => {
       },
     };
 
+    it("should interpret an empty buffer as an unset parentSpanId", async () => {
+      // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
+      // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.
+      // Setup
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                parentSpanId: {
+                  type: "Buffer",
+                  data: [],
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      // Expect a span and a trace to be created
+      expect(langfuseEvents).toHaveLength(2);
+    });
+
     it.each([
+      [
+        "should extract environment on trace for langfuse.environment",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.environment",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract environment on observation for deployment.environment.name",
+        {
+          entity: "observation",
+          otelAttributeKey: "deployment.environment.name",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should fallback to default on observation if no environment present",
+        {
+          entity: "observation",
+          otelAttributeKey: "unused.key",
+          otelAttributeValue: { stringValue: "" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "default",
+        },
+      ],
+      [
+        "should extract promptName on observation from langfuse.prompt.name",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.prompt.name",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "promptName",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract public on trace from langfuse.public",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.public",
+          otelAttributeValue: { boolValue: true },
+          entityAttributeKey: "public",
+          entityAttributeValue: true,
+        },
+      ],
+      [
+        "should not treat truthy values as public true",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.public",
+          otelAttributeValue: { stringValue: "false" },
+          entityAttributeKey: "public",
+          entityAttributeValue: false,
+        },
+      ],
       [
         "should extract userId on trace from user.id",
         {
@@ -526,6 +614,34 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should map mlflow.spanInputs to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "mlflow.spanInputs",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              question: "What is LLM Observability?",
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            question: "What is LLM Observability?",
+          }),
+        },
+      ],
+      [
+        "should map model to model",
+        {
+          entity: "observation",
+          otelAttributeKey: "model",
+          otelAttributeValue: {
+            stringValue: "gpt-4o-mini",
+          },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gpt-4o-mini",
+        },
+      ],
+      [
         "#5412: should map input.value to input for smolagents",
         {
           entity: "observation",
@@ -645,6 +761,36 @@ describe("OTel Resource Span Mapping", () => {
           otelResourceAttributeValue: { stringValue: "1.0.5" },
           entityAttributeKey: "version",
           entityAttributeValue: "1.0.5",
+        },
+      ],
+      [
+        "should extract environment on trace for langfuse.environment",
+        {
+          entity: "trace",
+          otelResourceAttributeKey: "langfuse.environment",
+          otelResourceAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract environment on observation for deployment.environment.name",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "deployment.environment.name",
+          otelResourceAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should fallback to default on observation if no environment present",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "unused.key",
+          otelResourceAttributeValue: { stringValue: "" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "default",
         },
       ],
     ])(

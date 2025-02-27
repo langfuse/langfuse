@@ -19,6 +19,35 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 export const queueRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoEntitlement({
+        entitlement: "annotation-queues",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:read",
+      });
+
+      const queue = await ctx.prisma.annotationQueue.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+        select: { id: true },
+        take: 1,
+      });
+
+      return queue !== null;
+    }),
   all: protectedProjectProcedure
     .input(
       z.object({

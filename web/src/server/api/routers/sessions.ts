@@ -30,6 +30,7 @@ import {
   getPublicSessionsFilter,
   logger,
   getSessionsWithMetrics,
+  hasAnySession,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 
@@ -41,6 +42,15 @@ const SessionFilterOptions = z.object({
 });
 
 export const sessionRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await hasAnySession(input.projectId);
+    }),
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {

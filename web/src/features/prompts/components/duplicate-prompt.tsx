@@ -51,7 +51,7 @@ const DuplicatePromptForm: React.FC<{
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: promptName,
+      name: promptName + "-copy",
       isCopySingleVersion: CopySettings.SINGLE_VERSION,
     },
   });
@@ -203,9 +203,9 @@ export const DuplicatePromptButton: React.FC<{
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <ActionButton
-          icon={<Copy className="mr-1 h-4 w-4" aria-hidden="true" />}
+          icon={<Copy className="h-4 w-4" aria-hidden="true" />}
           hasAccess={hasAccess}
-          variant="secondary"
+          variant="outline"
           limit={promptLimit}
           title="Duplicate prompt"
           limitValue={allPromptNames.data?.length ?? undefined}
@@ -213,7 +213,7 @@ export const DuplicatePromptButton: React.FC<{
             capture("prompt_detail:duplicate_button_click");
           }}
         >
-          Duplicate
+          <span className="hidden md:ml-1 md:inline">Duplicate</span>
         </ActionButton>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] min-h-0">

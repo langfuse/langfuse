@@ -1,25 +1,47 @@
-import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import SetupTracingButton from "@/src/features/setup/components/SetupTracingButton";
+import Page from "@/src/components/layouts/page";
+import { api } from "@/src/utils/api";
+import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
+  // Check if the user has any traces
+  const { data: hasAnyTrace, isLoading } = api.traces.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchInterval: 10_000,
+    },
+  );
+
+  const showOnboarding = !isLoading && !hasAnyTrace;
+
   return (
-    <FullScreenPage>
-      <Header
-        title="Traces"
-        help={{
+    <Page
+      headerProps={{
+        title: "Traces",
+        help: {
           description:
             "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
           href: "https://langfuse.com/docs/tracing",
-        }}
-        actionButtons={<SetupTracingButton />}
-      />
-      <TracesTable projectId={projectId} />
-    </FullScreenPage>
+        },
+      }}
+      scrollable={showOnboarding}
+    >
+      {/* Show onboarding screen if user has no traces */}
+      {showOnboarding ? (
+        <TracesOnboarding projectId={projectId} />
+      ) : (
+        <TracesTable projectId={projectId} />
+      )}
+    </Page>
   );
 }

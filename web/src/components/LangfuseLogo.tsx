@@ -83,7 +83,7 @@ export const LangfuseLogo = ({
   return (
     <div
       className={cn(
-        "flex flex-wrap gap-4 lg:flex-col lg:items-start",
+        "-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start",
         className,
       )}
     >

@@ -8,8 +8,6 @@ import {
   withDefault,
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import Header from "@/src/components/layouts/header";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -24,6 +22,8 @@ import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import Page from "@/src/components/layouts/page";
+import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 
 type RowData = {
   userId: string;
@@ -35,6 +35,44 @@ type RowData = {
 };
 
 export default function UsersPage() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+
+  // Check if the user has any users
+  const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchInterval: 10_000,
+    },
+  );
+
+  const showOnboarding = !isLoading && !hasAnyUser;
+
+  return (
+    <Page
+      headerProps={{
+        title: "Users",
+        help: {
+          description:
+            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+          href: "https://langfuse.com/docs/user-explorer",
+        },
+      }}
+      scrollable={showOnboarding}
+    >
+      {/* Show onboarding screen if user has no users */}
+      {showOnboarding ? <UsersOnboarding /> : <UsersTable />}
+    </Page>
+  );
+}
+
+const UsersTable = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -245,15 +283,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <FullScreenPage>
-      <Header
-        title="Users"
-        help={{
-          description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
-          href: "https://langfuse.com/docs/user-explorer",
-        }}
-      />
+    <>
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
@@ -308,6 +338,6 @@ export default function UsersPage() {
           state: paginationState,
         }}
       />
-    </FullScreenPage>
+    </>
   );
-}
+};

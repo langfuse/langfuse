@@ -1,4 +1,3 @@
-import { ObservationLevel } from "@prisma/client";
 import { OrderByState } from "../../interfaces/orderBy";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions";
 import { FilterState } from "../../types";
@@ -13,18 +12,17 @@ import {
 } from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
-import {
-  parseClickhouseUTCDateTimeFormat,
-  queryClickhouse,
-} from "../repositories/clickhouse";
 import { TraceRecordReadType } from "../repositories/definitions";
+import Decimal from "decimal.js";
+import { ScoreAggregate } from "../../features/scores";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
-} from "../repositories/constants";
-import Decimal from "decimal.js";
-import { ScoreAggregate } from "../../features/scores";
-import { reduceUsageOrCostDetails } from "../repositories";
+  ObservationLevelType,
+  reduceUsageOrCostDetails,
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "../repositories";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -62,7 +60,7 @@ export type TracesMetricsUiReturnType = {
   completionTokens: bigint;
   totalTokens: bigint;
   latency: number | null;
-  level: ObservationLevel;
+  level: ObservationLevelType;
   observationCount: bigint;
   calculatedTotalCost: Decimal | null;
   calculatedInputCost: Decimal | null;
@@ -140,7 +138,7 @@ export type TracesTableMetricsClickhouseReturnType = {
   id: string;
   project_id: string;
   timestamp: Date;
-  level: ObservationLevel;
+  level: ObservationLevelType;
   observation_count: number | null;
   latency: string | null;
   usage_details: Record<string, number>;
@@ -160,6 +158,7 @@ export type FetchTracesTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  tags?: Record<string, string>;
 };
 
 export const getTracesTableCount = async (props: {
@@ -172,6 +171,7 @@ export const getTracesTableCount = async (props: {
 }) => {
   const countRows = await getTracesTableGeneric<{ count: string }>({
     select: "count",
+    tags: { kind: "count" },
     ...props,
   });
 
@@ -193,6 +193,7 @@ export const getTracesTableMetrics = async (props: {
   const countRows =
     await getTracesTableGeneric<TracesTableMetricsClickhouseReturnType>({
       select: "metrics",
+      tags: { kind: "analytic" },
       ...props,
     });
 
@@ -209,6 +210,7 @@ export const getTracesTable = async (
 ) => {
   const rows = await getTracesTableGeneric<TracesTableReturnType>({
     select: "rows",
+    tags: { kind: "list" },
     projectId,
     filter,
     searchQuery,
@@ -442,6 +444,12 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
       ...observationFilterRes.params,
       ...scoresFilterRes.params,
       ...search.params,
+    },
+    tags: {
+      ...(props.tags ?? {}),
+      feature: "tracing",
+      type: "traces-table",
+      projectId,
     },
   });
 

@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { env } from "@/src/env.mjs";
 
 type RouteConfig<
   TQuery extends ZodType<any>,
@@ -87,7 +88,7 @@ export const createAuthedAPIRoute = <
       auth,
     });
 
-    if (routeConfig.responseSchema) {
+    if (env.NODE_ENV === "development" && routeConfig.responseSchema) {
       const parsingResult = routeConfig.responseSchema.safeParse(response);
       if (!parsingResult.success) {
         logger.error("Response validation failed:", parsingResult.error);

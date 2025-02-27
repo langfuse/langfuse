@@ -8,7 +8,15 @@ service:
   endpoints:
     batch:
       docs: |
-        Batched ingestion for Langfuse Tracing. If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.
+        Batched ingestion for Langfuse Tracing.
+        If you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.
+
+        Within each batch, there can be multiple events.
+        Each event has a type, an id, a timestamp, metadata and a body.
+        Internally, we refer to this as the "event envelope" as it tells us something about the event but not the trace.
+        We use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.
+        The event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.
+        I.e. if you want to update a trace, you'd use the same body id, but separate event IDs.
 
         Notes:
         - Introduction to data model: https://langfuse.com/docs/tracing-data-model
@@ -29,6 +37,67 @@ service:
       response:
         type: IngestionResponse
         status-code: 207
+      examples:
+        # Trace Create Request
+        - request:
+            batch:
+              - id: abcdef-1234-5678-90ab
+                timestamp: "2022-01-01T00:00:00.000Z"
+                type: "trace-create"
+                body:
+                  id: abcdef-1234-5678-90ab
+                  timestamp: "2022-01-01T00:00:00.000Z"
+                  name: "My Trace"
+                  userId: "1234-5678-90ab-cdef"
+                  input: "My input"
+                  output: "My output"
+                  sessionId: "1234-5678-90ab-cdef"
+                  release: "1.0.0"
+                  version: "1.0.0"
+                  metadata: "My metadata"
+                  tags: ["tag1", "tag2"]
+                  public: true
+          response:
+            body:
+              successes:
+                - id: abcdef-1234-5678-90ab
+                  status: 201
+              errors: []
+
+        # Observation Create Request
+        - request:
+            batch:
+              - id: abcdef-1234-5678-90ab
+                timestamp: "2022-01-01T00:00:00.000Z"
+                type: "span-create"
+                body:
+                  id: abcdef-1234-5678-90ab
+                  traceId: "1234-5678-90ab-cdef"
+                  startTime: "2022-01-01T00:00:00.000Z"
+          response:
+            body:
+              successes:
+                - id: abcdef-1234-5678-90ab
+                  status: 201
+              errors: []
+
+        # Score Create Request
+        - request:
+            batch:
+              - id: abcdef-1234-5678-90ab
+                timestamp: "2022-01-01T00:00:00.000Z"
+                type: "score-create"
+                body:
+                  id: abcdef-1234-5678-90ab
+                  traceId: "1234-5678-90ab-cdef"
+                  name: "My Score"
+                  value: 0.9
+          response:
+            body:
+              successes:
+                - id: abcdef-1234-5678-90ab
+                  status: 201
+              errors: []
 
 types:
   IngestionEvent:
@@ -99,6 +168,7 @@ types:
       statusMessage: optional<string>
       parentObservationId: optional<string>
       version: optional<string>
+      environment: optional<string>
 
   CreateEventBody:
     extends: OptionalObservationBody
@@ -163,6 +233,7 @@ types:
       level: optional<commons.ObservationLevel>
       statusMessage: optional<string>
       parentObservationId: optional<string>
+      environment: optional<string>
 
   TraceBody:
     properties:
@@ -177,6 +248,7 @@ types:
       version: optional<string>
       metadata: optional<unknown>
       tags: optional<list<string>>
+      environment: optional<string>
       public:
         type: optional<boolean>
         docs: Make trace publicly accessible via url
@@ -190,6 +262,7 @@ types:
       id: optional<string>
       traceId: string
       name: string
+      environment: optional<string>
       value:
         type: commons.CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false)

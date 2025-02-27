@@ -36,9 +36,10 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 p-2 pr-0">
+        <div className="flex min-h-10 items-center gap-2 px-3 py-2">
           <LangfuseLogo version />
         </div>
+        <div className="h-1 flex-1 border-b" />
         <DemoBadge />
       </SidebarHeader>
       <SidebarContent>
@@ -66,17 +67,19 @@ const DemoBadge = () => {
     env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
     routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
     Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ? (
-    <Alert className="rounded-md bg-light-yellow group-data-[collapsible=icon]:hidden">
-      <AlertDescription className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
-        View-only{" "}
-        <Link
-          href="https://langfuse.com/docs/demo"
-          target="_blank"
-          className="underline"
-        >
-          demo project
-        </Link>
-      </AlertDescription>
-    </Alert>
+    <div className="flex border-b px-3 py-2">
+      <Alert className="rounded-md bg-light-yellow group-data-[collapsible=icon]:hidden">
+        <AlertDescription className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
+          View-only{" "}
+          <Link
+            href="https://langfuse.com/docs/demo"
+            target="_blank"
+            className="underline"
+          >
+            demo project
+          </Link>
+        </AlertDescription>
+      </Alert>
+    </div>
   ) : null;
 };

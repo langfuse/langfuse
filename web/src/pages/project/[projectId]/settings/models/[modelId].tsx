@@ -1,7 +1,5 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
-import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Card,
@@ -22,6 +20,7 @@ import { useMemo } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import Generations from "@/src/components/table/use-cases/observations";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import Page from "@/src/components/layouts/page";
 
 export default function ModelDetailPage() {
   const router = useRouter();
@@ -65,25 +64,25 @@ export default function ModelDetailPage() {
   const isLangfuseModel = !Boolean(model?.projectId);
 
   if (isLoading || !model) {
-    return <div>Loading...</div>;
+    return <div className="p-3">Loading...</div>;
   }
 
   return (
-    <FullScreenPage>
-      <Header
-        title={model.modelName}
-        help={{
+    <Page
+      headerProps={{
+        title: model.modelName,
+        help: {
           description: "Model configuration and pricing details",
           href: "https://langfuse.com/docs/model-usage-and-cost",
-        }}
-        breadcrumb={[
+        },
+        breadcrumb: [
           {
             name: "Models",
             href: `/project/${router.query.projectId as string}/settings/models`,
           },
           { name: model.modelName },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsRight: (
           <div className="flex gap-2">
             {hasWriteAccess &&
               (!isLangfuseModel ? (
@@ -101,9 +100,9 @@ export default function ModelDetailPage() {
                 <CloneModelButton projectId={projectId} modelData={model} />
               ))}
           </div>
-        }
-      />
-
+        ),
+      }}
+    >
       <div className="grid grid-cols-2 gap-6 p-2">
         <Card>
           <CardHeader>
@@ -203,6 +202,6 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
       </div>
-    </FullScreenPage>
+    </Page>
   );
 }

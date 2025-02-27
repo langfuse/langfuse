@@ -1,4 +1,4 @@
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { Edit, LockIcon, PlusIcon, Trash } from "lucide-react";
 import {
   Dialog,
@@ -18,7 +18,8 @@ interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
   projectId: string;
   className?: string;
-  onFormSuccess?: () => void;
+  size?: ButtonProps["size"];
+  variant?: ButtonProps["variant"];
 }
 
 interface CreateDatasetButtonProps extends BaseDatasetButtonProps {
@@ -59,8 +60,8 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
         {props.mode === "update" ? (
           props.icon ? (
             <Button
-              variant="outline"
-              size={"icon"}
+              variant={props.variant || "outline"}
+              size={props.size || "icon"}
               className={props.className}
               disabled={!hasAccess}
               onClick={() =>
@@ -72,8 +73,10 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               <Edit className="h-4 w-4" />
             </Button>
           ) : (
-            <div
-              className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+            <Button
+              variant={props.variant || "ghost"}
+              size={props.size || "icon"}
+              className={props.className}
               onClick={() => {
                 setOpen(true);
                 capture("datasets:update_form_open", {
@@ -87,11 +90,13 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
                 <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
               Rename
-            </div>
+            </Button>
           )
         ) : props.mode === "delete" ? (
-          <div
-            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+          <Button
+            variant={props.variant || "ghost"}
+            size={props.size}
+            className={props.className}
             onClick={() => {
               setOpen(true);
               capture("datasets:delete_form_open", {
@@ -101,13 +106,14 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
           >
             <Trash className="mr-2 h-4 w-4" />
             Delete
-          </div>
+          </Button>
         ) : (
           <Button
+            size={props.size}
             className={props.className}
             disabled={!hasAccess}
             onClick={() => capture("datasets:new_form_open")}
-            variant="secondary"
+            variant={props.variant || "secondary"}
           >
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />

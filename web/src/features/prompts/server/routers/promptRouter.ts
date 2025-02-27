@@ -36,6 +36,29 @@ const PromptFilterOptions = z.object({
 });
 
 export const promptRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const prompt = await ctx.prisma.prompt.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+        select: { id: true },
+        take: 1,
+      });
+
+      return prompt !== null;
+    }),
   all: protectedProjectProcedure
     .input(PromptFilterOptions)
     .query(async ({ input, ctx }) => {

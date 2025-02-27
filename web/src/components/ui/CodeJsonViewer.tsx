@@ -7,11 +7,11 @@ import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
-import { BsMarkdown } from "react-icons/bs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 
 const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -24,9 +24,9 @@ export function JSONView(props: {
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
+  scrollable?: boolean;
 }) {
   // some users ingest stringified json nested in json, parse it
-  const [isCopied, setIsCopied] = useState(false);
   const parsedJson = deepParseJson(props.json);
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
@@ -37,63 +37,30 @@ export function JSONView(props: {
       ? 100_000_000 // if null, show all (100M chars)
       : (props.collapseStringsAfterLength ?? 500);
 
-  const handleCopy = () => {
-    setIsCopied(true);
+  const handleOnCopy = () => {
     void navigator.clipboard.writeText(stringifyJsonNode(parsedJson));
-    setTimeout(() => setIsCopied(false), 1000);
   };
 
-  return (
-    <div className={cn("rounded-md border", props.className)}>
-      {props.title ? (
-        <div
-          className={cn(
-            props.title === "assistant" || props.title === "Output"
-              ? "dark:border-accent-dark-green"
-              : "",
-            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
-          )}
-        >
-          {props.title}
-          <div className="flex items-center gap-1">
-            {props.canEnableMarkdown && (
-              <Button
-                title="Enable Markdown"
-                variant="ghost"
-                type="button"
-                size="icon-xs"
-                onClick={() => {
-                  setIsMarkdownEnabled(true);
-                  capture("trace_detail:io_pretty_format_toggle_group", {
-                    renderMarkdown: true,
-                  });
-                }}
-                className="opacity-50 hover:bg-border"
-              >
-                <BsMarkdown className="h-4 w-4 text-foreground" />
-              </Button>
-            )}
-            <Button
-              title="Copy to clipboard"
-              variant="ghost"
-              size="icon-xs"
-              type="button"
-              onClick={handleCopy}
-              className="-mr-2 hover:bg-border"
-            >
-              {isCopied ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-          </div>
-        </div>
-      ) : undefined}
+  const handleOnValueChange = () => {
+    setIsMarkdownEnabled(true);
+    capture("trace_detail:io_pretty_format_toggle_group", {
+      renderMarkdown: true,
+    });
+  };
+
+  const body = (
+    <>
       <div
         className={cn(
           "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
           props.codeClassName,
+          props.title === "assistant" || props.title === "Output"
+            ? "bg-accent-light-green dark:border-accent-dark-green"
+            : "",
+          props.title === "system" || props.title === "Input"
+            ? "bg-primary-foreground"
+            : "",
+          props.scrollable ? "" : "rounded-sm border",
         )}
       >
         {props.isLoading ? (
@@ -136,6 +103,34 @@ export function JSONView(props: {
           </div>
         </>
       )}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex max-h-full min-h-0 flex-col",
+        props.className,
+        props.scrollable ? "overflow-hidden" : "",
+      )}
+    >
+      {props.title ? (
+        <MarkdownJsonViewHeader
+          title={props.title}
+          canEnableMarkdown={props.canEnableMarkdown ?? false}
+          handleOnValueChange={handleOnValueChange}
+          handleOnCopy={handleOnCopy}
+        />
+      ) : null}
+      {props.scrollable ? (
+        <div className="flex h-full min-h-0 overflow-hidden rounded-sm border">
+          <div className="max-h-full min-h-0 w-full overflow-y-auto">
+            {body}
+          </div>
+        </div>
+      ) : (
+        body
+      )}
     </div>
   );
 }
@@ -144,8 +139,8 @@ export function CodeView(props: {
   content: string | undefined | null;
   className?: string;
   defaultCollapsed?: boolean;
-  scrollable?: boolean;
   title?: string;
+  scrollable?: boolean;
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
@@ -159,37 +154,44 @@ export function CodeView(props: {
   const handleShowAll = () => setCollapsed(!isCollapsed);
 
   return (
-    <div className={cn("max-w-full rounded-md border", props.className)}>
-      {props.title ? (
-        <div className="border-b px-3 py-1 text-xs font-medium">
-          {props.title}
-        </div>
-      ) : undefined}
-      <div className="flex gap-2">
-        <code
-          className={cn(
-            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
-            isCollapsed ? `line-clamp-6` : "block",
-            props.scrollable ? "max-h-60 overflow-y-scroll" : undefined,
-          )}
-        >
-          {props.content}
-        </code>
-        <div className="flex gap-2 py-2 pr-2">
-          {props.defaultCollapsed ? (
-            <Button variant="secondary" size="xs" onClick={handleShowAll}>
-              {isCollapsed ? (
-                <ChevronsUpDown className="h-3 w-3" />
+    <div
+      className={cn(
+        "flex max-w-full flex-col",
+        props.className,
+        props.scrollable && "max-h-full min-h-0",
+      )}
+    >
+      <div className="my-1 flex flex-shrink-0 items-center justify-between pl-1">
+        {props.title ? (
+          <>
+            <div className="text-sm font-medium">{props.title}</div>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={handleCopy}
+              className=""
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
               ) : (
-                <ChevronsDownUp className="h-3 w-3" />
+                <Copy className="h-3 w-3" />
               )}
             </Button>
-          ) : undefined}
+          </>
+        ) : undefined}
+      </div>
+      <div
+        className={cn(
+          "relative flex flex-col gap-2 rounded-md border",
+          props.scrollable ? "max-h-full min-h-0 overflow-hidden" : "",
+        )}
+      >
+        {!props.title && (
           <Button
             variant="secondary"
             size="icon-xs"
             onClick={handleCopy}
-            className=""
+            className="absolute right-2 top-2 z-10"
           >
             {isCopied ? (
               <Check className="h-3 w-3" />
@@ -197,7 +199,27 @@ export function CodeView(props: {
               <Copy className="h-3 w-3" />
             )}
           </Button>
-        </div>
+        )}
+        <code
+          className={cn(
+            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
+            isCollapsed ? `line-clamp-6` : "block",
+            props.scrollable ? "overflow-y-auto" : "",
+          )}
+        >
+          {props.content}
+        </code>
+        {props.defaultCollapsed ? (
+          <div className="flex gap-2 py-2 pr-2">
+            <Button variant="secondary" size="xs" onClick={handleShowAll}>
+              {isCollapsed ? (
+                <ChevronsUpDown className="h-3 w-3" />
+              ) : (
+                <ChevronsDownUp className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+        ) : undefined}
       </div>
     </div>
   );
@@ -242,11 +264,8 @@ export const IOTableCell = ({
               stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
               `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
             }
-            className={cn(
-              "h-full w-full self-stretch overflow-y-auto rounded-sm",
-              className,
-            )}
-            codeClassName="py-1 px-2"
+            className={cn("h-full w-full self-stretch rounded-sm", className)}
+            codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
             collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
           />
           <div className="text-xs text-muted-foreground">
@@ -256,11 +275,8 @@ export const IOTableCell = ({
       ) : (
         <JSONView
           json={stringifiedJson}
-          className={cn(
-            "h-full w-full self-stretch overflow-y-auto rounded-sm",
-            className,
-          )}
-          codeClassName="py-1 px-2"
+          className={cn("h-full w-full self-stretch rounded-sm", className)}
+          codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
           collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         />
       )}

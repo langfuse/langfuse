@@ -1,4 +1,5 @@
-import { Score, ScoreDataType, ScoreSource } from "@prisma/client";
+import { ScoreDataType } from "@prisma/client";
+import { Score, ScoreSourceType } from "./types";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -6,7 +7,7 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList } from "../queries/clickhouse-sql/clickhouse-filter";
+import { FilterList, orderByToClickhouseSql } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -17,7 +18,6 @@ import {
   dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
 } from "../../tableDefinitions";
-import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
 import {
   convertScoreAggregation,
   convertToScore,
@@ -64,6 +64,12 @@ export const searchExistingAnnotationScore = async (
       traceId,
       observationId,
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
   });
   return rows.map(convertToScore).shift();
 };
@@ -71,7 +77,7 @@ export const searchExistingAnnotationScore = async (
 export const getScoreById = async (
   projectId: string,
   scoreId: string,
-  source?: ScoreSource,
+  source?: ScoreSourceType,
 ) => {
   const query = `
     SELECT *
@@ -91,6 +97,12 @@ export const getScoreById = async (
       scoreId,
       ...(source !== undefined ? { source } : {}),
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "byId",
+      projectId,
+    },
   });
   return rows.map(convertToScore).shift();
 };
@@ -98,7 +110,7 @@ export const getScoreById = async (
 export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
-  source?: ScoreSource,
+  source?: ScoreSourceType,
 ) => {
   const query = `
     SELECT *
@@ -117,6 +129,12 @@ export const getScoresByIds = async (
       scoreId,
       ...(source !== undefined ? { source } : {}),
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "byId",
+      projectId,
+    },
   });
   return rows.map(convertToScore);
 };
@@ -133,6 +151,12 @@ export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
     table: "scores",
     records: [score as ScoreRecordReadType],
     eventBodyMapper: convertToScore,
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "upsert",
+      projectId: score.project_id ?? "",
+    },
   });
 };
 
@@ -169,6 +193,12 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
         ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
   });
 
   return rows.map(convertToScore);
@@ -198,6 +228,12 @@ export const getScoresForObservations = async (
       observationIds: observationIds,
       limit: limit,
       offset: offset,
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
     },
   });
 
@@ -235,11 +271,17 @@ export const getScoresGroupedByNameSourceType = async (
         ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
   });
 
   return rows.map((row) => ({
     name: row.name,
-    source: row.source as ScoreSource,
+    source: row.source as ScoreSourceType,
     dataType: row.data_type as ScoreDataType,
   }));
 };
@@ -285,6 +327,12 @@ export const getScoresGroupedByName = async (
       projectId: projectId,
       ...(timestampFilterRes ? timestampFilterRes.params : {}),
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
   });
 
   return rows;
@@ -301,6 +349,7 @@ export const getScoresUiCount = async (props: {
     select: `
     count(*) as count
     `,
+    tags: { kind: "count" },
     ...props,
   });
 
@@ -323,6 +372,7 @@ export const getScoresUiTable = async (props: {
   const rows = await getScoresUiGeneric<{
     id: string;
     project_id: string;
+    environment: string;
     name: string;
     value: number;
     string_value: string | null;
@@ -347,6 +397,7 @@ export const getScoresUiTable = async (props: {
     select: `
         s.id,
         s.project_id,
+        s.environment,
         s.name,
         s.value,
         s.string_value,
@@ -369,11 +420,13 @@ export const getScoresUiTable = async (props: {
         t.name as trace_name,
         t.tags as trace_tags
     `,
+    tags: { kind: "analytic" },
     ...props,
   });
 
   return rows.map((row) => ({
     projectId: row.project_id,
+    environment: row.environment,
     authorUserId: row.author_user_id,
     traceId: row.trace_id,
     observationId: row.observation_id,
@@ -387,7 +440,7 @@ export const getScoresUiTable = async (props: {
     stringValue: row.string_value,
     comment: row.comment,
     dataType: row.data_type as ScoreDataType,
-    source: row.source as ScoreSource,
+    source: row.source as ScoreSourceType,
     name: row.name,
     value: row.value,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
@@ -402,6 +455,7 @@ export const getScoresUiGeneric = async <T>(props: {
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
+  tags?: Record<string, string>;
 }): Promise<T[]> => {
   const { select, projectId, filter, orderBy, limit, offset } = props;
 
@@ -435,6 +489,12 @@ export const getScoresUiGeneric = async <T>(props: {
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
       limit: limit,
       offset: offset,
+    },
+    tags: {
+      ...(props.tags ?? {}),
+      feature: "tracing",
+      type: "score",
+      projectId,
     },
   });
 
@@ -476,6 +536,12 @@ export const getScoreNames = async (
       projectId: projectId,
       ...(timestampFilterRes ? timestampFilterRes.params : {}),
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
+    },
   });
 
   return rows.map((row) => ({
@@ -495,6 +561,12 @@ export const deleteScore = async (projectId: string, scoreId: string) => {
     params: {
       projectId,
       scoreId,
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "delete",
+      projectId,
     },
   });
 };
@@ -517,6 +589,12 @@ export const deleteScoresByTraceIds = async (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "delete",
+      projectId,
+    },
   });
 };
 
@@ -532,6 +610,12 @@ export const deleteScoresByProjectId = async (projectId: string) => {
     },
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "delete",
+      projectId,
     },
   });
 };
@@ -553,6 +637,12 @@ export const deleteScoresOlderThanDays = async (
     },
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "delete",
+      projectId,
     },
   });
 };
@@ -587,6 +677,12 @@ export const getNumericScoreHistogram = async (
       projectId,
       limit,
       ...(chFilterRes ? chFilterRes.params : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "analytic",
+      projectId,
     },
   });
 };
@@ -624,6 +720,12 @@ export const getAggregatedScoresForPrompts = async (
       projectId,
       promptIds,
     },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   return rows.map((row) => ({
@@ -654,6 +756,11 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     params: {
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "analytic",
     },
   });
 
@@ -692,6 +799,12 @@ export const getDistinctScoreNames = async (
             ),
           }
         : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "list",
+      projectId,
     },
   });
 
@@ -733,6 +846,12 @@ export const getScoresForPostHog = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
+    tags: {
+      feature: "posthog",
+      type: "score",
+      kind: "analytic",
+      projectId,
+    },
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
@@ -758,4 +877,28 @@ export const getScoresForPostHog = async function* (
       },
     };
   }
+};
+
+export const hasAnyScore = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM scores
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
 };

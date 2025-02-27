@@ -30,25 +30,166 @@ import {
   createProjectRoute,
 } from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
-import { ScrollScreenPage } from "@/src/components/layouts/scroll-screen-page";
+import ContainerPage from "@/src/components/layouts/container-page";
+import { type User } from "next-auth";
 
-const SingleOrganizationProjectOverview = ({
-  orgId,
+const OrganizationProjectTiles = ({
+  org,
   search,
-  level = "h2",
+}: {
+  org: User["organizations"][number];
+  search?: string;
+}) => {
+  return (
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {org.projects
+        .filter(
+          (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
+        )
+        .map((project) => (
+          <Card key={project.id}>
+            <CardHeader>
+              <CardTitle className="text-base">{project.name}</CardTitle>
+            </CardHeader>
+            {!project.deletedAt ? (
+              <CardFooter className="gap-2">
+                <Button asChild variant="secondary">
+                  <Link href={`/project/${project.id}`}>Go to project</Link>
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link href={`/project/${project.id}/settings`}>
+                    <Settings size={16} />
+                  </Link>
+                </Button>
+              </CardFooter>
+            ) : (
+              <CardContent>
+                <CardDescription>Project is being deleted</CardDescription>
+              </CardContent>
+            )}
+          </Card>
+        ))}
+    </div>
+  );
+};
+
+const DemoOrganizationTile = () => {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Try Langfuse Demo</CardTitle>
+      </CardHeader>
+      <CardContent>
+        We have built a Q&A chatbot that answers questions based on the Langfuse
+        Docs. Interact with it to see traces in Langfuse.
+      </CardContent>
+      <CardFooter>
+        <Button asChild variant="secondary">
+          <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}`}>
+            View Demo Project
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+const OrganizationActionButtons = ({
+  orgId,
+  primaryButtonVariant = "default",
 }: {
   orgId: string;
-  search?: string;
-  level?: "h2" | "h3";
+  primaryButtonVariant?: "default" | "secondary";
 }) => {
-  const createProjectAccess = useHasOrganizationAccess({
-    organizationId: orgId,
-    scope: "projects:create",
-  });
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
   });
+  const createProjectAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "projects:create",
+  });
+
+  return (
+    <>
+      <Button asChild variant="ghost">
+        <Link href={`/organization/${orgId}/settings`}>
+          <Settings size={14} />
+        </Link>
+      </Button>
+      {membersViewAccess && (
+        <Button asChild variant="ghost">
+          <Link href={`/organization/${orgId}/settings/members`}>
+            <Users size={14} />
+          </Link>
+        </Button>
+      )}
+      {createProjectAccess ? (
+        <Button asChild variant={primaryButtonVariant}>
+          <Link href={createProjectRoute(orgId)}>
+            <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            New project
+          </Link>
+        </Button>
+      ) : (
+        <Button disabled variant={primaryButtonVariant}>
+          <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+          New project
+        </Button>
+      )}
+    </>
+  );
+};
+
+const SingleOrganizationPage = ({
+  orgId,
+  search,
+}: {
+  orgId: string;
+  search?: string;
+}) => {
+  const session = useSession();
+  const org = session.data?.user?.organizations.find((o) => o.id === orgId);
+
+  if (!org) {
+    return null;
+  }
+
+  const isDemoOrg =
+    env.NEXT_PUBLIC_DEMO_ORG_ID === orgId &&
+    org.projects.some((p) => p.id === env.NEXT_PUBLIC_DEMO_PROJECT_ID);
+
+  if (isDemoOrg) {
+    return (
+      <ContainerPage
+        headerProps={{
+          title: "Demo Organization",
+        }}
+      >
+        <DemoOrganizationTile />
+      </ContainerPage>
+    );
+  }
+
+  return (
+    <ContainerPage
+      headerProps={{
+        title: org?.name ?? "Organization",
+        actionButtonsRight: <OrganizationActionButtons orgId={orgId} />,
+      }}
+    >
+      <OrganizationProjectTiles org={org} search={search} />
+    </ContainerPage>
+  );
+};
+
+const SingleOrganizationProjectOverviewTile = ({
+  orgId,
+  search,
+}: {
+  orgId: string;
+  search?: string;
+}) => {
   const session = useSession();
   const org = session.data?.user?.organizations.find((o) => o.id === orgId);
 
@@ -63,23 +204,7 @@ const SingleOrganizationProjectOverview = ({
   if (isDemoOrg) {
     return (
       <div key={orgId}>
-        {level === "h2" && <Header title="Demo Organization" />}
-        <Card>
-          <CardHeader>
-            <CardTitle>Try Langfuse Demo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            We have built a Q&A chatbot that answers questions based on the
-            Langfuse Docs. Interact with it to see traces in Langfuse.
-          </CardContent>
-          <CardFooter>
-            <Button asChild variant="secondary">
-              <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}`}>
-                View Demo Project
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        <DemoOrganizationTile />
       </div>
     );
   }
@@ -88,10 +213,9 @@ const SingleOrganizationProjectOverview = ({
     <div key={orgId} className="mb-10">
       <Header
         title={org.name}
-        level={level}
         status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
         label={
-          isCloudPlan(org.plan) && level === "h3"
+          isCloudPlan(org.plan)
             ? {
                 text: planLabels[org.plan],
                 href: `/organization/${org.id}/settings/billing`,
@@ -99,65 +223,13 @@ const SingleOrganizationProjectOverview = ({
             : undefined
         }
         actionButtons={
-          <>
-            <Button asChild variant="ghost">
-              <Link href={`/organization/${orgId}/settings`}>
-                <Settings size={14} />
-              </Link>
-            </Button>
-            {membersViewAccess && (
-              <Button asChild variant="ghost">
-                <Link href={`/organization/${orgId}/settings/members`}>
-                  <Users size={14} />
-                </Link>
-              </Button>
-            )}
-            {createProjectAccess ? (
-              <Button asChild variant="secondary">
-                <Link href={createProjectRoute(orgId)}>
-                  <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-                  New project
-                </Link>
-              </Button>
-            ) : (
-              <Button variant="secondary" disabled>
-                <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-                New project
-              </Button>
-            )}
-          </>
+          <OrganizationActionButtons
+            orgId={orgId}
+            primaryButtonVariant="secondary"
+          />
         }
       />
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {org.projects
-          .filter(
-            (p) =>
-              !search || p.name.toLowerCase().includes(search.toLowerCase()),
-          )
-          .map((project) => (
-            <Card key={project.id}>
-              <CardHeader>
-                <CardTitle className="text-base">{project.name}</CardTitle>
-              </CardHeader>
-              {!project.deletedAt ? (
-                <CardFooter className="gap-2">
-                  <Button asChild variant="secondary">
-                    <Link href={`/project/${project.id}`}>Go to project</Link>
-                  </Button>
-                  <Button asChild variant="ghost">
-                    <Link href={`/project/${project.id}/settings`}>
-                      <Settings size={16} />
-                    </Link>
-                  </Button>
-                </CardFooter>
-              ) : (
-                <CardContent>
-                  <CardDescription>Project is being deleted</CardDescription>
-                </CardContent>
-              )}
-            </Card>
-          ))}
-      </div>
+      <OrganizationProjectTiles org={org} search={search} />
     </div>
   );
 };
@@ -178,40 +250,54 @@ export const OrganizationProjectOverview = () => {
     organizations.filter((org) => org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID)
       .length === 0 && !queryOrgId;
 
+  if (queryOrgId) {
+    const org = organizations.find((org) => org.id === queryOrgId);
+
+    if (!org) {
+      return null;
+    }
+
+    return (
+      <SingleOrganizationPage orgId={org.id} search={search ?? undefined} />
+    );
+  }
+
   return (
-    <ScrollScreenPage>
-      {!queryOrgId && (
-        <>
-          <Header
-            title="Organizations"
-            help={{
-              description:
-                "Organizations help you manage access to projects. Each organization can have multiple projects and team members with different roles.",
-              href: "https://langfuse.com/docs/rbac",
-            }}
-            actionButtons={
-              <>
-                <Input
-                  className="w-36 lg:w-56"
-                  placeholder="Search projects"
-                  onChange={(e) => setQueryParams({ search: e.target.value })}
-                />
-                {canCreateOrg && (
-                  <Button data-testid="create-organization-btn" asChild>
-                    <Link href={createOrganizationRoute}>
-                      <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                      New Organization
-                    </Link>
-                  </Button>
-                )}
-              </>
-            }
-          />
-        </>
-      )}
+    <ContainerPage
+      headerProps={{
+        title: "Organizations",
+        help: {
+          description:
+            "Organizations help you manage access to projects. Each organization can have multiple projects and team members with different roles.",
+          href: "https://langfuse.com/docs/rbac",
+        },
+        breadcrumb: [
+          {
+            name: "Organizations",
+            href: "/",
+          },
+        ],
+        actionButtonsRight: (
+          <>
+            <Input
+              className="mr-1 w-36 lg:w-56"
+              placeholder="Search projects"
+              onChange={(e) => setQueryParams({ search: e.target.value })}
+            />
+            {canCreateOrg && (
+              <Button data-testid="create-organization-btn" asChild>
+                <Link href={createOrganizationRoute}>
+                  <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  New Organization
+                </Link>
+              </Button>
+            )}
+          </>
+        ),
+      }}
+    >
       {showOnboarding && <Onboarding />}
       {organizations
-        .filter((org) => queryOrgId === undefined || org.id === queryOrgId)
         .sort((a, b) => {
           // sort demo org to the bottom
           const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
@@ -225,14 +311,13 @@ export const OrganizationProjectOverview = () => {
             {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
               <Divider />
             )}
-            <SingleOrganizationProjectOverview
+            <SingleOrganizationProjectOverviewTile
               orgId={org.id}
               search={search ?? undefined}
-              level={queryOrgId ? "h2" : "h3"}
             />
           </Fragment>
         ))}
-    </ScrollScreenPage>
+    </ContainerPage>
   );
 };
 

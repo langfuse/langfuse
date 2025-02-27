@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { LevelCountsDisplay } from "@/src/components/level-counts-display";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
@@ -7,9 +8,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { type ReactNode, useEffect } from "react";
+import { useEffect } from "react";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { z } from "zod";
 
@@ -25,15 +27,14 @@ export type EvaluatorDataRow = {
   scoreName: string;
   target: string; // "trace" or "dataset"
   filter: FilterState;
+  result: {
+    level: string;
+    count: number;
+    symbol: string;
+  }[];
 };
 
-export default function EvaluatorTable({
-  projectId,
-  menuItems,
-}: {
-  projectId: string;
-  menuItems?: ReactNode;
-}) {
+export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -81,7 +82,21 @@ export default function EvaluatorTable({
       size: 80,
       cell: (row) => {
         const status = row.getValue();
-        return <StatusBadge type={status.toLowerCase()} />;
+        return (
+          <StatusBadge
+            type={status.toLowerCase()}
+            className={row.getValue() === "FINISHED" ? "pl-3" : ""}
+          />
+        );
+      },
+    }),
+    columnHelper.accessor("result", {
+      header: "Result",
+      id: "result",
+      size: 150,
+      cell: (row) => {
+        const result = row.getValue();
+        return <LevelCountsDisplay counts={result} />;
       },
     }),
     columnHelper.accessor("createdAt", {
@@ -154,9 +169,44 @@ export default function EvaluatorTable({
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
+    const result = [
+      {
+        level: "pending",
+        count:
+          jobConfig.jobExecutionsByState.find((je) => je.status === "PENDING")
+            ?._count || 0,
+        symbol: "🕒",
+        customNumberFormatter: compactNumberFormatter,
+      },
+      {
+        level: "error",
+        count:
+          jobConfig.jobExecutionsByState.find((je) => je.status === "ERROR")
+            ?._count || 0,
+        symbol: "❌",
+        customNumberFormatter: compactNumberFormatter,
+      },
+      {
+        level: "succeeded",
+        count:
+          jobConfig.jobExecutionsByState.find((je) => je.status === "COMPLETED")
+            ?._count || 0,
+        symbol: "✅",
+        customNumberFormatter: compactNumberFormatter,
+      },
+    ];
+
+    const finalStatus =
+      jobConfig.timeScope.length === 1 &&
+      jobConfig.timeScope[0] === "EXISTING" &&
+      !jobConfig.jobExecutionsByState.some((je) => je.status === "PENDING") &&
+      jobConfig.jobExecutionsByState.reduce((acc, je) => acc + je._count, 0) > 0
+        ? "FINISHED"
+        : jobConfig.status;
+
     return {
       id: jobConfig.id,
-      status: jobConfig.status,
+      status: finalStatus,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
         ? {
@@ -168,12 +218,13 @@ export default function EvaluatorTable({
       scoreName: jobConfig.scoreName,
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),
+      result: result,
     };
   };
 
   return (
     <>
-      <DataTableToolbar columns={columns} actionButtons={menuItems} />
+      <DataTableToolbar columns={columns} />
       <DataTable
         columns={columns}
         data={

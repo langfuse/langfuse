@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.27.2",
+  "version": "3.33.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -13,7 +13,7 @@
     "start": "dotenv -e ../.env -- node dist/index.js",
     "build": "tsc",
     "dev": "dotenv -e ../.env -- nodemon src/index.ts",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 33",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 31",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/refill-ingestion-events.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts"
@@ -49,7 +49,7 @@
     "handlebars": "^4.7.8",
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
-    "jsonpath-plus": "10.2.0",
+    "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
     "lodash": "^4.17.21",
     "pg": "^8.13.0",

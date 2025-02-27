@@ -1,5 +1,4 @@
 import * as React from "react";
-import Header from "@/src/components/layouts/header";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { EvaluatorForm } from "@/src/ee/features/evals/components/evaluator-form";
@@ -14,7 +13,6 @@ import { useState } from "react";
 import TableLink from "@/src/components/table/table-link";
 import EvalLogTable from "@/src/ee/features/evals/components/eval-log";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -28,6 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import Page from "@/src/components/layouts/page";
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -59,7 +58,7 @@ export const EvaluatorDetail = () => {
     allTemplates.isLoading ||
     !allTemplates.data
   ) {
-    return <div>Loading...</div>;
+    return <div className="p-3">Loading...</div>;
   }
 
   if (evaluator.data && evaluator.data.evalTemplate === null) {
@@ -72,17 +71,19 @@ export const EvaluatorDetail = () => {
       : undefined;
 
   return (
-    <FullScreenPage>
-      <Header
-        title={evaluator.data ? `Evaluator ${evaluator.data.id}` : "Loading..."}
-        breadcrumb={[
+    <Page
+      headerProps={{
+        title: evaluator.data
+          ? `${evaluator.data.scoreName}: ${evaluator.data.id}`
+          : "Loading...",
+        itemType: "EVALUATOR",
+        breadcrumb: [
           {
             name: "Evaluators",
             href: `/project/${router.query.projectId as string}/evals`,
           },
-          { name: evaluator.data?.id },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsRight: (
           <>
             <StatusBadge
               type={evaluator.data?.status.toLowerCase()}
@@ -105,8 +106,9 @@ export const EvaluatorDetail = () => {
               />
             )}
           </>
-        }
-      />
+        ),
+      }}
+    >
       {existingEvaluator && (
         <TableWithMetadataWrapper
           tableComponent={
@@ -169,7 +171,7 @@ export const EvaluatorDetail = () => {
           }
         />
       )}
-    </FullScreenPage>
+    </Page>
   );
 };
 
@@ -221,7 +223,11 @@ export function DeactivateEvaluator({
       <PopoverTrigger asChild>
         <div className="flex items-center">
           <Switch
-            disabled={!hasAccess}
+            disabled={
+              !hasAccess ||
+              (evaluator?.timeScope?.length === 1 &&
+                evaluator.timeScope[0] === "EXISTING")
+            }
             checked={isActive}
             className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
           />

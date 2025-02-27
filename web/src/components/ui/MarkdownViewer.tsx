@@ -4,7 +4,6 @@ import {
   type ReactNode,
   type ReactElement,
   memo,
-  useState,
   isValidElement,
   Children,
   createElement,
@@ -17,9 +16,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
-import { Button } from "@/src/components/ui/button";
-import { Check, Copy, ImageOff, Info } from "lucide-react";
-import { BsMarkdown } from "react-icons/bs";
+import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
@@ -35,6 +32,7 @@ import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -263,88 +261,60 @@ const parseOpenAIContentParts = (
 export function MarkdownView({
   markdown,
   title,
-  className,
   customCodeHeaderClassName,
   audio,
   media,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
-  className?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
 }) {
-  const [isCopied, setIsCopied] = useState(false);
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
 
-  const handleCopy = () => {
-    setIsCopied(true);
+  const handleOnCopy = () => {
     const rawText =
       typeof markdown === "string"
         ? markdown
         : parseOpenAIContentParts(markdown);
     void navigator.clipboard.writeText(rawText);
-    setTimeout(() => setIsCopied(false), 1000);
+  };
+
+  const handleOnValueChange = () => {
+    setIsMarkdownEnabled(false);
+    capture("trace_detail:io_pretty_format_toggle_group", {
+      renderMarkdown: false,
+    });
   };
 
   return (
-    <div
-      className={cn("overflow-hidden rounded-md border", className)}
-      key={theme}
-    >
+    <div className={cn("overflow-hidden")} key={theme}>
       {title ? (
-        <div
-          className={cn(
-            title === "assistant" || title === "Output"
-              ? "dark:border-accent-dark-green"
-              : "",
-            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
-          )}
-        >
-          {title}
-          <div className="flex items-center gap-1">
-            <Button
-              title="Disable Markdown"
-              variant="ghost"
-              size="icon-xs"
-              type="button"
-              onClick={() => {
-                setIsMarkdownEnabled(false);
-                capture("trace_detail:io_pretty_format_toggle_group", {
-                  renderMarkdown: false,
-                });
-              }}
-              className="hover:bg-border"
-            >
-              <BsMarkdown className="h-4 w-4" />
-            </Button>
-            <Button
-              title="Copy to clipboard"
-              variant="ghost"
-              size="icon-xs"
-              type="button"
-              onClick={handleCopy}
-              className="-mr-2 hover:bg-border"
-            >
-              {isCopied ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-          </div>
-        </div>
+        <MarkdownJsonViewHeader
+          title={title}
+          handleOnValueChange={handleOnValueChange}
+          handleOnCopy={handleOnCopy}
+        />
       ) : null}
-      <div className="grid grid-flow-row gap-2 p-3">
+      <div
+        className={cn(
+          "grid grid-flow-row gap-2 rounded-sm border p-3",
+          title === "assistant" || title === "Output"
+            ? "bg-accent-light-green dark:border-accent-dark-green"
+            : "",
+          title === "system" || title === "Input"
+            ? "bg-primary-foreground"
+            : "",
+        )}
+      >
         {typeof markdown === "string" ? (
           // plain string
           <MarkdownRenderer
             markdown={markdown}
             theme={theme}
-            className={className}
             customCodeHeaderClassName={customCodeHeaderClassName}
           />
         ) : (
@@ -355,7 +325,6 @@ export function MarkdownView({
                 key={index}
                 markdown={content.text}
                 theme={theme}
-                className={className}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
             ) : content.type === "image_url" ? (
@@ -390,7 +359,6 @@ export function MarkdownView({
             <MarkdownRenderer
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
-              className={className}
               customCodeHeaderClassName={customCodeHeaderClassName}
             />
             <LangfuseMediaView

@@ -1,6 +1,6 @@
 import { type IngestionEventType } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { ObservationLevel } from "@prisma/client";
+import { ObservationLevel } from "@langfuse/shared";
 
 const convertNanoTimestampToISO = (
   timestamp:
@@ -131,6 +131,13 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
+  // MLFlow sets mlflow.spanInputs and mlflow.spanOutputs
+  input = attributes["mlflow.spanInputs"];
+  output = attributes["mlflow.spanOutputs"];
+  if (input || output) {
+    return { input, output };
+  }
+
   // TraceLoop sets traceloop.entity.input and traceloop.entity.output
   input = attributes["traceloop.entity.input"];
   output = attributes["traceloop.entity.output"];
@@ -168,6 +175,26 @@ const extractInputAndOutput = (
   }
 
   return { input: null, output: null };
+};
+
+const extractEnvironment = (
+  attributes: Record<string, unknown>,
+  resourceAttributes: Record<string, unknown>,
+): string => {
+  const environmentAttributeKeys = [
+    "langfuse.environment",
+    "deployment.environment.name",
+    "deployment.environment",
+  ];
+  for (const key of environmentAttributeKeys) {
+    if (resourceAttributes[key]) {
+      return resourceAttributes[key] as string;
+    }
+    if (attributes[key]) {
+      return attributes[key] as string;
+    }
+  }
+  return "default";
 };
 
 const extractUserId = (
@@ -225,6 +252,7 @@ const extractModelName = (
     "gen_ai.request.model",
     "gen_ai.response.model",
     "llm.model_name",
+    "model",
   ];
   for (const key of modelNameKeys) {
     if (attributes[key]) {
@@ -297,7 +325,13 @@ export const convertOtelSpanToIngestionEvent = (
           return acc;
         }, {}) ?? {};
 
-      if (!span?.parentSpanId) {
+      const parentObservationId = span?.parentSpanId
+        ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
+            "hex",
+          )
+        : null;
+
+      if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
@@ -308,9 +342,19 @@ export const convertOtelSpanToIngestionEvent = (
             resourceAttributes,
             scope: scopeSpan?.scope,
           },
-          version: resourceAttributes?.["service.version"] ?? null,
+          version:
+            attributes?.["langfuse.version"] ??
+            resourceAttributes?.["service.version"] ??
+            null,
+          release: attributes?.["langfuse.release"] ?? null,
           userId: extractUserId(attributes),
           sessionId: extractSessionId(attributes),
+          public:
+            attributes?.["langfuse.public"] === true ||
+            attributes?.["langfuse.public"] === "true",
+          tags: attributes?.["langfuse.tags"] ?? [],
+
+          environment: extractEnvironment(attributes, resourceAttributes),
 
           // Input and Output
           ...extractInputAndOutput(span?.events ?? [], attributes),
@@ -329,14 +373,12 @@ export const convertOtelSpanToIngestionEvent = (
         traceId: Buffer.from(span.traceId?.data ?? span.traceId).toString(
           "hex",
         ),
-        parentObservationId: span?.parentSpanId
-          ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
-              "hex",
-            )
-          : null,
+        parentObservationId,
         name: span.name,
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
+
+        environment: extractEnvironment(attributes, resourceAttributes),
 
         // Additional fields
         metadata: {
@@ -348,8 +390,16 @@ export const convertOtelSpanToIngestionEvent = (
           span.status?.code === 2
             ? ObservationLevel.ERROR
             : ObservationLevel.DEFAULT,
+        statusMessage: span.status?.message ?? null,
+        version:
+          attributes?.["langfuse.version"] ??
+          resourceAttributes?.["service.version"] ??
+          null,
         modelParameters: extractModelParameters(attributes) as any,
         model: extractModelName(attributes),
+
+        promptName: attributes?.["langfuse.prompt.name"] ?? null,
+        promptVersion: attributes?.["langfuse.prompt.version"] ?? null,
 
         usageDetails: extractUsageDetails(attributes) as any,
         costDetails: extractCostDetails(attributes) as any,

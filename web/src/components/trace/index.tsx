@@ -2,8 +2,6 @@ import { type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
-
-import Header from "@/src/components/layouts/header";
 import { Badge } from "@/src/components/ui/badge";
 import {
   Select,
@@ -34,14 +32,18 @@ import {
   ListTree,
   Network,
   Percent,
+  Share2Icon,
 } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useCallback, useState } from "react";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { type APIScore, ObservationLevel } from "@langfuse/shared";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import {
+  ObservationLevel,
+  type APIScore,
+  type ObservationLevelType,
+} from "@langfuse/shared";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
@@ -51,6 +53,9 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import Page from "@/src/components/layouts/page";
+import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
+import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
 
 export function Trace(props: {
   observations: Array<ObservationReturnType>;
@@ -62,6 +67,7 @@ export function Trace(props: {
   projectId: string;
   viewType?: "detailed" | "focused";
   isValidObservationId?: boolean;
+  defaultMinObservationLevel?: ObservationLevelType;
 }) {
   const viewType = props.viewType ?? "detailed";
   const isValidObservationId = props.isValidObservationId ?? true;
@@ -86,7 +92,9 @@ export function Trace(props: {
   );
 
   const [minObservationLevel, setMinObservationLevel] =
-    useState<ObservationLevel>(ObservationLevel.DEFAULT);
+    useState<ObservationLevelType>(
+      props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
+    );
 
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
@@ -238,7 +246,9 @@ export function Trace(props: {
             <Percent className="h-4 w-4" />
           </Toggle>
           <Select
-            onValueChange={(v: ObservationLevel) => setMinObservationLevel(v)}
+            onValueChange={(v: ObservationLevelType) =>
+              setMinObservationLevel(v)
+            }
             value={minObservationLevel}
           >
             <SelectTrigger
@@ -374,20 +384,22 @@ export function TracePage({
       />
     );
 
-  if (!trace.data) return <div>loading...</div>;
+  if (!trace.data) return <div className="p-3">Loading...</div>;
 
   return (
-    <FullScreenPage>
-      <Header
-        title="Trace Detail"
-        breadcrumb={[
+    <Page
+      headerProps={{
+        title: trace.data.name
+          ? `${trace.data.name}: ${trace.data.id}`
+          : trace.data.id,
+        itemType: "TRACE",
+        breadcrumb: [
           {
             name: "Traces",
             href: `/project/${router.query.projectId as string}/traces`,
           },
-          { name: traceId },
-        ]}
-        actionButtons={
+        ],
+        actionButtonsLeft: (
           <>
             <StarTraceDetailsToggle
               traceId={trace.data.id}
@@ -399,6 +411,10 @@ export function TracePage({
               projectId={trace.data.projectId}
               isPublic={trace.data.public}
             />
+          </>
+        ),
+        actionButtonsRight: (
+          <>
             <DetailPageNav
               currentId={traceId}
               path={(entry) => {
@@ -429,11 +445,13 @@ export function TracePage({
                 type="trace"
                 redirectUrl={`/project/${router.query.projectId as string}/traces`}
                 deleteConfirmation={trace.data.name ?? ""}
+                icon
               />
             )}
           </>
-        }
-      />
+        ),
+      }}
+    >
       <div className="flex flex-wrap gap-2">
         {trace.data.sessionId ? (
           <Link
@@ -487,6 +505,15 @@ export function TracePage({
             <ListTree className="mr-1 h-4 w-4"></ListTree>
             Timeline
           </TabsBarTrigger>
+          {isLanggraphTrace(trace.data.observations) ? (
+            <TabsBarTrigger value="graph">
+              <span className="flex flex-row items-center">
+                <Share2Icon className="mr-1 h-4 w-4"></Share2Icon>
+                Graph
+              </span>
+              <Badge className="ml-2">Beta</Badge>
+            </TabsBarTrigger>
+          ) : null}
         </TabsBarList>
         <TabsBarContent
           value="details"
@@ -512,7 +539,21 @@ export function TracePage({
             projectId={trace.data.projectId}
           />
         </TabsBarContent>
+        {isLanggraphTrace(trace.data.observations) ? (
+          <TabsBarContent
+            value="graph"
+            className="mt-5 h-full flex-1 overflow-y-auto md:overflow-hidden md:overflow-y-hidden"
+          >
+            <TraceGraphView
+              key={trace.data.id}
+              trace={trace.data}
+              scores={trace.data.scores}
+              observations={trace.data.observations}
+              projectId={trace.data.projectId}
+            />
+          </TabsBarContent>
+        ) : null}
       </TabsBar>
-    </FullScreenPage>
+    </Page>
   );
 }

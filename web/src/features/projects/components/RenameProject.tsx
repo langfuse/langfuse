@@ -60,7 +60,7 @@ export default function RenameProject() {
 
   return (
     <div>
-      <Header title="Project Name" level="h3" />
+      <Header title="Project Name" />
       <Card className="mb-4 p-3">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">

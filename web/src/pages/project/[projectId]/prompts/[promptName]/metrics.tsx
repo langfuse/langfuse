@@ -1,4 +1,3 @@
-import Header from "@/src/components/layouts/header";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -8,7 +7,11 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import Link from "next/link";
 import TableLink from "@/src/components/table/table-link";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -19,7 +22,8 @@ import { verifyAndPrefixScoreDataAgainstKeys } from "@/src/features/scores/compo
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import Page from "@/src/components/layouts/page";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -166,11 +170,11 @@ export default function PromptVersionTable() {
         const values: string[] = row.getValue("labels");
         return (
           values && (
-            <div className="flex gap-1">
+            <div className="-mr-8 flex max-h-full flex-wrap gap-1">
               {values.map((value) => (
                 <div
                   key={value}
-                  className="h-6 content-center rounded-sm bg-secondary px-1 text-center text-xs font-semibold text-secondary-foreground"
+                  className="max-h-fit min-h-6 w-fit content-center rounded-sm bg-secondary px-1 text-left text-xs font-semibold text-secondary-foreground"
                 >
                   {value}
                 </div>
@@ -374,15 +378,16 @@ export default function PromptVersionTable() {
       : [];
 
   return (
-    <FullScreenPage>
-      <Header
-        title={promptName}
-        help={{
+    <Page
+      headerProps={{
+        title: promptName,
+        itemType: "PROMPT",
+        help: {
           description:
             "You can use this prompt within your application through the Langfuse SDKs and integrations. Refer to the documentation for more information.",
           href: "https://langfuse.com/docs/prompts",
-        }}
-        breadcrumb={[
+        },
+        breadcrumb: [
           {
             name: "Prompts",
             href: `/project/${projectId}/prompts/`,
@@ -392,24 +397,31 @@ export default function PromptVersionTable() {
             href: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}`,
           },
           { name: `Metrics` },
-        ]}
-        actionButtons={
-          <>
-            <Tabs value="metrics">
-              <TabsList>
-                <TabsTrigger value="editor" asChild>
-                  <Link
-                    href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}
-                  >
-                    Editor
-                  </Link>
-                </TabsTrigger>
-                <TabsTrigger value="metrics">Metrics</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </>
-        }
-      />
+        ],
+        actionButtonsRight: (
+          <DetailPageNav
+            key="nav"
+            currentId={promptName}
+            path={(entry) => `/project/${projectId}/prompts/${entry.id}`}
+            listKey="prompts"
+          />
+        ),
+        tabsComponent: (
+          <TabsBar value="metrics">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="versions" asChild>
+                <Link
+                  href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}
+                >
+                  Versions
+                </Link>
+              </TabsBarTrigger>
+              <TabsBarTrigger value="metrics">Metrics</TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
+        ),
+      }}
+    >
       <div className="gap-3">
         <DataTableToolbar
           columns={columns}
@@ -451,6 +463,6 @@ export default function PromptVersionTable() {
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
-    </FullScreenPage>
+    </Page>
   );
 }

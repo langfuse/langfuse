@@ -109,7 +109,6 @@ export function DatasetRunsTable(props: {
   datasetId: string;
   selectedMetrics: string[];
   setScoreOptions: (options: { key: string; value: string }[]) => void;
-  menuItems?: React.ReactNode;
 }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -357,7 +356,6 @@ export function DatasetRunsTable(props: {
               <DeleteDatasetRunButton
                 projectId={props.projectId}
                 datasetRunId={id}
-                fullWidth
               />
             </DropdownMenuContent>
           </DropdownMenu>
@@ -453,7 +451,6 @@ export function DatasetRunsTable(props: {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[
-          props.menuItems,
           Object.keys(selectedRows).filter((runId) =>
             runs.data?.runs.map((run) => run.id).includes(runId),
           ).length > 0 ? (

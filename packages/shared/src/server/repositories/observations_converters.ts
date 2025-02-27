@@ -1,14 +1,14 @@
-import {
-  Observation,
-  ObservationView,
-  ObservationType,
-  ObservationLevel,
-  Prisma,
-} from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { ObservationRecordReadType } from "./definitions";
 import { parseJsonPrioritised } from "../../utils/json";
+import {
+  Observation,
+  ObservationView,
+  ObservationType,
+  ObservationLevelType,
+} from "./types";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
@@ -55,6 +55,7 @@ export const convertObservation = (
     traceId: record.trace_id ?? null,
     projectId: record.project_id,
     type: record.type as ObservationType,
+    environment: record.environment,
     parentObservationId: record.parent_observation_id ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(record.start_time),
     endTime: record.end_time
@@ -69,7 +70,7 @@ export const convertObservation = (
           val && parseJsonPrioritised(val),
         ]),
       ),
-    level: record.level as ObservationLevel,
+    level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
     input: (record.input

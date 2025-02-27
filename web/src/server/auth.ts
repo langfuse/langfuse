@@ -50,6 +50,7 @@ import {
 } from "@/src/features/entitlements/server/getPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -111,8 +112,7 @@ const staticProviders: Provider[] = [
         }
       }
 
-      const blockedDomains =
-        env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+      const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
       if (domain && blockedDomains.includes(domain)) {
         throw new Error(

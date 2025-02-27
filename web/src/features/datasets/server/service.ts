@@ -162,7 +162,10 @@ export const insertPostgresDatasetRunsIntoClickhouse = async (
     })),
   );
 
-  await clickhouseClient({ session_id: clickhouseSession }).insert({
+  await clickhouseClient({
+    tags: { feature: "dataset", projectId },
+    opts: { session_id: clickhouseSession },
+  }).insert({
     table: tableName,
     values: rows,
     format: "JSONEachRow",
@@ -190,6 +193,7 @@ export const createTempTableInClickhouse = async (
     query,
     params: { tableName },
     clickhouseConfigs: { session_id: clickhouseSession },
+    tags: { feature: "dataset" },
   });
 };
 
@@ -204,6 +208,7 @@ export const deleteTempTableInClickhouse = async (
     query,
     params: { tableName },
     clickhouseConfigs: { session_id: sessionId },
+    tags: { feature: "dataset" },
   });
 };
 
@@ -270,6 +275,7 @@ const getScoresFromTempTable = async (
       datasetId: input.datasetId,
     },
     clickhouseConfigs: { session_id: clickhouseSession },
+    tags: { feature: "dataset", projectId: input.projectId },
   });
 
   return rows.map((row) => ({ ...convertToScore(row), run_id: row.run_id }));
@@ -319,6 +325,7 @@ const getObservationLatencyAndCostForDataset = async (
       datasetId: input.datasetId,
     },
     clickhouseConfigs: { session_id: clickhouseSession },
+    tags: { feature: "dataset", projectId: input.projectId ?? "" },
   });
 
   return rows.map((row) => ({
@@ -368,6 +375,7 @@ const getTraceLatencyAndCostForDataset = async (
       datasetId: input.datasetId,
     },
     clickhouseConfigs: { session_id: clickhouseSession },
+    tags: { feature: "dataset", projectId: input.projectId ?? "" },
   });
 
   return rows.map((row) => ({
@@ -487,21 +495,32 @@ export const getRunItemsByRunIdOrItemId = async (
   projectId: string,
   runItems: DatasetRunItems[],
 ) => {
+  const minTimestamp = runItems
+    .map((ri) => ri.createdAt)
+    .sort((a, b) => a.getTime() - b.getTime())
+    .shift();
+  // We assume that all events started at most 24h before the earliest run item.
+  const filterTimestamp = minTimestamp
+    ? new Date(minTimestamp.getTime() - 24 * 60 * 60 * 1000)
+    : undefined;
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
       getScoresForTraces({
         projectId,
         traceIds: runItems.map((ri) => ri.traceId),
+        timestamp: filterTimestamp,
       }),
       getLatencyAndTotalCostForObservations(
         projectId,
         runItems
           .filter((ri) => ri.observationId !== null)
           .map((ri) => ri.observationId) as string[],
+        filterTimestamp,
       ),
       getLatencyAndTotalCostForObservationsByTraces(
         projectId,
         runItems.map((ri) => ri.traceId),
+        filterTimestamp,
       ),
     ]);
 

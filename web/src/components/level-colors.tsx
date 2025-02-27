@@ -1,4 +1,4 @@
-import { type ObservationLevel } from "@langfuse/shared";
+import { type ObservationLevelType } from "@langfuse/shared";
 
 export const LevelColors = {
   DEFAULT: { text: "", bg: "" },
@@ -15,5 +15,5 @@ export const LevelSymbols = {
 };
 
 export const formatAsLabel = (countLabel: string) => {
-  return countLabel.replace(/Count$/, "").toUpperCase() as ObservationLevel;
+  return countLabel.replace(/Count$/, "").toUpperCase() as ObservationLevelType;
 };

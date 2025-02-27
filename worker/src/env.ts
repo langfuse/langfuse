@@ -45,6 +45,10 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
   BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
+  LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
+    .number()
+    .positive()
+    .default(50_000),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   SMTP_CONNECTION_URL: z.string().optional(),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
@@ -87,8 +91,11 @@ const EnvSchema = z.object({
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
-
   LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
     .default(25),
@@ -144,6 +151,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED: z

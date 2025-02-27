@@ -28,7 +28,7 @@
    <br/>
    <span>Langfuseは、サポートと機能リクエストのために <a href="https://github.com/orgs/langfuse/discussions"><strong>Github Discussions</strong></a> を利用しています。</span>
    <br/>
-   <span><b>採用中です。</b> <a href="https://langfuse.com/careers"><strong>当社で働く</strong></a> （製品エンジニアリングおよびテクニカル・ゴートゥーマーケットのポジション）への応募をお待ちしています。</span>
+   <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>チームに加わる</strong></a> （製品エンジニアリングおよびテクニカルGTMのポジション）への応募をお待ちしています。</span>
    <br/>
    <br/>
    <div>
@@ -71,7 +71,7 @@
 
 Langfuseは**オープンソースのLLMエンジニアリング**プラットフォームです。  
 チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。  
-Langfuseは**数分でセルフホスト可能**で、**実績に裏打ちされた**システムです。
+Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。
 
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
 
@@ -173,6 +173,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 | [Mirascope](https://langfuse.com/docs/integrations/mirascope)             | ライブラリ         | LLMアプリケーション構築用のPythonツールキット                                                               |
 | [Ollama](https://langfuse.com/docs/integrations/ollama)                   | モデル（ローカル） | オープンソースLLMを手軽にローカルで実行するためのツール                                                     |
 | [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock)     | モデル             | AWS上でファウンデーションモデルやファインチューニング済みモデルを実行                                         |
+| [Google VertexAI and Gemini](https://langfuse.com/docs/integrations/google-vertex-ai)     | モデル             | Google上でファウンデーションモデルやファインチューニング済みモデルを実行                                         |
 | [AutoGen](https://langfuse.com/docs/integrations/autogen)                 | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                                               |
 | [Flowise](https://langfuse.com/docs/integrations/flowise)                 | チャット/エージェント UI | JS/TSのノーコードビルダーで、カスタマイズ可能なLLMフローを構築                                              |
 | [Langflow](https://langfuse.com/docs/integrations/langflow)               | チャット/エージェント UI | PythonベースのUIで、react-flowを用いてLangChainの実験やプロトタイピングを容易に実現                           |
@@ -258,6 +259,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 - 当社の[ドキュメント](https://langfuse.com/docs)は、回答を探すための最良の出発点です。内容が充実しており、継続的なメンテナンスに努めています。GitHubを通じてドキュメントへの修正提案も可能です。
 - よくある質問は[Langfuse FAQ](https://langfuse.com/faq)にまとめられています。
 - [Ask AI](https://langfuse.com/docs/ask-ai)を利用すれば、質問に対して即座に回答を得ることができます。
+- 日本語のサポートや決済, 請求書払いなどをお求めの場合は、日本のリセラー (https://gao-ai.com) にご相談ください。
 
 サポートチャネル:
 
@@ -348,9 +350,7 @@ Langfuseを利用している主要なオープンソースPythonプロジェク
 
 ### テレメトリー
 
-デフォルトでは、Langfuseはセルフホストされたインスタンスの基本的な使用統計情報を中央サーバ（PostHog）へ自動的に報告します。
-
-これにより、以下が可能となります:
+デフォルトでは、Langfuseは以下の目的でセルフホストされたインスタンスの基本的な使用統計情報を中央サーバ（PostHog）へ自動的に報告します。
 
 1. Langfuseの利用状況を把握し、最も重要な機能の改善に役立てる
 2. 内部および外部（例：資金調達）のレポートのために全体の利用状況を追跡する

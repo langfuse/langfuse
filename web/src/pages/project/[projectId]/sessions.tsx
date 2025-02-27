@@ -1,24 +1,46 @@
-import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import Page from "@/src/components/layouts/page";
+import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
+import { api } from "@/src/utils/api";
 
 export default function Sessions() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
+  const { data: hasAnySession, isLoading } = api.sessions.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchInterval: 10_000,
+    },
+  );
+
+  const showOnboarding = !isLoading && !hasAnySession;
+
   return (
-    <FullScreenPage>
-      <Header
-        title="Sessions"
-        help={{
+    <Page
+      headerProps={{
+        title: "Sessions",
+        help: {
           description:
             "A session is a collection of related traces, such as a conversation or thread. To begin, add a sessionId to the trace.",
           href: "https://langfuse.com/docs/sessions",
-        }}
-      />
-
-      <SessionsTable projectId={projectId} />
-    </FullScreenPage>
+        },
+      }}
+      scrollable={showOnboarding}
+    >
+      {/* Show onboarding screen if user has no sessions */}
+      {showOnboarding ? (
+        <SessionsOnboarding />
+      ) : (
+        <SessionsTable projectId={projectId} />
+      )}
+    </Page>
   );
 }

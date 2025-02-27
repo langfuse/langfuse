@@ -1,24 +1,33 @@
-import Header from "@/src/components/layouts/header";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import Link from "next/link";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DeleteButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
-import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, MoreVertical } from "lucide-react";
+import Page from "@/src/components/layouts/page";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/src/components/ui/dropdown-menu";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -32,27 +41,31 @@ export default function DatasetItems() {
   });
 
   return (
-    <FullScreenPage>
-      <Header
-        title={dataset.data?.name ?? ""}
-        help={
-          dataset.data?.description
-            ? {
-                description: dataset.data.description,
-              }
-            : undefined
-        }
-        breadcrumb={[
+    <Page
+      headerProps={{
+        title: dataset.data?.name ?? "",
+        itemType: "DATASET",
+        help: dataset.data?.description
+          ? {
+              description: dataset.data.description,
+            }
+          : undefined,
+        breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
-          {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
-          },
-          {
-            name: "Items",
-          },
-        ]}
-        actionButtons={
+        ],
+        tabsComponent: (
+          <TabsBar value="items">
+            <TabsBarList className="justify-start">
+              <TabsBarTrigger value="runs" asChild>
+                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
+                  Runs
+                </Link>
+              </TabsBarTrigger>
+              <TabsBarTrigger value="items">Items</TabsBarTrigger>
+            </TabsBarList>
+          </TabsBar>
+        ),
+        actionButtonsRight: [
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <UploadDatasetCsvButton
@@ -76,7 +89,7 @@ export default function DatasetItems() {
                   </div>
                   <div>
                     <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownOrJsonView
+                    <MarkdownJsonView
                       content={dataset.data?.metadata ?? null}
                     />
                   </div>
@@ -90,49 +103,48 @@ export default function DatasetItems() {
               }
               listKey="datasets"
             />
-            <DatasetActionButton
-              mode="update"
-              projectId={projectId}
-              datasetId={datasetId}
-              datasetName={dataset.data?.name ?? ""}
-              datasetDescription={dataset.data?.description ?? undefined}
-              datasetMetadata={dataset.data?.metadata}
-              icon
-            />
-            <DuplicateDatasetButton
-              datasetId={datasetId}
-              projectId={projectId}
-            />
-            <DeleteButton
-              itemId={datasetId}
-              projectId={projectId}
-              isTableAction={false}
-              scope="datasets:CUD"
-              invalidateFunc={() => void utils.datasets.invalidate()}
-              type="dataset"
-              redirectUrl={`/project/${projectId}/datasets`}
-              deleteConfirmation={dataset.data?.name}
-            />
-          </>
-        }
-      />
-
-      <DatasetItemsTable
-        projectId={projectId}
-        datasetId={datasetId}
-        menuItems={
-          <Tabs value="items">
-            <TabsList>
-              <TabsTrigger value="runs" asChild>
-                <Link href={`/project/${projectId}/datasets/${datasetId}`}>
-                  Runs
-                </Link>
-              </TabsTrigger>
-              <TabsTrigger value="items">Items</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
-      />
-    </FullScreenPage>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                <DropdownMenuItem asChild>
+                  <DatasetActionButton
+                    mode="update"
+                    projectId={projectId}
+                    datasetId={datasetId}
+                    datasetName={dataset.data?.name ?? ""}
+                    datasetDescription={dataset.data?.description ?? undefined}
+                    datasetMetadata={dataset.data?.metadata}
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <DuplicateDatasetButton
+                    datasetId={datasetId}
+                    projectId={projectId}
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <DeleteButton
+                    itemId={datasetId}
+                    projectId={projectId}
+                    isTableAction={false}
+                    scope="datasets:CUD"
+                    invalidateFunc={() => void utils.datasets.invalidate()}
+                    type="dataset"
+                    redirectUrl={`/project/${projectId}/datasets`}
+                    deleteConfirmation={dataset.data?.name}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>,
+        ],
+      }}
+    >
+      <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+    </Page>
   );
 }

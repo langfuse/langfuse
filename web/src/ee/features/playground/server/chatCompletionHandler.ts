@@ -77,7 +77,9 @@ export default async function chatCompletionHandler(req: NextRequest) {
           message: err.message,
           error: err,
         },
-        { status: 500 },
+        {
+          status: (err as any)?.response?.status ?? (err as any)?.status ?? 500,
+        },
       );
     }
 

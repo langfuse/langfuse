@@ -9,49 +9,22 @@ export const processPostgresTraceDelete = async (
     `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId} from Postgres`,
   );
   try {
-    await prisma.$transaction([
-      prisma.trace.deleteMany({
-        where: {
-          id: {
-            in: traceIds,
-          },
-          projectId: projectId,
+    await prisma.jobExecution.updateMany({
+      where: {
+        jobInputTraceId: {
+          in: traceIds,
         },
-      }),
-      prisma.observation.deleteMany({
-        where: {
-          traceId: {
-            in: traceIds,
-          },
-          projectId: projectId,
+        projectId: projectId,
+      },
+      data: {
+        jobInputTraceId: {
+          set: null,
         },
-      }),
-      prisma.score.deleteMany({
-        where: {
-          traceId: {
-            in: traceIds,
-          },
-          projectId: projectId,
+        jobInputObservationId: {
+          set: null,
         },
-      }),
-      // given traces and observations live in ClickHouse we cannot enforce a fk relationship and onDelete: setNull
-      prisma.jobExecution.updateMany({
-        where: {
-          jobInputTraceId: {
-            in: traceIds,
-          },
-          projectId: projectId,
-        },
-        data: {
-          jobInputTraceId: {
-            set: null,
-          },
-          jobInputObservationId: {
-            set: null,
-          },
-        },
-      }),
-    ]);
+      },
+    });
   } catch (e) {
     logger.error(
       `Error deleting trace ${JSON.stringify(traceIds)} in project ${projectId} from Postgres`,

@@ -48,6 +48,10 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
+      REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
+      REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
+      REDIS_TLS_KEY: ${REDIS_TLS_KEY:-/certs/redis.key}
     restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/public/health"]
@@ -76,8 +80,6 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server
     user: "101:101"
-    container_name: clickhouse
-    hostname: clickhouse
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
@@ -97,7 +99,6 @@ services:
 
   minio:
     image: minio/minio
-    container_name: minio
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'

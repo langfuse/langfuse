@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
-describe("traces trps", () => {
+describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   beforeEach(async () => await pruneDatabase());
@@ -105,6 +105,7 @@ describe("traces trps", () => {
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
         projectId: projectId,
+        environment: "default",
         bookmarked: false,
         public: false,
         traces: expect.arrayContaining([
@@ -126,6 +127,32 @@ describe("traces trps", () => {
         totalCost: expect.any(Number),
         users: expect.arrayContaining([trace.user_id, trace2.user_id]),
       });
+    });
+  });
+
+  describe("sessions.all", () => {
+    it("should handle large usage filters correctly", async () => {
+      // We expect that this doesn't throw an error due to a number overflow
+
+      // When
+      const sessions = await caller.sessions.all({
+        projectId,
+        orderBy: {
+          column: "createdAt",
+          order: "DESC",
+        },
+        filter: [
+          {
+            column: "Usage",
+            operator: ">=",
+            value: 3182169638,
+            type: "number",
+          },
+        ],
+      });
+
+      // Then
+      expect(sessions.sessions).toBeDefined();
     });
   });
 });
