@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { env } from "../env";
 
 const ENCRYPTION_KEY: string | undefined = env.ENCRYPTION_KEY; // Must be 256 bits (32 bytes, 64 hex characters)
-const IV_LENGTH: number = 12; // For AES-GCM, this is always 16
+const IV_LENGTH: number = 12; // For AES-GCM, this is always 12
 
 // Alternatively: openssl rand -hex 32
 export function keyGen() {
