@@ -34,6 +34,8 @@ export default async function chatCompletionHandler(req: NextRequest) {
       },
     });
 
+    console.log("LLMApiKey", JSON.stringify(LLMApiKey, null, 2));
+
     if (!LLMApiKey)
       throw new InvalidRequestError(
         `No ${modelParams.provider} API key found in project. Please add one in the project settings.`,
