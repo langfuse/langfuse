@@ -91,4 +91,22 @@ export const dashboardColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "model",
     uiTableName: "Model",
   },
+  {
+    uiTableName: "Trace Environment",
+    uiTableId: "traceEnvironment",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "t.environment",
+  },
+  {
+    uiTableName: "Observation Environment",
+    uiTableId: "observationEnvironment",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "o.environment",
+  },
+  {
+    uiTableName: "Score Environment",
+    uiTableId: "scoreEnvironment",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "environment",
+  },
 ];

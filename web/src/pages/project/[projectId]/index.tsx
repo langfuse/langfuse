@@ -17,7 +17,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -85,8 +85,48 @@ export default function Dashboard() {
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
   const [selectedEnvironments, setSelectedEnvironments] = useState<string[]>(
+    // Default to all environments that don't start with langfuse.
     environmentOptions.filter((env) => !env.startsWith("langfuse")),
   );
+
+  // Add effect to update filter state when environments change
+  useEffect(() => {
+    if (selectedEnvironments.length === 0) {
+      // Remove environment filter if no environments selected
+      setUserFilterState(
+        userFilterState.filter(
+          (f) => !f.column.endWith("Environment"),
+        ) as FilterState,
+      );
+    } else {
+      // Remove any existing environment filters and add new one
+      const withoutEnv = userFilterState.filter((f) =>
+        f.column.endsWith("Environment"),
+      );
+      const newFilterState: FilterState = [
+        ...withoutEnv,
+        {
+          type: "stringOptions" as const,
+          column: "traceEnvironment",
+          operator: "any of" as const,
+          value: selectedEnvironments,
+        },
+        {
+          type: "stringOptions" as const,
+          column: "observationEnvironment",
+          operator: "any of" as const,
+          value: selectedEnvironments,
+        },
+        {
+          type: "stringOptions" as const,
+          column: "scoreEnvironment",
+          operator: "any of" as const,
+          value: selectedEnvironments,
+        },
+      ];
+      setUserFilterState(newFilterState);
+    }
+  }, [selectedEnvironments, setUserFilterState, userFilterState]);
 
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
@@ -179,7 +219,7 @@ export default function Dashboard() {
           <MultiSelect
             title="Environment"
             values={selectedEnvironments}
-            onValueChange={setSelectedEnvironments}
+            onValueChange={useDebounce(setSelectedEnvironments)}
             options={environmentOptions.map((env) => ({
               value: env,
             }))}
