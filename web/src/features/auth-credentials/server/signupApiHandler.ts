@@ -73,7 +73,7 @@ export async function signupApiHandler(
     );
   } catch (error) {
     const message =
-      "Signup: Error creating user" +
+      "Signup: Error creating user: " +
       (error instanceof Error ? error.message : error);
     logger.warn(message, body.email.toLowerCase(), body.name);
     res.status(422).json({ message: message });
