@@ -495,21 +495,32 @@ export const getRunItemsByRunIdOrItemId = async (
   projectId: string,
   runItems: DatasetRunItems[],
 ) => {
+  const minTimestamp = runItems
+    .map((ri) => ri.createdAt)
+    .sort()
+    .shift();
+  // We assume that all events started at most 24h before the earliest run item.
+  const filterTimestamp = minTimestamp
+    ? new Date(minTimestamp.getTime() - 24 * 60 * 60 * 1000)
+    : undefined;
   const [traceScores, observationAggregates, traceAggregate] =
     await Promise.all([
       getScoresForTraces({
         projectId,
         traceIds: runItems.map((ri) => ri.traceId),
+        timestamp: filterTimestamp,
       }),
       getLatencyAndTotalCostForObservations(
         projectId,
         runItems
           .filter((ri) => ri.observationId !== null)
           .map((ri) => ri.observationId) as string[],
+        filterTimestamp,
       ),
       getLatencyAndTotalCostForObservationsByTraces(
         projectId,
         runItems.map((ri) => ri.traceId),
+        filterTimestamp,
       ),
     ]);
 
