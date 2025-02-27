@@ -305,7 +305,13 @@ export const convertOtelSpanToIngestionEvent = (
           return acc;
         }, {}) ?? {};
 
-      if (!span?.parentSpanId) {
+      const parentObservationId = span?.parentSpanId
+        ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
+            "hex",
+          )
+        : null;
+
+      if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
@@ -348,11 +354,7 @@ export const convertOtelSpanToIngestionEvent = (
         traceId: Buffer.from(span.traceId?.data ?? span.traceId).toString(
           "hex",
         ),
-        parentObservationId: span?.parentSpanId
-          ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
-              "hex",
-            )
-          : null,
+        parentObservationId,
         name: span.name,
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
