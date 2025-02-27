@@ -63,7 +63,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   );
 
   return (
-    <div className="grid h-full w-full gap-4 pb-2">
+    <div className="grid h-full w-full gap-4">
       <TraceGraphCanvas
         graph={graph}
         selectedNodeName={selectedNodeName}

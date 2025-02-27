@@ -116,15 +116,17 @@ export const ObservationPreview = ({
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-2 overflow-hidden">
-        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-center justify-between gap-2">
-          <div className="flex w-full flex-row items-center gap-2">
-            <ItemBadge type={preloadedObservation.type} isSmall />
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
+        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+          <div className="flex w-full flex-row items-start gap-2">
+            <div className="mt-1.5">
+              <ItemBadge type={preloadedObservation.type} isSmall />
+            </div>
             <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
               {preloadedObservation.name}
             </span>
           </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
+          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
             {observationWithInputAndOutput.data && (
               <NewDatasetItemFromTrace
                 traceId={preloadedObservation.traceId}
@@ -339,7 +341,7 @@ export const ObservationPreview = ({
           onValueChange={(value) => setSelectedTab(value)}
         >
           {viewType === "detailed" && (
-            <TabsBarList className="flex h-9 min-w-0 max-w-full justify-start overflow-x-auto">
+            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
@@ -366,7 +368,7 @@ export const ObservationPreview = ({
           )}
           <TabsBarContent
             value="preview"
-            className="mt-0 flex max-h-full min-h-0 w-full flex-1 overflow-hidden pr-3"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
           >
             <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
               <div>

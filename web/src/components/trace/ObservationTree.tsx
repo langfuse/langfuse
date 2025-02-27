@@ -150,10 +150,12 @@ const ObservationTreeTraceNode = (props: {
     <CommandItem
       value={`${props.trace.name} TRACE`}
       className={cn(
-        "flex w-full rounded-md px-0",
+        "flex w-full rounded-md px-0 hover:rounded-lg",
         (props.currentObservationId === undefined ||
           props.currentObservationId === "") &&
           "bg-muted",
+        "after:hover:absolute after:hover:bottom-0 after:hover:left-0 after:hover:right-0 after:hover:h-[2px] after:hover:bg-background after:hover:content-['']",
+        "before:hover:absolute before:hover:left-0 before:hover:right-0 before:hover:top-0 before:hover:h-[2px] before:hover:bg-background before:hover:content-['']",
       )}
       style={{
         paddingTop: 0,
@@ -162,17 +164,21 @@ const ObservationTreeTraceNode = (props: {
       }}
       onSelect={() => props.setCurrentObservationId(undefined)}
     >
-      <div className="flex w-full flex-row items-start justify-between gap-1 py-2">
-        <div className="flex w-full flex-wrap items-center gap-2">
-          <ItemBadge
-            type="TRACE"
-            isSmall={true}
-            className="flex-shrink-0 scale-75"
-          />
-          <span className="break-all text-sm">{props.trace.name}</span>
-          {props.comments && props.showComments ? (
-            <CommentCountIcon count={props.comments.get(props.trace.id)} />
-          ) : null}
+      <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
+        <div className="flex w-full flex-col items-start gap-2 -space-y-1">
+          <div className="flex flex-wrap gap-2">
+            <ItemBadge
+              type="TRACE"
+              isSmall={true}
+              className="flex-shrink-0 scale-75"
+            />
+            <span className="break-all text-sm font-medium">
+              {props.trace.name}
+            </span>
+            {props.comments && props.showComments ? (
+              <CommentCountIcon count={props.comments.get(props.trace.id)} />
+            ) : null}
+          </div>
 
           {props.showMetrics && (
             <div className="flex gap-2">
@@ -341,8 +347,10 @@ const ObservationTreeNodeCard = ({
     <CommandItem
       value={`${observation.name} ${observation.type} ${observation.id}`}
       className={cn(
-        "flex w-full px-0",
+        "relative flex w-full rounded-md px-0 hover:rounded-lg hover:bg-accent",
         currentObservationId === observation.id && "bg-muted",
+        "after:hover:absolute after:hover:bottom-0 after:hover:left-0 after:hover:right-0 after:hover:h-[2px] after:hover:bg-background after:hover:content-['']",
+        "before:hover:absolute before:hover:left-0 before:hover:right-0 before:hover:top-0 before:hover:h-[2px] before:hover:bg-background before:hover:content-['']",
       )}
       style={{
         paddingTop: 0,
@@ -360,7 +368,7 @@ const ObservationTreeNodeCard = ({
         {/* Node content */}
         <div
           className={cn(
-            "flex w-full flex-wrap items-center gap-2 space-y-0.5 rounded-sm py-2",
+            "-space-y- flex w-full flex-wrap items-center gap-2 py-2",
           )}
           ref={currentObservationRef}
         >
@@ -378,7 +386,22 @@ const ObservationTreeNodeCard = ({
             {comments && showComments ? (
               <CommentCountIcon count={comments.get(observation.id)} />
             ) : null}
+            {/* Level badge */}
+            {observation.level !== "DEFAULT" ? (
+              <div className="flex">
+                <span
+                  className={cn(
+                    "rounded-sm p-0.5 text-xs",
+                    LevelColors[observation.level].bg,
+                    LevelColors[observation.level].text,
+                  )}
+                >
+                  {observation.level}
+                </span>
+              </div>
+            ) : null}
           </div>
+          {/* Metrics on their own line */}
           {showMetrics && (
             <>
               {(observation.promptTokens ||
@@ -386,7 +409,7 @@ const ObservationTreeNodeCard = ({
                 observation.totalTokens ||
                 duration ||
                 totalCost) && (
-                <div className="contents">
+                <div className="flex w-full flex-wrap gap-2">
                   {duration ? (
                     <span
                       className={cn(
@@ -430,22 +453,11 @@ const ObservationTreeNodeCard = ({
               )}
             </>
           )}
-          {observation.level !== "DEFAULT" ? (
-            <div className="flex">
-              <span
-                className={cn(
-                  "rounded-sm p-0.5 text-xs",
-                  LevelColors[observation.level].bg,
-                  LevelColors[observation.level].text,
-                )}
-              >
-                {observation.level}
-              </span>
-            </div>
-          ) : null}
+
+          {/* Scores on their own line */}
           {showScores &&
           scores.find((s) => s.observationId === observation.id) ? (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex w-full flex-wrap gap-1">
               <GroupedScoreBadges
                 scores={scores.filter(
                   (s) => s.observationId === observation.id,

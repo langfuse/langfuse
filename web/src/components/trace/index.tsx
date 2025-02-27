@@ -86,7 +86,7 @@ export function Trace(props: {
     setColorCodeMetricsOnObservationTree,
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
-
+  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
   );
@@ -245,6 +245,24 @@ export function Trace(props: {
                     <DropdownMenuLabel>Settings</DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
+                    {isLanggraphTrace(props.observations) && (
+                      <>
+                        <DropdownMenuItem
+                          asChild
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <span className="mr-2">Show Graph</span>
+                            <Switch
+                              checked={showGraph}
+                              onCheckedChange={(e) => setShowGraph(e)}
+                            />
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+
                     <DropdownMenuGroup>
                       <DropdownMenuItem
                         asChild
@@ -355,10 +373,10 @@ export function Trace(props: {
               </div>
             )}
           </div>
-          <div className="overflow-y-auto">
+          <div className="h-full overflow-hidden">
             {props.selectedTab?.includes("timeline") ? (
               <div className="h-full w-full flex-1 flex-col overflow-hidden">
-                {isLanggraphTrace(props.observations) ? (
+                {isLanggraphTrace(props.observations) && showGraph ? (
                   <div className="flex h-full w-full flex-col overflow-hidden">
                     <div className="h-1/2 w-full overflow-y-auto">
                       <TraceTimelineView
@@ -381,7 +399,7 @@ export function Trace(props: {
                     </div>
                     <div className="h-1/2 w-full overflow-hidden border-t">
                       <TraceGraphView
-                        key={`graph-${props.trace.id}`}
+                        key={`graph-timeline-${props.trace.id}`}
                         trace={props.trace}
                         scores={props.scores}
                         observations={props.observations}
@@ -390,46 +408,88 @@ export function Trace(props: {
                     </div>
                   </div>
                 ) : (
-                  <TraceTimelineView
-                    key={props.trace.id}
-                    trace={props.trace}
-                    scores={props.scores}
-                    observations={props.observations}
-                    projectId={props.trace.projectId}
-                    currentObservationId={currentObservationId ?? null}
-                    setCurrentObservationId={setCurrentObservationId}
-                    expandedItems={expandedItems}
-                    setExpandedItems={setExpandedItems}
-                    showMetrics={metricsOnObservationTree}
-                    showScores={scoresOnObservationTree}
-                    showComments={showComments}
-                    colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                    minLevel={minObservationLevel}
-                    setMinLevel={setMinObservationLevel}
-                  />
+                  <div className="flex h-full w-full overflow-auto">
+                    <TraceTimelineView
+                      key={props.trace.id}
+                      trace={props.trace}
+                      scores={props.scores}
+                      observations={props.observations}
+                      projectId={props.trace.projectId}
+                      currentObservationId={currentObservationId ?? null}
+                      setCurrentObservationId={setCurrentObservationId}
+                      expandedItems={expandedItems}
+                      setExpandedItems={setExpandedItems}
+                      showMetrics={metricsOnObservationTree}
+                      showScores={scoresOnObservationTree}
+                      showComments={showComments}
+                      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                      minLevel={minObservationLevel}
+                      setMinLevel={setMinObservationLevel}
+                    />
+                  </div>
                 )}
               </div>
             ) : (
-              <ObservationTree
-                observations={props.observations}
-                collapsedObservations={collapsedObservations}
-                toggleCollapsedObservation={toggleCollapsedObservation}
-                collapseAll={collapseAll}
-                expandAll={expandAll}
-                trace={props.trace}
-                scores={props.scores}
-                currentObservationId={currentObservationId ?? undefined}
-                setCurrentObservationId={setCurrentObservationId}
-                showMetrics={metricsOnObservationTree}
-                showScores={scoresOnObservationTree}
-                showComments={showComments}
-                colorCodeMetrics={colorCodeMetricsOnObservationTree}
-                observationCommentCounts={observationCommentCounts.data}
-                traceCommentCounts={traceCommentCounts.data}
-                className="flex w-full flex-col px-3"
-                minLevel={minObservationLevel}
-                setMinLevel={setMinObservationLevel}
-              />
+              <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                {isLanggraphTrace(props.observations) && showGraph ? (
+                  <div className="flex h-full w-full flex-col overflow-hidden">
+                    <div className="h-1/2 w-full overflow-y-auto">
+                      <ObservationTree
+                        observations={props.observations}
+                        collapsedObservations={collapsedObservations}
+                        toggleCollapsedObservation={toggleCollapsedObservation}
+                        collapseAll={collapseAll}
+                        expandAll={expandAll}
+                        trace={props.trace}
+                        scores={props.scores}
+                        currentObservationId={currentObservationId ?? undefined}
+                        setCurrentObservationId={setCurrentObservationId}
+                        showMetrics={metricsOnObservationTree}
+                        showScores={scoresOnObservationTree}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                        observationCommentCounts={observationCommentCounts.data}
+                        traceCommentCounts={traceCommentCounts.data}
+                        className="flex w-full flex-col px-3"
+                        minLevel={minObservationLevel}
+                        setMinLevel={setMinObservationLevel}
+                      />
+                    </div>
+                    <div className="h-1/2 w-full overflow-hidden border-t">
+                      <TraceGraphView
+                        key={`graph-tree-${props.trace.id}`}
+                        trace={props.trace}
+                        scores={props.scores}
+                        observations={props.observations}
+                        projectId={props.trace.projectId}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full w-full overflow-auto">
+                    <ObservationTree
+                      observations={props.observations}
+                      collapsedObservations={collapsedObservations}
+                      toggleCollapsedObservation={toggleCollapsedObservation}
+                      collapseAll={collapseAll}
+                      expandAll={expandAll}
+                      trace={props.trace}
+                      scores={props.scores}
+                      currentObservationId={currentObservationId ?? undefined}
+                      setCurrentObservationId={setCurrentObservationId}
+                      showMetrics={metricsOnObservationTree}
+                      showScores={scoresOnObservationTree}
+                      showComments={showComments}
+                      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                      observationCommentCounts={observationCommentCounts.data}
+                      traceCommentCounts={traceCommentCounts.data}
+                      className="flex w-full flex-col px-3"
+                      minLevel={minObservationLevel}
+                      setMinLevel={setMinObservationLevel}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </Command>

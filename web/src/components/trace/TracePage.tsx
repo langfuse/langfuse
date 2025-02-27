@@ -9,6 +9,8 @@ import { DeleteButton } from "@/src/components/deleteButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace";
+import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 
 export function TracePage({
   traceId,
@@ -19,6 +21,7 @@ export function TracePage({
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
@@ -36,6 +39,31 @@ export function TracePage({
       },
     },
   );
+
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    trace.data?.projectId ?? "",
+  );
+
+  const traceFilterOptions = api.traces.filterOptions.useQuery(
+    {
+      projectId: trace.data?.projectId as string,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      enabled: !!trace.data?.projectId && isAuthenticatedAndProjectMember,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+  const allTags = filterOptionTags.map((t) => t.value);
 
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
@@ -76,19 +104,31 @@ export function TracePage({
           },
         ],
         actionButtonsLeft: (
-          <div className="ml-1 flex items-center gap-0">
-            <StarTraceDetailsToggle
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              value={trace.data.bookmarked}
-              size="icon-xs"
-            />
-            <PublishTraceSwitch
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              isPublic={trace.data.public}
-              size="icon-xs"
-            />
+          <div className="ml-1 flex items-center gap-1">
+            <div className="max-h-[10dvh] overflow-y-auto">
+              <TagTraceDetailsPopover
+                tags={trace.data.tags}
+                availableTags={allTags}
+                traceId={trace.data.id}
+                projectId={trace.data.projectId}
+                className="flex-wrap"
+                key={trace.data.id}
+              />
+            </div>
+            <div className="flex items-center gap-0">
+              <StarTraceDetailsToggle
+                traceId={trace.data.id}
+                projectId={trace.data.projectId}
+                value={trace.data.bookmarked}
+                size="icon-xs"
+              />
+              <PublishTraceSwitch
+                traceId={trace.data.id}
+                projectId={trace.data.projectId}
+                isPublic={trace.data.public}
+                size="icon-xs"
+              />
+            </div>
           </div>
         ),
         actionButtonsRight: (

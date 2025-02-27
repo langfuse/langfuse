@@ -32,9 +32,7 @@ import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 export const TracePreview = ({
@@ -59,7 +57,6 @@ export const TracePreview = ({
     withDefault(StringParam, "preview"),
   );
   const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
-  const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
@@ -68,27 +65,6 @@ export const TracePreview = ({
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
   );
-
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId: trace.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      enabled: !!trace.projectId && isAuthenticatedAndProjectMember,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
 
   const traceMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -114,15 +90,17 @@ export const TracePreview = ({
 
   return (
     <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
-      <div className="flex h-full flex-1 flex-col items-start gap-2 overflow-hidden">
-        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-center justify-between gap-2">
-          <div className="flex w-full flex-row items-center gap-2">
-            <ItemBadge type="TRACE" isSmall />
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
+        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+          <div className="flex w-full flex-row items-start gap-2">
+            <div className="mt-1.5">
+              <ItemBadge type="TRACE" isSmall />
+            </div>
             <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
               {trace.name}
             </span>
           </div>
-          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
+          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
             <NewDatasetItemFromTrace
               traceId={trace.id}
               projectId={trace.projectId}
@@ -225,14 +203,6 @@ export const TracePreview = ({
                       </Badge>
                     </BreakdownTooltip>
                   )}
-                  <TagTraceDetailsPopover
-                    tags={trace.tags}
-                    availableTags={allTags}
-                    traceId={trace.id}
-                    projectId={trace.projectId}
-                    className="flex-wrap"
-                    key={trace.id}
-                  />
                 </>
               )}
             </div>

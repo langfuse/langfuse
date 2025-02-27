@@ -168,7 +168,7 @@ function TreeItemInner({
                     </span>
                   )}
                   {showScores && scores && scores.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex max-h-8 flex-wrap gap-1 overflow-y-auto">
                       <GroupedScoreBadges scores={scores} />
                     </div>
                   )}
@@ -237,7 +237,7 @@ function TreeItemInner({
                     </span>
                   )}
                   {showScores && scores && scores.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex max-h-8 flex-wrap gap-1 overflow-y-auto">
                       <GroupedScoreBadges scores={scores} />
                     </div>
                   )}
