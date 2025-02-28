@@ -8,6 +8,8 @@ export const useIsAuthenticatedAndProjectMember = (
 ): boolean => {
   const session = useSession();
 
+  if (projectId === "") return false;
+
   return (
     session.status === "authenticated" &&
     !!session.data?.user?.organizations

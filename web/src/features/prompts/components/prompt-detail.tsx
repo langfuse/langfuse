@@ -91,8 +91,7 @@ ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPr
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
 langfuse.getPrompt("${name}", ${version})
-
-}`;
+`;
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
