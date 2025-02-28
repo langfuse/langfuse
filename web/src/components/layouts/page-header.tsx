@@ -49,11 +49,11 @@ const PageHeader = ({
         <div className="bg-header">
           <div
             className={cn(
-              "grid min-h-12 min-w-0 max-w-full grid-cols-[minmax(0,2fr)_minmax(auto,1fr)] items-center justify-between gap-1 px-3 py-1 md:grid-cols-[minmax(0,3fr)_minmax(auto,1fr)]",
+              "grid min-h-12 min-w-0 max-w-full grid-cols-[minmax(0,auto)_minmax(auto,1fr)] items-center justify-between gap-1 px-3 py-1",
               container && "lg:container",
             )}
           >
-            <div className="flex grow items-center gap-1 overflow-y-auto md:min-w-28">
+            <div className="flex max-w-fit items-center gap-1 overflow-y-auto md:min-w-28">
               {itemType && (
                 <div className="flex h-12 items-center">
                   <ItemBadge type={itemType} showLabel />
@@ -61,7 +61,7 @@ const PageHeader = ({
               )}
               <div className="relative inline-block min-w-10 md:min-w-20">
                 <h2 className="line-clamp-2 inline h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
-                  <span className="line-clamp-2 break-all md:break-normal md:break-words">
+                  <span className="line-clamp-2 break-all md:break-words">
                     {title}
                     {help && (
                       <span className="whitespace-nowrap">
