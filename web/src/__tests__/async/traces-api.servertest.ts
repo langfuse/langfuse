@@ -235,6 +235,8 @@ describe("/api/public/traces API Endpoint", () => {
     expect(traces.body.data.length).toBe(1);
     const trace = traces.body.data[0];
     expect(trace.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+    expect(trace.observations.length).toBe(1);
+    expect(trace.scores.length).toBe(1);
   });
 
   it("should fetch all traces filtered by a tag", async () => {
