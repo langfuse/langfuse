@@ -76,7 +76,7 @@ export default function DatasetItems() {
               <PopoverTrigger asChild>
                 <Button variant="outline">
                   <FolderKanban className="mr-2 h-4 w-4" />
-                  Dataset details
+                  <span className="hidden md:block">Dataset details</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
