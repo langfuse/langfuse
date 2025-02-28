@@ -96,6 +96,7 @@ export function ItemBadge({
   return (
     <Badge
       variant="outline"
+      title={label}
       className={cn(
         "flex max-w-fit items-center gap-1 border-2 bg-background px-1",
         isSmall && "h-4",
