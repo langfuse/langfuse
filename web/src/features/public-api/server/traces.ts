@@ -23,6 +23,7 @@ type QueryType = {
   version?: string;
   release?: string;
   tags?: string | string[];
+  environment?: string | string[];
   fromTimestamp?: string;
   toTimestamp?: string;
 };

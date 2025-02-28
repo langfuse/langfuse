@@ -147,6 +147,7 @@ describe("/api/public/traces API Endpoint", () => {
     ["release", randomUUID()],
     ["version", randomUUID()],
     ["name", randomUUID()],
+    ["environment", randomUUID()],
   ])(
     "should fetch all traces filtered by a value (%s, %s)",
     async (prop: string, value: string) => {
@@ -156,7 +157,13 @@ describe("/api/public/traces API Endpoint", () => {
         metadata: { key: "value" },
       });
 
-      await createTracesCh([createdTrace]);
+      // Create a trace in the project that should not be returned
+      const dummyTrace = createTrace({
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+      });
+
+      await createTracesCh([createdTrace, dummyTrace]);
 
       const traces = await makeZodVerifiedAPICall(
         GetTracesV1Response,
