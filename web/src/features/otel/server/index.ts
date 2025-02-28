@@ -306,7 +306,7 @@ const extractUsageDetails = (
     // Cast the respective key to a number
     const value = Number(attributes[key]);
     if (!Number.isNaN(value)) {
-      acc[mappedUsageDetailKey] = Number(attributes[key]);
+      acc[mappedUsageDetailKey] = value;
     }
     return acc;
   }, {});
