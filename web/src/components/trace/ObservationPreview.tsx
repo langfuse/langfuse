@@ -341,9 +341,7 @@ export const ObservationPreview = ({
                   className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
                   onValueChange={(value) => {
-                    capture("trace_detail:io_pretty_format_toggle_group", {
-                      viewType: value,
-                    });
+                    capture("trace_detail:io_mode_switch", { view: value });
                     setCurrentView(value as "pretty" | "json");
                   }}
                 >

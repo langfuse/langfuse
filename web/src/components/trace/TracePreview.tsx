@@ -228,9 +228,7 @@ export const TracePreview = ({
                   className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
                   onValueChange={(value) => {
-                    capture("trace_detail:io_pretty_format_toggle_group", {
-                      viewType: value,
-                    });
+                    capture("trace_detail:io_mode_switch", { view: value });
                     setCurrentView(value as "pretty" | "json");
                   }}
                 >
@@ -239,7 +237,7 @@ export const TracePreview = ({
                       Formatted
                     </TabsTrigger>
                     <TabsTrigger value="json" className="h-fit text-xs">
-                      Raw
+                      JSON
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>

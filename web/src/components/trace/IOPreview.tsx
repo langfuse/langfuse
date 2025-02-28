@@ -14,6 +14,8 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -34,6 +36,11 @@ export const IOPreview: React.FC<{
   currentView,
   ...props
 }) => {
+  const [localCurrentView, setLocalCurrentView] = useState<"pretty" | "json">(
+    "pretty",
+  );
+  const selectedView = currentView ?? localCurrentView;
+  const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
 
@@ -99,7 +106,28 @@ export const IOPreview: React.FC<{
   // default I/O
   return (
     <>
-      {isPrettyViewAvailable && currentView === "pretty" ? (
+      {isPrettyViewAvailable && !currentView ? (
+        <div className="flex w-full flex-row justify-end">
+          <Tabs
+            className="mb-1 ml-auto h-fit py-0.5"
+            value={selectedView}
+            onValueChange={(value) => {
+              capture("trace_detail:io_mode_switch", { view: value });
+              setLocalCurrentView(value as "pretty" | "json");
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="pretty" className="h-fit text-xs">
+                Formatted
+              </TabsTrigger>
+              <TabsTrigger value="json" className="h-fit text-xs">
+                JSON
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      ) : null}
+      {isPrettyViewAvailable && selectedView === "pretty" ? (
         <>
           {inChatMlArray.success ? (
             <OpenAiMessageView
@@ -148,7 +176,7 @@ export const IOPreview: React.FC<{
           )}
         </>
       ) : null}
-      {currentView === "json" || !isPrettyViewAvailable ? (
+      {selectedView === "json" || !isPrettyViewAvailable ? (
         <>
           {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
