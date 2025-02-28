@@ -101,6 +101,8 @@ export const openAIModels = [
   "o1-preview-2024-09-12",
   "o1-mini",
   "o1-mini-2024-09-12",
+  "gpt-4.5-preview",
+  "gpt-4.5-preview-2025-02-27",
   "gpt-4-turbo-preview",
   "gpt-4-1106-preview",
   "gpt-4-0613",

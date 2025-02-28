@@ -1480,5 +1480,33 @@
     },
     "tokenizer_config": null,
     "tokenizer_id": "claude"
+  },
+  {
+    "id": "cm7nusjvk0000tvmz71o85jwg",
+    "model_name": "gpt-4.5-preview",
+    "match_pattern": "(?i)^(gpt-4.5-preview)$",
+    "created_at": "2025-02-27T21:26:54.132Z",
+    "updated_at": "2025-02-27T21:26:54.132Z",
+    "prices": {
+      "input": 75e-6,
+      "input_cached_tokens": 37.5e-6,
+      "input_cached_text_tokens": 37.5e-6,
+      "input_cache_read": 37.5e-6,
+      "output": 150e-6
+    }
+  },
+  {
+    "id": "cm7nusn640000tvmzf10z2x65",
+    "model_name": "gpt-4.5-preview-2025-02-27",
+    "match_pattern": "(?i)^(gpt-4.5-preview-2025-02-27)$",
+    "created_at": "2025-02-27T21:26:54.132Z",
+    "updated_at": "2025-02-27T21:26:54.132Z",
+    "prices": {
+      "input": 75e-6,
+      "input_cached_tokens": 37.5e-6,
+      "input_cached_text_tokens": 37.5e-6,
+      "input_cache_read": 37.5e-6,
+      "output": 150e-6
+    }
   }
 ]
