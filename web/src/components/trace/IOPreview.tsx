@@ -107,9 +107,9 @@ export const IOPreview: React.FC<{
   return (
     <>
       {isPrettyViewAvailable && !currentView ? (
-        <div className="flex w-full flex-row justify-end">
+        <div className="flex w-full flex-row justify-start">
           <Tabs
-            className="mb-1 ml-auto h-fit py-0.5"
+            className="h-fit py-0.5"
             value={selectedView}
             onValueChange={(value) => {
               capture("trace_detail:io_mode_switch", { view: value });
