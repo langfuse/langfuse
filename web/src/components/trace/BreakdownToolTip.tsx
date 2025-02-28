@@ -53,7 +53,7 @@ export const BreakdownTooltip = ({
     <TooltipProvider>
       <Tooltip open={isOpen} onOpenChange={setIsOpen}>
         <TooltipTrigger
-          className="cursor-pointer"
+          className="flex cursor-pointer"
           onClick={() => setIsOpen(!isOpen)}
         >
           {children}

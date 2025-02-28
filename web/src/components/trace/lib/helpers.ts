@@ -164,3 +164,42 @@ function getObservationLevels(minLevel: ObservationLevelType | undefined) {
 
   return ascendingLevels.slice(minLevelIndex);
 }
+
+export const heatMapTextColor = (p: {
+  min?: Decimal | number;
+  max: Decimal | number;
+  value: Decimal | number;
+}) => {
+  const { min, max, value } = p;
+  const minDecimal = min ? new Decimal(min) : new Decimal(0);
+  const maxDecimal = new Decimal(max);
+  const valueDecimal = new Decimal(value);
+
+  const cutOffs: [number, string][] = [
+    [0.75, "text-dark-red"], // 75%
+    [0.5, "text-dark-yellow"], // 50%
+  ];
+  const standardizedValueOnStartEndScale = valueDecimal
+    .sub(minDecimal)
+    .div(maxDecimal.sub(minDecimal));
+  const ratio = standardizedValueOnStartEndScale.toNumber();
+
+  // pick based on ratio if threshold is exceeded
+  for (const [threshold, color] of cutOffs) {
+    if (ratio >= threshold) {
+      return color;
+    }
+  }
+  return "";
+};
+
+// Helper function to unnest observations for cost calculation
+export const unnestObservation = (nestedObservation: NestedObservation) => {
+  const unnestedObservations = [];
+  const { children, ...observation } = nestedObservation;
+  unnestedObservations.push(observation);
+  children.forEach((child) => {
+    unnestedObservations.push(...unnestObservation(child));
+  });
+  return unnestedObservations;
+};
