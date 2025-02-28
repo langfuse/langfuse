@@ -47,6 +47,7 @@ service:
                 body:
                   id: abcdef-1234-5678-90ab
                   timestamp: "2022-01-01T00:00:00.000Z"
+                  environment: "production"
                   name: "My Trace"
                   userId: "1234-5678-90ab-cdef"
                   input: "My input"
@@ -74,6 +75,7 @@ service:
                   id: abcdef-1234-5678-90ab
                   traceId: "1234-5678-90ab-cdef"
                   startTime: "2022-01-01T00:00:00.000Z"
+                  environment: "test"
           response:
             body:
               successes:
@@ -92,6 +94,7 @@ service:
                   traceId: "1234-5678-90ab-cdef"
                   name: "My Score"
                   value: 0.9
+                  environment: "default"
           response:
             body:
               successes:

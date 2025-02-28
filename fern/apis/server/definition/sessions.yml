@@ -25,6 +25,10 @@ service:
           toTimestamp:
             type: optional<datetime>
             docs: Optional filter to only include sessions created before a certain datetime (ISO 8601)
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for sessions where the environment is one of the provided values.
       response: PaginatedSessions
     get:
       docs: Get a session. Please note that `traces` on this endpoint are not paginated, if you plan to fetch large sessions, consider `GET /api/public/traces?sessionId=<sessionId>`
