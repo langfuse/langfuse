@@ -274,6 +274,10 @@ export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
 
+export const protectedProjectProcedureWithoutTracing = t.procedure
+  .use(withErrorHandling)
+  .use(enforceUserIsAuthedAndProjectMember);
+
 const inputOrganizationSchema = z.object({
   orgId: z.string(),
 });
