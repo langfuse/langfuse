@@ -134,6 +134,18 @@ describe("/api/public/sessions API Endpoint", () => {
       );
     });
 
+    it("should filter sessions by environment", async () => {
+      const sessions = await makeZodVerifiedAPICall(
+        GetSessionsV1Response,
+        "GET",
+        "/api/public/sessions?environment=production",
+        undefined,
+        auth,
+      );
+      expect(sessions.body.data.length).toEqual(1);
+      expect(sessions.body.data[0].environment).toEqual("production");
+    });
+
     it("should return paginated sessions with limit and page number", async () => {
       const limit = 2;
       const page = 2;

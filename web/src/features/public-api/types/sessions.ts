@@ -29,6 +29,7 @@ export const GetSessionsV1Query = z.object({
   ...publicApiPaginationZod,
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 export const GetSessionsV1Response = z
   .object({
