@@ -128,7 +128,21 @@ const extractInputAndOutput = (
       event.name === "gen_ai.content.completion",
   )?.attributes;
   if (input || output) {
-    return { input, output };
+    input =
+      input?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {};
+    output =
+      output?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {};
+    // Here, we are interested in the attributes of the event. Usually gen_ai.prompt and gen_ai.completion.
+    // We can use the current function again to extract them from the event attributes.
+    const { input: eventInput } = extractInputAndOutput([], input);
+    const { output: eventOutput } = extractInputAndOutput([], output);
+    return { input: eventInput || input, output: eventOutput || output };
   }
 
   // MLFlow sets mlflow.spanInputs and mlflow.spanOutputs
@@ -175,6 +189,26 @@ const extractInputAndOutput = (
   }
 
   return { input: null, output: null };
+};
+
+const extractEnvironment = (
+  attributes: Record<string, unknown>,
+  resourceAttributes: Record<string, unknown>,
+): string => {
+  const environmentAttributeKeys = [
+    "langfuse.environment",
+    "deployment.environment.name",
+    "deployment.environment",
+  ];
+  for (const key of environmentAttributeKeys) {
+    if (resourceAttributes[key]) {
+      return resourceAttributes[key] as string;
+    }
+    if (attributes[key]) {
+      return attributes[key] as string;
+    }
+  }
+  return "default";
 };
 
 const extractUserId = (
@@ -266,7 +300,11 @@ const extractUsageDetails = (
       .replace("llm.token_count.", "");
     const mappedUsageDetailKey =
       usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
-    acc[mappedUsageDetailKey] = attributes[key];
+    // Cast the respective key to a number
+    const value = Number(attributes[key]);
+    if (!Number.isNaN(value)) {
+      acc[mappedUsageDetailKey] = value;
+    }
     return acc;
   }, {});
 };
@@ -305,7 +343,13 @@ export const convertOtelSpanToIngestionEvent = (
           return acc;
         }, {}) ?? {};
 
-      if (!span?.parentSpanId) {
+      const parentObservationId = span?.parentSpanId
+        ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
+            "hex",
+          )
+        : null;
+
+      if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
@@ -328,6 +372,8 @@ export const convertOtelSpanToIngestionEvent = (
             attributes?.["langfuse.public"] === "true",
           tags: attributes?.["langfuse.tags"] ?? [],
 
+          environment: extractEnvironment(attributes, resourceAttributes),
+
           // Input and Output
           ...extractInputAndOutput(span?.events ?? [], attributes),
         };
@@ -345,14 +391,12 @@ export const convertOtelSpanToIngestionEvent = (
         traceId: Buffer.from(span.traceId?.data ?? span.traceId).toString(
           "hex",
         ),
-        parentObservationId: span?.parentSpanId
-          ? Buffer.from(span.parentSpanId?.data ?? span.parentSpanId).toString(
-              "hex",
-            )
-          : null,
+        parentObservationId,
         name: span.name,
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
+
+        environment: extractEnvironment(attributes, resourceAttributes),
 
         // Additional fields
         metadata: {

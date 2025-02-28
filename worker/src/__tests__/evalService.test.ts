@@ -732,99 +732,101 @@ describe("eval service tests", () => {
 
       expect(jobs.length).toBe(0);
     }, 10_000);
-  });
 
-  test("does create eval for trace which is way in the past if timestamp is provided", async () => {
-    const traceId = randomUUID();
+    test("does create eval for trace which is way in the past if timestamp is provided", async () => {
+      const traceId = randomUUID();
 
-    const timestamp = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 1);
-    const trace = createTrace({
-      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      id: traceId,
-      timestamp: timestamp.getTime(),
-    });
+      const timestamp = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 1);
+      const trace = createTrace({
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: traceId,
+        timestamp: timestamp.getTime(),
+      });
 
-    await createTracesCh([trace]);
+      await createTracesCh([trace]);
 
-    const jobConfiguration = await prisma.jobConfiguration.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        filter: JSON.parse("[]"),
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: "trace",
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        timeScope: ["NEW"],
-      },
-    });
+      const jobConfiguration = await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          timeScope: ["NEW"],
+        },
+      });
 
-    const payload = {
-      projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      traceId: traceId,
-      configId: jobConfiguration.id,
-      timestamp: timestamp,
-    };
-
-    await createEvalJobs({
-      event: payload,
-      enforcedJobTimeScope: "NEW", // the config must contain NEW
-    });
-
-    const jobs = await kyselyPrisma.$kysely
-      .selectFrom("job_executions")
-      .selectAll()
-      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
-      .where("job_configuration_id", "in", [jobConfiguration.id])
-      .where("job_input_trace_id", "=", traceId)
-      .execute();
-
-    expect(jobs.length).toBe(1);
-  }, 10_000);
-
-  test("creates eval for trace with timestamp in the future", async () => {
-    const traceId = randomUUID();
-
-    await prisma.jobConfiguration.create({
-      data: {
-        id: randomUUID(),
-        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        filter: JSON.parse("[]"),
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: "trace",
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        timeScope: ["NEW"],
-      },
-    });
-
-    const trace = createTrace({
-      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-      id: traceId,
-      timestamp: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 1).getTime(),
-    });
-
-    await createTracesCh([trace]);
-
-    await createEvalJobs({
-      event: {
+      const payload = {
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         traceId: traceId,
-      },
-    });
+        configId: jobConfiguration.id,
+        timestamp: timestamp,
+      };
 
-    const jobs = await kyselyPrisma.$kysely
-      .selectFrom("job_executions")
-      .selectAll()
-      .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
-      .execute();
+      await createEvalJobs({
+        event: payload,
+        enforcedJobTimeScope: "NEW", // the config must contain NEW
+      });
 
-    expect(jobs.length).toBe(1);
-  }, 10_000);
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .where("job_configuration_id", "in", [jobConfiguration.id])
+        .where("job_input_trace_id", "=", traceId)
+        .execute();
+
+      expect(jobs.length).toBe(1);
+    }, 10_000);
+
+    test("creates eval for trace with timestamp in the future", async () => {
+      const traceId = randomUUID();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: "trace",
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          timeScope: ["NEW"],
+        },
+      });
+
+      const trace = createTrace({
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: traceId,
+        timestamp: new Date(
+          Date.now() + 1000 * 60 * 60 * 24 * 365 * 1,
+        ).getTime(),
+      });
+
+      await createTracesCh([trace]);
+
+      await createEvalJobs({
+        event: {
+          projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+          traceId: traceId,
+        },
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+        .execute();
+
+      expect(jobs.length).toBe(1);
+    }, 10_000);
+  });
 
   describe("execute evals", () => {
     test("evals a valid 'trace' event", async () => {
@@ -1362,6 +1364,7 @@ describe("eval service tests", () => {
         id: traceId,
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         user_id: "a",
+        environment: "production",
         input: JSON.stringify({ input: "This is a great prompt" }),
         output: JSON.stringify({ output: "This is a great response" }),
         timestamp: convertDateToClickhouseDateTime(new Date()),
@@ -1393,10 +1396,12 @@ describe("eval service tests", () => {
         {
           value: '{"input":"This is a great prompt"}',
           var: "input",
+          environment: "production",
         },
         {
           value: '{"output":"This is a great response"}',
           var: "output",
+          environment: "production",
         },
       ]);
     }, 10_000);
@@ -1421,6 +1426,7 @@ describe("eval service tests", () => {
         project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         name: "great-llm-name",
         type: "GENERATION",
+        environment: "production",
         input: JSON.stringify({ huhu: "This is a great prompt" }),
         output: JSON.stringify({ haha: "This is a great response" }),
         start_time: convertDateToClickhouseDateTime(new Date()),
@@ -1454,10 +1460,12 @@ describe("eval service tests", () => {
         {
           value: '{"huhu":"This is a great prompt"}',
           var: "input",
+          environment: "production",
         },
         {
           value: '{"haha":"This is a great response"}',
           var: "output",
+          environment: "production",
         },
       ]);
     }, 10_000);
@@ -1544,10 +1552,12 @@ describe("eval service tests", () => {
 
       expect(result).toEqual([
         {
+          environment: "default",
           value: "",
           var: "input",
         },
         {
+          environment: "default",
           value: "",
           var: "output",
         },
@@ -1622,10 +1632,12 @@ describe("eval service tests", () => {
 
       expect(result).toEqual([
         {
+          environment: "default",
           value: '{"huhu":"This is a great prompt again"}',
           var: "input",
         },
         {
+          environment: "default",
           value: '{"haha":"This is a great response again"}',
           var: "output",
         },

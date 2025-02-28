@@ -531,7 +531,7 @@ export function CreateLLMApiKeyForm({
               {currentAdapter === LLMAdapter.Bedrock && (
                 <FormDescription className="text-dark-yellow">
                   {
-                    "For Bedrock, the model name is the Bedrock model ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
+                    "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
                   }
                 </FormDescription>
               )}

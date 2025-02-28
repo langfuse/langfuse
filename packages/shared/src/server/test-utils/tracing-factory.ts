@@ -11,6 +11,7 @@ export const createTrace = (trace: Partial<TraceRecordInsertType>) => {
     project_id: v4(),
     session_id: v4(),
     timestamp: Date.now(),
+    environment: "default",
     metadata: {
       source: "API",
       server: "Node",
@@ -38,6 +39,7 @@ export const createObservation = (
     trace_id: v4(),
     project_id: v4(),
     type: "GENERATION",
+    environment: "default",
     metadata: {
       source: "API",
       server: "Node",
@@ -76,6 +78,7 @@ export const createScore = (score: Partial<ScoreRecordInsertType>) => {
     project_id: v4(),
     trace_id: v4(),
     observation_id: v4(),
+    environment: "default",
     name: "test-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,

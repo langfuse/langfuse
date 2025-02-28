@@ -118,6 +118,15 @@ export const UsageOrCostDetails = z
   .union([OpenAIUsageSchema, RawUsageOrCostDetails])
   .nullish();
 
+export const EnvironmentName = z
+  .string()
+  .max(40, "Maximum length is 40 characters")
+  .regex(
+    /^(?!langfuse)[a-z0-9-_]+$/,
+    "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it must not start with 'langfuse'",
+  )
+  .default("default");
+
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
@@ -130,6 +139,7 @@ export const TraceBody = z.object({
   output: z.any().nullish(),
   sessionId: z.string().nullish(),
   userId: z.string().nullish(),
+  environment: EnvironmentName,
   metadata: jsonSchema.nullish(),
   release: z.string().nullish(),
   version: z.string().nullish(),
@@ -139,6 +149,7 @@ export const TraceBody = z.object({
 
 export const OptionalObservationBody = z.object({
   traceId: z.string().nullish(),
+  environment: EnvironmentName,
   name: z.string().nullish(),
   startTime: stringDateTime,
   metadata: jsonSchema.nullish(),
@@ -230,6 +241,7 @@ const BaseScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
   traceId: z.string(),
+  environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
   source: z
@@ -383,18 +395,6 @@ export const SdkLogEvent = z.object({
   id: z.string().nullish(), // Not used, but makes downstream processing easier.
 });
 
-// definitions for the ingestion API
-
-export const observationTypes = [
-  "observation-create",
-  "observation-update",
-  "generation-create",
-  "generation-update",
-  "span-create",
-  "span-update",
-  "event-create",
-];
-
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
   SCORE_CREATE: "score-create",
@@ -474,26 +474,11 @@ export const ingestionEvent = z.discriminatedUnion("type", [
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
 
 export const ingestionBatchEvent = z.array(ingestionEvent);
-export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
-
-export const ingestionEventWithProjectId = ingestionEvent.and(
-  z.object({ projectId: z.string() }),
-);
-export type IngestionEventWithProjectIdType = z.infer<
-  typeof ingestionEventWithProjectId
->;
 
 export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
   metadata: jsonSchema.nullish(),
 });
-
-export const ingestionApiSchemaWithProjectId = ingestionApiSchema.extend({
-  projectId: z.string(),
-});
-export type IngestionApiSchemaWithProjectId = z.infer<
-  typeof ingestionApiSchemaWithProjectId
->;
 
 export type ObservationEvent =
   | z.infer<typeof legacyObservationCreateEvent>

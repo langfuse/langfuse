@@ -7,6 +7,7 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   DATABASE_URL: z.string(),
+  HOSTNAME: z.string().default("0.0.0.0"),
   PORT: z.coerce
     .number({
       description:
