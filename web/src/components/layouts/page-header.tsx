@@ -49,11 +49,11 @@ const PageHeader = ({
         <div className="bg-header">
           <div
             className={cn(
-              "grid min-h-12 min-w-0 max-w-full grid-cols-[minmax(auto,1fr)_auto] items-center justify-between gap-1 px-3 py-1",
+              "grid min-h-12 min-w-0 max-w-full grid-cols-[1fr,1fr] items-center justify-between gap-1 px-3 py-1 md:grid-cols-[auto,auto]",
               container && "lg:container",
             )}
           >
-            <div className="flex min-w-0 max-w-full items-center gap-1 overflow-y-auto">
+            <div className="flex grow items-center gap-1 overflow-y-auto md:min-w-28">
               {itemType && (
                 <div className="flex h-12 items-center">
                   <ItemBadge type={itemType} showLabel />
@@ -76,9 +76,11 @@ const PageHeader = ({
                   </span>
                 </h2>
               </div>
-              <div className="flex items-center gap-1">{actionButtonsLeft}</div>
+              <div className="flex flex-shrink items-center gap-1 overflow-y-auto">
+                {actionButtonsLeft}
+              </div>
             </div>
-            <div className="flex flex-row flex-wrap items-center justify-end gap-1">
+            <div className="flex flex-wrap items-center justify-end gap-1">
               {actionButtonsRight}
             </div>
           </div>

@@ -5,6 +5,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import {
   createTRPCRouter,
   protectedProjectProcedure,
+  protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
   type ChatMessage,
@@ -27,7 +28,7 @@ export function getDisplaySecretKey(secretKey: string) {
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
-  create: protectedProjectProcedure
+  create: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
     .mutation(async ({ input, ctx }) => {
       try {
@@ -150,7 +151,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       };
     }),
 
-  test: protectedProjectProcedure
+  test: protectedProjectProcedureWithoutTracing
     .input(CreateLlmApiKey)
     .mutation(async ({ input }) => {
       try {
