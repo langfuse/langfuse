@@ -42,6 +42,7 @@ describe("/api/public/sessions API Endpoint", () => {
       expect(getScore.body).toMatchObject({
         id: sessionId,
         projectId,
+        environment: "default",
         createdAt: expect.any(String),
       });
 
@@ -50,6 +51,7 @@ describe("/api/public/sessions API Endpoint", () => {
       );
     });
   });
+
   describe("GET /api/public/sessions API Endpoint", () => {
     let projectId: string;
     let auth: string;
@@ -86,6 +88,7 @@ describe("/api/public/sessions API Endpoint", () => {
             id: "session-2021-05-01",
             createdAt: new Date("2021-05-01T00:00:00Z"),
             projectId: projectId,
+            environment: "production",
           },
         ],
       });
@@ -107,6 +110,26 @@ describe("/api/public/sessions API Endpoint", () => {
           "session-2021-03-01",
           "session-2021-04-01",
           "session-2021-05-01",
+        ]),
+      );
+    });
+
+    it("should return sessions with environment", async () => {
+      const sessions = await makeZodVerifiedAPICall(
+        GetSessionsV1Response,
+        "GET",
+        "/api/public/sessions",
+        undefined,
+        auth,
+      );
+      expect(sessions.body.data.length).toEqual(5);
+      expect(sessions.body.data.map((session) => session.environment)).toEqual(
+        expect.arrayContaining([
+          "default",
+          "default",
+          "default",
+          "default",
+          "production",
         ]),
       );
     });

@@ -16,6 +16,7 @@ const APISession = z
     id: z.string(),
     createdAt: z.coerce.date(),
     projectId: z.string(),
+    environment: z.string(),
   })
   .strict();
 

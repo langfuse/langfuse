@@ -19,6 +19,7 @@ export default withMiddlewares({
           id: true,
           createdAt: true,
           projectId: true,
+          environment: true,
         },
         where: {
           projectId: auth.scope.projectId,

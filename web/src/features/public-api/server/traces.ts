@@ -239,6 +239,13 @@ const filterParams = [
     clickhousePrefix: "t",
   },
   {
+    id: "environment",
+    clickhouseSelect: "environment",
+    filterType: "StringOptionsFilter",
+    clickhouseTable: "traces",
+    clickhousePrefix: "t",
+  },
+  {
     id: "fromTimestamp",
     clickhouseSelect: "timestamp",
     operator: ">=" as const,
