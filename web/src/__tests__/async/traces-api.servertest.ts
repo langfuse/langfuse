@@ -1,4 +1,9 @@
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
+import {
+  createObservation,
+  createScore,
+  createScoresCh,
+  createTrace,
+} from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
   createTracesCh,
@@ -178,6 +183,59 @@ describe("/api/public/traces API Endpoint", () => {
       expect((trace as any)[prop]).toBe(value);
     },
   );
+
+  it("should fetch all traces, observations, and scores filtered by environment", async () => {
+    const environment = randomUUID();
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "trace-name",
+      project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      metadata: { key: "value" },
+      environment,
+    });
+
+    await createTracesCh([createdTrace]);
+
+    await createObservationsCh([
+      createObservation({
+        trace_id: traceId,
+        environment,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      }),
+      // Create one that does not belong to the same environment
+      createObservation({
+        trace_id: traceId,
+        environment: "default",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      }),
+    ]);
+
+    await createScoresCh([
+      createScore({
+        trace_id: traceId,
+        environment,
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      }),
+      // Create one that does not belong to the same environment
+      createScore({
+        trace_id: traceId,
+        environment: "default",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      }),
+    ]);
+
+    const traces = await makeZodVerifiedAPICall(
+      GetTracesV1Response,
+      "GET",
+      `/api/public/traces?environment=${environment}`,
+    );
+
+    expect(traces.body.meta.totalItems).toBe(1);
+    expect(traces.body.data.length).toBe(1);
+    const trace = traces.body.data[0];
+    expect(trace.projectId).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
+  });
 
   it("should fetch all traces filtered by a tag", async () => {
     const tag = randomUUID();
