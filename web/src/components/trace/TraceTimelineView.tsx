@@ -103,7 +103,7 @@ function TreeItemInner({
                   : "group-hover:ring group-hover:ring-tertiary",
               )}
               style={{ marginLeft: `${startOffset}px` }}
-              title="time to first token"
+              title="First token"
             >
               <div
                 className={cn(
@@ -128,7 +128,7 @@ function TreeItemInner({
                     "-ml-8 flex flex-row items-center justify-start gap-2 text-xs text-muted-foreground",
                   )}
                 >
-                  <span className="text-xs text-muted-foreground">TTFT</span>
+                  <span className="text-xxs text-primary">First token</span>
                   <ItemBadge type={type} isSmall />
                   <span className="whitespace-nowrap text-sm font-medium text-primary">
                     {name}
@@ -537,7 +537,7 @@ export function TraceTimelineView({
             )}
           </div>
         </div>
-        <div style={{ width: `${SCALE_WIDTH}px` }} className="overflow-y-auto">
+        <div style={{ width: `${SCALE_WIDTH}px` }} className="overflow-hidden">
           <SimpleTreeView
             expandedItems={expandedItems}
             onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
