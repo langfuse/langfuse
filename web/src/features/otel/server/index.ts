@@ -128,7 +128,24 @@ const extractInputAndOutput = (
       event.name === "gen_ai.content.completion",
   )?.attributes;
   if (input || output) {
-    return { input, output };
+    // Here, we are interested in the attributes of the event. Usually gen_ai.prompt and gen_ai.completion.
+    // We can use the current function again to exctract them from the event attributes.
+    const { input: eventInput } = extractInputAndOutput(
+      [],
+      input?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {},
+    );
+    const { output: eventOutput } = extractInputAndOutput(
+      [],
+      output?.reduce((acc: any, attr: any) => {
+        acc[attr.key] = convertValueToPlainJavascript(attr.value);
+        return acc;
+      }, {}) ?? {},
+    );
+
+    return { input: eventInput || input, output: eventOutput || output };
   }
 
   // MLFlow sets mlflow.spanInputs and mlflow.spanOutputs
@@ -286,7 +303,11 @@ const extractUsageDetails = (
       .replace("llm.token_count.", "");
     const mappedUsageDetailKey =
       usageDetailKeyMapping[usageDetailKey] ?? usageDetailKey;
-    acc[mappedUsageDetailKey] = attributes[key];
+    // Cast the respective key to a number
+    const value = Number(attributes[key]);
+    if (!Number.isNaN(value)) {
+      acc[mappedUsageDetailKey] = Number(attributes[key]);
+    }
     return acc;
   }, {});
 };

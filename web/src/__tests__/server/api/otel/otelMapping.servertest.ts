@@ -362,6 +362,16 @@ describe("OTel Resource Span Mapping", () => {
 
     it.each([
       [
+        "should cast input_tokens from string to number",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.input_tokens",
+          otelAttributeValue: { stringValue: "15" },
+          entityAttributeKey: "usageDetails.input",
+          entityAttributeValue: 15,
+        },
+      ],
+      [
         "should extract environment on trace for langfuse.environment",
         {
           entity: "trace",
@@ -818,6 +828,109 @@ describe("OTel Resource Span Mapping", () => {
           scopeSpans: [
             {
               spans: [defaultSpanProps],
+            },
+          ],
+        };
+
+        // When
+        const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+        // Then
+        const entity: { body: Record<string, any> } =
+          spec.entity === "trace" ? langfuseEvents[0] : langfuseEvents[1];
+        expect(entity.body[spec.entityAttributeKey]).toEqual(
+          spec.entityAttributeValue,
+        );
+      },
+    );
+
+    it.each([
+      [
+        "should extract input on trace from event attributes",
+        {
+          entity: "trace",
+          otelEventName: "gen_ai.content.prompt",
+          otelEventAttributeKey: "gen_ai.prompt",
+          otelEventAttributeValue: {
+            stringValue: "user: What is LLM Observability?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "user: What is LLM Observability?",
+        },
+      ],
+      [
+        "should extract array input on trace event attributes",
+        {
+          entity: "trace",
+          otelEventName: "gen_ai.content.prompt",
+          otelEventAttributeKey: "gen_ai.prompt",
+          otelEventAttributeValue: {
+            arrayValue: {
+              values: [
+                {
+                  stringValue: "Reply with the word 'java'",
+                },
+              ],
+            },
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: ["Reply with the word 'java'"],
+        },
+      ],
+      [
+        "should extract output on observation from event attributes",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.content.completion",
+          otelEventAttributeKey: "gen_ai.completion",
+          otelEventAttributeValue: {
+            stringValue:
+              "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue:
+            "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+        },
+      ],
+    ])(
+      "Events: %s",
+      (
+        _name: string,
+        spec: {
+          entity: string;
+          otelEventName: string;
+          otelEventAttributeKey: string;
+          otelEventAttributeValue: any;
+          entityAttributeKey: string;
+          entityAttributeValue: any;
+        },
+      ) => {
+        // Setup
+        const resourceSpan = {
+          resource: {},
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  events: [
+                    {
+                      timeUnixNano: {
+                        low: 1327691067,
+                        high: 404677085,
+                        unsigned: true,
+                      },
+                      name: spec.otelEventName,
+                      attributes: [
+                        {
+                          key: spec.otelEventAttributeKey,
+                          value: spec.otelEventAttributeValue,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           ],
         };
