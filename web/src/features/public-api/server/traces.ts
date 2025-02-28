@@ -23,6 +23,7 @@ type QueryType = {
   version?: string;
   release?: string;
   tags?: string | string[];
+  environment?: string | string[];
   fromTimestamp?: string;
   toTimestamp?: string;
 };
@@ -43,6 +44,9 @@ export const generateTracesForPublicApi = async (
       f.field.includes("timestamp") &&
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
+
+  const environmentFilter = filter.filter((f) => f.field === "environment");
+  const appliedEnvironmentFilter = environmentFilter.apply();
 
   // This _must_ be updated if we add a new skip index column to the traces table.
   // Otherwise, we will ignore it in most cases due to `FINAL`.
@@ -75,6 +79,7 @@ export const generateTracesForPublicApi = async (
       FROM observations FINAL
       WHERE project_id = {projectId: String}
       ${timeFilter ? `AND start_time >= {cteTimeFilter: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+      ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     ), score_stats AS (
       SELECT
@@ -84,6 +89,7 @@ export const generateTracesForPublicApi = async (
       FROM scores
       WHERE project_id = {projectId: String}
       ${timeFilter ? `AND timestamp >= {cteTimeFilter: DateTime64(3)}` : ""}
+      ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
     )
 
@@ -131,6 +137,7 @@ export const generateTracesForPublicApi = async (
   >({
     query,
     params: {
+      ...appliedEnvironmentFilter.params,
       ...appliedFilter.params,
       projectId: props.projectId,
       ...(props.limit !== undefined ? { limit: props.limit } : {}),
@@ -236,6 +243,14 @@ const filterParams = [
     filterType: "StringFilter",
     clickhouseTable: "traces",
     clickhousePrefix: "t",
+  },
+  {
+    id: "environment",
+    clickhouseSelect: "environment",
+    filterType: "StringOptionsFilter",
+    clickhouseTable: "traces",
+    // Skip the clickhousePrefix as this makes it work for all tables.
+    // Risk: If there is a conflict we may have to start using separate filters for each table.
   },
   {
     id: "fromTimestamp",

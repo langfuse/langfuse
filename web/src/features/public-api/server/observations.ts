@@ -182,6 +182,13 @@ const filterParams = [
     clickhouseTable: "observations",
     clickhousePrefix: "o",
   },
+  {
+    id: "environment",
+    clickhouseSelect: "environment",
+    filterType: "StringFilter",
+    clickhouseTable: "observations",
+    clickhousePrefix: "o",
+  },
 ];
 
 const generateFilter = (filter: QueryType) => {

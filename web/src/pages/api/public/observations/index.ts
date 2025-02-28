@@ -27,6 +27,7 @@ export default withMiddlewares({
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         type: query.type ?? undefined,
+        environment: query.environment ?? undefined,
         parentObservationId: query.parentObservationId ?? undefined,
         fromStartTime: query.fromStartTime ?? undefined,
         toStartTime: query.toStartTime ?? undefined,

@@ -82,6 +82,9 @@ types:
       id: string
       createdAt: datetime
       projectId: string
+      environment:
+        type: optional<string>
+        docs: The environment from which this session originated.
   SessionWithTraces:
     extends: Session
     properties:

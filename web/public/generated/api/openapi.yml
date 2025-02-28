@@ -840,6 +840,7 @@ paths:
                       body:
                         id: abcdef-1234-5678-90ab
                         timestamp: '2022-01-01T00:00:00.000Z'
+                        environment: production
                         name: My Trace
                         userId: 1234-5678-90ab-cdef
                         input: My input
@@ -862,6 +863,7 @@ paths:
                         id: abcdef-1234-5678-90ab
                         traceId: 1234-5678-90ab-cdef
                         startTime: '2022-01-01T00:00:00.000Z'
+                        environment: test
               Example3:
                 value:
                   batch:
@@ -873,6 +875,7 @@ paths:
                         traceId: 1234-5678-90ab-cdef
                         name: My Score
                         value: 0.9
+                        environment: default
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -1053,6 +1056,17 @@ paths:
         - name: tags
           in: query
           description: Optional filter for metrics where traces include all of these tags
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for metrics where events include any of these
+            environments
           required: false
           schema:
             type: array
@@ -1406,6 +1420,17 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for observations where the environment is one of the
+            provided values.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
         - name: fromStartTime
           in: query
           description: >-
@@ -2035,6 +2060,17 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for scores where the environment is one of the
+            provided values.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
         - name: source
           in: query
           description: Retrieve only scores from a specific source.
@@ -2262,6 +2298,17 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for sessions where the environment is one of the
+            provided values.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
       responses:
         '200':
           description: ''
@@ -2487,6 +2534,17 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for traces where the environment is one of the
+            provided values.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
       responses:
         '200':
           description: ''
@@ -2715,6 +2773,10 @@ components:
           format: date-time
         projectId:
           type: string
+        environment:
+          type: string
+          nullable: true
+          description: The environment from which this session originated.
       required:
         - id
         - createdAt
@@ -4842,6 +4904,13 @@ components:
         comment:
           type: string
           nullable: true
+        environment:
+          type: string
+          nullable: true
+          description: >-
+            The environment of the score. Can be any lowercase alphanumeric
+            string with hyphens and underscores that does not start with
+            'langfuse'.
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
           nullable: true
@@ -4883,6 +4952,10 @@ components:
             type: string
           nullable: true
           description: A list of tags associated with the trace referenced by score
+        environment:
+          type: string
+          nullable: true
+          description: The environment of the trace referenced by score
     GetScoresResponseDataNumeric:
       title: GetScoresResponseDataNumeric
       type: object

@@ -383,6 +383,10 @@ export class FilterList {
     return this.filters.find(predicate);
   }
 
+  filter(predicate: (filter: Filter) => boolean) {
+    return new FilterList(this.filters.filter(predicate));
+  }
+
   some(predicate: (filter: Filter) => boolean) {
     return this.filters.some(predicate);
   }

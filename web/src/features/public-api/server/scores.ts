@@ -38,6 +38,7 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
       SELECT
           t.user_id as user_id,
           t.tags as tags,
+          t.environment as trace_environment,
           s.id as id,
           s.project_id as project_id,
           s.timestamp as timestamp,
@@ -82,7 +83,11 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
       `;
 
   const records = await queryClickhouse<
-    ScoreRecordReadType & { tags: string[]; user_id: string }
+    ScoreRecordReadType & {
+      tags: string[];
+      user_id: string;
+      trace_environment: string;
+    }
   >({
     query,
     params: {
@@ -98,7 +103,11 @@ export const generateScoresForPublicApi = async (props: ScoreQueryType) => {
 
   return records.map((record) => ({
     ...convertToScore(record),
-    trace: { userId: record.user_id, tags: record.tags },
+    trace: {
+      userId: record.user_id,
+      tags: record.tags,
+      environment: record.trace_environment,
+    },
   }));
 };
 
@@ -213,7 +222,13 @@ const secureScoreFilterOptions: ApiColumnMapping[] = [
     filterType: "StringFilter",
     clickhousePrefix: "s",
   },
-
+  {
+    id: "environment",
+    clickhouseSelect: "environment",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
   {
     id: "dataType",
     clickhouseSelect: "data_type",
@@ -236,6 +251,13 @@ const secureTraceFilterOptions = [
     clickhouseSelect: "user_id",
     clickhouseTable: "traces",
     filterType: "StringFilter",
+    clickhousePrefix: "t",
+  },
+  {
+    id: "traceEnvironment",
+    clickhouseSelect: "environment",
+    clickhouseTable: "traces",
+    filterType: "StringOptionsFilter",
     clickhousePrefix: "t",
   },
 ];
