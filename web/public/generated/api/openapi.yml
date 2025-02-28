@@ -4952,6 +4952,10 @@ components:
             type: string
           nullable: true
           description: A list of tags associated with the trace referenced by score
+        environment:
+          type: string
+          nullable: true
+          description: The environment of the trace referenced by score
     GetScoresResponseDataNumeric:
       title: GetScoresResponseDataNumeric
       type: object

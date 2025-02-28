@@ -156,6 +156,9 @@ types:
       tags:
         type: optional<list<string>>
         docs: A list of tags associated with the trace referenced by score
+      environment:
+        type: optional<string>
+        docs: The environment of the trace referenced by score
 
   GetScoresResponseDataNumeric:
     extends: commons.NumericScore
