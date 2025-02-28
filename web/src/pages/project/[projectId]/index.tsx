@@ -17,7 +17,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -28,6 +28,9 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
+
+const environmentColumns = ["traceEnvironment"];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -84,49 +87,9 @@ export default function Dashboard() {
   const environmentOptions: string[] =
     environmentFilterOptions.data?.map((value) => value.environment) || [];
 
-  const [selectedEnvironments, setSelectedEnvironments] = useState<string[]>(
-    // Default to all environments that don't start with langfuse.
-    environmentOptions.filter((env) => !env.startsWith("langfuse")),
-  );
-
   // Add effect to update filter state when environments change
-  useEffect(() => {
-    if (selectedEnvironments.length === 0) {
-      // Remove environment filter if no environments selected
-      setUserFilterState(
-        userFilterState.filter(
-          (f) => !f.column.endWith("Environment"),
-        ) as FilterState,
-      );
-    } else {
-      // Remove any existing environment filters and add new one
-      const withoutEnv = userFilterState.filter((f) =>
-        f.column.endsWith("Environment"),
-      );
-      const newFilterState: FilterState = [
-        ...withoutEnv,
-        {
-          type: "stringOptions" as const,
-          column: "traceEnvironment",
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        },
-        {
-          type: "stringOptions" as const,
-          column: "observationEnvironment",
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        },
-        {
-          type: "stringOptions" as const,
-          column: "scoreEnvironment",
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        },
-      ];
-      setUserFilterState(newFilterState);
-    }
-  }, [selectedEnvironments, setUserFilterState, userFilterState]);
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
 
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
@@ -204,7 +167,21 @@ export default function Dashboard() {
         },
       ];
 
-  const mergedFilterState: FilterState = [...userFilterState, ...timeFilter];
+  const environmentFilter =
+    selectedEnvironments.length > 0
+      ? environmentColumns.map((column) => ({
+          type: "stringOptions" as const,
+          column,
+          operator: "any of" as const,
+          value: selectedEnvironments,
+        }))
+      : [];
+
+  const mergedFilterState: FilterState = [
+    ...userFilterState,
+    ...timeFilter,
+    ...environmentFilter,
+  ];
 
   return (
     <Page

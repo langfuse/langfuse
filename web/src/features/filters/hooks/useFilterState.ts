@@ -139,9 +139,6 @@ const tableCols = {
     { id: "release", name: "Release" },
     { id: "user", name: "User" },
     { id: "version", name: "Version" },
-    { id: "traceEnvironment", name: "Trace Environment" },
-    { id: "observationEnvironment", name: "Observation Environment" },
-    { id: "scoreEnvironment", name: "Score Environment" },
   ],
 };
 
