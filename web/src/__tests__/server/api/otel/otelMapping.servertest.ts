@@ -892,6 +892,23 @@ describe("OTel Resource Span Mapping", () => {
             "assistant: LLM Observability stands for logs, metrics, and traces observability.",
         },
       ],
+      [
+        "should extract output on observation from event attributes even if no gen_ai.completion attribute is available",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.content.completion",
+          otelEventAttributeKey: "gen_ai.something_else",
+          otelEventAttributeValue: {
+            stringValue:
+              "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: {
+            "gen_ai.something_else":
+              "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+          },
+        },
+      ],
     ])(
       "Events: %s",
       (

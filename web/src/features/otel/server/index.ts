@@ -128,23 +128,20 @@ const extractInputAndOutput = (
       event.name === "gen_ai.content.completion",
   )?.attributes;
   if (input || output) {
-    // Here, we are interested in the attributes of the event. Usually gen_ai.prompt and gen_ai.completion.
-    // We can use the current function again to extract them from the event attributes.
-    const { input: eventInput } = extractInputAndOutput(
-      [],
+    input =
       input?.reduce((acc: any, attr: any) => {
         acc[attr.key] = convertValueToPlainJavascript(attr.value);
         return acc;
-      }, {}) ?? {},
-    );
-    const { output: eventOutput } = extractInputAndOutput(
-      [],
+      }, {}) ?? {};
+    output =
       output?.reduce((acc: any, attr: any) => {
         acc[attr.key] = convertValueToPlainJavascript(attr.value);
         return acc;
-      }, {}) ?? {},
-    );
-
+      }, {}) ?? {};
+    // Here, we are interested in the attributes of the event. Usually gen_ai.prompt and gen_ai.completion.
+    // We can use the current function again to extract them from the event attributes.
+    const { input: eventInput } = extractInputAndOutput([], input);
+    const { output: eventOutput } = extractInputAndOutput([], output);
     return { input: eventInput || input, output: eventOutput || output };
   }
 
