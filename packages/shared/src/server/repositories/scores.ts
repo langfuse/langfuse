@@ -459,8 +459,9 @@ export const getScoresUiGeneric = async <T>(props: {
 }): Promise<T[]> => {
   const { select, projectId, filter, orderBy, limit, offset } = props;
 
-  const { tracesFilter, scoresFilter, observationsFilter } =
-    getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
+  const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
+    tracesPrefix: "t",
+  });
 
   scoresFilter.push(
     ...createFilterFromFilterState(filter, scoresTableUiColumnDefinitions),
