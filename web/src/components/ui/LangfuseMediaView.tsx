@@ -156,7 +156,7 @@ function VideoPlayer({ src }: { src?: string }) {
   if (!src) return null;
 
   return (
-    <video controls className="w-full" preload="metadata">
+    <video controls className="w-full" preload="metadata" playsInline>
       <source src={src} />
       Your browser does not support the video element.
     </video>
