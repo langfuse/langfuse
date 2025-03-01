@@ -51,7 +51,6 @@ export function TracesOnboarding({ projectId }: TracesOnboardingProps) {
         href: "https://langfuse.com/docs/tracing",
       }}
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/tracing-overview-v1.mp4"
-      className="bg-background dark:bg-background dark:text-white"
     />
   );
 }

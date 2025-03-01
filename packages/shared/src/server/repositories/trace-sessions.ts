@@ -61,12 +61,14 @@ export const getPublicSessionsFilter = async (
 };
 
 export const hasAnySession = async (projectId: string) => {
-  const count = await prisma.traceSession.count({
+  const session = await prisma.traceSession.findFirst({
     where: {
       projectId,
     },
-    take: 1,
+    select: {
+      id: true,
+    },
   });
 
-  return count > 0;
+  return session !== null;
 };

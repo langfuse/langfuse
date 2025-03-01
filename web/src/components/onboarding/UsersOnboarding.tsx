@@ -52,7 +52,6 @@ export function UsersOnboarding() {
         </span>
       }
       videoSrc="https://static.langfuse.com/prod-assets/onboarding/users-overview-v1.mp4"
-      className="bg-background dark:bg-background dark:text-white"
     />
   );
 }
