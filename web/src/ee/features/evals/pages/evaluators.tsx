@@ -110,7 +110,7 @@ export default function EvaluatorsPage() {
             variant="outline"
             onClick={() => capture("eval_config:new_form_open")}
             href={`/project/${projectId}/evals/new`}
-            limitValue={countsQuery.data?.configCount ?? 0}
+            limitValue={countsQuery.data?.configActiveCount ?? 0}
             limit={evaluatorLimit}
           >
             New evaluator
