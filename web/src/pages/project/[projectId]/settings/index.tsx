@@ -15,7 +15,10 @@ import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  useEntitlements,
+  useHasEntitlement,
+} from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
@@ -39,6 +42,11 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showBillingSettings = useHasEntitlement("cloud-billing");
   const showRetentionSettings = useHasEntitlement("data-retention");
 
+  const entitlements = useEntitlements();
+  const showLLMConnectionsSettings =
+    entitlements.includes("playground") ||
+    entitlements.includes("model-based-evaluations");
+
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -48,6 +56,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     organization,
     showBillingSettings,
     showRetentionSettings,
+    showLLMConnectionsSettings,
   });
 }
 
@@ -56,11 +65,13 @@ export const getProjectSettingsPages = ({
   organization,
   showBillingSettings,
   showRetentionSettings,
+  showLLMConnectionsSettings,
 }: {
   project: { id: string; name: string };
   organization: { id: string; name: string };
   showBillingSettings: boolean;
   showRetentionSettings: boolean;
+  showLLMConnectionsSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -103,13 +114,33 @@ export const getProjectSettingsPages = ({
   {
     title: "API Keys",
     slug: "api-keys",
-    cmdKKeywords: ["auth"],
+    cmdKKeywords: ["auth", "public key", "secret key"],
     content: (
       <div className="flex flex-col gap-6">
         <ApiKeyList projectId={project.id} />
+      </div>
+    ),
+  },
+  {
+    title: "LLM Connections",
+    slug: "llm-connections",
+    cmdKKeywords: [
+      "llm",
+      "provider",
+      "openai",
+      "anthropic",
+      "azure",
+      "playground",
+      "evaluation",
+      "endpoint",
+      "api",
+    ],
+    content: (
+      <div className="flex flex-col gap-6">
         <LlmApiKeyList projectId={project.id} />
       </div>
     ),
+    show: showLLMConnectionsSettings,
   },
   {
     title: "Models",
