@@ -16,6 +16,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { logger } from "@langfuse/shared/src/server";
+import { createId as createCuid } from "@paralleldrive/cuid2";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -635,35 +636,35 @@ export const datasetRouter = createTRPCRouter({
         throw new Error("One or more datasets not found");
       }
 
-      // Create dataset items
-      const createdItems = await Promise.all(
-        input.items.map(async (item) => {
-          const datasetItem = await ctx.prisma.datasetItem.create({
-            data: {
-              input: formatDatasetItemData(item.input),
-              expectedOutput: formatDatasetItemData(item.expectedOutput),
-              metadata: formatDatasetItemData(item.metadata),
-              datasetId: item.datasetId,
-              sourceTraceId: item.sourceTraceId,
-              sourceObservationId: item.sourceObservationId,
-              projectId: input.projectId,
-              status: DatasetStatus.ACTIVE,
-            },
-          });
+      const itemsWithIds = input.items.map((item) => ({
+        id: createCuid(),
+        input: formatDatasetItemData(item.input),
+        expectedOutput: formatDatasetItemData(item.expectedOutput),
+        metadata: formatDatasetItemData(item.metadata),
+        datasetId: item.datasetId,
+        sourceTraceId: item.sourceTraceId,
+        sourceObservationId: item.sourceObservationId,
+        projectId: input.projectId,
+        status: DatasetStatus.ACTIVE,
+      }));
 
-          await auditLog({
+      await ctx.prisma.datasetItem.createMany({
+        data: itemsWithIds,
+      });
+
+      await Promise.all(
+        itemsWithIds.map(async (item) =>
+          auditLog({
             session: ctx.session,
             resourceType: "datasetItem",
-            resourceId: datasetItem.id,
+            resourceId: item.id,
             action: "create",
-            after: datasetItem,
-          });
-
-          return datasetItem;
-        }),
+            after: item,
+          }),
+        ),
       );
 
-      return createdItems;
+      return;
     }),
 
   runitemsByRunIdOrItemId: protectedProjectProcedure
