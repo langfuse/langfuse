@@ -58,6 +58,7 @@ function VideoPlayer({ videoSrc }: VideoPlayerProps) {
         autoPlay
         muted
         loop
+        playsInline
         controlsList="nodownload"
         className="w-full"
         onError={() => setHasError(true)}
