@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/resizable";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
 import { ListTree } from "lucide-react";
@@ -62,6 +63,17 @@ export default function Dataset() {
                   <ListTree className="h-4 w-4" />
                 </Link>
               </Button>
+            )}
+            {item.data && (
+              <NewDatasetItemFromExistingObject
+                projectId={projectId}
+                fromDatasetId={item.data.datasetId}
+                traceId={item.data.sourceTraceId ?? undefined}
+                observationId={item.data.sourceObservationId ?? undefined}
+                input={JSON.stringify(item.data.input)}
+                output={JSON.stringify(item.data.expectedOutput)}
+                metadata={JSON.stringify(item.data.metadata)}
+              />
             )}
           </>
         ),

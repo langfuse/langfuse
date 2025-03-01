@@ -24,10 +24,20 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
 
-export const NewDatasetItemFromTrace = (props: {
+/**
+ * Component for creating a new dataset item from an existing object.
+ *
+ * This component can be used in two different contexts:
+ * 1. From a trace/observation: Creates a dataset item using data from a trace or observation
+ *    (requires traceId and optionally observationId)
+ * 2. From an existing dataset item: Creates a new dataset item based on an existing one
+ *    (requires fromDatasetId)
+ */
+export const NewDatasetItemFromExistingObject = (props: {
   projectId: string;
-  traceId: string;
+  traceId?: string;
   observationId?: string;
+  fromDatasetId?: string;
   input: string | undefined;
   output: string | undefined;
   metadata: Prisma.JsonValue;
@@ -50,11 +60,11 @@ export const NewDatasetItemFromTrace = (props: {
     api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
       {
         projectId: props.projectId,
-        traceId: props.traceId,
+        traceId: props.traceId as string,
         observationId: props.observationId,
       },
       {
-        enabled: isAuthenticatedAndProjectMember,
+        enabled: isAuthenticatedAndProjectMember && !!props.traceId,
       },
     );
   const hasAccess = useHasProjectAccess({
@@ -140,6 +150,9 @@ export const NewDatasetItemFromTrace = (props: {
             metadata={props.metadata}
             onFormSuccess={() => setIsFormOpen(false)}
             className="h-full overflow-y-auto"
+            blockedDatasetIds={
+              props.fromDatasetId ? [props.fromDatasetId] : undefined
+            }
           />
         </DialogContent>
       </Dialog>

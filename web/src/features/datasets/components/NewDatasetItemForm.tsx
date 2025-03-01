@@ -91,6 +91,7 @@ export const NewDatasetItemForm = (props: {
   datasetId?: string;
   className?: string;
   onFormSuccess?: () => void;
+  blockedDatasetIds?: string[];
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
@@ -183,32 +184,40 @@ export const NewDatasetItemForm = (props: {
                       <InputCommandEmpty>No datasets found.</InputCommandEmpty>
                       <InputCommandGroup>
                         <ScrollArea className="h-60">
-                          {datasets.data?.map((dataset) => (
-                            <InputCommandItem
-                              value={dataset.name}
-                              key={dataset.id}
-                              onSelect={() => {
-                                const newValue = field.value.includes(
+                          {datasets.data
+                            ?.filter(
+                              (dataset) =>
+                                !props.blockedDatasetIds?.includes(dataset.id),
+                            )
+                            .map((dataset) => (
+                              <InputCommandItem
+                                value={dataset.name}
+                                key={dataset.id}
+                                disabled={props.blockedDatasetIds?.includes(
                                   dataset.id,
-                                )
-                                  ? field.value.filter(
-                                      (id) => id !== dataset.id,
-                                    )
-                                  : [...field.value, dataset.id];
-                                field.onChange(newValue);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  field.value.includes(dataset.id)
-                                    ? "opacity-100"
-                                    : "opacity-0",
                                 )}
-                              />
-                              {dataset.name}
-                            </InputCommandItem>
-                          ))}
+                                onSelect={() => {
+                                  const newValue = field.value.includes(
+                                    dataset.id,
+                                  )
+                                    ? field.value.filter(
+                                        (id) => id !== dataset.id,
+                                      )
+                                    : [...field.value, dataset.id];
+                                  field.onChange(newValue);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value.includes(dataset.id)
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                                {dataset.name}
+                              </InputCommandItem>
+                            ))}
                         </ScrollArea>
                       </InputCommandGroup>
                     </InputCommand>

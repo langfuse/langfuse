@@ -15,7 +15,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { api } from "@/src/utils/api";
-import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useMemo, useState } from "react";
@@ -103,7 +103,7 @@ export const TracePreview = ({
             </span>
           </div>
           <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
-            <NewDatasetItemFromTrace
+            <NewDatasetItemFromExistingObject
               traceId={trace.id}
               projectId={trace.projectId}
               input={trace.input}
