@@ -537,7 +537,10 @@ export function TraceTimelineView({
             )}
           </div>
         </div>
-        <div style={{ width: `${SCALE_WIDTH}px` }} className="overflow-hidden">
+        <div
+          style={{ width: `${SCALE_WIDTH}px` }}
+          className="overflow-y-auto overflow-x-hidden"
+        >
           <SimpleTreeView
             expandedItems={expandedItems}
             onExpandedItemsChange={(_, itemIds) => setExpandedItems(itemIds)}
