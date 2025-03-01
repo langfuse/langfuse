@@ -112,8 +112,9 @@ export default function Dataset() {
                           : "Unarchive this item?"}
                       </h4>
                       <p className="text-sm text-muted-foreground">
-                        Archiving an item will exclude it from new experiment
-                        runs.
+                        {item.data.status === DatasetStatus.ACTIVE
+                          ? "Archiving an item will exclude it from new experiment runs."
+                          : "Unarchiving an item will include it back in new experiment runs."}
                       </p>
                     </div>
                     <Button
