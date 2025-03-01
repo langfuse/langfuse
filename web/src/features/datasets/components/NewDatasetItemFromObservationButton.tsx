@@ -98,7 +98,7 @@ export const NewDatasetItemFromTrace = (props: {
                 }}
               >
                 <PlusIcon size={16} className={cn("mr-2")} aria-hidden="true" />
-                Add new
+                Add to more datasets
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -120,7 +120,7 @@ export const NewDatasetItemFromTrace = (props: {
               aria-hidden="true"
             />
           ) : null}
-          Add to dataset
+          Add to datasets
           {!hasAccess ? (
             <LockIcon className={cn("ml-1.5 h-3 w-3")} aria-hidden="true" />
           ) : null}
@@ -129,7 +129,7 @@ export const NewDatasetItemFromTrace = (props: {
       <Dialog open={hasAccess && isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
           <DialogHeader>
-            <DialogTitle>Add to dataset</DialogTitle>
+            <DialogTitle>Add to datasets</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
             traceId={props.traceId}
