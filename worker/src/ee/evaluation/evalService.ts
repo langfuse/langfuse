@@ -1,8 +1,9 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod";
-import { ScoreSource, JobConfigState } from "@prisma/client";
+import { JobConfigState } from "@prisma/client";
 import {
+  ScoreSource,
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
@@ -370,6 +371,9 @@ export const evaluate = async ({
     `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
   );
 
+  // Get environment from trace or observation variables
+  const environment = mappingResult.find((r) => r.environment)?.environment;
+
   // compile the prompt and send out the LLM request
   let prompt;
   try {
@@ -460,6 +464,7 @@ export const evaluate = async ({
     value: parsedLLMOutput.score,
     comment: parsedLLMOutput.reasoning,
     source: ScoreSource.EVAL,
+    environment: environment ?? "default",
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing
@@ -541,7 +546,7 @@ export async function extractVariablesFromTracingData({
   // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>;
   datasetItemId?: string;
-}): Promise<{ var: string; value: string }[]> {
+}): Promise<{ var: string; value: string; environment?: string }[]> {
   return Promise.all(
     variables.map(async (variable) => {
       const mapping = variableMapping.find(
@@ -615,10 +620,7 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const trace: Record<string, unknown> | undefined = await getTraceById(
-          traceId,
-          projectId,
-        );
+        const trace = await getTraceById(traceId, projectId);
 
         // user facing errors
         if (!trace) {
@@ -633,6 +635,7 @@ export async function extractVariablesFromTracingData({
         return {
           var: variable,
           value: parseDatabaseRowToString(trace, mapping),
+          environment: trace.environment,
         };
       }
 
@@ -655,7 +658,7 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const observation: Record<string, unknown> | undefined = (
+        const observation = (
           await getObservationForTraceIdByName(
             traceId,
             projectId,
@@ -677,7 +680,10 @@ export async function extractVariablesFromTracingData({
 
         return {
           var: variable,
-          value: parseUnknownToString(observation[mapping.selectedColumnId]),
+          value: parseUnknownToString(
+            (observation as Record<string, unknown>)[mapping.selectedColumnId],
+          ),
+          environment: observation.environment,
         };
       }
 

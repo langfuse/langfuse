@@ -54,6 +54,21 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
+    [
+      "non-default-environment",
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          metadata: { hello: "world" },
+          input: ["hello", { world: "world" }, [1, 2, 3]],
+          environment: "production",
+        },
+      },
+    ],
   ])(
     "should create traces via the ingestion API (%s)",
     async (_name: string, entity: any) => {
@@ -71,6 +86,9 @@ describe("/api/public/ingestion API Endpoint", () => {
         expect(trace!.metadata).toEqual(entity.body?.metadata ?? {});
         expect(trace!.input).toEqual(entity.body?.input ?? null);
         expect(trace!.output).toEqual(entity.body?.output ?? null);
+        expect(trace!.environment).toEqual(
+          entity.body?.environment ?? "default",
+        );
       });
     },
   );
@@ -124,6 +142,23 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
+    [
+      "span-non-default-environment",
+      "SPAN",
+      {
+        id: randomUUID(),
+        type: "span-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          traceId: randomUUID(),
+          startTime: new Date().toISOString(),
+          input: ["hello", { world: "world" }, [1, 2, 3]],
+          output: ["hello", { world: [2, 3, "test"] }, [1, 2, 3]],
+          environment: "production",
+        },
+      },
+    ],
   ])(
     "should create observations via the ingestion API (%s)",
     async (_name: string, type: string, entity: any) => {
@@ -146,6 +181,9 @@ describe("/api/public/ingestion API Endpoint", () => {
         expect(observation!.input).toEqual(entity.body?.input ?? null);
         expect(observation!.output).toEqual(entity.body?.output ?? null);
         expect(observation!.type).toBe(type);
+        expect(observation!.environment).toEqual(
+          entity.body?.environment ?? "default",
+        );
       });
     },
   );
@@ -166,6 +204,22 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
+    [
+      "non-default-environment",
+      {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          name: "score-name",
+          traceId: randomUUID(),
+          value: 100.5,
+          observationId: randomUUID(),
+          environment: "production",
+        },
+      },
+    ],
   ])(
     "should create scores via the ingestion API (%s)",
     async (_name: string, entity: any) => {
@@ -181,6 +235,9 @@ describe("/api/public/ingestion API Endpoint", () => {
         expect(score!.id).toBe(entity.body.id);
         expect(score!.projectId).toBe(projectId);
         expect(score!.value).toEqual(100.5);
+        expect(score!.environment).toEqual(
+          entity.body?.environment ?? "default",
+        );
       });
     },
   );
@@ -217,6 +274,36 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.body.errors.length).toBe(1);
     expect(response.body.errors[0].message).toBe("Invalid request data");
   });
+
+  it.each([
+    "langfuse-test",
+    ".invalidcharacter!",
+    "incrediblylongstringwithmorethan40characters",
+  ])(
+    "should fail for invalid environments (%s)",
+    async (environment: string) => {
+      const entity = {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          name: "score-name",
+          traceId: randomUUID(),
+          value: 100.5,
+          observationId: randomUUID(),
+          environment,
+        },
+      };
+
+      const response = await makeAPICall("POST", "/api/public/ingestion", {
+        batch: [entity],
+      });
+
+      expect(response.status).toBe(207);
+      expect(response.body.errors[0].status).toBe(400);
+    },
+  );
 
   // Disabled until eventLog becomes the default behaviour.
   it("should create a log entry for the S3 file", async () => {

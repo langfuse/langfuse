@@ -34,7 +34,7 @@ import {
   type FilterState,
   type TraceOptions,
   tracesTableColsWithOptions,
-  type ObservationLevel,
+  type ObservationLevelType,
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
@@ -81,7 +81,7 @@ export type TracesTableRow = {
   timestamp: Date;
   name: string;
   userId: string;
-  level?: ObservationLevel;
+  level?: ObservationLevelType;
   observationCount?: bigint;
   levelCounts: {
     errorCount?: bigint;

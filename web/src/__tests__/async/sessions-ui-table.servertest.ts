@@ -322,4 +322,68 @@ describe("trpc.sessions", () => {
     expect(Number(session2?.session_output_usage)).toBeGreaterThan(0);
     expect(Number(session2?.session_total_usage)).toBeGreaterThan(0);
   });
+
+  it("LFE-4113: should GET correct metrics for a list of sessions without observations", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const sessionId = v4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        {
+          id: sessionId,
+          projectId: projectId,
+        },
+      ],
+    });
+
+    const traces = [
+      createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        user_id: "user1",
+      }),
+      createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        user_id: "user3",
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Only trace 2 has observations
+    const observations = [
+      createObservation({
+        trace_id: traces[1].id,
+        project_id: projectId,
+        start_time: new Date().getTime() - 1000,
+      }),
+      createObservation({
+        trace_id: traces[1].id,
+        project_id: projectId,
+        start_time: new Date().getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    const sessions = await getSessionsWithMetrics({
+      projectId: projectId,
+      filter: [
+        {
+          column: "id",
+          type: "stringOptions",
+          operator: "any of",
+          value: [sessionId],
+        },
+      ],
+    });
+
+    expect(sessions.length).toBe(1);
+
+    expect(sessions[0]).toBeDefined();
+    expect(sessions[0]?.trace_count).toBe(2);
+    expect(parseInt(sessions[0]?.duration as any)).toBeGreaterThan(995);
+    expect(parseInt(sessions[0]?.duration as any)).toBeLessThan(1005);
+  });
 });

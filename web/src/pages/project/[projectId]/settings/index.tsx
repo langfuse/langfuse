@@ -24,7 +24,6 @@ import { BatchExportsSettingsPage } from "@/src/features/batch-exports/component
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
-import { env } from "@/src/env.mjs";
 import ContainerPage from "@/src/components/layouts/container-page";
 
 type ProjectSettingsPage = {
@@ -38,7 +37,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const router = useRouter();
   const { project, organization } = useQueryProject();
   const showBillingSettings = useHasEntitlement("cloud-billing");
-  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const showRetentionSettings = useHasEntitlement("data-retention");
 
   if (!project || !organization || !router.query.projectId) {
     return [];
@@ -48,7 +47,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     project,
     organization,
     showBillingSettings,
-    isLangfuseCloud,
+    showRetentionSettings,
   });
 }
 
@@ -56,12 +55,12 @@ export const getProjectSettingsPages = ({
   project,
   organization,
   showBillingSettings,
-  isLangfuseCloud,
+  showRetentionSettings,
 }: {
   project: { id: string; name: string };
   organization: { id: string; name: string };
   showBillingSettings: boolean;
-  isLangfuseCloud: boolean;
+  showRetentionSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -71,7 +70,7 @@ export const getProjectSettingsPages = ({
       <div className="flex flex-col gap-6">
         <HostNameProject />
         <RenameProject />
-        {isLangfuseCloud && <ConfigureRetention />}
+        {showRetentionSettings && <ConfigureRetention />}
         <div>
           <Header title="Debug Information" />
           <JSONView

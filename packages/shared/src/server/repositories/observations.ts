@@ -5,7 +5,6 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import { ObservationLevel } from "@prisma/client";
 import { logger } from "../logger";
 import { InternalServerError, LangfuseNotFoundError } from "../../errors";
 import { prisma } from "../../db";
@@ -115,6 +114,7 @@ export const getObservationsViewForTrace = async (
     project_id,
     type,
     parent_observation_id,
+    environment,
     start_time,
     end_time,
     name,
@@ -178,6 +178,7 @@ export const getObservationForTraceIdByName = async (
     project_id,
     type,
     parent_observation_id,
+    environment,
     start_time,
     end_time,
     name,
@@ -343,6 +344,7 @@ const getObservationByIdInternal = async (
     id,
     trace_id,
     project_id,
+    environment,
     type,
     parent_observation_id,
     start_time,
@@ -1137,6 +1139,7 @@ export const getObservationMetricsForPrompts = async (
 export const getLatencyAndTotalCostForObservations = async (
   projectId: string,
   observationIds: string[],
+  timestamp?: Date,
 ) => {
   const query = `
     SELECT
@@ -1145,7 +1148,8 @@ export const getLatencyAndTotalCostForObservations = async (
         dateDiff('millisecond', start_time, end_time) AS latency_ms
     FROM observations FINAL 
     WHERE project_id = {projectId: String} 
-    AND id IN ({observationIds: Array(String)})
+    AND id IN ({observationIds: Array(String)}) 
+    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
 `;
   const rows = await queryClickhouse<{
     id: string;
@@ -1156,6 +1160,9 @@ export const getLatencyAndTotalCostForObservations = async (
     params: {
       projectId,
       observationIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",
@@ -1175,6 +1182,7 @@ export const getLatencyAndTotalCostForObservations = async (
 export const getLatencyAndTotalCostForObservationsByTraces = async (
   projectId: string,
   traceIds: string[],
+  timestamp?: Date,
 ) => {
   const query = `
     SELECT
@@ -1184,6 +1192,7 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     FROM observations FINAL
     WHERE project_id = {projectId: String} 
     AND trace_id IN ({traceIds: Array(String)})
+    ${timestamp ? `AND start_time >= {timestamp: DateTime64(3)}` : ""}
     GROUP BY trace_id
 `;
   const rows = await queryClickhouse<{
@@ -1195,6 +1204,9 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     params: {
       projectId,
       traceIds,
+      ...(timestamp
+        ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
+        : {}),
     },
     tags: {
       feature: "tracing",

@@ -62,6 +62,7 @@ export default withMiddlewares({
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         tags: query.tags ?? undefined,
+        environment: query.environment ?? undefined,
         sessionId: query.sessionId ?? undefined,
         version: query.version ?? undefined,
         release: query.release ?? undefined,

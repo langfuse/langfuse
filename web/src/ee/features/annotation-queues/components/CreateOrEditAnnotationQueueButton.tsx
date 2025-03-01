@@ -1,4 +1,4 @@
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import React, { useEffect, useState } from "react";
 import {
   Dialog,
@@ -44,10 +44,12 @@ export const CreateOrEditAnnotationQueueButton = ({
   projectId,
   queueId,
   variant = "secondary",
+  size,
 }: {
   projectId: string;
   queueId?: string;
-  variant?: "secondary" | "ghost";
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
@@ -168,6 +170,7 @@ export const CreateOrEditAnnotationQueueButton = ({
           hasEntitlement={hasEntitlement}
           limitValue={queueCountData.data}
           limit={queueLimit}
+          size={size}
         >
           <span className="ml-1 text-sm font-normal">
             {queueId ? "Edit" : "New queue"}

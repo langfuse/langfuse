@@ -2,7 +2,7 @@ import {
   type ScoreAggregate,
   type ScoreSimplified,
   type APIScore,
-  type ScoreSource,
+  type ScoreSourceType,
   type ScoreDataType,
 } from "@langfuse/shared";
 
@@ -12,7 +12,7 @@ export const composeAggregateScoreKey = ({
   dataType,
 }: {
   name: string;
-  source: ScoreSource;
+  source: ScoreSourceType;
   dataType: ScoreDataType;
   keyPrefix?: string;
 }): string => {

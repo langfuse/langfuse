@@ -748,9 +748,10 @@ export const InnerEvalConfigForm = (props: {
                       title={"Eval Template"}
                       json={props.evalTemplate.prompt ?? null}
                       className={cn(
-                        "min-h-48 bg-muted",
+                        "min-h-48",
                         !props.shouldWrapVariables && "lg:w-2/3",
                       )}
+                      codeClassName="flex-1"
                     />
                     <div
                       className={cn(

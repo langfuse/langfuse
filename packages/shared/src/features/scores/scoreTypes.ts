@@ -1,8 +1,7 @@
 import { z } from "zod";
 
-import { Score } from "@prisma/client";
-
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
+import { Score } from "../../server";
 import {
   NonEmptyString,
   paginationMetaResponseZod,
@@ -46,6 +45,7 @@ const ScoreBase = z.object({
   id: z.string(),
   timestamp: z.coerce.date(),
   projectId: z.string(),
+  environment: z.string().default("default"),
   name: z.string(),
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
@@ -64,6 +64,7 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  environment: z.string().default("default"),
 });
 
 /**
@@ -237,6 +238,7 @@ export const GetScoresQuery = z.object({
   configId: z.string().nullish(),
   queueId: z.string().nullish(),
   traceTags: z.union([z.array(z.string()), z.string()]).nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
   name: z.string().nullish(),
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
@@ -259,6 +261,7 @@ const LegacyGetScoreResponseDataV1 = z.intersection(
     trace: z.object({
       userId: z.string().nullish(),
       tags: z.array(z.string()).nullish(),
+      environment: z.string().nullish(),
     }),
   }),
 );

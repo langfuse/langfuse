@@ -18,7 +18,7 @@ import {
   timeFilter,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared";
-import { type ObservationView } from "@langfuse/shared/src/db";
+import { type ObservationView } from "@langfuse/shared";
 import {
   traceException,
   getTracesTable,

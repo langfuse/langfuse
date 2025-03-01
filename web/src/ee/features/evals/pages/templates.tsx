@@ -33,7 +33,7 @@ export default function TemplatesPage() {
   return (
     <Page
       headerProps={{
-        title: "Eval Templates",
+        title: "Evaluators",
         help: {
           description:
             "Create an evaluation template. Choose from one of the pre-defined templates or create your own.",

@@ -531,13 +531,13 @@ export function CreateLLMApiKeyForm({
               {currentAdapter === LLMAdapter.Bedrock && (
                 <FormDescription className="text-dark-yellow">
                   {
-                    "For Bedrock, the model name is the Bedrock model ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
+                    "For Bedrock, the model name is the Bedrock Inference Profile ID, e.g. 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0'"
                   }
                 </FormDescription>
               )}
 
               {fields.map((customModel, index) => (
-                <span key={index} className="flex flex-row space-x-2">
+                <span key={customModel.id} className="flex flex-row space-x-2">
                   <Input
                     {...form.register(`customModels.${index}.value`)}
                     placeholder={`Custom model name ${index + 1}`}

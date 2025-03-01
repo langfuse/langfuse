@@ -26,6 +26,7 @@ export default withMiddlewares({
           id: true,
           createdAt: true,
           projectId: true,
+          environment: true,
         },
       });
 

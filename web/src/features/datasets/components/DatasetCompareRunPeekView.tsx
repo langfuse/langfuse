@@ -120,6 +120,7 @@ export function DatasetCompareRunPeekView({
                       "noopener noreferrer",
                     );
                 }}
+                showComments={false}
                 showMetrics={false}
                 showScores={true}
                 colorCodeMetrics={false}
