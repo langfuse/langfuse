@@ -10,8 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
-import Link from "next/link";
+import { ActionButton } from "@/src/components/ActionButton";
 
 export const UsageTracker = () => {
   const { organization } = useQueryProjectOrOrganization();
@@ -38,7 +37,6 @@ export const UsageTracker = () => {
   if (
     usageQuery.isLoading ||
     !usageQuery.data ||
-    !hasAccess ||
     !hasEntitlement ||
     plan !== "cloud:hobby"
   ) {
@@ -62,11 +60,14 @@ export const UsageTracker = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-2">
-        <Button variant="secondary" size="sm" asChild>
-          <Link href={`/organization/${organization?.id}/settings/billing`}>
-            Upgrade plan
-          </Link>
-        </Button>
+        <ActionButton
+          variant="secondary"
+          size="sm"
+          href={`/organization/${organization?.id}/settings/billing`}
+          hasAccess={hasAccess}
+        >
+          Upgrade plan
+        </ActionButton>
       </CardContent>
     </Card>
   );
