@@ -349,7 +349,7 @@ export const evaluate = async ({
     },
   });
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${job.id} for project ${event.projectId} with template ${template.id}. Searching for context...`,
   );
 
