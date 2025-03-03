@@ -232,11 +232,11 @@ export const TracePreview = ({
                     setCurrentView(value as "pretty" | "json");
                   }}
                 >
-                  <TabsList>
-                    <TabsTrigger value="pretty" className="h-fit text-xs">
+                  <TabsList className="h-fit py-0.5">
+                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
                       Formatted
                     </TabsTrigger>
-                    <TabsTrigger value="json" className="h-fit text-xs">
+                    <TabsTrigger value="json" className="h-fit px-1 text-xs">
                       JSON
                     </TabsTrigger>
                   </TabsList>

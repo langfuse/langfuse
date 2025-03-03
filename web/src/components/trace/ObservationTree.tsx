@@ -153,20 +153,26 @@ const ObservationTreeTraceNode = (props: {
         "flex w-full rounded-md px-0 hover:rounded-lg",
         (props.currentObservationId === undefined ||
           props.currentObservationId === "") &&
-          "bg-muted",
+          "rounded-lg bg-muted",
         "after:hover:absolute after:hover:bottom-0 after:hover:left-0 after:hover:right-0 after:hover:h-[2px] after:hover:bg-background after:hover:content-['']",
         "before:hover:absolute before:hover:left-0 before:hover:right-0 before:hover:top-0 before:hover:h-[2px] before:hover:bg-background before:hover:content-['']",
+        (props.currentObservationId === undefined ||
+          props.currentObservationId === "") && [
+          "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-background after:content-['']",
+          "before:absolute before:left-0 before:right-0 before:top-0 before:h-[2px] before:bg-background before:content-['']",
+        ],
       )}
       style={{
         paddingTop: 0,
         paddingBottom: 0,
         cursor: "pointer",
+        borderRadius: "0.5rem",
       }}
       onSelect={() => props.setCurrentObservationId(undefined)}
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
         <div className="flex w-full flex-col items-start gap-2 -space-y-1">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ItemBadge
               type="TRACE"
               isSmall={true}
@@ -347,15 +353,20 @@ const ObservationTreeNodeCard = ({
     <CommandItem
       value={`${observation.name} ${observation.type} ${observation.id}`}
       className={cn(
-        "relative flex w-full rounded-md px-0 hover:rounded-lg hover:bg-accent",
+        "relative flex w-full rounded-md px-0 hover:rounded-lg",
         currentObservationId === observation.id && "bg-muted",
         "after:hover:absolute after:hover:bottom-0 after:hover:left-0 after:hover:right-0 after:hover:h-[2px] after:hover:bg-background after:hover:content-['']",
         "before:hover:absolute before:hover:left-0 before:hover:right-0 before:hover:top-0 before:hover:h-[2px] before:hover:bg-background before:hover:content-['']",
+        currentObservationId === observation.id && [
+          "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-background after:content-['']",
+          "before:absolute before:left-0 before:right-0 before:top-0 before:h-[2px] before:bg-background before:content-['']",
+        ],
       )}
       style={{
         paddingTop: 0,
         paddingBottom: 0,
         cursor: "pointer",
+        borderRadius: "0.5rem",
       }}
       onSelect={() => setCurrentObservationId(observation.id)}
     >
@@ -367,7 +378,9 @@ const ObservationTreeNodeCard = ({
 
         {/* Node content */}
         <div
-          className={cn("flex w-full flex-wrap items-center gap-2 py-2")}
+          className={cn(
+            "flex w-full flex-wrap items-center gap-2 -space-y-1 py-2",
+          )}
           ref={currentObservationRef}
         >
           {/* Type badge */}

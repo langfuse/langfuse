@@ -49,43 +49,49 @@ const PageHeader = ({
         <div className="bg-header">
           <div
             className={cn(
-              "grid min-h-12 min-w-0 max-w-full grid-cols-[minmax(0,auto)_minmax(auto,1fr)] items-center justify-between gap-1 px-3 py-1",
+              "flex min-h-12 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
               container && "lg:container",
             )}
           >
-            <div className="flex max-w-fit items-center gap-1 overflow-y-auto md:min-w-28">
-              {itemType && (
-                <div className="flex h-12 items-center">
-                  <ItemBadge type={itemType} showLabel />
+            {/* Left side content */}
+            <div className="flex flex-grow flex-wrap items-center md:flex-grow-0">
+              <div className="mr-2 flex items-center gap-1">
+                {itemType && (
+                  <div className="flex items-center">
+                    <ItemBadge type={itemType} showLabel />
+                  </div>
+                )}
+                <div className="relative inline-block max-w-md md:max-w-none">
+                  <h2 className="inline text-lg font-semibold leading-7">
+                    <span className="break-words">
+                      {title}
+                      {help && (
+                        <span className="whitespace-nowrap">
+                          &nbsp;
+                          <DocPopup
+                            description={help.description}
+                            href={help.href}
+                            className={help.className}
+                          />
+                        </span>
+                      )}
+                    </span>
+                  </h2>
                 </div>
-              )}
-              <div className="relative inline-block min-w-10 md:min-w-20">
-                <h2 className="line-clamp-2 inline h-14 min-w-0 place-content-center text-lg font-semibold leading-7">
-                  <span className="line-clamp-2 break-all md:break-words">
-                    {title}
-                    {help && (
-                      <span className="whitespace-nowrap">
-                        &nbsp;
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          className={help.className}
-                        />
-                      </span>
-                    )}
-                  </span>
-                </h2>
               </div>
               {actionButtonsLeft && (
-                <div className="flex w-fit min-w-20 flex-shrink items-center gap-1 overflow-y-auto">
+                <div className="flex flex-wrap items-center gap-1 self-center">
                   {actionButtonsLeft}
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-1">
+
+            {/* Right side content */}
+            <div className="ml-auto flex flex-grow flex-wrap items-center justify-end gap-1">
               {actionButtonsRight}
             </div>
           </div>
+
           <div className="ml-2">{tabsComponent}</div>
         </div>
       </div>
