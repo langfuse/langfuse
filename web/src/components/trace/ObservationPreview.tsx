@@ -14,7 +14,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";

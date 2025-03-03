@@ -1,4 +1,4 @@
-import { ChevronDown, LockIcon, PlusIcon } from "lucide-react";
+import { ChevronDown, CopyIcon, LockIcon, PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
+import { ActionButton } from "@/src/components/ActionButton";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -31,7 +32,7 @@ import { parseJsonPrioritised } from "@langfuse/shared";
  * 1. From a trace/observation: Creates a dataset item using data from a trace or observation
  *    (requires traceId and optionally observationId)
  * 2. From an existing dataset item: Creates a new dataset item based on an existing one
- *    (requires fromDatasetId)
+ *    (requires fromDatasetId) -> isCopyItem
  */
 export const NewDatasetItemFromExistingObject = (props: {
   projectId: string;
@@ -41,6 +42,7 @@ export const NewDatasetItemFromExistingObject = (props: {
   input: string | undefined;
   output: string | undefined;
   metadata: Prisma.JsonValue;
+  isCopyItem?: boolean;
 }) => {
   const parsedInput =
     props.input && typeof props.input === "string"
@@ -75,7 +77,19 @@ export const NewDatasetItemFromExistingObject = (props: {
 
   return (
     <>
-      {observationInDatasets.data && observationInDatasets.data.length > 0 ? (
+      {props.isCopyItem ? (
+        <ActionButton
+          variant="ghost"
+          size="icon-xs"
+          hasAccess={hasAccess}
+          onClick={() => {
+            setIsFormOpen(true);
+          }}
+        >
+          <CopyIcon className="size-3" />
+        </ActionButton>
+      ) : observationInDatasets.data &&
+        observationInDatasets.data.length > 0 ? (
         <div>
           <DropdownMenu open={hasAccess ? undefined : false}>
             <DropdownMenuTrigger asChild>
