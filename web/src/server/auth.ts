@@ -28,6 +28,7 @@ import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import KeycloakProvider from "next-auth/providers/keycloak";
+import WorkOSProvider from "next-auth/providers/workos";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -353,6 +354,20 @@ if (
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
       },
       checks: env.AUTH_KEYCLOAK_CHECKS,
+    }),
+  );
+
+if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
+  staticProviders.push(
+    WorkOSProvider({
+      clientId: env.AUTH_WORKOS_CLIENT_ID,
+      clientSecret: env.AUTH_WORKOS_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_WORKOS_CLIENT_AUTH_METHOD,
+      },
+      checks: env.AUTH_WORKOS_CHECKS,
     }),
   );
 

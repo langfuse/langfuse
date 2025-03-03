@@ -28,7 +28,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Shield } from "lucide-react";
+import { Shield, Code } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -54,6 +54,7 @@ export type PageProps = {
     auth0: boolean;
     cognito: boolean;
     keycloak: boolean;
+    workos: boolean;
     custom:
       | {
           name: string;
@@ -106,6 +107,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
           env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
           env.AUTH_KEYCLOAK_ISSUER !== undefined,
+        workos:
+          env.AUTH_WORKOS_CLIENT_ID !== undefined &&
+          env.AUTH_WORKOS_CLIENT_SECRET !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -251,6 +255,18 @@ export function SSOButtons({
             >
               <SiKeycloak className="mr-3" size={18} />
               Keycloak
+            </Button>
+          )}
+          {authProviders.workos && (
+            <Button
+              onClick={() => {
+                capture("sign_in:button_click", { provider: "workos" });
+                void signIn("workos");
+              }}
+              variant="secondary"
+            >
+              <Code className="mr-3" size={18} />
+              WorkOS
             </Button>
           )}
           {authProviders.custom && (
