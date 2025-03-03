@@ -166,18 +166,6 @@ export default function Dataset() {
                 </PopoverContent>
               </Popover>
             )}
-            {item.data && (
-              <NewDatasetItemFromExistingObject
-                projectId={projectId}
-                fromDatasetId={item.data.datasetId}
-                traceId={item.data.sourceTraceId ?? undefined}
-                observationId={item.data.sourceObservationId ?? undefined}
-                input={JSON.stringify(item.data.input)}
-                output={JSON.stringify(item.data.expectedOutput)}
-                metadata={JSON.stringify(item.data.metadata)}
-                isCopyItem
-              />
-            )}
             {item.data?.sourceTraceId && (
               <Button variant="ghost" size="icon-xs" asChild>
                 <Link
@@ -199,6 +187,18 @@ export default function Dataset() {
               }
               listKey="datasetItems"
             />
+            {item.data && (
+              <NewDatasetItemFromExistingObject
+                projectId={projectId}
+                fromDatasetId={item.data.datasetId}
+                traceId={item.data.sourceTraceId ?? undefined}
+                observationId={item.data.sourceObservationId ?? undefined}
+                input={JSON.stringify(item.data.input)}
+                output={JSON.stringify(item.data.expectedOutput)}
+                metadata={JSON.stringify(item.data.metadata)}
+                isCopyItem
+              />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
