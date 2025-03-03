@@ -25,14 +25,6 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   const appliedFilter = chFilter.apply();
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
-  // This _must_ be updated if we add a new skip index column to the observations table.
-  // Otherwise, we will ignore it in most cases due to `FINAL`.
-  const shouldUseSkipIndexes = chFilter.some(
-    (f) =>
-      f.clickhouseTable === "observations" &&
-      ["trace_id"].some((skipIndexCol) => f.field.includes(skipIndexCol)),
-  );
-
   const query = `
     with clickhouse_keys as (
       SELECT DISTINCT
