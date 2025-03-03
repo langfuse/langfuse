@@ -47,16 +47,21 @@ const PageHeader = ({
 
         {/* Bottom Row */}
         <div className="bg-header">
-          {/* Mobile Layout */}
-          <div className="flex min-h-12 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:hidden">
-            <div className="flex flex-grow flex-wrap items-center gap-x-1 overflow-hidden">
+          <div
+            className={cn(
+              "flex min-h-12 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
+              container && "lg:container",
+            )}
+          >
+            {/* Left side content */}
+            <div className="flex flex-grow flex-wrap items-center md:flex-grow-0">
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
                     <ItemBadge type={itemType} showLabel />
                   </div>
                 )}
-                <div className="relative inline-block max-w-md">
+                <div className="relative inline-block max-w-md md:max-w-none">
                   <h2 className="inline text-lg font-semibold leading-7">
                     <span className="break-words">
                       {title}
@@ -80,45 +85,9 @@ const PageHeader = ({
                 </div>
               )}
             </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-              {actionButtonsRight}
-            </div>
-          </div>
 
-          {/* Desktop Layout */}
-          <div className="hidden md:flex md:min-h-12 md:w-full md:justify-between md:px-3 md:py-1">
-            <div className="flex flex-wrap items-center gap-x-3">
-              <div className="flex items-center gap-1">
-                {itemType && (
-                  <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
-                  </div>
-                )}
-                <div className="relative inline-block">
-                  <h2 className="inline text-lg font-semibold leading-7">
-                    <span className="break-words">
-                      {title}
-                      {help && (
-                        <span className="whitespace-nowrap">
-                          &nbsp;
-                          <DocPopup
-                            description={help.description}
-                            href={help.href}
-                            className={help.className}
-                          />
-                        </span>
-                      )}
-                    </span>
-                  </h2>
-                </div>
-              </div>
-              {actionButtonsLeft && (
-                <div className="flex flex-wrap items-center gap-1">
-                  {actionButtonsLeft}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-1">
+            {/* Right side content */}
+            <div className="ml-auto flex flex-grow flex-wrap items-center justify-end gap-1">
               {actionButtonsRight}
             </div>
           </div>
