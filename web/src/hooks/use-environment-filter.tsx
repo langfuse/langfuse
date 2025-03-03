@@ -5,9 +5,8 @@ interface EnvironmentVisibility {
   [key: string]: boolean; // environment name -> isVisible
 }
 
-// Note: we should consider adding the environment selection to the query params
-// so that we can persist the environment filter when sharing links. See useDashboardDateRange
-// for an example of this.
+// TODO: Add the environment selection to the query params to persist the environment filter when sharing links.
+// See useDashboardDateRange for an example of this.
 
 export function useEnvironmentFilter(
   availableEnvironments: string[] | undefined,
