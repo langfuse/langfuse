@@ -10,18 +10,18 @@ import { DatasetRunItemsTable } from "@/src/features/datasets/components/Dataset
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { ListTree, Trash2 } from "lucide-react";
+import { ListTree, MoreVertical, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { useState } from "react";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 
 export default function Dataset() {
   const router = useRouter();
@@ -31,8 +31,6 @@ export default function Dataset() {
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
-  const [isArchivePopoverOpen, setIsArchivePopoverOpen] = useState(false);
-  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -52,7 +50,6 @@ export default function Dataset() {
   const mutUpdate = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => {
       utils.datasets.invalidate();
-      setIsArchivePopoverOpen(false);
     },
   });
 
@@ -82,6 +79,22 @@ export default function Dataset() {
     });
   };
 
+  const handleDelete = () => {
+    if (!hasAccess || mutDelete.isLoading) return;
+    if (
+      window.confirm(
+        "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
+      )
+    ) {
+      capture("dataset_item:delete");
+      mutDelete.mutate({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+      });
+    }
+  };
+
   return (
     <Page
       headerProps={{
@@ -101,48 +114,16 @@ export default function Dataset() {
         actionButtonsLeft: (
           <>
             {item.data?.status && (
-              <Popover
-                open={isArchivePopoverOpen}
-                onOpenChange={setIsArchivePopoverOpen}
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={toggleArchiveStatus}
+                disabled={!hasAccess || mutUpdate.isLoading}
               >
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="xs">
-                    {item.data.status}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80" align="start" side="bottom">
-                  <div className="flex flex-col gap-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium leading-none">
-                        {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive this item?"
-                          : "Unarchive this item?"}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        {item.data.status === DatasetStatus.ACTIVE
-                          ? "Archiving an item will exclude it from new experiment runs."
-                          : "Unarchiving an item will include it back in new experiment runs."}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={toggleArchiveStatus}
-                      disabled={!hasAccess || mutUpdate.isLoading}
-                      variant={
-                        item.data.status === DatasetStatus.ACTIVE
-                          ? "destructive"
-                          : "default"
-                      }
-                      size="sm"
-                    >
-                      {mutUpdate.isLoading
-                        ? "Processing..."
-                        : item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive"
-                          : "Unarchive"}
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                {item.data.status === DatasetStatus.ACTIVE
+                  ? "Archive"
+                  : "Unarchive"}
+              </Button>
             )}
             {item.data?.sourceTraceId && (
               <Button variant="ghost" size="icon-xs" asChild>
@@ -154,56 +135,35 @@ export default function Dataset() {
                 </Link>
               </Button>
             )}
-            <Popover
-              open={isDeletePopoverOpen}
-              onOpenChange={setIsDeletePopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="xs" className="text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="start" side="bottom">
-                <div className="flex flex-col gap-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">
-                      Delete this item?
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      This will permanently delete this item and all run items
-                      that belong to it. This action cannot be undone.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      if (!hasAccess || mutDelete.isLoading) return;
-                      capture("dataset_item:delete");
-                      mutDelete.mutate({
-                        projectId,
-                        datasetId,
-                        datasetItemId: itemId,
-                      });
-                    }}
-                    disabled={!hasAccess || mutDelete.isLoading}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    {mutDelete.isLoading ? "Deleting..." : "Delete"}
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
           </>
         ),
         actionButtonsRight: (
-          <DetailPageNav
-            currentId={itemId}
-            path={(entry) =>
-              `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
-            }
-            listKey="datasetItems"
-          />
+          <>
+            <DetailPageNav
+              currentId={itemId}
+              path={(entry) =>
+                `/project/${projectId}/datasets/${datasetId}/items/${entry.id}`
+              }
+              listKey="datasetItems"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                <DropdownMenuItem
+                  onClick={handleDelete}
+                  disabled={!hasAccess || mutDelete.isLoading}
+                  className="text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {mutDelete.isLoading ? "Deleting..." : "Delete"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         ),
       }}
     >
