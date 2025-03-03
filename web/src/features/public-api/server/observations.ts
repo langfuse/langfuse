@@ -25,28 +25,19 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
   const appliedFilter = chFilter.apply();
   const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
 
-  // This _must_ be updated if we add a new skip index column to the observations table.
-  // Otherwise, we will ignore it in most cases due to `FINAL`.
-  const shouldUseSkipIndexes = chFilter.some(
-    (f) =>
-      f.clickhouseTable === "observations" &&
-      ["trace_id"].some((skipIndexCol) => f.field.includes(skipIndexCol)),
-  );
-
   const query = `
     with clickhouse_keys as (
-      SELECT
+      SELECT DISTINCT
         id,
-        trace_id,
         project_id,
         type,
-        toUnixTimestamp(start_time),
-      FROM observations o ${shouldUseSkipIndexes ? "" : "FINAL"}
+        toDate(start_time),
+      FROM observations o
       ${traceFilter ? `LEFT JOIN traces t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
       WHERE o.project_id = {projectId: String}
       ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
       AND ${appliedFilter.query}
-      ${shouldUseSkipIndexes ? "ORDER BY start_time desc, event_ts desc LIMIT 1 by id, project_id" : "ORDER BY start_time DESC"}
+      ORDER BY start_time DESC
       ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
     )
       SELECT 
@@ -80,13 +71,11 @@ export const generateObservationsForPublicApi = async (props: QueryType) => {
         created_at,
         updated_at,
         event_ts
-      FROM observations o ${shouldUseSkipIndexes ? "" : "FINAL"}
-      
+      FROM observations o FINAL
       WHERE o.project_id = {projectId: String}
-      AND (id, trace_id, project_id, type, toUnixTimestamp(start_time)) in (select * from clickhouse_keys)
-
-      ${shouldUseSkipIndexes ? "ORDER BY start_time desc, event_ts desc LIMIT 1 by id, project_id" : "ORDER BY start_time DESC"}
-      `;
+      AND (id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
+      ORDER BY start_time DESC
+    `;
 
   const result = await queryClickhouse<ObservationRecordReadType>({
     query,
