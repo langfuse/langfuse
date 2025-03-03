@@ -30,6 +30,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
 
 export type SessionTableRow = {
   id: string;
@@ -52,6 +53,8 @@ export type SessionTableProps = {
   userId?: string;
   omittedFilter?: string[];
 };
+
+const environmentColumns = ["environment"];
 
 export default function SessionsTable({
   projectId,
@@ -90,7 +93,41 @@ export default function SessionsTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
+  const environmentFilterOptions = api.projects.environmentFilterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const environmentOptions = environmentFilterOptions.data?.map(
+    (value) => value.environment
+  ) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } = useEnvironmentFilter(
+    environmentOptions,
+    projectId
+  );
+
+  const environmentFilter =
+    selectedEnvironments.length > 0
+      ? environmentColumns.map((column) => ({
+          type: "stringOptions" as const,
+          column,
+          operator: "any of" as const,
+          value: selectedEnvironments,
+        }))
+      : [];
+
+  const filterState = userFilterState.concat(
+    userIdFilter,
+    dateRangeFilter,
+    environmentFilter
+  );
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -489,6 +526,11 @@ export default function SessionsTable({
         columnsWithCustomSelect={["userIds"]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
+        }}
       />
       <DataTable
         columns={columns}
