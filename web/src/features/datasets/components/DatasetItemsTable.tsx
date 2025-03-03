@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, ListTree, MoreVertical } from "lucide-react";
+import { Archive, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -86,6 +86,10 @@ export function DatasetItemsTable({
   }, [items.isSuccess, items.data]);
 
   const mutUpdate = api.datasets.updateDatasetItem.useMutation({
+    onSuccess: () => utils.datasets.invalidate(),
+  });
+
+  const mutDelete = api.datasets.deleteDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
 
@@ -245,6 +249,27 @@ export function DatasetItemsTable({
               >
                 <Archive className="mr-2 h-4 w-4" />
                 {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!hasAccess}
+                className="text-destructive"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Are you sure you want to delete this item? This will also delete all run items that belong to this item.",
+                    )
+                  ) {
+                    capture("dataset_item:delete");
+                    mutDelete.mutate({
+                      projectId: projectId,
+                      datasetId: datasetId,
+                      datasetItemId: id,
+                    });
+                  }
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
