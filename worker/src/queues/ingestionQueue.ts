@@ -169,7 +169,7 @@ export const ingestionQueueProcessorBuilder = (
           .sort()
           .shift() ?? new Date();
 
-      const S3_CONCURRENT_READS = 50;
+      const S3_CONCURRENT_READS = env.LANGFUSE_S3_CONCURRENT_READS;
       const events: IngestionEventType[] = [];
 
       // Process files in batches
