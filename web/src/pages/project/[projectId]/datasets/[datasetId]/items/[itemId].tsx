@@ -10,7 +10,7 @@ import { DatasetRunItemsTable } from "@/src/features/datasets/components/Dataset
 import { EditDatasetItem } from "@/src/features/datasets/components/EditDatasetItem";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { ListTree } from "lucide-react";
+import { ListTree, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
@@ -32,6 +32,7 @@ export default function Dataset() {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [isArchivePopoverOpen, setIsArchivePopoverOpen] = useState(false);
+  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -52,6 +53,12 @@ export default function Dataset() {
     onSuccess: () => {
       utils.datasets.invalidate();
       setIsArchivePopoverOpen(false);
+    },
+  });
+
+  const mutDelete = api.datasets.deleteDatasetItem.useMutation({
+    onSuccess: () => {
+      router.push(`/project/${projectId}/datasets/${datasetId}/items`);
     },
   });
 
@@ -147,6 +154,46 @@ export default function Dataset() {
                 </Link>
               </Button>
             )}
+            <Popover
+              open={isDeletePopoverOpen}
+              onOpenChange={setIsDeletePopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="xs" className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="start" side="bottom">
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">
+                      Delete this item?
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      This will permanently delete this item and all run items
+                      that belong to it. This action cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (!hasAccess || mutDelete.isLoading) return;
+                      capture("dataset_item:delete");
+                      mutDelete.mutate({
+                        projectId,
+                        datasetId,
+                        datasetItemId: itemId,
+                      });
+                    }}
+                    disabled={!hasAccess || mutDelete.isLoading}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    {mutDelete.isLoading ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </>
         ),
         actionButtonsRight: (

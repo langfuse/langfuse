@@ -171,6 +171,16 @@ export const GetDatasetItemV1Query = z.object({
 });
 export const GetDatasetItemV1Response = APIDatasetItem.strict();
 
+// DELETE /dataset-items/{datasetItemId}
+export const DeleteDatasetItemV1Query = z.object({
+  datasetItemId: z.string(),
+});
+export const DeleteDatasetItemV1Response = z
+  .object({
+    message: z.literal("Dataset item successfully deleted"),
+  })
+  .strict();
+
 // POST /dataset-run-items
 export const PostDatasetRunItemsV1Body = z
   .object({

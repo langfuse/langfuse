@@ -454,6 +454,57 @@ export const datasetRouter = createTRPCRouter({
       });
       return deletedDataset;
     }),
+  deleteDatasetItem: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      // First get the item to use in audit log
+      const item = await ctx.prisma.datasetItem.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetItemId,
+            projectId: input.projectId,
+          },
+          datasetId: input.datasetId,
+        },
+      });
+
+      if (!item) {
+        throw new Error("Dataset item not found");
+      }
+
+      // Delete the dataset item
+      const deletedItem = await ctx.prisma.datasetItem.delete({
+        where: {
+          id_projectId: {
+            id: input.datasetItemId,
+            projectId: input.projectId,
+          },
+          datasetId: input.datasetId,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "datasetItem",
+        resourceId: deletedItem.id,
+        action: "delete",
+        before: item,
+      });
+
+      return deletedItem;
+    }),
   duplicateDataset: protectedProjectProcedure
     .input(
       z.object({
