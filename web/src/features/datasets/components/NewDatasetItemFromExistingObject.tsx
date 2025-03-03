@@ -1,4 +1,4 @@
-import { ChevronDown, LockIcon, PlusIcon } from "lucide-react";
+import { ChevronDown, CopyIcon, LockIcon, PlusIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,14 +23,26 @@ import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised } from "@langfuse/shared";
+import { ActionButton } from "@/src/components/ActionButton";
 
-export const NewDatasetItemFromTrace = (props: {
+/**
+ * Component for creating a new dataset item from an existing object.
+ *
+ * This component can be used in two different contexts:
+ * 1. From a trace/observation: Creates a dataset item using data from a trace or observation
+ *    (requires traceId and optionally observationId)
+ * 2. From an existing dataset item: Creates a new dataset item based on an existing one
+ *    (requires fromDatasetId) -> isCopyItem
+ */
+export const NewDatasetItemFromExistingObject = (props: {
   projectId: string;
-  traceId: string;
+  traceId?: string;
   observationId?: string;
+  fromDatasetId?: string;
   input: string | undefined;
   output: string | undefined;
   metadata: Prisma.JsonValue;
+  isCopyItem?: boolean;
 }) => {
   const parsedInput =
     props.input && typeof props.input === "string"
@@ -50,11 +62,11 @@ export const NewDatasetItemFromTrace = (props: {
     api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
       {
         projectId: props.projectId,
-        traceId: props.traceId,
+        traceId: props.traceId as string,
         observationId: props.observationId,
       },
       {
-        enabled: isAuthenticatedAndProjectMember,
+        enabled: isAuthenticatedAndProjectMember && !!props.traceId,
       },
     );
   const hasAccess = useHasProjectAccess({
@@ -65,7 +77,21 @@ export const NewDatasetItemFromTrace = (props: {
 
   return (
     <>
-      {observationInDatasets.data && observationInDatasets.data.length > 0 ? (
+      {props.isCopyItem ? (
+        <ActionButton
+          variant="ghost"
+          size="icon-xs"
+          hasAccess={hasAccess}
+          title="Copy item"
+          aria-label="Copy item"
+          onClick={() => {
+            setIsFormOpen(true);
+          }}
+        >
+          <CopyIcon className="size-3" />
+        </ActionButton>
+      ) : observationInDatasets.data &&
+        observationInDatasets.data.length > 0 ? (
         <div>
           <DropdownMenu open={hasAccess ? undefined : false}>
             <DropdownMenuTrigger asChild>
@@ -140,6 +166,9 @@ export const NewDatasetItemFromTrace = (props: {
             metadata={props.metadata}
             onFormSuccess={() => setIsFormOpen(false)}
             className="h-full overflow-y-auto"
+            blockedDatasetIds={
+              props.fromDatasetId ? [props.fromDatasetId] : undefined
+            }
           />
         </DialogContent>
       </Dialog>
