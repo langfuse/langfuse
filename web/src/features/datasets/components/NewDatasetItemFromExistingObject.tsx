@@ -82,6 +82,8 @@ export const NewDatasetItemFromExistingObject = (props: {
           variant="ghost"
           size="icon-xs"
           hasAccess={hasAccess}
+          title="Copy item"
+          aria-label="Copy item"
           onClick={() => {
             setIsFormOpen(true);
           }}

@@ -193,9 +193,6 @@ export const NewDatasetItemForm = (props: {
                               <InputCommandItem
                                 value={dataset.name}
                                 key={dataset.id}
-                                disabled={props.blockedDatasetIds?.includes(
-                                  dataset.id,
-                                )}
                                 onSelect={() => {
                                   const newValue = field.value.includes(
                                     dataset.id,
