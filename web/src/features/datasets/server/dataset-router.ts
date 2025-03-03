@@ -8,6 +8,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import { paginationZod, DatasetStatus } from "@langfuse/shared";
+import { TRPCError } from "@trpc/server";
 import {
   createDatasetRunsTable,
   createDatasetRunsTableWithoutMetrics,
@@ -481,7 +482,10 @@ export const datasetRouter = createTRPCRouter({
       });
 
       if (!item) {
-        throw new Error("Dataset item not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset item not found",
+        });
       }
 
       // Delete the dataset item
@@ -534,7 +538,10 @@ export const datasetRouter = createTRPCRouter({
         },
       });
       if (!dataset) {
-        throw new Error("Dataset not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
       }
 
       // find a unique name for the new dataset
@@ -625,7 +632,10 @@ export const datasetRouter = createTRPCRouter({
         },
       });
       if (!dataset) {
-        throw new Error("Dataset not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
       }
 
       const datasetItem = await ctx.prisma.datasetItem.create({
@@ -684,7 +694,10 @@ export const datasetRouter = createTRPCRouter({
       });
 
       if (datasets.length !== datasetIds.length) {
-        throw new Error("One or more datasets not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or more datasets not found",
+        });
       }
 
       const itemsWithIds = input.items.map((item) => ({
