@@ -46,6 +46,7 @@ import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { ColorCodedObservationType } from "@/src/components/trace/ObservationTree";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
 
 export type ObservationsTableRow = {
   id: string;
@@ -89,6 +90,8 @@ export type ObservationsTableProps = {
   modelId?: string;
   omittedFilter?: string[];
 };
+
+const environmentColumns = ["environment", "traceEnvironment"];
 
 export default function ObservationsTable({
   projectId,
@@ -177,12 +180,41 @@ export default function ObservationsTable({
       ]
     : [];
 
-  const filterState = inputFilterState.concat([
-    ...dateRangeFilter,
-    ...promptNameFilter,
-    ...promptVersionFilter,
-    ...modelIdFilter,
-  ]);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter =
+    selectedEnvironments.length > 0
+      ? environmentColumns.map((column) => ({
+          type: "stringOptions" as const,
+          column,
+          operator: "any of" as const,
+          value: selectedEnvironments,
+        }))
+      : [];
+
+  const filterState = inputFilterState.concat(
+    dateRangeFilter,
+    promptNameFilter,
+    promptVersionFilter,
+    modelIdFilter,
+    environmentFilter,
+  );
 
   const getCountPayload = {
     projectId,
@@ -828,6 +860,11 @@ export default function ObservationsTable({
             key="batchExport"
           />
         }
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
+        }}
       />
       <DataTable
         columns={columns}
