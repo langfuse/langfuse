@@ -70,6 +70,9 @@ const EnvSchema = z.object({
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  CUSTOM_EMAIL_CLAIM: z.string().default('email'),
+  CUSTOM_NAME_CLAIM: z.string().default('name'),
+  CUSTOM_SUB_CLAIM: z.string().default('sub'),
 });
 
 export const env: z.infer<typeof EnvSchema> =
