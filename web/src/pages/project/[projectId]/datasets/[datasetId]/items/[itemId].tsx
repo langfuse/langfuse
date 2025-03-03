@@ -23,6 +23,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { useState } from "react";
 
 export default function Dataset() {
   const router = useRouter();
@@ -32,6 +38,7 @@ export default function Dataset() {
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const [isArchivePopoverOpen, setIsArchivePopoverOpen] = useState(false);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -51,6 +58,7 @@ export default function Dataset() {
   const mutUpdate = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => {
       utils.datasets.invalidate();
+      setIsArchivePopoverOpen(false);
     },
   });
 
@@ -115,16 +123,48 @@ export default function Dataset() {
         actionButtonsLeft: (
           <>
             {item.data?.status && (
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={toggleArchiveStatus}
-                disabled={!hasAccess || mutUpdate.isLoading}
+              <Popover
+                open={isArchivePopoverOpen}
+                onOpenChange={setIsArchivePopoverOpen}
               >
-                {item.data.status === DatasetStatus.ACTIVE
-                  ? "Archive"
-                  : "Unarchive"}
-              </Button>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="xs">
+                    {item.data.status}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="start" side="bottom">
+                  <div className="flex flex-col gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">
+                        {item.data.status === DatasetStatus.ACTIVE
+                          ? "Archive this item?"
+                          : "Unarchive this item?"}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {item.data.status === DatasetStatus.ACTIVE
+                          ? "Archiving an item will exclude it from new experiment runs."
+                          : "Unarchiving an item will include it back in new experiment runs."}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={toggleArchiveStatus}
+                      disabled={!hasAccess || mutUpdate.isLoading}
+                      variant={
+                        item.data.status === DatasetStatus.ACTIVE
+                          ? "destructive"
+                          : "default"
+                      }
+                      size="sm"
+                    >
+                      {mutUpdate.isLoading
+                        ? "Processing..."
+                        : item.data.status === DatasetStatus.ACTIVE
+                          ? "Archive"
+                          : "Unarchive"}
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
             {item.data && (
               <NewDatasetItemFromExistingObject
