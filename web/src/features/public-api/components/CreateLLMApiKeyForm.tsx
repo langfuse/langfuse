@@ -537,7 +537,7 @@ export function CreateLLMApiKeyForm({
               )}
 
               {fields.map((customModel, index) => (
-                <span key={index} className="flex flex-row space-x-2">
+                <span key={customModel.id} className="flex flex-row space-x-2">
                   <Input
                     {...form.register(`customModels.${index}.value`)}
                     placeholder={`Custom model name ${index + 1}`}

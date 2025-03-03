@@ -1,16 +1,5 @@
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import {
-  AnnotationQueueObjectType,
-  type APIScore,
-  type ScoreSourceType,
-} from "@langfuse/shared";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
+import { AnnotationQueueObjectType, type APIScore } from "@langfuse/shared";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { api } from "@/src/utils/api";
@@ -20,27 +9,30 @@ import Link from "next/link";
 import { usdFormatter } from "@/src/utils/numbers";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { ScoresPreview } from "@/src/components/trace/ScoresPreview";
 import { JumpToPlaygroundButton } from "@/src/ee/features/playground/page/components/JumpToPlaygroundButton";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { cn } from "@/src/utils/tailwind";
-import { NewDatasetItemFromTrace } from "@/src/features/datasets/components/NewDatasetItemFromObservationButton";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { CreateNewAnnotationQueueItem } from "@/src/ee/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { calculateDisplayTotalCost } from "@/src/components/trace/lib/helpers";
-import { useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import {
   TabsBar,
   TabsBarList,
   TabsBarTrigger,
+  TabsBarContent,
 } from "@/src/components/ui/tabs-bar";
 import { BreakdownTooltip } from "./BreakdownToolTip";
 import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { ItemBadge } from "@/src/components/ItemBadge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 export const ObservationPreview = ({
   observations,
@@ -50,7 +42,7 @@ export const ObservationPreview = ({
   traceId,
   commentCounts,
   viewType = "detailed",
-  className,
+  isTimeline,
 }: {
   observations: Array<ObservationReturnType>;
   projectId: string;
@@ -59,12 +51,15 @@ export const ObservationPreview = ({
   traceId: string;
   commentCounts?: Map<string, number>;
   viewType?: "focused" | "detailed";
-  className?: string;
+  isTimeline?: boolean;
 }) => {
   const [selectedTab, setSelectedTab] = useQueryParam(
     "view",
     withDefault(StringParam, "preview"),
   );
+  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const capture = usePostHogClientCapture();
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
   >("emptySelectedConfigIds", []);
@@ -119,190 +114,32 @@ export const ObservationPreview = ({
 
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 
-  const observationScores = scores.filter(
-    (s) => s.observationId === preloadedObservation.id,
-  );
-  const observationScoresBySource = observationScores.reduce((acc, score) => {
-    if (!acc.get(score.source)) {
-      acc.set(score.source, []);
-    }
-    acc.get(score.source)?.push(score);
-    return acc;
-  }, new Map<ScoreSourceType, APIScore[]>());
-
   return (
-    <Card
-      className={cn(
-        "col-span-2 flex max-h-full flex-col overflow-hidden",
-        className,
-      )}
-    >
-      {viewType === "detailed" && (
-        <div className="flex flex-shrink-0 flex-row justify-end gap-2">
-          <TabsBar value={selectedTab} onValueChange={setSelectedTab}>
-            <TabsBarList>
-              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-              {isAuthenticatedAndProjectMember && (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
-              )}
-            </TabsBarList>
-          </TabsBar>
-        </div>
-      )}
-      <div className="flex w-full flex-col overflow-y-auto">
-        <CardHeader className="flex flex-row flex-wrap justify-between gap-2">
-          <div className="flex flex-col gap-1">
-            <CardTitle className="flex flex-row items-center gap-2">
-              <span className="rounded-sm bg-input p-1 text-xs">
-                {preloadedObservation.type}
-              </span>
-              <span>{preloadedObservation.name}</span>
-            </CardTitle>
-            <CardDescription className="flex gap-2">
-              <LocalIsoDate
-                date={preloadedObservation.startTime}
-                accuracy="millisecond"
-              />
-            </CardDescription>
-            {viewType === "detailed" && (
-              <div className="flex flex-wrap gap-2">
-                {preloadedObservation.promptId ? (
-                  <PromptBadge
-                    promptId={preloadedObservation.promptId}
-                    projectId={preloadedObservation.projectId}
-                  />
-                ) : undefined}
-                {preloadedObservation.timeToFirstToken ? (
-                  <Badge variant="outline">
-                    Time to first token:{" "}
-                    {formatIntervalSeconds(
-                      preloadedObservation.timeToFirstToken,
-                    )}
-                  </Badge>
-                ) : null}
-                {preloadedObservation.endTime ? (
-                  <Badge variant="outline">
-                    Latency:{" "}
-                    {formatIntervalSeconds(
-                      (preloadedObservation.endTime.getTime() -
-                        preloadedObservation.startTime.getTime()) /
-                        1000,
-                    )}
-                  </Badge>
-                ) : null}
-                {preloadedObservation.type === "GENERATION" && (
-                  <BreakdownTooltip
-                    details={preloadedObservation.usageDetails}
-                    isCost={false}
-                  >
-                    <Badge
-                      variant="outline"
-                      className="flex items-center gap-1"
-                    >
-                      <span>
-                        {preloadedObservation.promptTokens} prompt →{" "}
-                        {preloadedObservation.completionTokens} completion (∑{" "}
-                        {preloadedObservation.totalTokens})
-                      </span>
-                      <InfoIcon className="h-3 w-3" />
-                    </Badge>
-                  </BreakdownTooltip>
-                )}
-                {preloadedObservation.version ? (
-                  <Badge variant="outline">
-                    Version: {preloadedObservation.version}
-                  </Badge>
-                ) : undefined}
-                {preloadedObservation.model ? (
-                  preloadedObservation.modelId ? (
-                    <Badge>
-                      <Link
-                        href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
-                        className="flex items-center"
-                        title="View model details"
-                      >
-                        {preloadedObservation.model}
-                      </Link>
-                    </Badge>
-                  ) : (
-                    <UpsertModelFormDrawer
-                      action="create"
-                      projectId={preloadedObservation.projectId}
-                      prefilledModelData={{
-                        modelName: preloadedObservation.model,
-                        prices:
-                          Object.keys(preloadedObservation.usageDetails)
-                            .length > 0
-                            ? Object.keys(preloadedObservation.usageDetails)
-                                .filter((key) => key != "total")
-                                .reduce(
-                                  (acc, key) => {
-                                    acc[key] = 0.000001;
-                                    return acc;
-                                  },
-                                  {} as Record<string, number>,
-                                )
-                            : undefined,
-                      }}
-                      className="cursor-pointer"
-                    >
-                      <Badge
-                        variant="outline"
-                        className="flex items-center gap-1"
-                      >
-                        <span>{preloadedObservation.model}</span>
-                        <PlusCircle className="h-3 w-3" />
-                      </Badge>
-                    </UpsertModelFormDrawer>
-                  )
-                ) : null}
-                {thisCost ? (
-                  <BreakdownTooltip
-                    details={preloadedObservation.costDetails}
-                    isCost={true}
-                  >
-                    <Badge
-                      variant="outline"
-                      className="flex items-center gap-1"
-                    >
-                      <span>{usdFormatter(thisCost.toNumber())}</span>
-                      <InfoIcon className="h-3 w-3" />
-                    </Badge>
-                  </BreakdownTooltip>
-                ) : undefined}
-                {totalCost && totalCost !== thisCost ? (
-                  <Badge variant="outline">
-                    ∑ {usdFormatter(totalCost.toNumber())}
-                  </Badge>
-                ) : undefined}
-
-                {preloadedObservation.modelParameters &&
-                typeof preloadedObservation.modelParameters === "object"
-                  ? Object.entries(preloadedObservation.modelParameters)
-                      .filter(Boolean)
-                      .map(([key, value]) => (
-                        <Badge variant="outline" key={key}>
-                          {key}:{" "}
-                          {Object.prototype.toString.call(value) ===
-                          "[object Object]"
-                            ? JSON.stringify(value)
-                            : value?.toString()}
-                        </Badge>
-                      ))
-                  : null}
-              </div>
-            )}
+    <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
+      <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
+        <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
+          <div className="flex w-full flex-row items-start gap-2">
+            <div className="mt-1.5">
+              <ItemBadge type={preloadedObservation.type} isSmall />
+            </div>
+            <span className="mb-0 line-clamp-2 min-w-0 break-all text-lg font-medium md:break-normal md:break-words">
+              {preloadedObservation.name}
+            </span>
           </div>
-
-          <div className="flex flex-wrap gap-2">
+          <div className="mr-3 flex h-full flex-wrap content-start items-start justify-end gap-1">
+            {observationWithInputAndOutput.data && (
+              <NewDatasetItemFromExistingObject
+                traceId={preloadedObservation.traceId}
+                observationId={preloadedObservation.id}
+                projectId={projectId}
+                input={observationWithInputAndOutput.data.input}
+                output={observationWithInputAndOutput.data.output}
+                metadata={observationWithInputAndOutput.data.metadata}
+                key={preloadedObservation.id}
+              />
+            )}
             {viewType === "detailed" && (
               <>
-                <CommentDrawerButton
-                  projectId={preloadedObservation.projectId}
-                  objectId={preloadedObservation.id}
-                  objectType="OBSERVATION"
-                  count={commentCounts?.get(preloadedObservation.id)}
-                />
                 <div className="flex items-start">
                   <AnnotateDrawer
                     key={"annotation-drawer" + preloadedObservation.id}
@@ -323,47 +160,229 @@ export const ObservationPreview = ({
                     />
                   )}
                 </div>
-
                 {observationWithInputAndOutput.data?.type === "GENERATION" && (
                   <JumpToPlaygroundButton
                     source="generation"
                     generation={observationWithInputAndOutput.data}
                     analyticsEventName="trace_detail:test_in_playground_button_click"
+                    className={cn(isTimeline ? "!hidden" : "")}
                   />
                 )}
+                <CommentDrawerButton
+                  projectId={preloadedObservation.projectId}
+                  objectId={preloadedObservation.id}
+                  objectType="OBSERVATION"
+                  count={commentCounts?.get(preloadedObservation.id)}
+                />
               </>
             )}
-            {observationWithInputAndOutput.data ? (
-              <NewDatasetItemFromTrace
-                traceId={preloadedObservation.traceId}
-                observationId={preloadedObservation.id}
-                projectId={projectId}
-                input={observationWithInputAndOutput.data.input}
-                output={observationWithInputAndOutput.data.output}
-                metadata={observationWithInputAndOutput.data.metadata}
-                key={preloadedObservation.id}
-              />
-            ) : null}
           </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {selectedTab === "preview" && (
-            <>
-              <IOPreview
-                key={preloadedObservation.id + "-input"}
-                input={observationWithInputAndOutput.data?.input ?? undefined}
-                output={observationWithInputAndOutput.data?.output ?? undefined}
-                isLoading={observationWithInputAndOutput.isLoading}
-                media={observationMedia.data}
+        </div>
+        <div className="grid w-full min-w-0 items-center justify-between">
+          <div className="flex min-w-0 max-w-full flex-shrink flex-col">
+            <div className="mb-1 flex min-w-0 max-w-full flex-wrap items-center gap-1">
+              <LocalIsoDate
+                date={preloadedObservation.startTime}
+                accuracy="millisecond"
+                className="text-sm"
               />
-              {preloadedObservation.statusMessage ? (
+            </div>
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
+              {viewType === "detailed" && (
+                <Fragment>
+                  {preloadedObservation.endTime ? (
+                    <Badge variant="tertiary">
+                      Latency:{" "}
+                      {formatIntervalSeconds(
+                        (preloadedObservation.endTime.getTime() -
+                          preloadedObservation.startTime.getTime()) /
+                          1000,
+                      )}
+                    </Badge>
+                  ) : null}
+
+                  {preloadedObservation.timeToFirstToken ? (
+                    <Badge variant="tertiary">
+                      Time to first token:{" "}
+                      {formatIntervalSeconds(
+                        preloadedObservation.timeToFirstToken,
+                      )}
+                    </Badge>
+                  ) : null}
+
+                  {thisCost ? (
+                    <BreakdownTooltip
+                      details={preloadedObservation.costDetails}
+                      isCost={true}
+                    >
+                      <Badge
+                        variant="tertiary"
+                        className="flex items-center gap-1"
+                      >
+                        <span>{usdFormatter(thisCost.toNumber())}</span>
+                        <InfoIcon className="h-3 w-3" />
+                      </Badge>
+                    </BreakdownTooltip>
+                  ) : undefined}
+                  {totalCost && totalCost !== thisCost ? (
+                    <Badge variant="tertiary">
+                      ∑ {usdFormatter(totalCost.toNumber())}
+                    </Badge>
+                  ) : undefined}
+
+                  {preloadedObservation.promptId ? (
+                    <PromptBadge
+                      promptId={preloadedObservation.promptId}
+                      projectId={preloadedObservation.projectId}
+                    />
+                  ) : undefined}
+                  {preloadedObservation.type === "GENERATION" && (
+                    <BreakdownTooltip
+                      details={preloadedObservation.usageDetails}
+                      isCost={false}
+                    >
+                      <Badge
+                        variant="tertiary"
+                        className="flex items-center gap-1"
+                      >
+                        <span>
+                          {preloadedObservation.promptTokens} prompt →{" "}
+                          {preloadedObservation.completionTokens} completion (∑{" "}
+                          {preloadedObservation.totalTokens})
+                        </span>
+                        <InfoIcon className="h-3 w-3" />
+                      </Badge>
+                    </BreakdownTooltip>
+                  )}
+                  {preloadedObservation.version ? (
+                    <Badge variant="tertiary">
+                      Version: {preloadedObservation.version}
+                    </Badge>
+                  ) : undefined}
+                  {preloadedObservation.model ? (
+                    preloadedObservation.modelId ? (
+                      <Badge>
+                        <Link
+                          href={`/project/${preloadedObservation.projectId}/settings/models/${preloadedObservation.modelId}`}
+                          className="flex items-center"
+                          title="View model details"
+                        >
+                          {preloadedObservation.model}
+                        </Link>
+                      </Badge>
+                    ) : (
+                      <UpsertModelFormDrawer
+                        action="create"
+                        projectId={preloadedObservation.projectId}
+                        prefilledModelData={{
+                          modelName: preloadedObservation.model,
+                          prices:
+                            Object.keys(preloadedObservation.usageDetails)
+                              .length > 0
+                              ? Object.keys(preloadedObservation.usageDetails)
+                                  .filter((key) => key != "total")
+                                  .reduce(
+                                    (acc, key) => {
+                                      acc[key] = 0.000001;
+                                      return acc;
+                                    },
+                                    {} as Record<string, number>,
+                                  )
+                              : undefined,
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Badge
+                          variant="tertiary"
+                          className="flex items-center gap-1"
+                        >
+                          <span>{preloadedObservation.model}</span>
+                          <PlusCircle className="h-3 w-3" />
+                        </Badge>
+                      </UpsertModelFormDrawer>
+                    )
+                  ) : null}
+
+                  <Fragment>
+                    {preloadedObservation.modelParameters &&
+                    typeof preloadedObservation.modelParameters === "object"
+                      ? Object.entries(preloadedObservation.modelParameters)
+                          .filter(Boolean)
+                          .map(([key, value]) => (
+                            <Badge variant="tertiary" key={key}>
+                              {key}:{" "}
+                              {Object.prototype.toString.call(value) ===
+                              "[object Object]"
+                                ? JSON.stringify(value)
+                                : value?.toString()}
+                            </Badge>
+                          ))
+                      : null}
+                  </Fragment>
+                </Fragment>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <TabsBar
+          value={selectedTab.includes("preview") ? "preview" : "scores"}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          onValueChange={(value) => setSelectedTab(value)}
+        >
+          {viewType === "detailed" && (
+            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              {isAuthenticatedAndProjectMember && (
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+              )}
+              {selectedTab.includes("preview") && isPrettyViewAvailable && (
+                <Tabs
+                  className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
+                  value={currentView}
+                  onValueChange={(value) => {
+                    capture("trace_detail:io_mode_switch", { view: value });
+                    setCurrentView(value as "pretty" | "json");
+                  }}
+                >
+                  <TabsList className="h-fit py-0.5">
+                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                      Formatted
+                    </TabsTrigger>
+                    <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                      JSON
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
+            </TabsBarList>
+          )}
+          <TabsBarContent
+            value="preview"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-3"
+          >
+            <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+              <div>
+                <IOPreview
+                  key={preloadedObservation.id + "-input"}
+                  input={observationWithInputAndOutput.data?.input ?? undefined}
+                  output={
+                    observationWithInputAndOutput.data?.output ?? undefined
+                  }
+                  isLoading={observationWithInputAndOutput.isLoading}
+                  media={observationMedia.data}
+                  currentView={currentView}
+                  setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+                />
+              </div>
+              {preloadedObservation.statusMessage && (
                 <JSONView
                   key={preloadedObservation.id + "-status"}
                   title="Status Message"
                   json={preloadedObservation.statusMessage}
                 />
-              ) : null}
-              {observationWithInputAndOutput.data?.metadata ? (
+              )}
+              {observationWithInputAndOutput.data?.metadata && (
                 <JSONView
                   key={observationWithInputAndOutput.data.id + "-metadata"}
                   title="Metadata"
@@ -372,31 +391,35 @@ export const ObservationPreview = ({
                     (m) => m.field === "metadata",
                   )}
                 />
-              ) : null}
-              {viewType === "detailed" && (
-                <ScoresPreview itemScoresBySource={observationScoresBySource} />
               )}
-            </>
+            </div>
+          </TabsBarContent>
+          {isAuthenticatedAndProjectMember && (
+            <TabsBarContent
+              value="scores"
+              className="mb-2 mr-4 mt-0 flex h-full min-h-0 flex-1 overflow-hidden"
+            >
+              <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+                <ScoresTable
+                  projectId={projectId}
+                  traceId={traceId}
+                  omittedFilter={["Observation ID"]}
+                  observationId={preloadedObservation.id}
+                  hiddenColumns={[
+                    "traceId",
+                    "observationId",
+                    "traceName",
+                    "jobConfigurationId",
+                    "userId",
+                  ]}
+                  localStorageSuffix="ObservationPreview"
+                />
+              </div>
+            </TabsBarContent>
           )}
-          {selectedTab === "scores" && (
-            <ScoresTable
-              projectId={projectId}
-              traceId={traceId}
-              omittedFilter={["Observation ID"]}
-              observationId={preloadedObservation.id}
-              hiddenColumns={[
-                "traceId",
-                "observationId",
-                "traceName",
-                "jobConfigurationId",
-                "userId",
-              ]}
-              localStorageSuffix="ObservationPreview"
-            />
-          )}
-        </CardContent>
+        </TabsBar>
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -411,7 +434,7 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
     <Link
       href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
     >
-      <Badge>
+      <Badge variant="tertiary">
         Prompt: {prompt.data.name}
         {" - v"}
         {prompt.data.version}

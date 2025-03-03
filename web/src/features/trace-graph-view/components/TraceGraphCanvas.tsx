@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { Network } from "vis-network/standalone";
+import { ZoomIn, ZoomOut } from "lucide-react";
 
 import type { GraphCanvasData } from "../types";
+import { Button } from "@/src/components/ui/button";
 
 type TraceGraphCanvasProps = {
   graph: GraphCanvasData;
@@ -11,6 +13,7 @@ type TraceGraphCanvasProps = {
 
 export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
   const { graph: graphData, selectedNodeName, onCanvasNodeNameChange } = props;
+  const [isHovering, setIsHovering] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
@@ -59,6 +62,7 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
 
   const options = useMemo(
     () => ({
+      autoResize: true,
       layout: {
         randomSeed: 1,
       },
@@ -67,6 +71,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
         stabilization: {
           iterations: 500,
         },
+      },
+      interaction: {
+        zoomView: false,
       },
       nodes: {
         shape: "box",
@@ -119,9 +126,26 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
     [],
   );
 
+  const handleZoomIn = () => {
+    if (networkRef.current) {
+      const currentScale = networkRef.current.getScale();
+      networkRef.current.moveTo({
+        scale: currentScale * 1.2,
+      });
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (networkRef.current) {
+      const currentScale = networkRef.current.getScale();
+      networkRef.current.moveTo({
+        scale: currentScale / 1.2,
+      });
+    }
+  };
+
   useEffect(() => {
     // Create the network
-
     const network = new Network(
       containerRef?.current!,
       { ...graphData, nodes },
@@ -137,7 +161,18 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
       onCanvasNodeNameChange(null);
     });
 
+    // Add window resize handler to force network redraw
+    const handleResize = () => {
+      if (network) {
+        network.redraw();
+        network.fit();
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
     return () => {
+      window.removeEventListener("resize", handleResize);
       networkRef.current = null;
       network.destroy();
     };
@@ -164,8 +199,33 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
 
   return (
     <div
-      ref={containerRef}
-      className="h-[100%] rounded-lg border border-border"
-    />
+      className="relative h-full min-h-[50dvh] w-full pb-2"
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+    >
+      {isHovering && (
+        <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
+          <Button
+            onClick={handleZoomIn}
+            variant="ghost"
+            size="icon"
+            className="p-1.5 shadow-md dark:shadow-border"
+            title="Zoom in"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={handleZoomOut}
+            variant="ghost"
+            size="icon"
+            className="p-1.5 shadow-md dark:shadow-border"
+            title="Zoom out"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      <div ref={containerRef} className="h-full w-full" />
+    </div>
   );
 };

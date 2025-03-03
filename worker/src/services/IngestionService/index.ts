@@ -629,7 +629,7 @@ export class IngestionService {
       final_usage_details.usage_details ?? {},
     );
 
-    logger.info(
+    logger.debug(
       `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
       {
         cost: final_cost_details.cost_details,
@@ -677,7 +677,7 @@ export class IngestionService {
         model,
       });
 
-      logger.info(
+      logger.debug(
         `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
       );
 

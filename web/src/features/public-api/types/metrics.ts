@@ -15,6 +15,7 @@ export const GetMetricsDailyV1Query = z.object({
   traceName: z.string().nullish(),
   userId: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
 });

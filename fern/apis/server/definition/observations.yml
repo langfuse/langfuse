@@ -33,6 +33,10 @@ service:
           type: optional<string>
           traceId: optional<string>
           parentObservationId: optional<string>
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for observations where the environment is one of the provided values.
           fromStartTime:
             type: optional<datetime>
             docs: Retrieve only observations with a start_time or or after this datetime (ISO 8601).

@@ -58,6 +58,7 @@ function VideoPlayer({ videoSrc }: VideoPlayerProps) {
         autoPlay
         muted
         loop
+        playsInline
         controlsList="nodownload"
         className="w-full"
         onError={() => setHasError(true)}
@@ -76,15 +77,9 @@ export function SplashScreen({
   primaryAction,
   secondaryAction,
   gettingStarted,
-  className,
 }: SplashScreenProps) {
   return (
-    <div
-      className={cn(
-        "mx-auto flex max-w-4xl flex-col items-center p-8",
-        className,
-      )}
-    >
+    <div className={cn("mx-auto flex max-w-4xl flex-col items-center p-8")}>
       <div className="mb-6 text-center">
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
         <p className="text-muted-foreground">{description}</p>

@@ -16,6 +16,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { logger } from "@langfuse/shared/src/server";
+import { createId as createCuid } from "@paralleldrive/cuid2";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -601,12 +602,14 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        datasetId: z.string(),
         items: z.array(
           z.object({
+            datasetId: z.string(),
             input: z.string().nullish(),
             expectedOutput: z.string().nullish(),
             metadata: z.string().nullish(),
+            sourceTraceId: z.string().optional(),
+            sourceObservationId: z.string().optional(),
           }),
         ),
       }),
@@ -618,31 +621,50 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const dataset = await ctx.prisma.dataset.findUnique({
+      // Verify all datasets exist and belong to the project
+      const datasetIds = [
+        ...new Set(input.items.map((item) => item.datasetId)),
+      ];
+      const datasets = await ctx.prisma.dataset.findMany({
         where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
+          id: { in: datasetIds },
+          projectId: input.projectId,
         },
       });
 
-      if (!dataset) {
-        throw new Error("Dataset not found");
+      if (datasets.length !== datasetIds.length) {
+        throw new Error("One or more datasets not found");
       }
 
-      const datasetItems = input.items.map((item) => ({
+      const itemsWithIds = input.items.map((item) => ({
+        id: createCuid(),
         input: formatDatasetItemData(item.input),
         expectedOutput: formatDatasetItemData(item.expectedOutput),
         metadata: formatDatasetItemData(item.metadata),
-        datasetId: input.datasetId,
+        datasetId: item.datasetId,
+        sourceTraceId: item.sourceTraceId,
+        sourceObservationId: item.sourceObservationId,
         projectId: input.projectId,
         status: DatasetStatus.ACTIVE,
       }));
 
-      return await ctx.prisma.datasetItem.createMany({
-        data: datasetItems,
+      await ctx.prisma.datasetItem.createMany({
+        data: itemsWithIds,
       });
+
+      await Promise.all(
+        itemsWithIds.map(async (item) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetItem",
+            resourceId: item.id,
+            action: "create",
+            after: item,
+          }),
+        ),
+      );
+
+      return;
     }),
 
   runitemsByRunIdOrItemId: protectedProjectProcedure

@@ -1,5 +1,5 @@
+import { TracePage } from "@/src/components/trace/TracePage";
 import { useRouter } from "next/router";
-import { TracePage } from "@/src/components/trace";
 
 export default function Trace() {
   const router = useRouter();
