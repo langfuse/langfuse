@@ -169,7 +169,7 @@ export default class MigrateScoresFromPostgresToClickhouse
 async function main() {
   const args = parseArgs({
     options: {
-      batchSize: { type: "string", short: "b", default: "5000" },
+      batchSize: { type: "string", short: "b", default: "1000" },
       maxRowsToProcess: { type: "string", short: "r", default: "Infinity" },
       maxDate: {
         type: "string",
