@@ -63,7 +63,7 @@ export default withMiddlewares({
     responseSchema: DeleteDatasetRunV1Response,
     fn: async ({ query, auth }) => {
       // First get the dataset run to check if it exists
-      const datasetRun = await prisma.datasetRuns.findFirst({
+      const datasetRuns = await prisma.datasetRuns.findMany({
         where: {
           projectId: auth.scope.projectId,
           name: query.runName,
@@ -74,9 +74,15 @@ export default withMiddlewares({
         },
       });
 
-      if (!datasetRun) {
+      if (datasetRuns.length === 0) {
         throw new LangfuseNotFoundError("Dataset run not found");
       }
+      if (datasetRuns.length > 1) {
+        throw new ApiError(
+          "Found more than one dataset run with this name and dataset",
+        );
+      }
+      const datasetRun = datasetRuns[0];
 
       // Delete the dataset run
       await prisma.datasetRuns.delete({
