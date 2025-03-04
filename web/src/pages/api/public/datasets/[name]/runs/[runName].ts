@@ -2,6 +2,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   GetDatasetRunV1Query,
   GetDatasetRunV1Response,
+  DeleteDatasetRunV1Query,
+  DeleteDatasetRunV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItem,
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
@@ -52,6 +54,42 @@ export default withMiddlewares({
             datasetRunName: run.name,
           }))
           .map(transformDbDatasetRunItemToAPIDatasetRunItem),
+      };
+    },
+  }),
+  DELETE: createAuthedAPIRoute({
+    name: "delete-dataset-run",
+    querySchema: DeleteDatasetRunV1Query,
+    responseSchema: DeleteDatasetRunV1Response,
+    fn: async ({ query, auth }) => {
+      // First get the dataset run to check if it exists
+      const datasetRun = await prisma.datasetRuns.findFirst({
+        where: {
+          projectId: auth.scope.projectId,
+          name: query.runName,
+          dataset: {
+            name: query.name,
+            projectId: auth.scope.projectId,
+          },
+        },
+      });
+
+      if (!datasetRun) {
+        throw new LangfuseNotFoundError("Dataset run not found");
+      }
+
+      // Delete the dataset run
+      await prisma.datasetRuns.delete({
+        where: {
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: datasetRun.id,
+          },
+        },
+      });
+
+      return {
+        message: "Dataset run successfully deleted" as const,
       };
     },
   }),
