@@ -32,7 +32,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
-import { dashboardColumnDefinitions } from "@langfuse/shared";
+import {
+  dashboardColumnDefinitions,
+  tracesTableUiColumnDefinitions,
+} from "@langfuse/shared";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -83,7 +86,7 @@ export const dashboardRouter = createTRPCRouter({
           return (
             await getTracesGroupedByName(
               input.projectId,
-              dashboardColumnDefinitions,
+              tracesTableUiColumnDefinitions,
               input.filter,
             )
           ).map(
@@ -176,7 +179,7 @@ export const dashboardRouter = createTRPCRouter({
             undefined,
             1000,
             0,
-            dashboardColumnDefinitions,
+            tracesTableUiColumnDefinitions,
           );
 
           return traces.map((row) => ({

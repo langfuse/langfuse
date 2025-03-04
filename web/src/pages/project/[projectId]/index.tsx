@@ -169,7 +169,7 @@ export default function Dashboard() {
       ];
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
-    ["traceEnvironment"],
+    ["environment"],
     selectedEnvironments,
   );
 
