@@ -1,4 +1,4 @@
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:20-alpine3.20 AS alpine
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node:23-alpine3.21 AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
@@ -117,8 +117,8 @@ RUN adduser --system --uid ${UID} nextjs
 RUN npm install -g --no-package-lock --no-save prisma@6.3.0
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
-    wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
-    mv migrate /usr/bin/migrate
+  wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
+  mv migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
 COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
