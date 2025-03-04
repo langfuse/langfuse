@@ -66,7 +66,7 @@ export default class AddGenerationsCostBackfill
     let previousTimeout;
 
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
-    const batchSize = Number(args.batchSize ?? 5000);
+    const batchSize = Number(args.batchSize ?? 1000);
     let currentDateCutoff = args.maxDate ?? new Date().toISOString();
 
     try {

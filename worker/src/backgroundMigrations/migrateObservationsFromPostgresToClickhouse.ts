@@ -104,7 +104,7 @@ export default class MigrateObservationsFromPostgresToClickhouse
     const stateSuffix = (args.stateSuffix as string) ?? "";
     const initialDate = await this.getMaxDate(stateSuffix);
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
-    const batchSize = Number(args.batchSize ?? 5000);
+    const batchSize = Number(args.batchSize ?? 1000);
     const maxDate =
       initialDate ?? new Date((args.maxDate as string) ?? new Date());
 

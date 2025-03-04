@@ -74,7 +74,7 @@ export default class MigrateScoresFromPostgresToClickhouse
       });
 
     const maxRowsToProcess = Number(args.maxRowsToProcess ?? Infinity);
-    const batchSize = Number(args.batchSize ?? 5000);
+    const batchSize = Number(args.batchSize ?? 1000);
     const maxDate = initialMigrationState.state?.maxDate
       ? new Date(initialMigrationState.state.maxDate)
       : new Date((args.maxDate as string) ?? new Date());
