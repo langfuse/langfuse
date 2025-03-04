@@ -505,6 +505,45 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete Run",
+          "request": {
+            "description": "Delete a dataset run and all its run items. This action is irreversible.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs/:runName",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets",
+                ":datasetName",
+                "runs",
+                ":runName"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "datasetName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "runName",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get Runs",
           "request": {
             "description": "Get dataset runs",
