@@ -97,17 +97,6 @@ export function DataTableToolbar<TData, TValue>({
   return (
     <>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
-        {environmentFilter && (
-          <div className="flex max-w-md items-center">
-            <MultiSelect
-              title="Environment"
-              values={environmentFilter.values}
-              onValueChange={environmentFilter.onValueChange}
-              options={environmentFilter.options}
-              className="min-w-[200px]"
-            />
-          </div>
-        )}
         {searchConfig && (
           <div className="flex max-w-md items-center">
             <Input
@@ -142,6 +131,17 @@ export function DataTableToolbar<TData, TValue>({
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
           />
+        )}
+        {environmentFilter && (
+          <div className="flex max-w-md items-center">
+            <MultiSelect
+              title="Environment"
+              values={environmentFilter.values}
+              onValueChange={environmentFilter.onValueChange}
+              options={environmentFilter.options}
+              className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-x-auto"
+            />
+          </div>
         )}
         {selectedOption && setDateRangeAndOption && (
           <TableDateRangeDropdown

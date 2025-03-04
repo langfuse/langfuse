@@ -28,9 +28,10 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import Page from "@/src/components/layouts/page";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
-
-const environmentColumns = ["traceEnvironment"];
+import {
+  convertSelectedEnvironmentsToFilter,
+  useEnvironmentFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -167,15 +168,10 @@ export default function Dashboard() {
         },
       ];
 
-  const environmentFilter =
-    selectedEnvironments.length > 0
-      ? environmentColumns.map((column) => ({
-          type: "stringOptions" as const,
-          column,
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        }))
-      : [];
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["traceEnvironment"],
+    selectedEnvironments,
+  );
 
   const mergedFilterState: FilterState = [
     ...userFilterState,
@@ -192,15 +188,7 @@ export default function Dashboard() {
       }}
     >
       <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-col gap-2 lg:flex-row">
-          <MultiSelect
-            title="Environment"
-            values={selectedEnvironments}
-            onValueChange={useDebounce(setSelectedEnvironments)}
-            options={environmentOptions.map((env) => ({
-              value: env,
-            }))}
-          />
+        <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
           <DatePickerWithRange
             dateRange={dateRange}
             setDateRangeAndOption={useDebounce(setDateRangeAndOption)}
@@ -216,6 +204,15 @@ export default function Dashboard() {
                   }
                 : undefined
             }
+          />
+          <MultiSelect
+            title="Environment"
+            values={selectedEnvironments}
+            onValueChange={useDebounce(setSelectedEnvironments)}
+            options={environmentOptions.map((env) => ({
+              value: env,
+            }))}
+            className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-x-auto"
           />
           <PopoverFilterBuilder
             columns={filterColumns}

@@ -28,7 +28,10 @@ import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export type ScoresTableRow = {
   id: string;
@@ -71,8 +74,6 @@ function createFilterState(
     ]);
   }, userFilterState);
 }
-
-const environmentColumns = ["environment"];
 
 export default function ScoresTable({
   projectId,
@@ -117,43 +118,38 @@ export default function ScoresTable({
       ]
     : [];
 
-  const environmentFilterOptions = api.projects.environmentFilterOptions.useQuery(
-    { projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
   );
-
-  const environmentOptions = environmentFilterOptions.data?.map(
-    (value) => value.environment
-  ) || [];
-
-  const { selectedEnvironments, setSelectedEnvironments } = useEnvironmentFilter(
-    environmentOptions,
-    projectId
-  );
-
-  const environmentFilter =
-    selectedEnvironments.length > 0
-      ? environmentColumns.map((column) => ({
-          type: "stringOptions" as const,
-          column,
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        }))
-      : [];
 
   const filterState = createFilterState(
     userFilterState.concat(dateRangeFilter, environmentFilter),
     [
       ...(userId ? [{ key: "User ID", value: userId }] : []),
       ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
-      ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
-    ]
+      ...(observationId
+        ? [{ key: "Observation ID", value: observationId }]
+        : []),
+    ],
   );
 
   const [orderByState, setOrderByState] = useOrderByState({

@@ -24,7 +24,10 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
-import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 type RowData = {
   userId: string;
@@ -73,8 +76,6 @@ export default function UsersPage() {
   );
 }
 
-const environmentColumns = ["environment"];
-
 const UsersTable = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -106,37 +107,33 @@ const UsersTable = () => {
       ]
     : [];
 
-  const environmentFilterOptions = api.projects.environmentFilterOptions.useQuery(
-    { projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
   );
 
-  const environmentOptions = environmentFilterOptions.data?.map(
-    (value) => value.environment
-  ) || [];
-
-  const { selectedEnvironments, setSelectedEnvironments } = useEnvironmentFilter(
-    environmentOptions,
-    projectId
+  const filterState = userFilterState.concat(
+    dateRangeFilter,
+    environmentFilter,
   );
-
-  const environmentFilter =
-    selectedEnvironments.length > 0
-      ? environmentColumns.map((column) => ({
-          type: "stringOptions" as const,
-          column,
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        }))
-      : [];
-
-  const filterState = userFilterState.concat(dateRangeFilter, environmentFilter);
 
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",

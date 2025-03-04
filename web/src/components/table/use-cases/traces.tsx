@@ -74,7 +74,10 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { useEnvironmentFilter } from "@/src/hooks/use-environment-filter";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -118,10 +121,6 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
 };
-
-export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
-
-const environmentColumns = ["environment"];
 
 export default function TracesTable({
   projectId,
@@ -187,15 +186,10 @@ export default function TracesTable({
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
 
-  const environmentFilter =
-    selectedEnvironments.length > 0
-      ? environmentColumns.map((column) => ({
-          type: "stringOptions" as const,
-          column,
-          operator: "any of" as const,
-          value: selectedEnvironments,
-        }))
-      : [];
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
 
   const filterState = userFilterState.concat(
     userIdFilter,

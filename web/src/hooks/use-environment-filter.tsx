@@ -8,6 +8,20 @@ interface EnvironmentVisibility {
 // TODO: Add the environment selection to the query params to persist the environment filter when sharing links.
 // See useDashboardDateRange for an example of this.
 
+export function convertSelectedEnvironmentsToFilter(
+  environmentColumns: string[],
+  selectedEnvironments: string[],
+) {
+  return selectedEnvironments.length > 0
+    ? environmentColumns.map((column) => ({
+        type: "stringOptions" as const,
+        column,
+        operator: "any of" as const,
+        value: selectedEnvironments,
+      }))
+    : [];
+}
+
 export function useEnvironmentFilter(
   availableEnvironments: string[] | undefined,
   projectId: string,
