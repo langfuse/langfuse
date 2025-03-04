@@ -1,6 +1,5 @@
 import { type Prompt, prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
-import { PromptType } from "./validation";
 
 export const PromptDependencyRegex = /@@@langfusePrompt:(.*)@@@/g;
 
@@ -28,6 +27,12 @@ export function parsePromptDependencyTags(
     const innerContent = match.replace(/^@@@langfusePrompt:|@@@$/g, "");
     const parts = innerContent.split("|");
     const params: Record<string, string> = {};
+
+    // Check if the first parameter is name
+    const firstPart = parts[0];
+    if (!firstPart || !firstPart.startsWith("name=")) {
+      continue; // Skip this tag if name is not the first parameter. This makes it easier to replace the tag with the resolved prompt.
+    }
 
     parts.forEach((part) => {
       const [key, value] = part.split("=");
@@ -62,11 +67,13 @@ export type PromptDependencyGraph = {
   rootId: string;
 };
 
-export async function buildDependencyGraph(
-  projectId: string,
-  parentPrompt: PartialPrompt,
-  dependencies: ParsedPromptDependencyTag[],
-): Promise<PromptDependencyGraph> {
+export async function buildPromptDependencyGraph(params: {
+  projectId: string;
+  parentPrompt: PartialPrompt;
+  dependencies: ParsedPromptDependencyTag[];
+}): Promise<PromptDependencyGraph> {
+  const { projectId, parentPrompt, dependencies } = params;
+
   const result: PromptDependencyGraph = {
     prompts: {},
     adjacencies: {},
@@ -121,7 +128,7 @@ export async function buildDependencyGraph(
           name: dep.name,
           ...(dep.type === "version"
             ? { version: dep.version }
-            : { label: dep.label }), // TODO: fix to use list membership
+            : { labels: { has: dep.label } }), // TODO: fix to use list membership
         },
       });
 
@@ -130,7 +137,7 @@ export async function buildDependencyGraph(
       if (!depPrompt)
         throw Error(`Prompt dependency not found: ${promptLogName}`);
 
-      if (depPrompt.type !== PromptType.Text)
+      if (depPrompt.type !== "text")
         throw Error(`Prompt dependency is not a text prompt: ${promptLogName}`);
 
       result.adjacencies[currentPrompt.id] ??= [];
@@ -147,7 +154,7 @@ export async function buildDependencyGraph(
   return result;
 }
 
-export function resolveDependencyGraph(graph: PromptDependencyGraph) {
+export function resolvePromptDependencyGraph(graph: PromptDependencyGraph) {
   function resolve(id: string) {
     const dependencyIds = graph.adjacencies[id] || [];
     const promptData = graph.prompts[id];

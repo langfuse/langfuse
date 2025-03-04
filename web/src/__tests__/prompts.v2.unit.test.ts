@@ -1,4 +1,6 @@
-import { parsePromptDependencyTags } from "../features/prompts/server/utils/promptDepependencies";
+/** @jest-environment node */
+
+import { parsePromptDependencyTags } from "@langfuse/shared/src/server";
 
 describe("Prompt dependency management", () => {
   describe("Parsing prompt dependency tags", () => {
@@ -188,6 +190,21 @@ describe("Prompt dependency management", () => {
         name: "another",
         label: "production",
         type: "label",
+      });
+    });
+
+    it("should reject tags where name is not the first parameter", () => {
+      const content = `
+        Valid: @@@langfusePrompt:name=valid|version=1@@@
+        Invalid: @@@langfusePrompt:version=1|name=test@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "valid",
+        version: 1,
+        type: "version",
       });
     });
   });
