@@ -161,6 +161,7 @@ const extractInputAndOutput = (
         events = JSON.parse(eventsArray);
       } catch (e) {
         // fallthrough
+        events = [];
       }
     }
 
