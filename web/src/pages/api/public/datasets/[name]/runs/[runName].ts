@@ -2,6 +2,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   GetDatasetRunV1Query,
   GetDatasetRunV1Response,
+  DeleteDatasetRunV1Query,
+  DeleteDatasetRunV1Response,
   transformDbDatasetRunItemToAPIDatasetRunItem,
   transformDbDatasetRunToAPIDatasetRun,
 } from "@/src/features/public-api/types/datasets";
@@ -52,6 +54,48 @@ export default withMiddlewares({
             datasetRunName: run.name,
           }))
           .map(transformDbDatasetRunItemToAPIDatasetRunItem),
+      };
+    },
+  }),
+  DELETE: createAuthedAPIRoute({
+    name: "delete-dataset-run",
+    querySchema: DeleteDatasetRunV1Query,
+    responseSchema: DeleteDatasetRunV1Response,
+    fn: async ({ query, auth }) => {
+      // First get the dataset run to check if it exists
+      const datasetRuns = await prisma.datasetRuns.findMany({
+        where: {
+          projectId: auth.scope.projectId,
+          name: query.runName,
+          dataset: {
+            name: query.name,
+            projectId: auth.scope.projectId,
+          },
+        },
+      });
+
+      if (datasetRuns.length === 0) {
+        throw new LangfuseNotFoundError("Dataset run not found");
+      }
+      if (datasetRuns.length > 1) {
+        throw new ApiError(
+          "Found more than one dataset run with this name and dataset",
+        );
+      }
+      const datasetRun = datasetRuns[0];
+
+      // Delete the dataset run
+      await prisma.datasetRuns.delete({
+        where: {
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: datasetRun.id,
+          },
+        },
+      });
+
+      return {
+        message: "Dataset run successfully deleted" as const,
       };
     },
   }),

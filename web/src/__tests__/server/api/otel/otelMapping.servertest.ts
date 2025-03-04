@@ -360,6 +360,35 @@ describe("OTel Resource Span Mapping", () => {
       expect(langfuseEvents).toHaveLength(2);
     });
 
+    it("should interpret openinference LLM calls as a generation", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "LLM" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      // Check that we create a generation
+      expect(
+        langfuseEvents.some((event) => event.type === "generation-create"),
+      ).toBe(true);
+    });
+
     it.each([
       [
         "should cast input_tokens from string to number",
@@ -482,6 +511,16 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract providedModelName from llm.model_name",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.model_name",
+          otelAttributeValue: { stringValue: "gpt-4" },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gpt-4",
+        },
+      ],
+      [
         "should extract modelParameters from gen_ai.request (request.temperature)",
         {
           entity: "observation",
@@ -500,6 +539,18 @@ describe("OTel Resource Span Mapping", () => {
             intValue: { low: 100, high: 0, unsigned: false },
           },
           entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract usage from llm.token_count (input_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.token_count.prompt",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.input",
           entityAttributeValue: 100,
         },
       ],
