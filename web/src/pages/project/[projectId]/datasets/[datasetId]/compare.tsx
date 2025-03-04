@@ -2,7 +2,16 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
-import { FlaskConical, FolderKanban } from "lucide-react";
+import {
+  FlaskConical,
+  FolderKanban,
+  List,
+  Cog,
+  ChartBarBig,
+  ChartArea,
+  ChartBarStacked,
+  ChartLine,
+} from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
@@ -34,6 +43,17 @@ import {
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
+import { Switch } from "@/src/components/ui/switch";
+import {
+  DropdownMenuContent,
+  DropdownMenuLabel,
+} from "@/src/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -49,6 +69,7 @@ export default function DatasetCompare() {
   const [localRuns, setLocalRuns] = useState<
     Array<{ key: string; value: string }>
   >([]);
+  const [showCharts, setShowCharts] = useState(true);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
     RESOURCE_METRICS.map((metric) => metric.key),
   );
@@ -176,103 +197,143 @@ export default function DatasetCompare() {
         help: {
           description: "Compare your dataset runs side by side",
         },
-        actionButtonsRight: [
-          <Dialog
-            key="create-experiment-dialog"
-            open={isCreateExperimentDialogOpen}
-            onOpenChange={setIsCreateExperimentDialogOpen}
-          >
-            <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
-              <Button
-                variant="outline"
-                disabled={!hasExperimentWriteAccess}
-                onClick={() => capture("dataset_run:new_form_open")}
-              >
-                <FlaskConical className="h-4 w-4" />
-                <span className="ml-2 hidden md:block">New experiment</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <CreateExperimentsForm
-                key={`create-experiment-form-${datasetId}`}
-                projectId={projectId as string}
-                setFormOpen={setIsCreateExperimentDialogOpen}
-                defaultValues={{
-                  datasetId,
-                }}
-                handleExperimentSettled={handleExperimentSettled}
-                showSDKRunInfoPage
-              />
-            </DialogContent>
-          </Dialog>,
-          <Popover key="show-dataset-details">
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <FolderKanban className="mr-2 h-4 w-4" />
-                <span className="hidden md:block">Dataset details</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="mb-1 font-medium">Description</h4>
-                  <span className="text-sm text-muted-foreground">
-                    {dataset.data?.description ?? "No description"}
-                  </span>
+        actionButtonsRight: (
+          <>
+            <Dialog
+              key="create-experiment-dialog"
+              open={isCreateExperimentDialogOpen}
+              onOpenChange={setIsCreateExperimentDialogOpen}
+            >
+              <DialogTrigger asChild disabled={!hasExperimentWriteAccess}>
+                <Button
+                  variant="outline"
+                  disabled={!hasExperimentWriteAccess}
+                  onClick={() => capture("dataset_run:new_form_open")}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span className="ml-2 hidden md:block">New experiment</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <CreateExperimentsForm
+                  key={`create-experiment-form-${datasetId}`}
+                  projectId={projectId as string}
+                  setFormOpen={setIsCreateExperimentDialogOpen}
+                  defaultValues={{
+                    datasetId,
+                  }}
+                  handleExperimentSettled={handleExperimentSettled}
+                  showSDKRunInfoPage
+                />
+              </DialogContent>
+            </Dialog>
+            <Popover key="show-dataset-details">
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  <span className="hidden md:block">Dataset details</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="mb-1 font-medium">Description</h4>
+                    <span className="text-sm text-muted-foreground">
+                      {dataset.data?.description ?? "No description"}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="mb-1 font-medium">Metadata</h4>
+                    <MarkdownJsonView
+                      content={dataset.data?.metadata ?? null}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <h4 className="mb-1 font-medium">Metadata</h4>
-                  <MarkdownJsonView content={dataset.data?.metadata ?? null} />
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>,
-          runIds && runIds.length > 1 ? (
-            <DatasetAnalytics
-              key="dataset-analytics"
-              projectId={projectId}
-              scoreOptions={scoreAnalyticsOptions}
-              selectedMetrics={selectedMetrics}
-              setSelectedMetrics={setSelectedMetrics}
-            />
-          ) : null,
-          <MultiSelectKeyValues
-            key="select-runs"
-            title="Select runs"
-            placeholder="Select runs to compare"
-            className="w-fit"
-            variant="outline"
-            hideClearButton
-            options={runs.map((run) => ({
-              key: run.key,
-              value: run.value,
-              disabled: runIds?.includes(run.key) && runIds.length === 1,
-            }))}
-            values={runs.filter((run) => runIds?.includes(run.key))}
-            onValueChange={(values, changedValueId, selectedValueKeys) => {
-              if (values.length === 0) return;
-              if (changedValueId) {
-                if (selectedValueKeys?.has(changedValueId)) {
-                  capture("dataset_run:compare_run_added");
-                  setRunState({
-                    runs: [...(runIds ?? []), changedValueId],
-                  });
-                  setLocalRuns([]);
-                } else {
-                  capture("dataset_run:compare_run_removed");
-                  setRunState({
-                    runs: runIds?.filter((id) => id !== changedValueId) ?? [],
-                  });
-                  setLocalRuns([]);
+              </PopoverContent>
+            </Popover>
+            <MultiSelectKeyValues
+              key="select-runs"
+              title="Runs"
+              placeholder="Select runs to compare"
+              className="w-fit"
+              variant="outline"
+              hideClearButton
+              iconLeft={<List className="mr-2 h-4 w-4" />}
+              options={runs.map((run) => ({
+                key: run.key,
+                value: run.value,
+                disabled: runIds?.includes(run.key) && runIds.length === 1,
+              }))}
+              values={runs.filter((run) => runIds?.includes(run.key))}
+              onValueChange={(values, changedValueId, selectedValueKeys) => {
+                if (values.length === 0) return;
+                if (changedValueId) {
+                  if (selectedValueKeys?.has(changedValueId)) {
+                    capture("dataset_run:compare_run_added");
+                    setRunState({
+                      runs: [...(runIds ?? []), changedValueId],
+                    });
+                    setLocalRuns([]);
+                  } else {
+                    capture("dataset_run:compare_run_removed");
+                    setRunState({
+                      runs: runIds?.filter((id) => id !== changedValueId) ?? [],
+                    });
+                    setLocalRuns([]);
+                  }
                 }
-              }
-            }}
-          />,
-        ],
+              }}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <div className="relative">
+                    <ChartLine className="h-4 w-4" />
+                    <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Chart settings</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="w-full">
+                  <Button variant="ghost" className="w-full">
+                    <div className="flex w-full items-center justify-between">
+                      <span className="mr-2">Hide all charts</span>
+                      <Switch
+                        checked={!showCharts}
+                        onCheckedChange={(e) => {
+                          setShowCharts(!e);
+                        }}
+                      />
+                    </div>
+                  </Button>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+
+                {runIds && runIds.length > 1 && (
+                  <DropdownMenuItem
+                    asChild
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <DatasetAnalytics
+                      key="dataset-analytics"
+                      projectId={projectId}
+                      scoreOptions={scoreAnalyticsOptions}
+                      selectedMetrics={selectedMetrics}
+                      setSelectedMetrics={setSelectedMetrics}
+                    />
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        ),
       }}
     >
       {Boolean(selectedMetrics.length) &&
-        Boolean(runAggregatedMetrics?.size) && (
+        Boolean(runAggregatedMetrics?.size) &&
+        showCharts && (
           <Card className="my-4 max-h-64">
             <CardContent className="mt-2 h-full">
               <div className="flex h-full w-full gap-4 overflow-x-auto">

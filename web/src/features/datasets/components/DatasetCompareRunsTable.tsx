@@ -15,7 +15,7 @@ import { usdFormatter } from "@/src/utils/numbers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDown, Expand, Rows3 } from "lucide-react";
+import { ChevronDown, Cog, Expand, Rows3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -285,7 +285,7 @@ export function DatasetCompareRunsTable(props: {
             >
               <Expand className="h-4 w-4" />
             </Button>
-            <IOTableCell data={input} />
+            <IOTableCell data={input} isPretty={true} />
           </div>
         ) : null;
       },
@@ -316,6 +316,7 @@ export function DatasetCompareRunsTable(props: {
             <IOTableCell
               data={expectedOutput}
               className="bg-accent-light-green"
+              isPretty={true}
             />
           </div>
         ) : null;
@@ -359,11 +360,10 @@ export function DatasetCompareRunsTable(props: {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
+                size="icon"
                 onClick={() => setIsMetricsDropdownOpen(!isMetricsDropdownOpen)}
               >
-                <Rows3 className="mr-2 h-4 w-4" />
-                <span className="text-xs text-muted-foreground">Metrics</span>
-                <ChevronDown className="ml-2 h-4 w-4" />
+                <Cog className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

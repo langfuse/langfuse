@@ -1,7 +1,7 @@
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { ChartColumnBig } from "lucide-react";
+import { ChartLine } from "lucide-react";
 
 export function DatasetAnalytics(props: {
   projectId: string;
@@ -14,9 +14,9 @@ export function DatasetAnalytics(props: {
     <MultiSelectKeyValues
       className="max-w-fit"
       placeholder="Search..."
-      title="Charts"
-      variant="outline"
-      iconLeft={<ChartColumnBig className="mr-1 h-4 w-4" />}
+      title="Selected"
+      variant="ghost"
+      iconLeft={<ChartLine className="mr-1 h-4 w-4" />}
       hideClearButton
       onValueChange={(values, changedValue, selectedKeys) => {
         if (values.length === 0) props.setSelectedMetrics([]);
