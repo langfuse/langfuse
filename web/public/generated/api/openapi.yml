@@ -366,6 +366,53 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    delete:
+      description: >-
+        Delete a dataset item and all its run items. This action is
+        irreversible.
+      operationId: datasetItems_delete
+      tags:
+        - DatasetItems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteDatasetItemResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
@@ -3522,6 +3569,15 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
+    DeleteDatasetItemResponse:
+      title: DeleteDatasetItemResponse
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message after deletion
+      required:
+        - message
     CreateDatasetItemRequest:
       title: CreateDatasetItemRequest
       type: object

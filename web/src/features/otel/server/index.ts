@@ -429,7 +429,10 @@ export const convertOtelSpanToIngestionEvent = (
       // If the span has a model property, we consider it a generation.
       // Just checking for llm.* or gen_ai.* attributes leads to overreporting and wrong
       // aggregations for costs.
-      const isGeneration = Boolean(observation.model);
+      const isGeneration =
+        Boolean(observation.model) ||
+        ("openinference.span.kind" in attributes &&
+          attributes["openinference.span.kind"] === "LLM");
       events.push({
         id: randomUUID(),
         type: isGeneration ? "generation-create" : "span-create",
