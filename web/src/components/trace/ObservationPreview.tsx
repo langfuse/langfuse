@@ -375,23 +375,27 @@ export const ObservationPreview = ({
                   setIsPrettyViewAvailable={setIsPrettyViewAvailable}
                 />
               </div>
-              {preloadedObservation.statusMessage && (
-                <JSONView
-                  key={preloadedObservation.id + "-status"}
-                  title="Status Message"
-                  json={preloadedObservation.statusMessage}
-                />
-              )}
-              {observationWithInputAndOutput.data?.metadata && (
-                <JSONView
-                  key={observationWithInputAndOutput.data.id + "-metadata"}
-                  title="Metadata"
-                  json={observationWithInputAndOutput.data.metadata}
-                  media={observationMedia.data?.filter(
-                    (m) => m.field === "metadata",
-                  )}
-                />
-              )}
+              <div>
+                {preloadedObservation.statusMessage && (
+                  <JSONView
+                    key={preloadedObservation.id + "-status"}
+                    title="Status Message"
+                    json={preloadedObservation.statusMessage}
+                  />
+                )}
+              </div>
+              <div>
+                {observationWithInputAndOutput.data?.metadata && (
+                  <JSONView
+                    key={observationWithInputAndOutput.data.id + "-metadata"}
+                    title="Metadata"
+                    json={observationWithInputAndOutput.data.metadata}
+                    media={observationMedia.data?.filter(
+                      (m) => m.field === "metadata",
+                    )}
+                  />
+                )}
+              </div>
             </div>
           </TabsBarContent>
           {isAuthenticatedAndProjectMember && (
