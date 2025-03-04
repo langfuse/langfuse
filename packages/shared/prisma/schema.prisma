@@ -140,6 +140,7 @@ model Project {
   LegacyTrace         LegacyPrismaTrace[]
   LegacyObservation   LegacyPrismaObservation[]
   LegacyScore         LegacyPrismaScore[]
+  PromptDependency    PromptDependency[]
 
   @@index([orgId])
   @@map("projects")
@@ -634,15 +635,16 @@ model Prompt {
 
   createdBy String @map("created_by")
 
-  prompt        Json
-  name          String
-  version       Int
-  type          String   @default("text")
-  isActive      Boolean? @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
-  config        Json     @default("{}") @db.Json
-  tags          String[] @default([])
-  labels        String[] @default([])
-  commitMessage String?  @map("commit_message")
+  prompt           Json
+  name             String
+  version          Int
+  type             String             @default("text")
+  isActive         Boolean?           @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
+  config           Json               @default("{}") @db.Json
+  tags             String[]           @default([])
+  labels           String[]           @default([])
+  commitMessage    String?            @map("commit_message")
+  PromptDependency PromptDependency[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -650,6 +652,24 @@ model Prompt {
   @@index([updatedAt])
   @@index([tags(ops: ArrayOps)], type: Gin)
   @@map("prompts")
+}
+
+model PromptDependency {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  parentId String @map("parent_id")
+  parent   Prompt @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  childName    String  @map("child_name")
+  childLabel   String? @map("child_label")
+  childVersion Int?    @map("child_version")
+
+  @@map("prompt_dependencies")
 }
 
 // Update ObservationView below when making changes to this model!
