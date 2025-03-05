@@ -176,7 +176,7 @@ export class ClickhouseWriter {
           });
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
-          recordIncrement("langfuse.queue.clickhouse_writer.wait_time.error");
+          recordIncrement("langfuse.queue.clickhouse_writer.error");
           logger.error(
             `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`,
           );
