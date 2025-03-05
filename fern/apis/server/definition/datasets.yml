@@ -41,6 +41,14 @@ service:
         datasetName: string
         runName: string
       response: commons.DatasetRunWithItems
+    deleteRun:
+      method: DELETE
+      docs: Delete a dataset run and all its run items. This action is irreversible.
+      path: /datasets/{datasetName}/runs/{runName}
+      path-parameters:
+        datasetName: string
+        runName: string
+      response: DeleteDatasetRunResponse
     getRuns:
       method: GET
       docs: Get dataset runs
@@ -72,3 +80,6 @@ types:
     properties:
       data: list<commons.DatasetRun>
       meta: pagination.MetaResponse
+  DeleteDatasetRunResponse:
+    properties:
+      message: string

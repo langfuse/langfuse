@@ -237,3 +237,14 @@ export const GetDatasetV1Response = APIDataset.extend({
   items: z.array(APIDatasetItem),
   runs: z.array(z.string()), // dataset run names
 }).strict();
+
+// DELETE /datasets/{name}/runs/{runName}
+export const DeleteDatasetRunV1Query = z.object({
+  name: queryStringZod, // dataset name from URL
+  runName: queryStringZod,
+});
+export const DeleteDatasetRunV1Response = z
+  .object({
+    message: z.literal("Dataset run successfully deleted"),
+  })
+  .strict();
