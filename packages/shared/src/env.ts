@@ -70,6 +70,10 @@ const EnvSchema = z.object({
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_S3_CONCURRENT_WRITES: z.coerce
+    .number()
+    .positive()
+    .default(50),
 });
 
 export const env: z.infer<typeof EnvSchema> =
