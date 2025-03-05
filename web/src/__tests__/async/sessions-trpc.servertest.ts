@@ -155,4 +155,18 @@ describe("traces trpc", () => {
       expect(sessions.sessions).toBeDefined();
     });
   });
+
+  describe("sessions.countAll", () => {
+    it("should count sessions", async () => {
+      // When
+      const sessions = await caller.sessions.countAll({
+        projectId,
+        filter: null,
+        orderBy: null,
+      });
+
+      // Then
+      expect(sessions.totalCount).toBeGreaterThan(0);
+    });
+  });
 });
