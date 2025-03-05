@@ -1,4 +1,9 @@
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers/oauth";
+import { env } from "../../env";
+
+const CUSTOM_EMAIL_CLAIM = env.CUSTOM_EMAIL_CLAIM;
+const CUSTOM_NAME_CLAIM = env.CUSTOM_NAME_CLAIM;
+const CUSTOM_SUB_CLAIM = env.CUSTOM_SUB_CLAIM;
 
 interface CustomSSOUser extends Record<string, any> {
   email: string;
@@ -6,6 +11,7 @@ interface CustomSSOUser extends Record<string, any> {
   name: string;
   verified: boolean;
 }
+
 
 export function CustomSSOProvider<P extends CustomSSOUser>(
   options: OAuthUserConfig<P>
@@ -17,11 +23,11 @@ export function CustomSSOProvider<P extends CustomSSOUser>(
     wellKnown: `${options.issuer}/.well-known/openid-configuration`,
     authorization: { params: { scope: "openid email profile" } }, // overridden by options.authorization to be able to set custom scopes, deep merged with this default
     checks: ["pkce", "state"],
-    profile(profile) {
+    profile(profile) {  
       return {
-        id: profile.sub,
-        name: profile.name,
-        email: profile.email,
+        id: profile[CUSTOM_SUB_CLAIM],
+        name: profile[CUSTOM_NAME_CLAIM],
+        email: profile[CUSTOM_EMAIL_CLAIM],
         image: null,
       };
     },
