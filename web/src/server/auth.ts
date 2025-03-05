@@ -365,9 +365,8 @@ if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
       allowDangerousEmailAccountLinking:
         env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING === "true",
       client: {
-        token_endpoint_auth_method: env.AUTH_WORKOS_CLIENT_AUTH_METHOD,
+        token_endpoint_auth_method: "client_secret_post",
       },
-      checks: env.AUTH_WORKOS_CHECKS,
     }),
   );
 
@@ -410,6 +409,11 @@ const extendedPrismaAdapter: Adapter = {
     if (data.provider === "keycloak") {
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
+    }
+
+    // WorkOS returns profile data that doesn't match the schema
+    if (data.provider === "workos") {
+      delete data["profile"];
     }
 
     // Optionally, remove fields returned by the provider that cause issues with the adapter
