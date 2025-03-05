@@ -1,6 +1,8 @@
 import { type Prompt, prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
+export const MAX_PROMPT_NESTING_DEPTH = 5;
+
 export const PromptDependencyRegex = /@@@langfusePrompt:(.*?)@@@/g;
 
 export const ParsedPromptDependencySchema = z.union([
@@ -74,13 +76,20 @@ export async function buildAndResolvePromptGraph(params: {
   const { projectId, parentPrompt, dependencies } = params;
 
   const adjacencies: PromptDependencyGraph["adjacencies"] = {};
-
   const seen = new Set<string>();
 
   async function resolve(
     currentPrompt: PartialPrompt,
-    deps?: ParsedPromptDependencyTag[],
+    deps: ParsedPromptDependencyTag[] | undefined,
+    level: number,
   ) {
+    // Nesting depth check
+    if (level >= MAX_PROMPT_NESTING_DEPTH) {
+      throw Error(
+        `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
+      );
+    }
+
     // Circular dependency check
     if (
       seen.has(currentPrompt.id) ||
@@ -151,7 +160,11 @@ export async function buildAndResolvePromptGraph(params: {
         });
 
         // resolve the prompt content recursively
-        const resolvedDepPrompt = await resolve(depPrompt);
+        const resolvedDepPrompt = await resolve(
+          depPrompt,
+          undefined,
+          level + 1,
+        );
 
         const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
         const labelPatterns = depPrompt.labels.map(
@@ -174,7 +187,7 @@ export async function buildAndResolvePromptGraph(params: {
     }
   }
 
-  const resolvedPrompt = await resolve(parentPrompt, dependencies);
+  const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
 
   return {
     adjacencies,
@@ -185,5 +198,3 @@ export async function buildAndResolvePromptGraph(params: {
 function escapeRegex(str: string | number) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-
-// TODO: ensure that prompt names cannot contain '|' going forward

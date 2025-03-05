@@ -16,6 +16,7 @@ import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/
 import {
   createOrgProjectAndApiKey,
   getObservationById,
+  MAX_PROMPT_NESTING_DEPTH,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 
@@ -2147,6 +2148,60 @@ describe("prompt composability", () => {
     await prisma.project.delete({
       where: { id: foreignProjectId },
     });
+  });
+
+  it("should throw an error if MAX_PROMPT_NESTING_DEPTH is exceeded", async () => {
+    const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+    // Create prompts with increasing depth
+    for (let i = MAX_PROMPT_NESTING_DEPTH; i >= 1; i--) {
+      const promptName = `depth-${i}`;
+      let promptContent = "";
+
+      if (i === MAX_PROMPT_NESTING_DEPTH) {
+        // The deepest prompt has no dependencies
+        promptContent = "I am the deepest prompt";
+      } else {
+        // Each prompt depends on the one deeper than it
+        promptContent = `Level ${i} with dependency: @@@langfusePrompt:name=depth-${i + 1}|label=production@@@`;
+      }
+
+      const response = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: promptName,
+          prompt: promptContent,
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      expect(response.status).toBe(201);
+    }
+
+    // Try to create the depth-0 prompt which would exceed the max nesting depth
+    const promptName = "depth-0";
+    const promptContent = `Level 0 with dependency: @@@langfusePrompt:name=depth-1|label=production@@@`;
+
+    const createResponse = await makeAPICall(
+      "POST",
+      baseURI,
+      {
+        name: promptName,
+        prompt: promptContent,
+        type: "text",
+        labels: ["production"],
+      },
+      newAuth,
+    );
+
+    // Expect an error response
+    expect(createResponse.status).toBe(400);
+    expect(JSON.stringify(createResponse.body)).toContain(
+      "Maximum nesting depth exceeded",
+    );
   });
 });
 
