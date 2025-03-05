@@ -3,9 +3,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { ChevronDownIcon, Loader } from "lucide-react";
+import { Download, Loader } from "lucide-react";
 import {
   type BatchExportTableName,
   exportOptions,
@@ -69,31 +72,29 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="ml-auto whitespace-nowrap">
-          <span className="hidden @6xl:inline">
-            {props.filterState.length > 0 || props.searchQuery
-              ? "Export selection"
-              : "Export all"}{" "}
-          </span>
-          <span className="@6xl:hidden">Export</span>
+        <Button variant="outline" size="icon" title="Export">
           {isExporting ? (
-            <Loader className="ml-2 h-4 w-4 animate-spin" />
+            <Loader className="h-4 w-4 animate-spin" />
           ) : (
-            <ChevronDownIcon className="ml-2 h-4 w-4" />
+            <Download className="h-4 w-4" />
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {Object.entries(exportOptions).map(([key, options]) => (
-          <DropdownMenuItem
-            key={key}
-            className="capitalize"
-            onClick={() => void handleExport(key as BatchExportFileFormat)}
-          >
-            as {options.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
+      <DropdownMenuPortal>
+        <DropdownMenuContent>
+          <DropdownMenuLabel>Export</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {Object.entries(exportOptions).map(([key, options]) => (
+            <DropdownMenuItem
+              key={key}
+              className="capitalize"
+              onClick={() => void handleExport(key as BatchExportFileFormat)}
+            >
+              as {options.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
     </DropdownMenu>
   );
 };

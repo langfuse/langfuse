@@ -91,7 +91,7 @@ export function TracePage({
 
   return (
     <Page
-      withPadding={false}
+      withPadding
       headerProps={{
         title: trace.data.name
           ? `${trace.data.name}: ${trace.data.id}`

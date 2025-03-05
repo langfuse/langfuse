@@ -200,15 +200,12 @@ export function DataTable<TData extends object, TValue>({
     <>
       <div
         className={cn(
-          "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
+          "flex w-full max-w-full flex-1 flex-col overflow-auto",
           className,
         )}
       >
         <div
-          className={cn(
-            "relative w-full overflow-auto",
-            isBorderless ? "" : "rounded-md border",
-          )}
+          className={cn("relative w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
           <Table>
@@ -340,7 +337,7 @@ export function DataTable<TData extends object, TValue>({
       {pagination !== undefined ? (
         <div
           className={cn(
-            "sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium",
+            "sticky bottom-0 z-10 flex w-full justify-end border-t bg-background py-2 pr-2 font-medium",
             paginationClassName,
           )}
         >

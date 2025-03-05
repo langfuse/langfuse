@@ -106,7 +106,6 @@ export function PopoverFilterBuilder({
         <PopoverTrigger asChild>
           <Button variant="outline">
             <Filter className="h-4 w-4" />
-            <span className="hidden @6xl:ml-2 @6xl:inline">Filter</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState
                 filterState={filterState}

@@ -251,21 +251,6 @@ export function PromptTable() {
         filterState={filterState}
         setFilterState={useDebounce(setFilterState)}
         columnsWithCustomSelect={["labels", "tags"]}
-        actionButtons={
-          <ActionButton
-            icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
-            hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/prompts/new`}
-            variant="secondary"
-            limit={promptLimit}
-            limitValue={totalCount ?? 0}
-            onClick={() => {
-              capture("prompts:new_form_open");
-            }}
-          >
-            New prompt
-          </ActionButton>
-        }
       />
       <DataTable
         columns={promptColumns}

@@ -292,7 +292,7 @@ const UsersTable = () => {
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         searchConfig={{
-          placeholder: "Search by id",
+          placeholder: "Search",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}

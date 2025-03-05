@@ -25,7 +25,6 @@ import {
   calculateDisplayTotalCost,
   heatMapTextColor,
   nestObservations,
-  treeItemColors,
   unnestObservation,
 } from "@/src/components/trace/lib/helpers";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -512,14 +511,5 @@ const ObservationTreeNodeCard = ({
 export const ColorCodedObservationType = (props: {
   observationType: ObservationType;
 }) => {
-  return (
-    <span
-      className={cn(
-        "self-start rounded-sm px-1 py-0.5 text-xs",
-        treeItemColors.get(props.observationType),
-      )}
-    >
-      {props.observationType}
-    </span>
-  );
+  return <ItemBadge type={props.observationType} showLabel />;
 };

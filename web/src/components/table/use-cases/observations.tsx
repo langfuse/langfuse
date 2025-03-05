@@ -271,7 +271,7 @@ export default function ObservationsTable({
       accessorKey: "type",
       id: "type",
       header: "Type",
-      size: 100,
+      size: 120,
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
@@ -808,7 +808,7 @@ export default function ObservationsTable({
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
-          placeholder: "Search by id, name, traceName, model",
+          placeholder: "Search",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
