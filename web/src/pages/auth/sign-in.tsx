@@ -54,7 +54,14 @@ export type PageProps = {
     auth0: boolean;
     cognito: boolean;
     keycloak: boolean;
-    workos: boolean;
+    workos:
+      | {
+          organizationId: string;
+        }
+      | {
+          connectionId: string;
+        }
+      | boolean;
     custom:
       | {
           name: string;
@@ -109,7 +116,13 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_KEYCLOAK_ISSUER !== undefined,
         workos:
           env.AUTH_WORKOS_CLIENT_ID !== undefined &&
-          env.AUTH_WORKOS_CLIENT_SECRET !== undefined,
+          env.AUTH_WORKOS_CLIENT_SECRET !== undefined
+            ? env.AUTH_WORKOS_ORGANIZATION_ID !== undefined
+              ? { organizationId: env.AUTH_WORKOS_ORGANIZATION_ID }
+              : env.AUTH_WORKOS_CONNECTION_ID !== undefined
+                ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
+                : true
+            : false,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -257,7 +270,41 @@ export function SSOButtons({
               Keycloak
             </Button>
           )}
-          {authProviders.workos && (
+          {typeof authProviders.workos === "object" &&
+            "connectionId" in authProviders.workos && (
+              <Button
+                onClick={() => {
+                  capture("sign_in:button_click", { provider: "workos" });
+                  void signIn("workos", undefined, {
+                    connection: (
+                      authProviders.workos as { connectionId: string }
+                    ).connectionId,
+                  });
+                }}
+                variant="secondary"
+              >
+                <Code className="mr-3" size={18} />
+                WorkOS
+              </Button>
+            )}
+          {typeof authProviders.workos === "object" &&
+            "organizationId" in authProviders.workos && (
+              <Button
+                onClick={() => {
+                  capture("sign_in:button_click", { provider: "workos" });
+                  void signIn("workos", undefined, {
+                    organization: (
+                      authProviders.workos as { organizationId: string }
+                    ).organizationId,
+                  });
+                }}
+                variant="secondary"
+              >
+                <Code className="mr-3" size={18} />
+                WorkOS
+              </Button>
+            )}
+          {authProviders.workos === true && (
             <>
               <Button
                 onClick={() => {
