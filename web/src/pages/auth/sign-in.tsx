@@ -258,16 +258,42 @@ export function SSOButtons({
             </Button>
           )}
           {authProviders.workos && (
-            <Button
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "workos" });
-                void signIn("workos");
-              }}
-              variant="secondary"
-            >
-              <Code className="mr-3" size={18} />
-              WorkOS
-            </Button>
+            <>
+              <Button
+                onClick={() => {
+                  const organization = window.prompt(
+                    "Please enter your organization ID",
+                  );
+                  if (organization) {
+                    capture("sign_in:button_click", { provider: "workos" });
+                    void signIn("workos", undefined, {
+                      organization,
+                    });
+                  }
+                }}
+                variant="secondary"
+              >
+                <Code className="mr-3" size={18} />
+                WorkOS (organization)
+              </Button>
+              <Button
+                onClick={() => {
+                  const connection = window.prompt(
+                    "Please enter your connection ID",
+                  );
+                  if (connection) {
+                    capture("sign_in:button_click", { provider: "workos" });
+                    void signIn("workos", undefined, {
+                      connection,
+                    });
+                  }
+                }}
+                variant="secondary"
+              >
+                <Code className="mr-3" size={18} />
+                WorkOS (connection)
+              </Button>
+            </>
           )}
           {authProviders.custom && (
             <Button
