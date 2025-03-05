@@ -107,7 +107,6 @@ export function DataTable<TData extends object, TValue>({
   rowHeight,
   className,
   paginationClassName,
-  isBorderless = false,
   shouldRenderGroupHeaders = false,
   onRowClick,
 }: DataTableProps<TData, TValue>) {

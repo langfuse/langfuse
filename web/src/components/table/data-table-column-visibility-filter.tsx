@@ -24,7 +24,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Columns,
   Component,
   Menu,
 } from "lucide-react";
@@ -323,8 +322,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
           asChild
         >
           <Button variant="outline" title="Show/hide columns">
-            <Columns className="mr-2 h-4 w-4" />
-            <span className="text-xs text-muted-foreground">{`(${count}/${total})`}</span>
+            <span>Columns</span>
+            <div className="ml-1 rounded-sm bg-input px-1 text-xs">{`${count}/${total}`}</div>
             <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>

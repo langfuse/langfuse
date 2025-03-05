@@ -44,7 +44,7 @@ const BaseDateRangeDropdown = <T extends string>({
 }: BaseDateRangeDropdownProps<T>) => {
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
-      <SelectTrigger className="w-fit hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
+      <SelectTrigger className="w-fit font-medium hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
         <span>Past</span>
         <SelectValue placeholder="Select" />
       </SelectTrigger>

@@ -105,22 +105,24 @@ export function PopoverFilterBuilder({
       >
         <PopoverTrigger asChild>
           <Button variant="outline">
-            <Filter className="h-4 w-4" />
+            <span>Filters</span>
             {filterState.length > 0 && filterState.length < 3 ? (
               <InlineFilterState
                 filterState={filterState}
                 className="hidden @6xl:block"
               />
             ) : null}
-            {filterState.length > 0 && (
+            {filterState.length > 0 ? (
               <span
                 className={cn(
-                  "ml-3 rounded-md bg-input px-2 py-1 text-xs @6xl:hidden",
+                  "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
                   filterState.length > 2 && "@6xl:inline",
                 )}
               >
                 {filterState.length}
               </span>
+            ) : (
+              <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
             )}
           </Button>
         </PopoverTrigger>
