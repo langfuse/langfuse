@@ -140,8 +140,8 @@ export const env = createEnv({
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
-    AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
+    AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
     AUTH_SESSION_MAX_AGE: z.coerce
