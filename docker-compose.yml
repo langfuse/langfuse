@@ -54,6 +54,8 @@ services:
     depends_on: *langfuse-depends-on
     ports:
       - "3000:3000"
+    deploy:
+      replicas: 2
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_URL: http://localhost:3000
