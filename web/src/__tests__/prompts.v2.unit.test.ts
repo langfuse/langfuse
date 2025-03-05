@@ -16,6 +16,43 @@ describe("Prompt dependency management", () => {
         type: "version",
       });
     });
+    it("should handle prompt names with special characters", () => {
+      const content = `
+        @@@langfusePrompt:name=test-with-hyphens|version=1@@@
+        @@@langfusePrompt:name=test with spaces|label=production@@@
+        @@@langfusePrompt:name=test_with_underscores|version=2@@@
+        @@@langfusePrompt:name=test.with.dots|label=staging@@@
+        @@@langfusePrompt:name=test123WithNumbers|version=3@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(5);
+      expect(result[0]).toEqual({
+        name: "test-with-hyphens",
+        version: 1,
+        type: "version",
+      });
+      expect(result[1]).toEqual({
+        name: "test with spaces",
+        label: "production",
+        type: "label",
+      });
+      expect(result[2]).toEqual({
+        name: "test_with_underscores",
+        version: 2,
+        type: "version",
+      });
+      expect(result[3]).toEqual({
+        name: "test.with.dots",
+        label: "staging",
+        type: "label",
+      });
+      expect(result[4]).toEqual({
+        name: "test123WithNumbers",
+        version: 3,
+        type: "version",
+      });
+    });
 
     it("should extract prompt dependency tags with label", () => {
       const content =

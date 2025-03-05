@@ -1,7 +1,7 @@
 import { type Prompt, prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
-export const PromptDependencyRegex = /@@@langfusePrompt:(.*)@@@/g;
+export const PromptDependencyRegex = /@@@langfusePrompt:(.*?)@@@/g;
 
 export const ParsedPromptDependencySchema = z.union([
   z.object({
@@ -17,9 +17,9 @@ export type ParsedPromptDependencyTag = z.infer<
 >;
 
 export function parsePromptDependencyTags(
-  content: string,
+  content: string | object,
 ): ParsedPromptDependencyTag[] {
-  const matches = content.match(PromptDependencyRegex);
+  const matches = JSON.stringify(content).match(PromptDependencyRegex);
 
   const validTags: ParsedPromptDependencyTag[] = [];
 
@@ -85,9 +85,13 @@ export async function buildPromptDependencyGraph(params: {
     currentPrompt: PartialPrompt,
     deps?: ParsedPromptDependencyTag[],
   ) {
-    if (seen.has(currentPrompt.id)) {
+    if (
+      seen.has(currentPrompt.id) ||
+      (currentPrompt.name === parentPrompt.name &&
+        currentPrompt.id !== parentPrompt.id)
+    ) {
       throw Error(
-        `Circular dependency detected involving prompt with id ${currentPrompt.id}`,
+        `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
       );
     }
 
@@ -119,31 +123,33 @@ export async function buildPromptDependencyGraph(params: {
       );
     }
 
-    if (!promptDependencies || !promptDependencies.length) return;
+    if (promptDependencies && promptDependencies.length) {
+      for (const dep of promptDependencies) {
+        const depPrompt = await prisma.prompt.findFirst({
+          where: {
+            projectId,
+            name: dep.name,
+            ...(dep.type === "version"
+              ? { version: dep.version }
+              : { labels: { has: dep.label } }), // TODO: fix to use list membership
+          },
+        });
 
-    for (const dep of promptDependencies) {
-      const depPrompt = await prisma.prompt.findFirst({
-        where: {
-          projectId,
-          name: dep.name,
-          ...(dep.type === "version"
-            ? { version: dep.version }
-            : { labels: { has: dep.label } }), // TODO: fix to use list membership
-        },
-      });
+        const promptLogName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
-      const promptLogName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
+        if (!depPrompt)
+          throw Error(`Prompt dependency not found: ${promptLogName}`);
 
-      if (!depPrompt)
-        throw Error(`Prompt dependency not found: ${promptLogName}`);
+        if (depPrompt.type !== "text")
+          throw Error(
+            `Prompt dependency is not a text prompt: ${promptLogName}`,
+          );
 
-      if (depPrompt.type !== "text")
-        throw Error(`Prompt dependency is not a text prompt: ${promptLogName}`);
+        result.adjacencies[currentPrompt.id] ??= [];
+        result.adjacencies[currentPrompt.id].push(depPrompt.id);
 
-      result.adjacencies[currentPrompt.id] ??= [];
-      result.adjacencies[currentPrompt.id].push(depPrompt.id);
-
-      await buildGraph(depPrompt);
+        await buildGraph(depPrompt);
+      }
     }
 
     seen.delete(currentPrompt.id);

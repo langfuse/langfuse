@@ -2,6 +2,11 @@ import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
+import {
+  buildPromptDependencyGraph,
+  parsePromptDependencyTags,
+  resolvePromptDependencyGraph,
+} from "./utils/promptDependencies";
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -53,17 +58,19 @@ export class PromptService {
     const { projectId, promptName, version, label } = params;
 
     if (version) {
-      return await this.prisma.prompt.findFirst({
+      const prompt = await this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
           version,
         },
       });
+
+      return this.resolvePrompt(prompt);
     }
 
     if (label) {
-      return await this.prisma.prompt.findFirst({
+      const prompt = await this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
@@ -72,11 +79,28 @@ export class PromptService {
           },
         },
       });
+
+      return this.resolvePrompt(prompt);
     }
 
     this.logError("Invalid prompt params", params);
 
     return null;
+  }
+
+  private async resolvePrompt(prompt: Prompt | null) {
+    if (!prompt) return prompt;
+
+    const dependencies = parsePromptDependencyTags(prompt.prompt as any); // todo fix cast
+    const dependencyGraph = await buildPromptDependencyGraph({
+      projectId: prompt.projectId,
+      parentPrompt: prompt,
+      dependencies,
+    });
+
+    const resolvedPrompt = resolvePromptDependencyGraph(dependencyGraph);
+
+    return { ...prompt, prompt: resolvedPrompt };
   }
 
   private async shouldUseCache(params: PromptParams): Promise<boolean> {

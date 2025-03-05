@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid";
 import {
   type CreatePromptTRPCType,
   PromptType,
@@ -12,6 +13,11 @@ import {
   PromptContentSchema,
   PromptService,
   redis,
+} from "@langfuse/shared/src/server";
+import {
+  buildPromptDependencyGraph,
+  parsePromptDependencyTags,
+  resolvePromptDependencyGraph,
 } from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
@@ -55,10 +61,34 @@ export const createPrompt = async ({
 
   // If tags are undefined, use the tags from the latest prompt version
   const finalTags = [...new Set(tags ?? latestPrompt?.tags ?? [])];
+  const newPromptId = uuidv4();
+
+  const promptDependencies = parsePromptDependencyTags(prompt);
+
+  try {
+    const dependencyGraph = await buildPromptDependencyGraph({
+      projectId,
+      parentPrompt: {
+        id: newPromptId,
+        prompt,
+        version: latestPrompt?.version ? latestPrompt.version + 1 : 1,
+        name,
+        labels,
+      },
+      dependencies: promptDependencies,
+    });
+
+    resolvePromptDependencyGraph(dependencyGraph);
+  } catch (err) {
+    throw new InvalidRequestError(
+      err instanceof Error ? err.message : "Failed to resolve dependency graph",
+    );
+  }
 
   const create = [
     prisma.prompt.create({
       data: {
+        id: newPromptId,
         prompt,
         name,
         createdBy,
@@ -71,6 +101,18 @@ export const createPrompt = async ({
         commitMessage,
       },
     }),
+    ...promptDependencies.map((dep) =>
+      prisma.promptDependency.create({
+        data: {
+          projectId,
+          parentId: newPromptId,
+          childName: dep.name,
+          ...(dep.type === "version"
+            ? { childVersion: dep.version }
+            : { childLabel: dep.label }),
+        },
+      }),
+    ),
   ];
 
   if (finalLabels.length > 0)
