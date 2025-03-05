@@ -195,7 +195,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
   - `shared`: contains shared code between the above packages.
   - `config-eslint`: contains eslint configurations which are shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
-- `ee`: contains all enterprise features. See [EE README](ee/Readme.md) for more details.
+- `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
 
 ## Development Setup
 
