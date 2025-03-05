@@ -14,6 +14,12 @@ export const scoresTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseSelect: "timestamp",
   },
   {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "environment",
+  },
+  {
     uiTableName: "Trace ID",
     uiTableId: "traceId",
     clickhouseTableName: "scores",

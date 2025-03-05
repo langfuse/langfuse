@@ -162,7 +162,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   tracesFilter.push(...createFilterFromFilterState(filter, sessionCols));
 
-  const tracesFilterRes = tracesFilter.apply();
+  const tracesFilterRes = tracesFilter
+    .filter((f) => f.field !== "environment")
+    .apply();
 
   const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
     (f) =>
@@ -183,7 +185,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   }
 
   const additionalSingleTraceFilter = tracesFilter.find(
-    (f) => f.field === "bookmarked" || f.field === "session_id",
+    (f) =>
+      f.field === "bookmarked" ||
+      f.field === "session_id" ||
+      f.field === "environment",
   );
 
   if (additionalSingleTraceFilter) {

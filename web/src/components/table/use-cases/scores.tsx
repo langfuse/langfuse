@@ -28,6 +28,10 @@ import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export type ScoresTableRow = {
   id: string;
@@ -114,12 +118,39 @@ export default function ScoresTable({
       ]
     : [];
 
-  const combinedFilter = userFilterState.concat(dateRangeFilter);
-  const filterState = createFilterState(combinedFilter, [
-    ...(userId ? [{ key: "User ID", value: userId }] : []),
-    ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
-    ...(observationId ? [{ key: "Observation ID", value: observationId }] : []),
-  ]);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = createFilterState(
+    userFilterState.concat(dateRangeFilter, environmentFilter),
+    [
+      ...(userId ? [{ key: "User ID", value: userId }] : []),
+      ...(traceId ? [{ key: "Trace ID", value: traceId }] : []),
+      ...(observationId
+        ? [{ key: "Observation ID", value: observationId }]
+        : []),
+    ],
+  );
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
@@ -444,6 +475,11 @@ export default function ScoresTable({
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
+        }}
       />
       <DataTable
         columns={columns}

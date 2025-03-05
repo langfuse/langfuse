@@ -22,10 +22,22 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "traces",
     clickhouseSelect: 't."name"',
   },
+  {
+    uiTableName: "Trace Environment",
+    uiTableId: "traceEnvironment",
+    clickhouseTableName: "traces",
+    clickhouseSelect: 't."environment"',
+  },
 ];
 
 export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
   ...observationsTableTraceUiColumnDefinitions,
+  {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."environment"',
+  },
   {
     uiTableName: "type",
     uiTableId: "type",
