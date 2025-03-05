@@ -1949,7 +1949,6 @@ describe("prompt composability", () => {
 
     expect(response.status).toBe(200);
 
-    console.log(response);
     const responseBody = response.body as unknown as Prompt;
     const parsedPrompt = responseBody.prompt as string;
 

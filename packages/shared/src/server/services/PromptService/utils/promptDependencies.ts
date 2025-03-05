@@ -19,11 +19,11 @@ export type ParsedPromptDependencyTag = z.infer<
 export function parsePromptDependencyTags(
   content: string | object,
 ): ParsedPromptDependencyTag[] {
-  const matches = JSON.stringify(content).match(PromptDependencyRegex);
+  const matchedTags = JSON.stringify(content).match(PromptDependencyRegex);
 
   const validTags: ParsedPromptDependencyTag[] = [];
 
-  for (const match of matches ?? []) {
+  for (const match of matchedTags ?? []) {
     const innerContent = match.replace(/^@@@langfusePrompt:|@@@$/g, "");
     const parts = innerContent.split("|");
     const params: Record<string, string> = {};
@@ -62,29 +62,26 @@ type PartialPrompt = Pick<
 >;
 
 export type PromptDependencyGraph = {
-  prompts: Record<string, PartialPrompt>;
-  adjacencies: Record<string, string[]>;
-  rootId: string;
+  adjacencies: Record<string, Pick<Prompt, "id" | "version" | "name">[]>;
+  resolvedPrompt: Prompt["prompt"];
 };
 
-export async function buildPromptDependencyGraph(params: {
+export async function buildAndResolvePromptGraph(params: {
   projectId: string;
   parentPrompt: PartialPrompt;
-  dependencies: ParsedPromptDependencyTag[];
+  dependencies?: ParsedPromptDependencyTag[];
 }): Promise<PromptDependencyGraph> {
   const { projectId, parentPrompt, dependencies } = params;
 
-  const result: PromptDependencyGraph = {
-    prompts: {},
-    adjacencies: {},
-    rootId: parentPrompt.id,
-  };
+  const adjacencies: PromptDependencyGraph["adjacencies"] = {};
+
   const seen = new Set<string>();
 
-  async function buildGraph(
+  async function resolve(
     currentPrompt: PartialPrompt,
     deps?: ParsedPromptDependencyTag[],
   ) {
+    // Circular dependency check
     if (
       seen.has(currentPrompt.id) ||
       (currentPrompt.name === parentPrompt.name &&
@@ -96,8 +93,8 @@ export async function buildPromptDependencyGraph(params: {
     }
 
     seen.add(currentPrompt.id);
-    result.prompts[currentPrompt.id] = currentPrompt;
 
+    // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
     let promptDependencies = deps;
     if (!deps) {
       promptDependencies = (
@@ -124,6 +121,10 @@ export async function buildPromptDependencyGraph(params: {
     }
 
     if (promptDependencies && promptDependencies.length) {
+      // Instantiate resolved prompt, use stringfied version for regex operations
+      // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
+      let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
+
       for (const dep of promptDependencies) {
         const depPrompt = await prisma.prompt.findFirst({
           where: {
@@ -131,68 +132,54 @@ export async function buildPromptDependencyGraph(params: {
             name: dep.name,
             ...(dep.type === "version"
               ? { version: dep.version }
-              : { labels: { has: dep.label } }), // TODO: fix to use list membership
+              : { labels: { has: dep.label } }),
           },
         });
 
-        const promptLogName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
+        const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
-        if (!depPrompt)
-          throw Error(`Prompt dependency not found: ${promptLogName}`);
-
+        if (!depPrompt) throw Error(`Prompt dependency not found: ${logName}`);
         if (depPrompt.type !== "text")
-          throw Error(
-            `Prompt dependency is not a text prompt: ${promptLogName}`,
-          );
+          throw Error(`Prompt dependency is not a text prompt: ${logName}`);
 
-        result.adjacencies[currentPrompt.id] ??= [];
-        result.adjacencies[currentPrompt.id].push(depPrompt.id);
+        // side-effect: populate adjacency list to return later as well
+        adjacencies[currentPrompt.id] ??= [];
+        adjacencies[currentPrompt.id].push({
+          id: depPrompt.id,
+          name: depPrompt.name,
+          version: depPrompt.version,
+        });
 
-        await buildGraph(depPrompt);
+        // resolve the prompt content recursively
+        const resolvedDepPrompt = await resolve(depPrompt);
+
+        const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
+        const labelPatterns = depPrompt.labels.map(
+          (label) =>
+            `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
+        );
+        const combinedPattern = [versionPattern, ...labelPatterns].join("|");
+        const regex = new RegExp(combinedPattern, "g");
+
+        resolvedPrompt = resolvedPrompt.replace(regex, resolvedDepPrompt);
       }
-    }
 
-    seen.delete(currentPrompt.id);
+      seen.delete(currentPrompt.id);
+
+      return JSON.parse(resolvedPrompt);
+    } else {
+      seen.delete(currentPrompt.id);
+
+      return currentPrompt.prompt;
+    }
   }
 
-  await buildGraph(parentPrompt, dependencies);
+  const resolvedPrompt = await resolve(parentPrompt, dependencies);
 
-  return result;
-}
-
-export function resolvePromptDependencyGraph(graph: PromptDependencyGraph) {
-  function resolve(id: string) {
-    const dependencyIds = graph.adjacencies[id] || [];
-    const promptData = graph.prompts[id];
-
-    if (!promptData.prompt)
-      throw Error(
-        `Missing prompt content for prompt ${promptData.name} v${promptData.version}`,
-      );
-
-    if (!dependencyIds.length) return promptData.prompt;
-
-    let resolvedPrompt = JSON.stringify(promptData.prompt);
-
-    for (const depId of dependencyIds) {
-      const depPrompt = graph.prompts[depId];
-      const resolvedDepPromptContent = resolve(depId);
-
-      const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
-      const labelPatterns = depPrompt.labels.map(
-        (label) =>
-          `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
-      );
-      const combinedPattern = [versionPattern, ...labelPatterns].join("|");
-      const regex = new RegExp(combinedPattern, "g");
-
-      resolvedPrompt = resolvedPrompt.replace(regex, resolvedDepPromptContent);
-    }
-
-    return JSON.parse(resolvedPrompt);
-  }
-
-  return resolve(graph.rootId);
+  return {
+    adjacencies,
+    resolvedPrompt,
+  };
 }
 
 function escapeRegex(str: string | number) {

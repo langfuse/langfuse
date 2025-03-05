@@ -15,9 +15,8 @@ import {
   redis,
 } from "@langfuse/shared/src/server";
 import {
-  buildPromptDependencyGraph,
+  buildAndResolvePromptGraph,
   parsePromptDependencyTags,
-  resolvePromptDependencyGraph,
 } from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
@@ -66,7 +65,7 @@ export const createPrompt = async ({
   const promptDependencies = parsePromptDependencyTags(prompt);
 
   try {
-    const dependencyGraph = await buildPromptDependencyGraph({
+    await buildAndResolvePromptGraph({
       projectId,
       parentPrompt: {
         id: newPromptId,
@@ -77,8 +76,6 @@ export const createPrompt = async ({
       },
       dependencies: promptDependencies,
     });
-
-    resolvePromptDependencyGraph(dependencyGraph);
   } catch (err) {
     throw new InvalidRequestError(
       err instanceof Error ? err.message : "Failed to resolve dependency graph",

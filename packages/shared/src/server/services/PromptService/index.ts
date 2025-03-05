@@ -2,11 +2,7 @@ import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
-import {
-  buildPromptDependencyGraph,
-  parsePromptDependencyTags,
-  resolvePromptDependencyGraph,
-} from "./utils/promptDependencies";
+import { buildAndResolvePromptGraph } from "./utils/promptDependencies";
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -91,16 +87,12 @@ export class PromptService {
   private async resolvePrompt(prompt: Prompt | null) {
     if (!prompt) return prompt;
 
-    const dependencies = parsePromptDependencyTags(prompt.prompt as any); // todo fix cast
-    const dependencyGraph = await buildPromptDependencyGraph({
+    const promptGraph = await buildAndResolvePromptGraph({
       projectId: prompt.projectId,
       parentPrompt: prompt,
-      dependencies,
     });
 
-    const resolvedPrompt = resolvePromptDependencyGraph(dependencyGraph);
-
-    return { ...prompt, prompt: resolvedPrompt };
+    return { ...prompt, prompt: promptGraph.resolvedPrompt };
   }
 
   private async shouldUseCache(params: PromptParams): Promise<boolean> {
