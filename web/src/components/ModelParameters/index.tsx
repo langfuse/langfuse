@@ -20,6 +20,15 @@ import {
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
+import { useState } from "react";
+import {
+  CircleChevronDown,
+  CircleChevronUp,
+  CircleChevronUpIcon,
+  Dot,
+} from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { Separator } from "@/src/components/ui/separator";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -32,6 +41,7 @@ export type ModelParamsContext = {
   setModelParamEnabled?: (key: keyof UIModelParams, enabled: boolean) => void;
   formDisabled?: boolean;
   modelParamsDescription?: string;
+  defaultCollapsed?: boolean;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
@@ -42,13 +52,17 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   setModelParamEnabled,
   formDisabled = false,
   modelParamsDescription,
+  defaultCollapsed = false,
 }) => {
+  // "use client";
+
   const projectId = useProjectIdFromURL();
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (!projectId) return null;
 
   return (
-    <div className="flex flex-col space-y-4">
+    <div className="flex flex-col space-y-2">
       <p className="font-semibold">Model</p>
       {availableProviders.length === 0 ? (
         <>
@@ -57,77 +71,97 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
         </>
       ) : (
         <div className="space-y-4">
-          <ModelParamsSelect
-            title="Provider"
-            modelParamsKey="provider"
-            disabled={formDisabled}
-            value={modelParams.provider.value}
-            options={availableProviders}
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSelect
-            title="Model name"
-            modelParamsKey="model"
-            disabled={formDisabled}
-            value={modelParams.model.value}
-            options={availableModels}
-            updateModelParam={updateModelParamValue}
-            modelParamsDescription={modelParamsDescription}
-          />
-          {modelParams.model.value?.startsWith("o1-") ? (
-            <p className="text-sm text-dark-yellow">
-              For {modelParams.model.value}, the system message and the
-              temperature, max_tokens and top_p setting are not supported while
-              it is in beta.{" "}
-              <a
-                href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                More info ↗
-              </a>
-            </p>
-          ) : null}
-          <ModelParamsSlider
-            title="Temperature"
-            modelParamsKey="temperature"
-            formDisabled={formDisabled}
-            enabled={modelParams.temperature.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.temperature.value}
-            min={0}
-            max={modelParams.maxTemperature.value}
-            step={0.01}
-            tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Output token limit"
-            modelParamsKey="max_tokens"
-            formDisabled={formDisabled}
-            enabled={modelParams.max_tokens.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.max_tokens.value}
-            min={1}
-            max={16384}
-            step={1}
-            tooltip="The maximum number of tokens that can be generated in the chat completion."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Top P"
-            modelParamsKey="top_p"
-            formDisabled={formDisabled}
-            enabled={modelParams.top_p.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.top_p.value}
-            min={0}
-            max={1}
-            step={0.01}
-            tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
-            updateModelParam={updateModelParamValue}
-          />
-          <LLMApiKeyComponent {...{ projectId, modelParams }} />
+          <div className="flex items-baseline space-x-4">
+            <ModelParamsSelect
+              title="Provider"
+              modelParamsKey="provider"
+              disabled={formDisabled}
+              value={modelParams.provider.value}
+              options={availableProviders}
+              updateModelParam={updateModelParamValue}
+              inline
+            />
+            <ModelParamsSelect
+              title="Model name"
+              modelParamsKey="model"
+              disabled={formDisabled}
+              value={modelParams.model.value}
+              options={availableModels}
+              updateModelParam={updateModelParamValue}
+              modelParamsDescription={modelParamsDescription}
+              inline
+            />
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              className="m-0 aspect-square self-center rounded-full p-0"
+              onClick={() => setCollapsed((prev) => !prev)}
+            >
+              {collapsed ? (
+                <CircleChevronDown size={16} />
+              ) : (
+                <CircleChevronUp size={16} />
+              )}
+            </Button>
+          </div>
+          {!collapsed && (
+            <>
+              {modelParams.model.value?.startsWith("o1-") ? (
+                <p className="text-sm text-dark-yellow">
+                  For {modelParams.model.value}, the system message and the
+                  temperature, max_tokens and top_p setting are not supported
+                  while it is in beta.{" "}
+                  <a
+                    href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    More info ↗
+                  </a>
+                </p>
+              ) : null}
+              <ModelParamsSlider
+                title="Temperature"
+                modelParamsKey="temperature"
+                formDisabled={formDisabled}
+                enabled={modelParams.temperature.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.temperature.value}
+                min={0}
+                max={modelParams.maxTemperature.value}
+                step={0.01}
+                tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
+                updateModelParam={updateModelParamValue}
+              />
+              <ModelParamsSlider
+                title="Output token limit"
+                modelParamsKey="max_tokens"
+                formDisabled={formDisabled}
+                enabled={modelParams.max_tokens.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.max_tokens.value}
+                min={1}
+                max={16384}
+                step={1}
+                tooltip="The maximum number of tokens that can be generated in the chat completion."
+                updateModelParam={updateModelParamValue}
+              />
+              <ModelParamsSlider
+                title="Top P"
+                modelParamsKey="top_p"
+                formDisabled={formDisabled}
+                enabled={modelParams.top_p.enabled}
+                setModelParamEnabled={setModelParamEnabled}
+                value={modelParams.top_p.value}
+                min={0}
+                max={1}
+                step={0.01}
+                tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
+                updateModelParam={updateModelParamValue}
+              />
+              <LLMApiKeyComponent {...{ projectId, modelParams }} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -142,6 +176,7 @@ type ModelParamsSelectProps = {
   updateModelParam: ModelParamsContext["updateModelParamValue"];
   disabled?: boolean;
   modelParamsDescription?: string;
+  inline?: boolean;
 };
 const ModelParamsSelect = ({
   title,
@@ -151,16 +186,19 @@ const ModelParamsSelect = ({
   updateModelParam,
   disabled,
   modelParamsDescription,
+  inline = false,
 }: ModelParamsSelectProps) => {
   return (
-    <div className="space-y-2">
+    <div className={inline ? "flex space-x-2" : "space-y-2"}>
       <p
         className={cn(
           "text-xs font-semibold",
           disabled && "text-muted-foreground",
+          inline && "flex items-center text-nowrap",
         )}
       >
         {title}
+        {inline && ":"}
       </p>
       <Select
         disabled={disabled}

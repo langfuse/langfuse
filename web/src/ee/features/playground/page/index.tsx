@@ -9,26 +9,20 @@ export default function PlaygroundPage() {
   const available = useHasEntitlement("playground");
   if (!available) return null;
   return (
-    <PlaygroundProvider>
-      <Page
-        headerProps={{
-          title: "Playground",
-          help: {
-            description: "A sandbox to test and iterate your prompts",
-            href: "https://langfuse.com/docs/playground",
-          },
-          actionButtonsRight: (
-            <>
-              <SaveToPromptButton />
-              <ResetPlaygroundButton />
-            </>
-          ),
-        }}
-      >
-        <div className="flex-1 overflow-auto">
-          <Playground />
-        </div>
-      </Page>
-    </PlaygroundProvider>
+    <Page
+      headerProps={{
+        title: "Playground",
+        help: {
+          description: "A sandbox to test and iterate your prompts",
+          href: "https://langfuse.com/docs/playground",
+        },
+        actionButtonsRight: <ResetPlaygroundButton />,
+      }}
+      withPadding={false}
+    >
+      <div className="flex-1 overflow-auto">
+        <Playground />
+      </div>
+    </Page>
   );
 }

@@ -24,6 +24,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { isString } from "@/src/utils/types";
+import { Variables } from "@/src/ee/features/playground/page/components/Variables";
 
 type ChatMessagesProps = MessagesContext;
 export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
@@ -93,6 +94,9 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
         </div>
         <div className="py-3">
           <AddMessageButton {...props} />
+        </div>
+        <div className="py-3">
+          <Variables />
         </div>
       </div>
     </DndContext>

@@ -1,25 +1,33 @@
-import { ModelParameters } from "@/src/components/ModelParameters";
-import { usePlaygroundContext } from "./context";
-import { Variables } from "./components/Variables";
-import { Messages } from "./components/Messages";
+import { PlaygroundProvider } from "./context";
+import { CirclePlus } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import Prompt from "@/src/ee/features/playground/page/components/Prompt";
+import { useState } from "react";
 
 export default function Playground() {
-  const playgroundContext = usePlaygroundContext();
+  const [lastPromptId, setLastPromptId] = useState(0);
+  const [prompts, setPrompts] = useState([0]);
+  const newPrompt = () => {
+    const nextPromptId = lastPromptId + 1;
+    setLastPromptId(nextPromptId);
+    setPrompts([...prompts, nextPromptId]);
+  };
 
   return (
-    <div className="flex h-full flex-row space-x-8">
-      <div className="h-full basis-3/4 overflow-auto">
-        <Messages {...playgroundContext} />
-      </div>
-      <div className="max-h-full min-h-0 basis-1/4 pr-2">
-        <div className="grid h-full grid-rows-[minmax(20dvh,max-content),minmax(20dvh,auto)] overflow-auto">
-          <div className="mb-4 max-h-[80dvh] min-h-[20dvh] overflow-y-auto">
-            <ModelParameters {...playgroundContext} />
-          </div>
-          <div className="min-h-[20dvh]">
-            <Variables />
-          </div>
-        </div>
+    <div className="flex h-full space-x-3 overflow-y-auto p-3">
+      {prompts.map((promptKey) => (
+        <PlaygroundProvider key={promptKey} promptKey={promptKey}>
+          <Prompt />
+        </PlaygroundProvider>
+      ))}
+      <div className="flex h-full flex-col items-center justify-center py-3">
+        <Button
+          variant="ghost"
+          className="m-0 aspect-square self-center rounded-full p-0"
+          onClick={newPrompt}
+        >
+          <CirclePlus size={24} />
+        </Button>
       </div>
     </div>
   );

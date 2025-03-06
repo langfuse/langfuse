@@ -13,6 +13,7 @@ import {
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
     <div className="flex h-full flex-col space-y-4 pr-4">
+      <p className="font-semibold">Messages</p>
       <ResizablePanelGroup direction="vertical">
         <ResizablePanel minSize={10}>
           <ChatMessages {...props} />

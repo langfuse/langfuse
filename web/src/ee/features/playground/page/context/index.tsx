@@ -55,12 +55,14 @@ export const usePlaygroundContext = () => {
   return context;
 };
 
-export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
-  children,
-}) => {
+export const PlaygroundProvider: React.FC<
+  PropsWithChildren<{
+    promptKey: number;
+  }>
+> = ({ children, promptKey }) => {
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache();
+  const { playgroundCache, setPlaygroundCache } = usePlaygroundCache(promptKey);
   const [promptVariables, setPromptVariables] = useState<PromptVariable[]>([]);
   const [output, setOutput] = useState("");
   const [outputJson, setOutputJson] = useState("");
