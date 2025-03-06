@@ -122,8 +122,8 @@ cd langfuse
 
 ```bash
 pnpm run dx
-# You will be asked whether you want to reset the databases Postgres and ClickHouse.
-# Confirm with 'Y' in both cases.
+# You will be asked whether you want to reset Postgres and ClickHouse.
+# Confirm both with 'Y' and press enter.
 ```
 
 4. Open the web app in the browser:
