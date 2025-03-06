@@ -3,8 +3,11 @@ import {
   type CreatePromptTRPCType,
   PromptType,
 } from "@/src/features/prompts/server/utils/validation";
-import { InvalidRequestError } from "@langfuse/shared";
-import { jsonSchema } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  parsePromptDependencyTags,
+  jsonSchema,
+} from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
 import { removeLabelsFromPreviousPromptVersions } from "@/src/features/prompts/server/utils/updatePromptLabels";
@@ -14,10 +17,7 @@ import {
   PromptService,
   redis,
 } from "@langfuse/shared/src/server";
-import {
-  buildAndResolvePromptGraph,
-  parsePromptDependencyTags,
-} from "@langfuse/shared/src/server";
+import { buildAndResolvePromptGraph } from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
