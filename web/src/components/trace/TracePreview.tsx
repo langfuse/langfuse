@@ -260,14 +260,16 @@ export const TracePreview = ({
                   setIsPrettyViewAvailable={setIsPrettyViewAvailable}
                 />
               </div>
-              <JSONView
-                key={trace.id + "-metadata"}
-                title="Metadata"
-                json={trace.metadata}
-                media={
-                  traceMedia.data?.filter((m) => m.field === "metadata") ?? []
-                }
-              />
+              <div>
+                <JSONView
+                  key={trace.id + "-metadata"}
+                  title="Metadata"
+                  json={trace.metadata}
+                  media={
+                    traceMedia.data?.filter((m) => m.field === "metadata") ?? []
+                  }
+                />
+              </div>
             </div>
           </TabsBarContent>
           {isAuthenticatedAndProjectMember && (

@@ -155,4 +155,34 @@ describe("traces trpc", () => {
       expect(sessions.sessions).toBeDefined();
     });
   });
+
+  describe("sessions.countAll", () => {
+    it("should count sessions", async () => {
+      // Setup
+      const sessionId = randomUUID();
+
+      await prisma.traceSession.create({
+        data: {
+          id: sessionId,
+          projectId,
+        },
+      });
+
+      const trace = createTrace({
+        project_id: projectId,
+        session_id: sessionId,
+      });
+      await createTracesCh([trace]);
+
+      // When
+      const sessions = await caller.sessions.countAll({
+        projectId,
+        filter: null,
+        orderBy: null,
+      });
+
+      // Then
+      expect(sessions.totalCount).toBeGreaterThan(0);
+    });
+  });
 });

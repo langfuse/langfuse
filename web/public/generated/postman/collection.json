@@ -280,6 +280,38 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a dataset item and all its run items. This action is irreversible.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-items/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -466,6 +498,45 @@
             },
             "header": [],
             "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Run",
+          "request": {
+            "description": "Delete a dataset run and all its run items. This action is irreversible.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs/:runName",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets",
+                ":datasetName",
+                "runs",
+                ":runName"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "datasetName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "runName",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
             "auth": null,
             "body": null
           },

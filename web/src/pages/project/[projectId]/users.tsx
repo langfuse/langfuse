@@ -24,6 +24,10 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 type RowData = {
   userId: string;
@@ -103,7 +107,33 @@ const UsersTable = () => {
       ]
     : [];
 
-  const filterState = userFilterState.concat(dateRangeFilter);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = userFilterState.concat(
+    dateRangeFilter,
+    environmentFilter,
+  );
 
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -292,9 +322,14 @@ const UsersTable = () => {
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         searchConfig={{
-          placeholder: "Search by id",
+          placeholder: "Search by user id",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+        }}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
         }}
       />
       <DataTable

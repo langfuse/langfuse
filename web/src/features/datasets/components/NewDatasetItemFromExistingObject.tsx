@@ -79,8 +79,8 @@ export const NewDatasetItemFromExistingObject = (props: {
     <>
       {props.isCopyItem ? (
         <ActionButton
-          variant="ghost"
-          size="icon-xs"
+          variant="outline"
+          size="icon"
           hasAccess={hasAccess}
           title="Copy item"
           aria-label="Copy item"

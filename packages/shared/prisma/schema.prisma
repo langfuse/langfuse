@@ -294,6 +294,7 @@ model LegacyPrismaTrace {
   release    String?
   version    String?
   projectId  String   @map("project_id")
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   public     Boolean  @default(false)
   bookmarked Boolean  @default(false)
   tags       String[] @default([])
@@ -302,7 +303,6 @@ model LegacyPrismaTrace {
   sessionId  String?  @map("session_id")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
-  project    Project  @relation(fields: [projectId], references: [id])
 
   @@index([projectId, timestamp])
   @@index([sessionId])
@@ -319,6 +319,7 @@ model LegacyPrismaObservation {
   id                   String                       @id @default(cuid())
   traceId              String?                      @map("trace_id")
   projectId            String                       @map("project_id")
+  project              Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   type                 LegacyPrismaObservationType
   startTime            DateTime                     @default(now()) @map("start_time")
   endTime              DateTime?                    @map("end_time")
@@ -350,7 +351,6 @@ model LegacyPrismaObservation {
   calculatedOutputCost Decimal?                     @map("calculated_output_cost")
   calculatedTotalCost  Decimal?                     @map("calculated_total_cost")
   completionStartTime  DateTime?                    @map("completion_start_time")
-  project              Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   promptId             String?                      @map("prompt_id") // no fk constraint, prompt can be deleted
 
   @@unique([id, projectId])
@@ -372,6 +372,8 @@ enum LegacyPrismaObservationType {
   SPAN
   EVENT
   GENERATION
+
+  @@map("ObservationType")
 }
 
 enum LegacyPrismaObservationLevel {
@@ -379,12 +381,15 @@ enum LegacyPrismaObservationLevel {
   DEFAULT
   WARNING
   ERROR
+
+  @@map("ObservationLevel")
 }
 
 model LegacyPrismaScore {
   id            String                  @id @default(cuid())
   timestamp     DateTime                @default(now())
   projectId     String                  @map("project_id")
+  project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name          String
   value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
   source        LegacyPrismaScoreSource
@@ -399,7 +404,6 @@ model LegacyPrismaScore {
   updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at")
   dataType      ScoreDataType           @default(NUMERIC) @map("data_type")
   scoreConfig   ScoreConfig?            @relation(fields: [configId], references: [id], onDelete: SetNull)
-  project       Project                 @relation(fields: [projectId], references: [id])
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index(timestamp)
@@ -418,6 +422,8 @@ enum LegacyPrismaScoreSource {
   ANNOTATION
   API
   EVAL
+
+  @@map("ScoreSource")
 }
 
 model ScoreConfig {

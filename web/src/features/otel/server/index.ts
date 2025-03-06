@@ -145,6 +145,43 @@ const extractInputAndOutput = (
     return { input: eventInput || input, output: eventOutput || output };
   }
 
+  // Logfire uses `prompt` and `all_messages_events` property on spans
+  input = attributes["prompt"];
+  output = attributes["all_messages_events"];
+  if (input || output) {
+    return { input, output };
+  }
+
+  // Logfire uses single `events` array for GenAI events.
+  const eventsArray = attributes["events"];
+  if (typeof eventsArray === "string" || Array.isArray(eventsArray)) {
+    let events = eventsArray as any[];
+    if (typeof eventsArray === "string") {
+      try {
+        events = JSON.parse(eventsArray);
+      } catch (e) {
+        // fallthrough
+        events = [];
+      }
+    }
+
+    // Find the gen_ai.choice event for output
+    const choiceEvent = events.find(
+      (event) => event["event.name"] === "gen_ai.choice",
+    );
+    // All other events are considered input
+    const inputEvents = events.filter(
+      (event) => event["event.name"] !== "gen_ai.choice",
+    );
+
+    if (choiceEvent || inputEvents.length > 0) {
+      return {
+        input: inputEvents.length > 0 ? inputEvents : null,
+        output: choiceEvent || null,
+      };
+    }
+  }
+
   // MLFlow sets mlflow.spanInputs and mlflow.spanOutputs
   input = attributes["mlflow.spanInputs"];
   output = attributes["mlflow.spanOutputs"];
@@ -429,7 +466,10 @@ export const convertOtelSpanToIngestionEvent = (
       // If the span has a model property, we consider it a generation.
       // Just checking for llm.* or gen_ai.* attributes leads to overreporting and wrong
       // aggregations for costs.
-      const isGeneration = Boolean(observation.model);
+      const isGeneration =
+        Boolean(observation.model) ||
+        ("openinference.span.kind" in attributes &&
+          attributes["openinference.span.kind"] === "LLM");
       events.push({
         id: randomUUID(),
         type: isGeneration ? "generation-create" : "span-create",

@@ -113,6 +113,8 @@ function parseGraph(params: {
       ) {
         nodeToParentObservationMap.set(node, o.id);
       }
+    } else {
+      nodeToParentObservationMap.set(node, o.id);
     }
   });
 

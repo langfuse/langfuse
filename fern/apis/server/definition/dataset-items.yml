@@ -37,8 +37,21 @@ service:
             type: optional<integer>
             docs: limit of items per page
       response: PaginatedDatasetItems
+    delete:
+      docs: Delete a dataset item and all its run items. This action is irreversible.
+      method: DELETE
+      path: /dataset-items/{id}
+      path-parameters:
+        id:
+          type: string
+      response: DeleteDatasetItemResponse
 
 types:
+  DeleteDatasetItemResponse:
+    properties:
+      message:
+        type: string
+        docs: Success message after deletion
   CreateDatasetItemRequest:
     properties:
       datasetName: string
