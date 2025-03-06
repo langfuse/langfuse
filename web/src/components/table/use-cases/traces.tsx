@@ -218,8 +218,12 @@ export default function TracesTable({
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
-  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,

@@ -212,7 +212,7 @@ export default function Dashboard() {
             options={environmentOptions.map((env) => ({
               value: env,
             }))}
-            className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-x-auto"
+            className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-hidden"
           />
           <PopoverFilterBuilder
             columns={filterColumns}

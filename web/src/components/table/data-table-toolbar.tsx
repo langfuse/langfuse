@@ -139,7 +139,7 @@ export function DataTableToolbar<TData, TValue>({
               values={environmentFilter.values}
               onValueChange={environmentFilter.onValueChange}
               options={environmentFilter.options}
-              className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-x-auto"
+              className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-hidden"
             />
           </div>
         )}
