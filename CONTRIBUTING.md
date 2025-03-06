@@ -57,9 +57,6 @@ See this [diagram](https://langfuse.com/self-hosting#architecture) for an overvi
 
 ### Network Overview
 
-> [!NOTE]
-> This will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
-
 ```mermaid
 flowchart LR
    Browser ---|Web UI & TRPC API| App
@@ -107,10 +104,10 @@ Requirements
 
 1. Fork the repository and clone it locally
 
-```bash
-git clone https://github.com/langfuse/langfuse.git
-cd langfuse
-```
+   ```bash
+   git clone https://github.com/langfuse/langfuse.git
+   cd langfuse
+   ```
 
 2. Create an env file
 
@@ -120,23 +117,20 @@ cd langfuse
 
 3. Run the entire infrastructure in dev mode
 
-```bash
-pnpm run dx
-# You will be asked whether you want to reset Postgres and ClickHouse.
-# Confirm both with 'Y' and press enter.
-```
+   ```bash
+   pnpm run dx
+   ```
+
+   You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
 4. Open the web app in your browser to start using Langfuse:
 
-   [http://localhost:3000](http://localhost:3000)
-
-   You can access a demo project with pre-seeded data at:
-   [http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
+   - [Sign up page](http://localhost:3000)
+   - [Demo project](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
 5. Log in as a test user:
 
    Username: demo@langfuse.com
-
    Password: password
 
 ## Monorepo quickstart
