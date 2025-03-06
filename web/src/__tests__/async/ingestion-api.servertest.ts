@@ -275,6 +275,36 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.body.errors[0].message).toBe("Invalid request data");
   });
 
+  it("should fail for float in usageDetails", async () => {
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: randomUUID(),
+            traceId: randomUUID(),
+            parentObservationId: randomUUID(),
+            startTime: new Date().toISOString(),
+            model: "gpt-4",
+            input: { text: "input" },
+            output: { text: "output" },
+            usageDetails: {
+              key: 0.1,
+            },
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+    expect("errors" in response.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(response.body.errors.length).toBe(1);
+    expect(response.body.errors[0].message).toBe("Invalid request data");
+  });
+
   it.each([
     "langfuse-test",
     ".invalidcharacter!",
