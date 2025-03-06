@@ -259,6 +259,24 @@ export default function SessionsTable({
       },
     },
     {
+      accessorKey: "sessionDuration",
+      id: "sessionDuration",
+      header: "Duration",
+      size: 130,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: SessionTableRow["sessionDuration"] =
+          row.getValue("sessionDuration");
+        if (!sessionMetrics.isSuccess) {
+          return <Skeleton className="h-3 w-1/2" />;
+        }
+        return value && typeof value === "number"
+          ? formatIntervalSeconds(value)
+          : undefined;
+      },
+      enableSorting: true,
+    },
+    {
       accessorKey: "environment",
       header: "Environment",
       id: "environment",
@@ -277,24 +295,6 @@ export default function SessionsTable({
           </Badge>
         ) : null;
       },
-    },
-    {
-      accessorKey: "sessionDuration",
-      id: "sessionDuration",
-      header: "Duration",
-      size: 130,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: SessionTableRow["sessionDuration"] =
-          row.getValue("sessionDuration");
-        if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-        return value && typeof value === "number"
-          ? formatIntervalSeconds(value)
-          : undefined;
-      },
-      enableSorting: true,
     },
     {
       accessorKey: "userIds",
