@@ -17,7 +17,6 @@ import {
   getEnvironmentsForProject,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { timeFilter } from "@langfuse/shared";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
