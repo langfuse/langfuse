@@ -34,6 +34,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { Badge } from "@/src/components/ui/badge";
 
 export type SessionTableRow = {
   id: string;
@@ -49,6 +50,7 @@ export type SessionTableRow = {
   outputTokens: number | undefined;
   totalTokens: number | undefined;
   traceTags: string[] | undefined;
+  environment?: string;
 };
 
 export type SessionTableProps = {
@@ -254,6 +256,26 @@ export default function SessionsTable({
       cell: ({ row }) => {
         const value: SessionTableRow["createdAt"] = row.getValue("createdAt");
         return value ? <LocalIsoDate date={value} /> : undefined;
+      },
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: SessionTableRow["environment"] =
+          row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
       },
     },
     {
@@ -555,6 +577,7 @@ export default function SessionsTable({
                       outputTokens: session.completionTokens,
                       totalTokens: session.totalTokens,
                       traceTags: session.traceTags,
+                      environment: session.environment,
                     }),
                   ),
                 }
