@@ -1,56 +1,34 @@
 import { queryClickhouse } from "./clickhouse";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 export type EnvironmentFilterProps = {
   projectId: string;
-  minTimestamp?: Date;
 };
 
-export const getEnvironmentsForProjectAndTimeFilter = async (
+export const getEnvironmentsForProject = async (
   props: EnvironmentFilterProps,
-) => {
-  const { projectId, minTimestamp } = props;
+): Promise<{ environment: string }[]> => {
+  const { projectId } = props;
 
   const query = `
-    with environments as (
-      (
-        SELECT DISTINCT environment AS environment
-        FROM traces t
-        WHERE project_id = {projectId: String} 
-        ${minTimestamp ? `AND timestamp >= {minTimestamp: DateTime64(3)}` : ""}
-        LIMIT 100
-      ) UNION ALL (
-        SELECT DISTINCT environment AS environment
-        FROM observations
-        WHERE project_id = {projectId: String}
-        ${minTimestamp ? `AND start_time >= {minTimestamp: DateTime64(3)}` : ""}
-        LIMIT 100
-      ) UNION ALL (
-        SELECT DISTINCT environment AS environment
-        FROM scores
-        WHERE project_id = {projectId: String}
-        ${minTimestamp ? `AND timestamp >= {minTimestamp: DateTime64(3)}` : ""}
-        LIMIT 100
-      )
-    )
-    select distinct environment from environments;
+    SELECT environments
+    FROM project_environments
+    WHERE project_id = {projectId: String}
   `;
 
-  return queryClickhouse<{
-    environment: string;
+  const results = await queryClickhouse<{
+    environments: string[];
   }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(minTimestamp
-        ? { minTimestamp: convertDateToClickhouseDateTime(minTimestamp) }
-        : {}),
-    },
+    query,
+    params: { projectId },
     tags: {
       feature: "tracing",
       type: "environment",
-      kind: "analytic",
+      kind: "byId",
       projectId,
     },
   });
+
+  return (results.length > 0 ? results[0].environments : ["default"]).map(
+    (environment) => ({ environment }),
+  );
 };

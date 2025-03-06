@@ -14,7 +14,7 @@ import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
-  getEnvironmentsForProjectAndTimeFilter,
+  getEnvironmentsForProject,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { timeFilter } from "@langfuse/shared";
@@ -279,16 +279,6 @@ export const projectsRouter = createTRPCRouter({
     }),
 
   environmentFilterOptions: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        timestampFilter: timeFilter.optional(),
-      }),
-    )
-    .query(async ({ input }) => {
-      return getEnvironmentsForProjectAndTimeFilter({
-        projectId: input.projectId,
-        minTimestamp: input.timestampFilter?.value,
-      });
-    }),
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => getEnvironmentsForProject(input)),
 });
