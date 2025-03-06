@@ -125,13 +125,13 @@ Requirements
 
 4. Open the web app in your browser to start using Langfuse:
 
-   - [Sign up page](http://localhost:3000)
-   - [Demo project](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
+   - [Sign up page, http://localhost:3000](http://localhost:3000)
+   - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
 5. Log in as a test user:
 
-   Username: demo@langfuse.com
-   Password: password
+   - Username: `demo@langfuse.com`
+   - Password: `password`
 
 ## Monorepo quickstart
 
