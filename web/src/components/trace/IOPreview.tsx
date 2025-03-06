@@ -207,6 +207,7 @@ export const OpenAiMessageView: React.FC<{
   collapseLongHistory?: boolean;
   media?: MediaReturnType[];
   additionalInput?: Record<string, unknown>;
+  projectIdForPromptButtons?: string;
 }> = ({
   title,
   messages,
@@ -214,6 +215,7 @@ export const OpenAiMessageView: React.FC<{
   media,
   collapseLongHistory = true,
   additionalInput,
+  projectIdForPromptButtons,
 }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
@@ -251,6 +253,7 @@ export const OpenAiMessageView: React.FC<{
                     <JSONView
                       title={message.name ?? message.role}
                       json={message.content}
+                      projectIdForPromptButtons={projectIdForPromptButtons}
                       className={cn(!!message.json && "rounded-b-none")}
                     />
                   ))}
@@ -262,6 +265,7 @@ export const OpenAiMessageView: React.FC<{
                         : (message.name ?? message.role)
                     }
                     json={message.json}
+                    projectIdForPromptButtons={projectIdForPromptButtons}
                     className={cn(
                       !!message.content && "rounded-t-none border-t-0",
                     )}
@@ -283,7 +287,11 @@ export const OpenAiMessageView: React.FC<{
         </div>
         {additionalInput && (
           <div className="p-3 pt-1">
-            <JSONView title="Additional Input" json={additionalInput} />
+            <JSONView
+              title="Additional Input"
+              json={additionalInput}
+              projectIdForPromptButtons={projectIdForPromptButtons}
+            />
           </div>
         )}
         {media && media.length > 0 && (
