@@ -52,6 +52,18 @@ export const useEntitlements = (): Entitlement[] => {
 
 /**
  * Hook to check if the current organization or self-hosted instance has a specific entitlement.
+ * If the entitlement is not provided, it will return true.
+ */
+export const useOptionalEntitlement = (entitlement?: Entitlement): boolean => {
+  const entitlements = useEntitlements();
+  const session = useSession();
+  if (session.data?.user?.admin) return true;
+  if (!entitlement) return true;
+  return entitlements.includes(entitlement);
+};
+
+/**
+ * Hook to check if the current organization or self-hosted instance has a specific entitlement.
  */
 export const useHasEntitlement = (entitlement: Entitlement): boolean => {
   const entitlements = useEntitlements();
