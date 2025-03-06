@@ -102,20 +102,21 @@ Requirements
 
 **Steps**
 
-1. Fork the repository and clone it locally
+1. Install [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+2. Fork the repository and clone it locally
 
    ```bash
    git clone https://github.com/langfuse/langfuse.git
    cd langfuse
    ```
 
-2. Create an env file
+3. Create an env file
 
    ```bash
     cp .env.dev.example .env
    ```
 
-3. Run the entire infrastructure in dev mode
+4. Run the entire infrastructure in dev mode
 
    ```bash
    pnpm run dx
@@ -123,12 +124,12 @@ Requirements
 
    You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
-4. Open the web app in your browser to start using Langfuse:
+5. Open the web app in your browser to start using Langfuse:
 
    - [Sign up page, http://localhost:3000](http://localhost:3000)
    - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
-5. Log in as a test user:
+6. Log in as a test user:
 
    - Username: `demo@langfuse.com`
    - Password: `password`
