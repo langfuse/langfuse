@@ -34,11 +34,12 @@ describe("Clickhouse Project Repository Test", () => {
 
     const environments = await getEnvironmentsForProject({ projectId });
 
-    expect(environments).toHaveLength(2);
+    expect(environments).toHaveLength(3);
     expect(environments).toEqual(
       expect.arrayContaining([
         { environment: environmentId1 },
         { environment: environmentId2 },
+        { environment: "default" },
       ]),
     );
   });

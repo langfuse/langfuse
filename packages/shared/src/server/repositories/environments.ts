@@ -28,7 +28,9 @@ export const getEnvironmentsForProject = async (
     },
   });
 
-  return (results.length > 0 ? results[0].environments : ["default"]).map(
-    (environment) => ({ environment }),
-  );
+  const environments = results.length > 0 ? results[0].environments : [];
+  environments.push("default");
+  return Array.from(new Set(environments)).map((environment) => ({
+    environment,
+  }));
 };
