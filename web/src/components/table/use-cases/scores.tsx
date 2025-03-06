@@ -32,6 +32,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { Badge } from "@/src/components/ui/badge";
 
 export type ScoresTableRow = {
   id: string;
@@ -52,12 +53,8 @@ export type ScoresTableRow = {
   userId?: string;
   jobConfigurationId?: string;
   traceTags?: string[];
+  environment?: string;
 };
-
-export type ScoreFilterInput = Omit<
-  RouterInput["scores"]["all"],
-  "projectId" | "userId"
->;
 
 function createFilterState(
   userFilterState: FilterState,
@@ -257,6 +254,25 @@ export default function ScoresTable({
       },
     },
     {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value = row.getValue("environment") as string | undefined;
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
+    },
+    {
       accessorKey: "userId",
       header: "User",
       id: "userId",
@@ -449,6 +465,7 @@ export default function ScoresTable({
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
       traceTags: score.traceTags ?? undefined,
+      environment: score.environment ?? undefined,
     };
   };
 
