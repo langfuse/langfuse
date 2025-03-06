@@ -4785,12 +4785,45 @@ components:
           type: string
           nullable: true
           description: Commit message for this prompt version.
+        resolutionGraph:
+          $ref: '#/components/schemas/PromptGraph'
+          nullable: true
+          description: >-
+            The dependency resolution graph for the current prompt. 'null; if
+            prompt has no dependencies.
       required:
         - name
         - version
         - config
         - labels
         - tags
+    PromptReferenceInGraph:
+      title: PromptReferenceInGraph
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        id:
+          type: string
+      required:
+        - name
+        - version
+        - id
+    PromptGraph:
+      title: PromptGraph
+      type: object
+      properties:
+        root:
+          $ref: '#/components/schemas/PromptReferenceInGraph'
+        dependencies:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PromptReferenceInGraph'
+      required:
+        - root
+        - dependencies
     ChatMessage:
       title: ChatMessage
       type: object

@@ -63,8 +63,14 @@ type PartialPrompt = Pick<
   "id" | "prompt" | "name" | "version" | "labels"
 >;
 
-export type PromptDependencyGraph = {
-  adjacencies: Record<string, Pick<Prompt, "id" | "version" | "name">[]>;
+type PromptReference = Pick<Prompt, "id" | "version" | "name">;
+export type PromptGraph = {
+  root: PromptReference;
+  dependencies: Record<string, PromptReference[]>;
+};
+
+export type ResolvedPromptGraph = {
+  graph: PromptGraph | null;
   resolvedPrompt: Prompt["prompt"];
 };
 
@@ -72,10 +78,17 @@ export async function buildAndResolvePromptGraph(params: {
   projectId: string;
   parentPrompt: PartialPrompt;
   dependencies?: ParsedPromptDependencyTag[];
-}): Promise<PromptDependencyGraph> {
+}): Promise<ResolvedPromptGraph> {
   const { projectId, parentPrompt, dependencies } = params;
 
-  const adjacencies: PromptDependencyGraph["adjacencies"] = {};
+  const graph: PromptGraph = {
+    root: {
+      name: parentPrompt.name,
+      version: parentPrompt.version,
+      id: parentPrompt.id,
+    },
+    dependencies: {},
+  };
   const seen = new Set<string>();
 
   async function resolve(
@@ -152,8 +165,8 @@ export async function buildAndResolvePromptGraph(params: {
           throw Error(`Prompt dependency is not a text prompt: ${logName}`);
 
         // side-effect: populate adjacency list to return later as well
-        adjacencies[currentPrompt.id] ??= [];
-        adjacencies[currentPrompt.id].push({
+        graph.dependencies[currentPrompt.id] ??= [];
+        graph.dependencies[currentPrompt.id].push({
           id: depPrompt.id,
           name: depPrompt.name,
           version: depPrompt.version,
@@ -190,7 +203,7 @@ export async function buildAndResolvePromptGraph(params: {
   const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
 
   return {
-    adjacencies,
+    graph: Object.keys(graph.dependencies).length > 0 ? graph : null,
     resolvedPrompt,
   };
 }

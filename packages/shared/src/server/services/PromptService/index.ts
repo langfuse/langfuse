@@ -92,7 +92,11 @@ export class PromptService {
       parentPrompt: prompt,
     });
 
-    return { ...prompt, prompt: promptGraph.resolvedPrompt };
+    return {
+      ...prompt,
+      prompt: promptGraph.resolvedPrompt,
+      resolutionGraph: promptGraph.graph,
+    };
   }
 
   private async shouldUseCache(params: PromptParams): Promise<boolean> {

@@ -73,6 +73,7 @@ const testPromptEquality = (
   expect(prompt.createdBy).toBe(promptParams.createdBy);
   expect(prompt.config).toEqual(promptParams.config);
   expect(prompt.tags).toEqual([]);
+  expect(prompt.resolutionGraph).toBeNull();
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
@@ -1325,6 +1326,26 @@ describe("prompt composability", () => {
     const responseBody = getResponse.body as unknown as Prompt;
     const parsedPrompt = responseBody.prompt as string;
 
+    // Verify the resolution graph is returned with the correct structure
+    const parentId = responseBody.id;
+
+    expect(responseBody.resolutionGraph).toEqual({
+      root: {
+        name: "parent-prompt",
+        version: 1,
+        id: parentId,
+      },
+      dependencies: {
+        [parentId]: [
+          {
+            name: "child-prompt",
+            version: 1,
+            id: expect.any(String),
+          },
+        ],
+      },
+    });
+
     // Verify the dependency was resolved correctly
     expect(parsedPrompt).toBe(
       "Parent prompt with dependency: I am a child prompt",
@@ -1360,6 +1381,23 @@ describe("prompt composability", () => {
     expect(parsedPromptAfterUpdate).toBe(
       "Parent prompt with dependency: I am an updated child prompt",
     );
+
+    expect(responseBodyAfterUpdate.resolutionGraph).toEqual({
+      root: {
+        name: "parent-prompt",
+        version: 1,
+        id: parentId,
+      },
+      dependencies: {
+        [parentId]: [
+          {
+            name: "child-prompt",
+            version: 2,
+            id: expect.any(String),
+          },
+        ],
+      },
+    });
 
     const childPrompts = await prisma.prompt.findMany({
       where: {
