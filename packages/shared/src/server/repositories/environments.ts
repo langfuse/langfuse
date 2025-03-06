@@ -11,7 +11,7 @@ export const getEnvironmentsForProject = async (
 
   const query = `
     SELECT environments
-    FROM project_environments
+    FROM project_environments FINAL
     WHERE project_id = {projectId: String}
   `;
 
