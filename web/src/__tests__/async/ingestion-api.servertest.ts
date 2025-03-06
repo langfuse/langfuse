@@ -276,8 +276,6 @@ describe("/api/public/ingestion API Endpoint", () => {
   });
 
   it("should fail for float in usageDetails", async () => {
-    const traceId = v4();
-
     const response = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
