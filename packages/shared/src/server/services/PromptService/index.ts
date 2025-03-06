@@ -183,7 +183,7 @@ export class PromptService {
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
     // Important to *pre*fix LOCK as otherwise it would be deleted by deleteKeysByPrefix
-    return `LOCK:${this.getCacheKeyPrefix(params)}`;
+    return `LOCK:prompt:${params.projectId}`;
   }
 
   public async invalidateCache(
@@ -191,26 +191,11 @@ export class PromptService {
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
-    const cacheKeyPrefix = this.getCacheKeyPrefix(params);
+    const keyIndexKey = this.getKeyIndexKey(params);
+    const keys = await this.redis?.smembers(keyIndexKey);
 
-    try {
-      const startTime = Date.now();
-      this.logInfo("Invalidating cache for prefix", cacheKeyPrefix);
-
-      const keyIndexKey = this.getKeyIndexKey(params);
-      const keys = await this.redis?.smembers(keyIndexKey);
-
-      // Delete all keys for the prefix and the key index
-      await this.redis?.del([...(keys ?? []), keyIndexKey]);
-
-      this.logInfo(
-        `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`,
-      );
-    } catch (e) {
-      this.logError("Error deleting keys for prefix", cacheKeyPrefix, e);
-
-      throw e;
-    }
+    // Delete all keys for the prefix and the key index
+    await this.redis?.del([...(keys ?? []), keyIndexKey]);
   }
 
   private getCacheKey(params: PromptParams): string {
@@ -228,7 +213,7 @@ export class PromptService {
   private getKeyIndexKey(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
-    return `prompt_key_index:${params.projectId}:${params.promptName}`;
+    return `prompt_key_index:${params.projectId}`;
   }
 
   private logError(message: string, ...args: any[]) {

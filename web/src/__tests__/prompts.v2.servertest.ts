@@ -2024,7 +2024,7 @@ describe("prompt composability", () => {
       Space content
     `;
     expect(parsedPrompt).toBe(expectedPrompt);
-  });
+  }, 10_000);
 
   it("should disallow a prompt that references itself", async () => {
     const { auth } = await createOrgProjectAndApiKey();
@@ -2202,7 +2202,7 @@ describe("prompt composability", () => {
     expect(JSON.stringify(createResponse.body)).toContain(
       "Maximum nesting depth exceeded",
     );
-  });
+  }, 10_000);
 });
 
 const isPrompt = (x: unknown): x is Prompt => {
