@@ -143,9 +143,11 @@ describe("ClickhouseWriter", () => {
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
     expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Max attempts reached"),
-    );
+    expect(
+      logger.error.mock.calls.some((call) =>
+        call[0].includes("Max attempts reached"),
+      ),
+    ).toBe(true);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 

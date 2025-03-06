@@ -330,6 +330,11 @@ class S3StorageService implements StorageService {
       endpoint: params.endpoint,
       region: params.region,
       forcePathStyle: params.forcePathStyle,
+      requestHandler: {
+        httpsAgent: {
+          maxSockets: env.LANGFUSE_S3_CONCURRENT_WRITES,
+        },
+      },
     });
     this.bucketName = params.bucketName;
   }

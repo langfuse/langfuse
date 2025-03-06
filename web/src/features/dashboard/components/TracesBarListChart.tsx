@@ -12,10 +12,12 @@ export const TracesBarListChart = ({
   className,
   projectId,
   globalFilterState,
+  isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
+  isLoading?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const timeFilter = globalFilterState.map((f) =>
@@ -36,6 +38,7 @@ export const TracesBarListChart = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -55,6 +58,7 @@ export const TracesBarListChart = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -78,7 +82,7 @@ export const TracesBarListChart = ({
       className={className}
       title={"Traces"}
       description={null}
-      isLoading={traces.isLoading || totalTraces.isLoading}
+      isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
     >
       <>
         <TotalMetric
@@ -101,7 +105,7 @@ export const TracesBarListChart = ({
           </>
         ) : (
           <NoDataOrLoading
-            isLoading={traces.isLoading || totalTraces.isLoading}
+            isLoading={isLoading || traces.isLoading || totalTraces.isLoading}
             description="Traces contain details about LLM applications and can be created using the SDK."
             href="https://langfuse.com/docs/get-started"
           />

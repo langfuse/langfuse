@@ -4,11 +4,8 @@ import {
 } from "./clickhouse";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { FilterState } from "../../types";
-import {
-  DateTimeFilter,
-  FilterList,
-} from "../queries/clickhouse-sql/clickhouse-filter";
-import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
+import { DateTimeFilter, FilterList } from "../queries";
+import { dashboardColumnDefinitions } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -18,12 +15,37 @@ import {
 
 export type DateTrunc = "year" | "month" | "week" | "day" | "hour" | "minute";
 
+const extractEnvironmentFilterFromFilters = (
+  filter: FilterState,
+): { envFilter: FilterState; remainingFilters: FilterState } => {
+  return {
+    envFilter: filter.filter((f) => f.column === "environment"),
+    remainingFilters: filter.filter((f) => f.column !== "environment"),
+  };
+};
+
+const convertEnvFilterToClickhouseFilter = (filter: FilterState) => {
+  return createFilterFromFilterState(filter, [
+    {
+      clickhouseSelect: "environment",
+      clickhouseTableName: "traces",
+      uiTableId: "environment",
+      uiTableName: "Environment",
+    },
+  ]);
+};
+
 export const getTotalTraces = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   ).apply();
 
   const query = `
@@ -31,13 +53,16 @@ export const getTotalTraces = async (
       count(id) as count 
     FROM traces t FINAL 
     WHERE project_id = {projectId: String}
-    AND ${chFilter.query}`;
+    AND ${chFilter.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
+  `;
 
   const result = await queryClickhouse<{ count: number }>({
     query,
     params: {
       projectId,
       ...chFilter.params,
+      ...environmentFilter.params,
     },
     tags: {
       feature: "dashboard",
@@ -58,8 +83,13 @@ export const getObservationsCostGroupedByName = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -74,6 +104,7 @@ export const getObservationsCostGroupedByName = async (
     FROM observations o FINAL ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     ${appliedFilter.query ? `AND ${appliedFilter.query}` : ""}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     GROUP BY provided_model_name
     ORDER BY sumMap(cost_details)['total'] DESC
     LIMIT 50
@@ -88,6 +119,7 @@ export const getObservationsCostGroupedByName = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...environmentFilter.params,
     },
     tags: {
       feature: "dashboard",
@@ -104,8 +136,13 @@ export const getScoreAggregate = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const timeFilter = chFilter.find(
@@ -129,6 +166,7 @@ export const getScoreAggregate = async (
      ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     AND ${chFilterApplied.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     ${timeFilter && hasTraceFilter ? `AND t.timestamp >= {tracesTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     GROUP BY s.name, s.source, s.data_type
     ORDER BY count(*) DESC
@@ -145,6 +183,7 @@ export const getScoreAggregate = async (
     params: {
       projectId,
       ...chFilterApplied.params,
+      ...environmentFilter.params,
       ...(timeFilter
         ? { tracesTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
@@ -164,8 +203,13 @@ export const groupTracesByTime = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   ).apply();
 
   const [orderByQuery, orderByParams, bucketSizeInSeconds] = orderByTimeSeries(
@@ -180,6 +224,7 @@ export const groupTracesByTime = async (
     FROM traces t FINAL
     WHERE project_id = {projectId: String}
     AND ${chFilter.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     GROUP BY timestamp
     ${orderByQuery}
     `;
@@ -191,6 +236,7 @@ export const groupTracesByTime = async (
     params: {
       projectId,
       ...chFilter.params,
+      ...environmentFilter.params,
       ...orderByParams,
     },
     tags: {
@@ -211,8 +257,13 @@ export const getObservationUsageByTime = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -242,6 +293,7 @@ export const getObservationUsageByTime = async (
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY start_time, provided_model_name
     ${orderByQuery}
@@ -257,6 +309,7 @@ export const getObservationUsageByTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...environmentFilter.params,
       ...orderByParams,
       ...(timeFilter
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
@@ -292,8 +345,13 @@ export const getDistinctModels = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -315,6 +373,7 @@ export const getDistinctModels = async (
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY provided_model_name
     ORDER BY count(*) DESC
@@ -326,6 +385,7 @@ export const getDistinctModels = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...environmentFilter.params,
       ...(timeFilter
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
@@ -345,8 +405,13 @@ export const getScoresAggregateOverTime = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -369,6 +434,7 @@ export const getScoresAggregateOverTime = async (
   FROM scores FINAL
   ${traceFilter ? "JOIN traces t ON scores.trace_id = t.id AND scores.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
+  ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
   AND ${appliedFilter.query}
   AND data_type IN ('NUMERIC', 'BOOLEAN')
   GROUP BY 
@@ -390,6 +456,7 @@ export const getScoresAggregateOverTime = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...environmentFilter.params,
       ...orderByParams,
     },
     tags: {
@@ -413,8 +480,13 @@ export const getModelUsageByUser = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -437,6 +509,7 @@ export const getModelUsageByUser = async (
     WHERE project_id = {projectId: String}
     AND t.user_id IS NOT NULL
     AND ${appliedFilter.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     ${timeFilter ? `AND t.timestamp >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
     GROUP BY user_id
     ORDER BY sum_cost_details DESC
@@ -451,6 +524,7 @@ export const getModelUsageByUser = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...environmentFilter.params,
       ...(timeFilter
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
@@ -474,8 +548,13 @@ export const getObservationLatencies = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -489,13 +568,18 @@ export const getObservationLatencies = async (
     ${chFilter.find((f) => f.clickhouseTable === "traces") ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
     AND ${appliedFilter.query}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     GROUP BY name
     ORDER BY quantiles[2] DESC
     `;
 
   const result = await queryClickhouse<{ quantiles: string[]; name: string }>({
     query,
-    params: { projectId, ...appliedFilter.params },
+    params: {
+      projectId,
+      ...appliedFilter.params,
+      ...environmentFilter.params,
+    },
     tags: {
       feature: "dashboard",
       type: "observationLatencies",
@@ -517,8 +601,13 @@ export const getTracesLatencies = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -542,6 +631,7 @@ export const getTracesLatencies = async (
       ON o.trace_id = t.id AND o.project_id = t.project_id
       WHERE project_id = {projectId: String}
       AND ${appliedFilter.query}
+      ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
       ${timestampFilter ? `AND o.start_time > {dateTimeFilterObservations: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
       GROUP BY o.project_id, o.trace_id, t.name
     )
@@ -559,6 +649,7 @@ export const getTracesLatencies = async (
     params: {
       projectId,
       ...appliedFilter.params,
+      ...environmentFilter.params,
       ...(timestampFilter
         ? { dateTimeFilterObservations: timestampFilter.value }
         : {}),
@@ -584,8 +675,13 @@ export const getModelLatenciesOverTime = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
 
   const appliedFilter = chFilter.apply();
@@ -606,6 +702,7 @@ export const getModelLatenciesOverTime = async (
   FROM observations o
   ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
   WHERE project_id = {projectId: String}
+  ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
   AND ${appliedFilter.query}
   GROUP BY provided_model_name, start_time_bucket
   ${orderByQuery};
@@ -617,7 +714,12 @@ export const getModelLatenciesOverTime = async (
     quantiles: string[];
   }>({
     query,
-    params: { projectId, ...appliedFilter.params, ...orderByParams },
+    params: {
+      projectId,
+      ...appliedFilter.params,
+      ...environmentFilter.params,
+      ...orderByParams,
+    },
     tags: {
       feature: "dashboard",
       type: "modelLatenciesOverTime",
@@ -641,8 +743,13 @@ export const getNumericScoreTimeSeries = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
   const chFilterRes = chFilter.apply();
 
@@ -661,6 +768,7 @@ export const getNumericScoreTimeSeries = async (
     FROM scores s final
     ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_timestamp
     ${orderByQuery}
@@ -675,6 +783,7 @@ export const getNumericScoreTimeSeries = async (
     params: {
       projectId,
       ...(chFilterRes ? chFilterRes.params : {}),
+      ...environmentFilter.params,
       ...orderByParams,
     },
     tags: {
@@ -696,8 +805,13 @@ export const getCategoricalScoreTimeSeries = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
   const chFilterRes = chFilter.apply();
 
@@ -719,6 +833,7 @@ export const getCategoricalScoreTimeSeries = async (
     FROM scores s final
     ${traceFilter ? "JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
     WHERE s.project_id = {projectId: String}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
     GROUP BY score_name, score_data_type, score_source, score_value ${bucketSizeInSeconds ? ", score_timestamp" : ""}
       ${orderByQuery}
@@ -736,6 +851,7 @@ export const getCategoricalScoreTimeSeries = async (
     params: {
       projectId,
       ...(chFilterRes ? chFilterRes.params : {}),
+      ...environmentFilter.params,
       ...orderByParams,
     },
     tags: {
@@ -762,8 +878,13 @@ export const getObservationsStatusTimeSeries = async (
   projectId: string,
   filter: FilterState,
 ) => {
+  const { envFilter, remainingFilters } =
+    extractEnvironmentFilterFromFilters(filter);
+  const environmentFilter = new FilterList(
+    convertEnvFilterToClickhouseFilter(envFilter),
+  ).apply();
   const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
+    createFilterFromFilterState(remainingFilters, dashboardColumnDefinitions),
   );
   const chFilterRes = chFilter.apply();
 
@@ -782,6 +903,7 @@ export const getObservationsStatusTimeSeries = async (
     FROM observations o
     ${traceFilter ? "JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
     WHERE project_id = {projectId: String}
+    ${environmentFilter.query ? `AND ${environmentFilter.query}` : ""}
     AND o.level IS NOT NULL
     AND ${chFilterRes?.query}
     GROUP BY level ${bucketSizeInSeconds ? ", start_time_bucket" : ""}
@@ -797,6 +919,7 @@ export const getObservationsStatusTimeSeries = async (
     params: {
       projectId,
       ...(chFilterRes ? chFilterRes.params : {}),
+      ...environmentFilter.params,
       ...orderByParams,
     },
     tags: {

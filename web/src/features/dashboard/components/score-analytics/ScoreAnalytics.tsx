@@ -26,6 +26,7 @@ export function ScoreAnalytics(props: {
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
   projectId: string;
+  isLoading?: boolean;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -45,6 +46,7 @@ export function ScoreAnalytics(props: {
           skipBatch: true,
         },
       },
+      enabled: !props.isLoading,
     },
   );
 
@@ -75,10 +77,11 @@ export function ScoreAnalytics(props: {
       className={props.className}
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
-      isLoading={scoreKeysAndProps.isLoading}
+      isLoading={props.isLoading || scoreKeysAndProps.isLoading}
       headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
       headerChildren={
         !scoreKeysAndProps.isLoading &&
+        !props.isLoading &&
         Boolean(scoreKeysAndProps.data?.length) && (
           <MultiSelectKeyValues
             placeholder="Search score..."

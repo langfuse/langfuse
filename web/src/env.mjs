@@ -137,6 +137,11 @@ export const env = createEnv({
     AUTH_CUSTOM_CHECKS: zAuthChecks,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
+    AUTH_WORKOS_CLIENT_ID: z.string().optional(),
+    AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
+    AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_WORKOS_ORGANIZATION_ID: z.string().optional(),
+    AUTH_WORKOS_CONNECTION_ID: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
@@ -428,6 +433,11 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
+    AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
+    AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: process.env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING,
+    AUTH_WORKOS_ORGANIZATION_ID: process.env.AUTH_WORKOS_ORGANIZATION_ID,
+    AUTH_WORKOS_CONNECTION_ID: process.env.AUTH_WORKOS_CONNECTION_ID,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,

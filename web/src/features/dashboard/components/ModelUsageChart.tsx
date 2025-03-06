@@ -34,11 +34,13 @@ export const ModelUsageChart = ({
   projectId,
   globalFilterState,
   agg,
+  isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
+  isLoading?: boolean;
 }) => {
   const {
     allModels,
@@ -87,7 +89,7 @@ export const ModelUsageChart = ({
       queryName: "observations-usage-timeseries",
     },
     {
-      enabled: selectedModels.length > 0 && allModels.length > 0,
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -222,7 +224,9 @@ export const ModelUsageChart = ({
     <DashboardCard
       className={className}
       title="Model Usage"
-      isLoading={queryResult.isLoading && selectedModels.length > 0}
+      isLoading={
+        isLoading || (queryResult.isLoading && selectedModels.length > 0)
+      }
       headerRight={
         <div className="flex items-center justify-end">
           <ModelSelectorPopover
@@ -248,8 +252,11 @@ export const ModelUsageChart = ({
                   className="mb-4"
                 />
                 {isEmptyTimeSeries({ data: item.data }) ||
+                isLoading ||
                 queryResult.isLoading ? (
-                  <NoDataOrLoading isLoading={queryResult.isLoading} />
+                  <NoDataOrLoading
+                    isLoading={isLoading || queryResult.isLoading}
+                  />
                 ) : (
                   <BaseTimeSeriesChart
                     agg={agg}

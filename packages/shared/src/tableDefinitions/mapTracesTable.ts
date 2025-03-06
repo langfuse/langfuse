@@ -63,6 +63,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseSelect: "release",
   },
   {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "environment",
+  },
+  {
     uiTableName: "Tags",
     uiTableId: "tags",
     clickhouseTableName: "traces",
