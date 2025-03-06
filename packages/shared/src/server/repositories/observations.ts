@@ -510,6 +510,7 @@ const getObservationsTableInternal = async <T>(
         o.provided_cost_details as "provided_cost_details",
         o.cost_details as "cost_details",
         o.level as level,
+        o.environment as "environment",
         o.status_message as "status_message",
         o.version as version,
         o.parent_observation_id as "parent_observation_id",

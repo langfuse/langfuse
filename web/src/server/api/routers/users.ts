@@ -84,6 +84,7 @@ export const userRouter = createTRPCRouter({
 
       return metrics.map((metric) => ({
         userId: metric.userId,
+        environment: metric.environment,
         firstTrace: metric.minTimestamp,
         lastTrace: metric.maxTimestamp,
         totalPromptTokens: BigInt(metric.inputUsage),
