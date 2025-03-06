@@ -304,7 +304,20 @@ export const promptRouter = createTRPCRouter({
             projectId,
             name: input.promptName,
           },
+          include: {
+            PromptDependency: {
+              select: {
+                parentId: true,
+              },
+            },
+          },
         });
+
+        if (prompts.some((prompt) => prompt.PromptDependency.length > 0)) {
+          throw Error(
+            "Other prompts are depending on prompt versions you are trying to delete. Please delete the dependent prompts first.",
+          );
+        }
 
         for (const prompt of prompts) {
           await auditLog(
@@ -363,8 +376,20 @@ export const promptRouter = createTRPCRouter({
             id: input.promptVersionId,
             projectId,
           },
+          include: {
+            PromptDependency: {
+              select: { parentId: true },
+            },
+          },
         });
         const { name: promptName } = promptVersion;
+
+        // TODO: improve by returning actual names and versions that depend on this prompt
+        if (promptVersion.PromptDependency.length > 0) {
+          throw Error(
+            "Prompt(s) are depending on this prompt you are trying to delete. Please delete the dependent prompt first.",
+          );
+        }
 
         await auditLog(
           {
