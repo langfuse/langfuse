@@ -207,12 +207,13 @@ export default function Dashboard() {
           />
           <MultiSelect
             title="Environment"
+            label="Env"
             values={selectedEnvironments}
             onValueChange={useDebounce(setSelectedEnvironments)}
             options={environmentOptions.map((env) => ({
               value: env,
             }))}
-            className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-hidden"
+            className="my-0 w-auto overflow-hidden"
           />
           <PopoverFilterBuilder
             columns={filterColumns}
