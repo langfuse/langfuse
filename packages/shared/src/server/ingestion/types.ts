@@ -58,21 +58,25 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
-const RawUsageOrCostDetails = z.record(
+const CostDetails = z
+  .record(z.string(), z.number().nonnegative().nullish())
+  .nullish();
+
+const RawUsageDetails = z.record(
   z.string(),
-  z.number().nonnegative().nullish(),
+  z.number().int().nonnegative().nullish(),
 );
 
 const OpenAIUsageSchema = z
   .object({
-    prompt_tokens: z.number().nonnegative(),
-    completion_tokens: z.number().nonnegative(),
-    total_tokens: z.number().nonnegative(),
+    prompt_tokens: z.number().int().nonnegative(),
+    completion_tokens: z.number().int().nonnegative(),
+    total_tokens: z.number().int().nonnegative(),
     prompt_tokens_details: z
-      .record(z.string(), z.number().nonnegative())
+      .record(z.string(), z.number().int().nonnegative())
       .nullish(),
     completion_tokens_details: z
-      .record(z.string(), z.number().nonnegative())
+      .record(z.string(), z.number().int().nonnegative())
       .nullish(),
   })
   .strict()
@@ -86,7 +90,7 @@ const OpenAIUsageSchema = z
       prompt_tokens_details,
       completion_tokens_details,
     } = v;
-    const result: z.infer<typeof RawUsageOrCostDetails> & {
+    const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
@@ -112,10 +116,10 @@ const OpenAIUsageSchema = z
 
     return result;
   })
-  .pipe(RawUsageOrCostDetails);
+  .pipe(RawUsageDetails);
 
-export const UsageOrCostDetails = z
-  .union([OpenAIUsageSchema, RawUsageOrCostDetails])
+export const UsageDetails = z
+  .union([OpenAIUsageSchema, RawUsageDetails])
   .nullish();
 
 export const EnvironmentName = z
@@ -195,8 +199,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -225,8 +229,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -381,8 +385,8 @@ export const LegacyObservationBody = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: ObservationLevel.nullish(),
