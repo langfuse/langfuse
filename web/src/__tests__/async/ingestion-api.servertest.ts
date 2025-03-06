@@ -282,14 +282,16 @@ describe("/api/public/ingestion API Endpoint", () => {
       batch: [
         {
           id: v4(),
-          type: "trace-create",
+          type: "generation-create",
           timestamp: new Date().toISOString(),
           body: {
-            id: traceId,
-            userId: "user-1",
-            metadata: { key: "value" },
-            release: "1.0.0",
-            version: "2.0.0",
+            id: randomUUID(),
+            traceId: randomUUID(),
+            parentObservationId: randomUUID(),
+            startTime: new Date().toISOString(),
+            model: "gpt-4",
+            input: { text: "input" },
+            output: { text: "output" },
             usageDetails: {
               key: 0.1,
             },
