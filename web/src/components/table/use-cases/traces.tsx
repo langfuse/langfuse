@@ -9,7 +9,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -74,6 +74,10 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -117,8 +121,6 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
 };
-
-export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 
 export default function TracesTable({
   projectId,
@@ -166,7 +168,34 @@ export default function TracesTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = userFilterState.concat(
+    userIdFilter,
+    dateRangeFilter,
+    environmentFilter,
+  );
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -189,8 +218,12 @@ export default function TracesTable({
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
-  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -955,6 +988,11 @@ export default function TracesTable({
           setRowSelection: setSelectedRows,
           totalCount,
           ...paginationState,
+        }}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
         }}
       />
       <DataTable
