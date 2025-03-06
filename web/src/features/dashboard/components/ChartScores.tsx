@@ -95,7 +95,7 @@ export function ChartScores(props: {
       className={props.className}
       title="Scores"
       description="Moving average per score"
-      isLoading={scores.isLoading}
+      isLoading={props.isLoading || scores.isLoading}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
@@ -105,7 +105,7 @@ export function ChartScores(props: {
         />
       ) : (
         <NoDataOrLoading
-          isLoading={scores.isLoading}
+          isLoading={props.isLoading || scores.isLoading}
           description="Scores evaluate LLM quality and can be created manually or using the SDK."
           href="https://langfuse.com/docs/scores"
           className="h-full"

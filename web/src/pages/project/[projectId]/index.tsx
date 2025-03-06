@@ -247,40 +247,28 @@ export default function Dashboard() {
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
-          isLoading={
-            environmentFilterOptions.isLoading ||
-            environmentFilterOptions.data === undefined
-          }
+          isLoading={environmentFilterOptions.isLoading}
         />
         {!disableExpensiveDashboardComponents && (
           <ModelCostTable
             className="col-span-1 xl:col-span-2"
             projectId={projectId}
             globalFilterState={mergedFilterState}
-            isLoading={
-              environmentFilterOptions.isLoading ||
-              environmentFilterOptions.data === undefined
-            }
+            isLoading={environmentFilterOptions.isLoading}
           />
         )}
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
-          isLoading={
-            environmentFilterOptions.isLoading ||
-            environmentFilterOptions.data === undefined
-          }
+          isLoading={environmentFilterOptions.isLoading}
         />
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}
           agg={agg}
-          isLoading={
-            environmentFilterOptions.isLoading ||
-            environmentFilterOptions.data === undefined
-          }
+          isLoading={environmentFilterOptions.isLoading}
         />
         {!disableExpensiveDashboardComponents && (
           <ModelUsageChart
@@ -288,10 +276,7 @@ export default function Dashboard() {
             projectId={projectId}
             globalFilterState={mergedFilterState}
             agg={agg}
-            isLoading={
-              environmentFilterOptions.isLoading ||
-              environmentFilterOptions.data === undefined
-            }
+            isLoading={environmentFilterOptions.isLoading}
           />
         )}
         {!disableExpensiveDashboardComponents && (
@@ -299,10 +284,7 @@ export default function Dashboard() {
             className="col-span-1 xl:col-span-3"
             projectId={projectId}
             globalFilterState={mergedFilterState}
-            isLoading={
-              environmentFilterOptions.isLoading ||
-              environmentFilterOptions.data === undefined
-            }
+            isLoading={environmentFilterOptions.isLoading}
           />
         )}
         <ChartScores
@@ -310,19 +292,13 @@ export default function Dashboard() {
           agg={agg}
           projectId={projectId}
           globalFilterState={mergedFilterState}
-          isLoading={
-            environmentFilterOptions.isLoading ||
-            environmentFilterOptions.data === undefined
-          }
+          isLoading={environmentFilterOptions.isLoading}
         />
         {!disableExpensiveDashboardComponents && (
           <LatencyTables
             projectId={projectId}
             globalFilterState={mergedFilterState}
-            isLoading={
-              environmentFilterOptions.isLoading ||
-              environmentFilterOptions.data === undefined
-            }
+            isLoading={environmentFilterOptions.isLoading}
           />
         )}
         {!disableExpensiveDashboardComponents && (
@@ -331,10 +307,7 @@ export default function Dashboard() {
             projectId={projectId}
             agg={agg}
             globalFilterState={mergedFilterState}
-            isLoading={
-              environmentFilterOptions.isLoading ||
-              environmentFilterOptions.data === undefined
-            }
+            isLoading={environmentFilterOptions.isLoading}
           />
         )}
         {!disableExpensiveDashboardComponents && (
@@ -343,10 +316,7 @@ export default function Dashboard() {
             agg={agg}
             projectId={projectId}
             globalFilterState={mergedFilterState}
-            isLoading={
-              environmentFilterOptions.isLoading ||
-              environmentFilterOptions.data === undefined
-            }
+            isLoading={environmentFilterOptions.isLoading}
           />
         )}
       </div>
