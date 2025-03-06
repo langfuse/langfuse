@@ -74,6 +74,8 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
+import { Trace } from "@/src/components/trace";
+import router from "next/router";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -126,6 +128,10 @@ export default function TracesTable({
   omittedFilter = [],
 }: TracesTableProps) {
   const utils = api.useUtils();
+  const [peekViewId, setPeekViewId] = useQueryParam(
+    "peek",
+    withDefault(StringParam, null),
+  );
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const { setDetailPageList } = useDetailPageLists();
   const [searchQuery, setSearchQuery] = useQueryParam(
@@ -988,6 +994,61 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        peekView={{
+          onPeekOpenChange: (open, row) => {
+            // open the peek view and set the url param that corresponds to this row, or remove it and close the peek view
+            setPeekViewId(open ? row?.id : null);
+          },
+          onExpand: (openInNewTab: boolean) => {
+            // some router push to get to the detail page
+            // all the relevant params should be in the url
+            // url should have: peek={id} and any other relevant query params
+            if (peekViewId) {
+              if (openInNewTab) {
+                window.open(
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
+                  "_blank",
+                );
+              } else {
+                router.push(
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
+                );
+              }
+            }
+          },
+          render: () => {
+            const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+              {
+                traceId: peekViewId as string,
+                // timestamp,
+                projectId,
+              },
+              {
+                enabled: !!peekViewId,
+                retry(failureCount, error) {
+                  if (
+                    error.data?.code === "UNAUTHORIZED" ||
+                    error.data?.code === "NOT_FOUND"
+                  )
+                    return false;
+                  return failureCount < 3;
+                },
+              },
+            );
+
+            return !trace.data ? (
+              <Skeleton className="h-full w-full" />
+            ) : (
+              <Trace
+                key={trace.data.id}
+                trace={trace.data}
+                scores={trace.data.scores}
+                projectId={trace.data.projectId}
+                observations={trace.data.observations}
+              />
+            );
+          },
+        }}
       />
     </>
   );

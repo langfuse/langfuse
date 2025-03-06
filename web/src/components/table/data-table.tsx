@@ -32,6 +32,14 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
+import { useRouter } from "next/router";
+import { TablePeekView } from "@/src/components/table/peek";
+
+interface PeekViewProps<TData> {
+  onPeekOpenChange: (open: boolean, row?: TData) => void;
+  onExpand: (openInNewTab: boolean) => void;
+  render: () => React.ReactNode;
+}
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -57,6 +65,7 @@ interface DataTableProps<TData, TValue> {
   isBorderless?: boolean;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
+  peekView?: PeekViewProps<TData>;
 }
 
 export interface AsyncTableData<T> {
@@ -109,10 +118,14 @@ export function DataTable<TData extends object, TValue>({
   paginationClassName,
   shouldRenderGroupHeaders = false,
   onRowClick,
+  peekView,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
+  const router = useRouter();
+  const peekViewId = router.query.peek as string | undefined;
+  const isPeekViewOpen = peekViewId !== undefined;
 
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
@@ -125,6 +138,13 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
+
+  const handleOnRowClick = (row: TData) => {
+    if (peekView) {
+      peekView.onPeekOpenChange(true, row);
+    }
+    onRowClick?.(row);
+  };
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -317,7 +337,8 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
-                onRowClick={onRowClick}
+                onRowClick={handleOnRowClick}
+                peekViewId={peekViewId}
               />
             ) : (
               <TableBodyComponent
@@ -326,13 +347,22 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
-                onRowClick={onRowClick}
+                onRowClick={handleOnRowClick}
+                peekViewId={peekViewId}
               />
             )}
           </Table>
         </div>
         <div className="grow"></div>
       </div>
+      {peekView && peekViewId && (
+        <TablePeekView
+          selectedRowId={peekViewId}
+          onOpenChange={peekView.onPeekOpenChange}
+          onExpand={peekView.onExpand}
+          render={peekView.render}
+        />
+      )}
       {pagination !== undefined ? (
         <div
           className={cn(
@@ -369,6 +399,7 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
+  peekViewId?: string;
 }
 
 function TableBodyComponent<TData>({
@@ -378,6 +409,7 @@ function TableBodyComponent<TData>({
   data,
   help,
   onRowClick,
+  peekViewId,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -395,9 +427,11 @@ function TableBodyComponent<TData>({
           <TableRow
             key={row.id}
             onClick={() => onRowClick?.(row.original)}
-            className={
-              onRowClick ? "cursor-pointer hover:bg-accent" : undefined
-            }
+            className={cn(
+              "hover:bg-accent",
+              onRowClick ? "cursor-pointer" : undefined,
+              peekViewId && peekViewId === row.id ? "bg-accent" : undefined,
+            )}
           >
             {row.getVisibleCells().map((cell) => (
               <TableCell
