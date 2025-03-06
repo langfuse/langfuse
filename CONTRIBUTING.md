@@ -126,9 +126,12 @@ pnpm run dx
 # Confirm both with 'Y' and press enter.
 ```
 
-4. Open the web app in the browser:
+4. Open the web app in your browser to start using Langfuse:
 
-   http://localhost:3000
+   [http://localhost:3000](http://localhost:3000)
+
+   You can access a demo project with pre-seeded data at:
+   [http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
 5. Log in as a test user:
 
