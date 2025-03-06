@@ -192,27 +192,61 @@ export const duplicatePrompt = async ({
       name: existingPrompt.name,
       version: isSingleVersion ? existingPrompt.version : undefined,
     },
+    include: {
+      PromptDependency: {
+        select: {
+          childName: true,
+          childLabel: true,
+          childVersion: true,
+        },
+      },
+    },
   });
 
   // prepare createMany prompt records
-  const promptsToCreate = promptsDb.map((prompt) => ({
-    name,
-    version: isSingleVersion ? 1 : prompt.version,
-    labels: isSingleVersion
-      ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
-      : prompt.labels,
-    type: prompt.type,
-    prompt: PromptContentSchema.parse(prompt.prompt),
-    config: jsonSchema.parse(prompt.config),
-    tags: prompt.tags,
-    projectId,
-    createdBy,
-    commitMessage: prompt.commitMessage,
-  }));
+  const oldToNewIdMap: Record<string, string> = {};
+
+  const promptsToCreate = promptsDb.map((prompt) => {
+    const newPromptId = uuidv4();
+
+    oldToNewIdMap[prompt.id] = newPromptId;
+
+    return {
+      id: newPromptId,
+      name,
+      version: isSingleVersion ? 1 : prompt.version,
+      labels: isSingleVersion
+        ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+        : prompt.labels,
+      type: prompt.type,
+      prompt: PromptContentSchema.parse(prompt.prompt),
+      config: jsonSchema.parse(prompt.config),
+      tags: prompt.tags,
+      projectId,
+      createdBy,
+      commitMessage: prompt.commitMessage,
+    };
+  });
 
   // Create all prompts in a single operation
-  const result = await prisma.prompt.createMany({
-    data: promptsToCreate,
+  const result = await prisma.$transaction(async (tx) => {
+    const promptResult = await tx.prompt.createMany({
+      data: promptsToCreate,
+    });
+
+    await tx.promptDependency.createMany({
+      data: promptsDb.flatMap((prompt) =>
+        prompt.PromptDependency.map((dep) => ({
+          projectId,
+          parentId: oldToNewIdMap[prompt.id],
+          childName: dep.childName,
+          childVersion: dep.childVersion,
+          childLabel: dep.childLabel,
+        })),
+      ),
+    });
+
+    return promptResult;
   });
 
   // If you need the created prompt, fetch it separately since createMany doesn't return created records
