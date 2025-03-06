@@ -21,6 +21,7 @@ export function ChartScores(props: {
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
   projectId: string;
+  isLoading?: boolean;
 }) {
   const scores = api.dashboard.chart.useQuery(
     {
@@ -63,6 +64,7 @@ export function ChartScores(props: {
           skipBatch: true,
         },
       },
+      enabled: !props.isLoading,
     },
   );
 

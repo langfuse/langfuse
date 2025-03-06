@@ -247,24 +247,40 @@ export default function Dashboard() {
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
+          isLoading={
+            environmentFilterOptions.isLoading ||
+            environmentFilterOptions.data === undefined
+          }
         />
         {!disableExpensiveDashboardComponents && (
           <ModelCostTable
             className="col-span-1 xl:col-span-2"
             projectId={projectId}
             globalFilterState={mergedFilterState}
+            isLoading={
+              environmentFilterOptions.isLoading ||
+              environmentFilterOptions.data === undefined
+            }
           />
         )}
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
+          isLoading={
+            environmentFilterOptions.isLoading ||
+            environmentFilterOptions.data === undefined
+          }
         />
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}
           agg={agg}
+          isLoading={
+            environmentFilterOptions.isLoading ||
+            environmentFilterOptions.data === undefined
+          }
         />
         {!disableExpensiveDashboardComponents && (
           <ModelUsageChart
@@ -272,6 +288,10 @@ export default function Dashboard() {
             projectId={projectId}
             globalFilterState={mergedFilterState}
             agg={agg}
+            isLoading={
+              environmentFilterOptions.isLoading ||
+              environmentFilterOptions.data === undefined
+            }
           />
         )}
         {!disableExpensiveDashboardComponents && (
@@ -279,7 +299,10 @@ export default function Dashboard() {
             className="col-span-1 xl:col-span-3"
             projectId={projectId}
             globalFilterState={mergedFilterState}
-            agg={agg}
+            isLoading={
+              environmentFilterOptions.isLoading ||
+              environmentFilterOptions.data === undefined
+            }
           />
         )}
         <ChartScores
@@ -287,11 +310,19 @@ export default function Dashboard() {
           agg={agg}
           projectId={projectId}
           globalFilterState={mergedFilterState}
+          isLoading={
+            environmentFilterOptions.isLoading ||
+            environmentFilterOptions.data === undefined
+          }
         />
         {!disableExpensiveDashboardComponents && (
           <LatencyTables
             projectId={projectId}
             globalFilterState={mergedFilterState}
+            isLoading={
+              environmentFilterOptions.isLoading ||
+              environmentFilterOptions.data === undefined
+            }
           />
         )}
         {!disableExpensiveDashboardComponents && (
@@ -300,6 +331,10 @@ export default function Dashboard() {
             projectId={projectId}
             agg={agg}
             globalFilterState={mergedFilterState}
+            isLoading={
+              environmentFilterOptions.isLoading ||
+              environmentFilterOptions.data === undefined
+            }
           />
         )}
         {!disableExpensiveDashboardComponents && (
@@ -308,6 +343,10 @@ export default function Dashboard() {
             agg={agg}
             projectId={projectId}
             globalFilterState={mergedFilterState}
+            isLoading={
+              environmentFilterOptions.isLoading ||
+              environmentFilterOptions.data === undefined
+            }
           />
         )}
       </div>
