@@ -17,7 +17,7 @@ import {
 } from "@/src/server/api/definitions/scoresTable";
 import { api } from "@/src/utils/api";
 
-import type { RouterOutput, RouterInput } from "@/src/utils/types";
+import type { RouterOutput } from "@/src/utils/types";
 import {
   isPresent,
   type FilterState,
