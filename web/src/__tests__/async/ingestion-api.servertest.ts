@@ -242,6 +242,59 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
   );
 
+  it.each([
+    "&",
+    "$",
+    "@",
+    "=",
+    ";",
+    "/",
+    "+",
+    " ",
+    ",",
+    "?",
+    "\\",
+    "{",
+    "}",
+    "^",
+    "%",
+    "`",
+    "]",
+    '"',
+    ">",
+    "[",
+    "~",
+    "<",
+    "#",
+    "|",
+  ])("should test special S3 characters in IDs (%s)", async (char: string) => {
+    const traceId = randomUUID();
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: randomUUID(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: `${traceId}-${char}-test`,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById(`${traceId}-${char}-test`, projectId);
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(`${traceId}-${char}-test`);
+      expect(trace!.projectId).toBe(projectId);
+      expect(trace!.environment).toEqual("default");
+    });
+  });
+
   it("should fail for long trace name", async () => {
     const traceId = v4();
 
