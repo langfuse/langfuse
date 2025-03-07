@@ -47,8 +47,8 @@ export default function PeekView(props: {
           </DrawerClose>
         </DrawerHeader>
         <div
-          className="mb-4 h-full flex-1 select-text gap-4 overflow-hidden px-4"
           data-vaul-no-drag
+          className="mb-4 h-full flex-1 select-text gap-4 overflow-hidden px-4"
         >
           {props.children}
         </div>
