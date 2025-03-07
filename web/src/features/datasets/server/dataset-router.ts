@@ -838,11 +838,11 @@ export const datasetRouter = createTRPCRouter({
         },
       });
     }),
-  deleteDatasetRun: protectedProjectProcedure
+  deleteDatasetRuns: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        datasetRunId: z.string(),
+        datasetRunIds: z.array(z.string()),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -852,21 +852,33 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const deletedDatasetRun = await ctx.prisma.datasetRuns.delete({
+      // Get all dataset runs first for audit logging
+      const datasetRuns = await ctx.prisma.datasetRuns.findMany({
         where: {
-          id_projectId: {
-            id: input.datasetRunId,
-            projectId: input.projectId,
-          },
+          id: { in: input.datasetRunIds },
+          projectId: input.projectId,
         },
       });
-      await auditLog({
-        session: ctx.session,
-        resourceType: "datasetRun",
-        resourceId: deletedDatasetRun.id,
-        action: "delete",
-        before: deletedDatasetRun,
+
+      // Delete all dataset runs
+      await ctx.prisma.datasetRuns.deleteMany({
+        where: {
+          id: { in: input.datasetRunIds },
+          projectId: input.projectId,
+        },
       });
-      return deletedDatasetRun;
+
+      // Log audit entries for each deleted run
+      await Promise.all(
+        datasetRuns.map((run) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetRun",
+            resourceId: run.id,
+            action: "delete",
+            before: run,
+          }),
+        ),
+      );
     }),
 });
