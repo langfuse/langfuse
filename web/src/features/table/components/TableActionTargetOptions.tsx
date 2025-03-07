@@ -1,5 +1,5 @@
 import { SelectItem } from "@/src/components/ui/select";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useOptionalEntitlement } from "@/src/features/entitlements/hooks";
 import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
 import { type TableAction } from "@/src/features/table/types";
 import { useSession } from "next-auth/react";
@@ -12,7 +12,7 @@ export function TableActionTargetOptions({
   projectId: string;
 }) {
   const session = useSession();
-  const hasEntitlement = useHasEntitlement(action.accessCheck.entitlement);
+  const hasEntitlement = useOptionalEntitlement(action.accessCheck.entitlement);
   const useTargetOptionsQuery =
     targetOptionsQueryMap[action.id as keyof typeof targetOptionsQueryMap];
 
