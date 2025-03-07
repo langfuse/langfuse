@@ -5,6 +5,13 @@ import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { type ScoreSourceType } from "../repositories";
 
+export const idSchema = z
+  .string()
+  .min(1)
+  .refine((id) => !id.includes("\r"), {
+    message: "ID cannot contain carriage return characters",
+  });
+
 const ObservationLevel = z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
 
 export const Usage = z.object({
@@ -135,7 +142,7 @@ export const EnvironmentName = z
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 export const TraceBody = z.object({
-  id: z.string().nullish(),
+  id: idSchema.nullish(),
   timestamp: stringDateTime,
   name: z.string().max(1000).nullish(),
   externalId: z.string().nullish(),
@@ -152,7 +159,7 @@ export const TraceBody = z.object({
 });
 
 export const OptionalObservationBody = z.object({
-  traceId: z.string().nullish(),
+  traceId: idSchema.nullish(),
   environment: EnvironmentName,
   name: z.string().nullish(),
   startTime: stringDateTime,
@@ -166,11 +173,11 @@ export const OptionalObservationBody = z.object({
 });
 
 export const CreateEventEvent = OptionalObservationBody.extend({
-  id: NonEmptyString,
+  id: idSchema,
 });
 
 export const UpdateEventEvent = OptionalObservationBody.extend({
-  id: NonEmptyString,
+  id: idSchema,
 });
 
 export const CreateSpanBody = CreateEventEvent.extend({
@@ -242,7 +249,7 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
 });
 
 const BaseScoreBody = z.object({
-  id: z.string().nullish(),
+  id: idSchema.nullish(),
   name: NonEmptyString,
   traceId: z.string(),
   environment: EnvironmentName,
@@ -292,8 +299,8 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
 
 // LEGACY, only required for backwards compatibility
 export const LegacySpanPostSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -307,8 +314,8 @@ export const LegacySpanPostSchema = z.object({
 });
 
 export const LegacySpanPatchSchema = z.object({
-  spanId: z.string(),
-  traceId: z.string().nullish(),
+  spanId: idSchema,
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -321,8 +328,8 @@ export const LegacySpanPatchSchema = z.object({
 });
 
 export const LegacyGenerationsCreateSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -345,8 +352,8 @@ export const LegacyGenerationsCreateSchema = z.object({
 });
 
 export const LegacyGenerationPatchSchema = z.object({
-  generationId: z.string(),
-  traceId: z.string().nullish(),
+  generationId: idSchema,
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -368,8 +375,8 @@ export const LegacyGenerationPatchSchema = z.object({
 });
 
 export const LegacyObservationBody = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: stringDateTime,
@@ -414,7 +421,7 @@ export const eventTypes = {
 } as const;
 
 const base = z.object({
-  id: z.string(),
+  id: idSchema,
   timestamp: z.string().datetime({ offset: true }),
   metadata: jsonSchema.nullish(),
 });
@@ -476,13 +483,6 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   legacyObservationUpdateEvent,
 ]);
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
-
-export const ingestionBatchEvent = z.array(ingestionEvent);
-
-export const ingestionApiSchema = z.object({
-  batch: ingestionBatchEvent,
-  metadata: jsonSchema.nullish(),
-});
 
 export type ObservationEvent =
   | z.infer<typeof legacyObservationCreateEvent>
