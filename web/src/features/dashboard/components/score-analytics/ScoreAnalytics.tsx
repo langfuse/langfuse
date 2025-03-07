@@ -32,6 +32,7 @@ export function ScoreAnalytics(props: {
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
     useLocalStorage<string[]>(
       `selectedDashboardScoreKeys-${props.projectId}`,
+      true,
       [],
     );
 

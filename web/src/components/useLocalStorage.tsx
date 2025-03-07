@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
  * It provides cross-tab synchronization and safe interaction with localStorage.
  *
  * @param {string} localStorageKey - The key under which the value is stored in localStorage.
+ * @param {boolean} persisted - Whether the value should be persisted after logout.
  * @param {T} initialValue - The initial value of the data to be stored.
  *
  * Note: The object T should be able to be stringified, as it will be stored in localStorage as a string.
@@ -27,8 +28,13 @@ import { useState, useEffect } from "react";
  */
 function useLocalStorage<T>(
   localStorageKey: string,
+  persisted: boolean,
   initialValue: T,
 ): [T, React.Dispatch<React.SetStateAction<T>>, () => void] {
+  const prefixedLocalStorageKey = persisted
+    ? `persisted_${localStorageKey}`
+    : localStorageKey;
+
   // Initialize state with value from localStorage or initial value
   // This initialization is only run once when the component mounts
   const [value, setValue] = useState<T>(() => {
@@ -36,7 +42,7 @@ function useLocalStorage<T>(
     if (typeof window === "undefined") return initialValue;
 
     try {
-      const stored = localStorage.getItem(localStorageKey);
+      const stored = localStorage.getItem(prefixedLocalStorageKey);
       // Parse stored value if it exists, otherwise use initial value
       return stored ? (JSON.parse(stored) as T) : initialValue;
     } catch (error) {
@@ -51,7 +57,7 @@ function useLocalStorage<T>(
     set: (value: T) => {
       try {
         const stringified = JSON.stringify(value);
-        localStorage.setItem(localStorageKey, stringified);
+        localStorage.setItem(prefixedLocalStorageKey, stringified);
         return stringified;
       } catch (error) {
         console.error("Error writing to local storage", error);
@@ -60,7 +66,7 @@ function useLocalStorage<T>(
     },
     remove: () => {
       try {
-        localStorage.removeItem(localStorageKey);
+        localStorage.removeItem(prefixedLocalStorageKey);
       } catch (error) {
         console.error("Error clearing local storage", error);
       }
@@ -78,7 +84,7 @@ function useLocalStorage<T>(
   useEffect(() => {
     safeLocalStorage.set(value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localStorageKey, value]);
+  }, [prefixedLocalStorageKey, value]);
 
   // Handle cross-tab synchronization
   useEffect(() => {
@@ -86,7 +92,7 @@ function useLocalStorage<T>(
 
     // Handler for native localStorage events (triggered by other tabs)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === localStorageKey) {
+      if (e.key === prefixedLocalStorageKey) {
         try {
           setValue(e.newValue ? (JSON.parse(e.newValue) as T) : initialValue);
         } catch (error) {
@@ -99,7 +105,7 @@ function useLocalStorage<T>(
     const handleCustomEvent = (
       e: CustomEvent<{ key: string; newValue: string }>,
     ) => {
-      if (e.detail.key === localStorageKey) {
+      if (e.detail.key === prefixedLocalStorageKey) {
         try {
           setValue(
             e.detail.newValue
@@ -127,7 +133,7 @@ function useLocalStorage<T>(
         handleCustomEvent as EventListener,
       );
     };
-  }, [localStorageKey, initialValue]);
+  }, [prefixedLocalStorageKey, initialValue]);
 
   // Enhanced setValue function that also notifies other tabs
   const setValueAndNotify: React.Dispatch<React.SetStateAction<T>> = (
@@ -143,7 +149,7 @@ function useLocalStorage<T>(
       if (stringified) {
         window.dispatchEvent(
           new CustomEvent("localStorageChange", {
-            detail: { key: localStorageKey, newValue: stringified },
+            detail: { key: prefixedLocalStorageKey, newValue: stringified },
           }),
         );
       }

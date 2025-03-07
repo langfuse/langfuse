@@ -75,7 +75,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const capture = usePostHogClientCapture();
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
-  >("emptySelectedConfigIds", []);
+  >("emptySelectedConfigIds", true, []);
 
   const hasAccess = useHasProjectAccess({
     projectId: projectId,

@@ -62,7 +62,7 @@ export const ObservationPreview = ({
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
-  >("emptySelectedConfigIds", []);
+  >("emptySelectedConfigIds", true, []);
   const hasEntitlement = useHasEntitlement("annotation-queues");
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);

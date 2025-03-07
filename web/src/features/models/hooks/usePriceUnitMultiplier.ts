@@ -12,6 +12,7 @@ export const multiplierMap: Record<PriceUnit, number> = {
 export const usePriceUnitMultiplier = () => {
   const [priceUnit, setPriceUnit] = useLocalStorage<PriceUnit>(
     "priceUnit",
+    true,
     PriceUnit.PerUnit,
   );
   const multiplier = useMemo(() => multiplierMap[priceUnit], [priceUnit]);

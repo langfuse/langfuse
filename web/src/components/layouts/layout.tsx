@@ -18,7 +18,19 @@ import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
 
 const signOutUser = async () => {
-  localStorage.clear();
+  // Clear all localStorage items except those prefixed with 'persisted_'
+  if (typeof window !== "undefined") {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && !key.startsWith("persisted_")) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  }
+
+  // Clear all sessionStorage as it contains temporary data
   sessionStorage.clear();
 
   await signOut();

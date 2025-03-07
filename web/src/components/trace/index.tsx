@@ -76,17 +76,22 @@ export function Trace(props: {
     StringParam,
   );
   const [metricsOnObservationTree, setMetricsOnObservationTree] =
-    useLocalStorage("metricsOnObservationTree", true);
+    useLocalStorage("metricsOnObservationTree", true, true);
   const [scoresOnObservationTree, setScoresOnObservationTree] = useLocalStorage(
     "scoresOnObservationTree",
+    true,
     true,
   );
   const [
     colorCodeMetricsOnObservationTree,
     setColorCodeMetricsOnObservationTree,
-  ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
-  const [showComments, setShowComments] = useLocalStorage("showComments", true);
-  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
+  ] = useLocalStorage("colorCodeMetricsOnObservationTree", true, true);
+  const [showComments, setShowComments] = useLocalStorage(
+    "showComments",
+    true,
+    true,
+  );
+  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true, true);
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
   );
