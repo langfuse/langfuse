@@ -1,9 +1,9 @@
 import type { OAuthConfig, OAuthUserConfig } from "next-auth/providers/oauth";
 import { env } from "../../env";
 
-const CUSTOM_EMAIL_CLAIM = env.CUSTOM_EMAIL_CLAIM;
-const CUSTOM_NAME_CLAIM = env.CUSTOM_NAME_CLAIM;
-const CUSTOM_SUB_CLAIM = env.CUSTOM_SUB_CLAIM;
+const CUSTOM_EMAIL_CLAIM = env.LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM;
+const CUSTOM_NAME_CLAIM = env.LANGFUSE_CUSTOM_SSO_NAME_CLAIM;
+const CUSTOM_SUB_CLAIM = env.LANGFUSE_CUSTOM_SSO_SUB_CLAIM;
 
 interface CustomSSOUser extends Record<string, any> {
   email: string;
