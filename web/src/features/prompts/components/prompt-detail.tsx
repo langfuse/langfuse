@@ -52,6 +52,9 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
+import { Switch } from "@/src/components/ui/switch";
+import { Label } from "@/src/components/ui/label";
+import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 
 const getPythonCode = (
   name: string,
@@ -101,6 +104,10 @@ export const PromptDetail = () => {
     "version",
     NumberParam,
   );
+  const [currentPromptLabel, setCurrentPromptLabel] = useQueryParam(
+    "label",
+    StringParam,
+  );
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
     withDefault(StringParam, "prompt"),
@@ -108,6 +115,7 @@ export const PromptDetail = () => {
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [showResolvedPrompt, setShowResolvedPrompt] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
@@ -128,11 +136,27 @@ export const PromptDetail = () => {
     ? promptHistory.data?.promptVersions.find(
         (prompt) => prompt.version === currentPromptVersion,
       )
-    : promptHistory.data?.promptVersions[0];
+    : currentPromptLabel
+      ? promptHistory.data?.promptVersions.find((prompt) =>
+          prompt.labels.includes(currentPromptLabel),
+        )
+      : promptHistory.data?.promptVersions[0];
+
+  const promptGraph = api.prompts.resolvePromptGraph.useQuery(
+    {
+      promptId: prompt?.id as string,
+      projectId: projectId as string,
+    },
+    {
+      enabled: Boolean(projectId) && Boolean(prompt?.id),
+    },
+  );
 
   let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
   try {
-    chatMessages = ChatMlArraySchema.parse(prompt?.prompt);
+    chatMessages = ChatMlArraySchema.parse(
+      showResolvedPrompt ? promptGraph.data?.resolvedPrompt : prompt?.prompt,
+    );
   } catch (error) {
     if (PromptType.Chat === prompt?.type) {
       console.warn(
@@ -141,6 +165,7 @@ export const PromptDetail = () => {
       );
     }
   }
+
   const utils = api.useUtils();
 
   const handleExperimentSuccess = async (data?: {
@@ -316,7 +341,10 @@ export const PromptDetail = () => {
             <PromptHistoryNode
               prompts={promptHistory.data.promptVersions}
               currentPromptVersion={prompt.version}
-              setCurrentPromptVersion={setCurrentPromptVersion}
+              setCurrentPromptVersion={(version) => {
+                setCurrentPromptVersion(version);
+                setCurrentPromptLabel(null);
+              }}
               totalCount={promptHistory.data.totalCount}
             />
           </div>
@@ -453,15 +481,41 @@ export const PromptDetail = () => {
               className="mt-0 flex max-h-full min-h-0 flex-1 overflow-hidden"
             >
               <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+                {promptGraph.data?.graph && (
+                  <div className="flex items-center justify-end space-x-2 px-1 py-2">
+                    <Label htmlFor="show-resolved-prompt" className="text-sm">
+                      Resolve prompt dependencies
+                    </Label>
+                    <Switch
+                      id="show-resolved-prompt"
+                      checked={showResolvedPrompt}
+                      onCheckedChange={setShowResolvedPrompt}
+                    />
+                  </div>
+                )}
                 {prompt.type === PromptType.Chat && chatMessages ? (
                   <div className="w-full">
                     <OpenAiMessageView
                       messages={chatMessages}
                       collapseLongHistory={false}
+                      projectIdForPromptButtons={projectId}
                     />
                   </div>
                 ) : typeof prompt.prompt === "string" ? (
-                  <CodeView content={prompt.prompt} title="Text Prompt" />
+                  showResolvedPrompt && promptGraph.data?.resolvedPrompt ? (
+                    <CodeView
+                      content={String(promptGraph.data.resolvedPrompt)}
+                      title="Text Prompt (resolved)"
+                    />
+                  ) : (
+                    <CodeView
+                      content={renderContentWithPromptButtons(
+                        projectId as string,
+                        prompt.prompt,
+                      )}
+                      title="Text Prompt"
+                    />
+                  )
                 ) : (
                   <JSONView json={prompt.prompt} title="Prompt" />
                 )}
