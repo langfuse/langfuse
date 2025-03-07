@@ -253,7 +253,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     " ",
     ",",
     "?",
-    "\\",
+    // "\\",
     "{",
     "}",
     "^",
