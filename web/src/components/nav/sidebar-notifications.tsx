@@ -54,7 +54,7 @@ export function SidebarNotifications() {
 
   const [dismissedNotifications, setDismissedNotifications] = useLocalStorage<
     string[]
-  >(STORAGE_KEY, true, []);
+  >(STORAGE_KEY, []);
 
   // Find the oldest non-dismissed notification on mount or when dismissed list changes
   useEffect(() => {

@@ -52,11 +52,7 @@ function useColumnVisibility<TData>(
   };
 
   const [columnVisibility, setColumnVisibility] =
-    useLocalStorage<VisibilityState>(
-      localStorageKey,
-      true,
-      initialVisibilityState(),
-    );
+    useLocalStorage<VisibilityState>(localStorageKey, initialVisibilityState());
 
   useEffect(() => {
     const initialColumnVisibility = initialVisibilityState();

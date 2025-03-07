@@ -24,7 +24,6 @@ export function useRowHeightLocalStorage(
 ) {
   const [rowHeight, setRowHeight, clearRowHeight] = useLocalStorage<RowHeight>(
     `${tableName}Height`,
-    true,
     defaultValue,
   );
 

@@ -29,7 +29,6 @@ export function useEnvironmentFilter(
   const [visibilityMap, setVisibilityMap] =
     useLocalStorage<EnvironmentVisibility>(
       `langfuse-environment-visibility-${projectId}`,
-      true,
       {},
     );
 

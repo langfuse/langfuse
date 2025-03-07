@@ -22,7 +22,6 @@ function useColumnOrder<TData>(
 ) {
   const [columnOrder, setColumnOrder] = useLocalStorage<string[]>(
     localStorageKey,
-    true,
     [],
   );
 

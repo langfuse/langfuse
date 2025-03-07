@@ -28,7 +28,6 @@ export const MarkdownContextProvider = (props: PropsWithChildren) => {
   const [isMarkdownEnabled, setIsMarkdownEnabled] = useLocalStorage(
     "shouldRenderMarkdown",
     true,
-    true,
   );
 
   return (

@@ -155,7 +155,7 @@ export const SessionPage: React.FC<{
 
   const [emptySelectedConfigIds, setEmptySelectedConfigIds] = useLocalStorage<
     string[]
-  >("emptySelectedConfigIds", true, []);
+  >("emptySelectedConfigIds", []);
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
