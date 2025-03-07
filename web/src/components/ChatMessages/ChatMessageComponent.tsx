@@ -1,6 +1,6 @@
 import { capitalize } from "lodash";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChatMessageRole,
   SYSTEM_ROLES,
@@ -49,6 +49,19 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   index,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
+  const [content, setContent] = useState(message.content);
+  const isDirtyRef = useRef(false);
+
+  useEffect(() => {
+    const saveInterval = setInterval(() => {
+      if (isDirtyRef.current) {
+        updateMessage(message.id, "content", content);
+        isDirtyRef.current = false;
+      }
+    }, 300);
+
+    return () => clearInterval(saveInterval);
+  }, [message.id, content, updateMessage]);
 
   const {
     attributes,
@@ -109,8 +122,8 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           <GripVertical className="h-4 w-4" />
         </div>
       )}
-      <CardContent className="ml-4 flex flex-row space-x-1 p-0">
-        <div className="min-w-[5rem]">
+      <CardContent className="ml-4 flex flex-row gap-2 p-0">
+        <div className="min-w-[4rem]">
           <Button
             onClick={toggleRole}
             type="button" // prevents submitting a form if this button is inside a form
@@ -121,8 +134,11 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           </Button>
         </div>
         <CodeMirrorEditor
-          value={message.content}
-          onChange={(value) => updateMessage(message.id, "content", value)}
+          value={content}
+          onChange={(value) => {
+            setContent(value);
+            isDirtyRef.current = true;
+          }}
           mode="prompt"
           minHeight={30}
           className="w-full"

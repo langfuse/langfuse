@@ -1,11 +1,8 @@
 import { PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-
 import { Button } from "@/src/components/ui/button";
 import { ChatMessageRole, SYSTEM_ROLES } from "@langfuse/shared";
-
 import { ChatMessageComponent } from "./ChatMessageComponent";
-
 import type { MessagesContext } from "./types";
 import {
   closestCenter,
@@ -83,8 +80,12 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
               {props.messages.map((message, index) => {
                 return (
                   <ChatMessageComponent
-                    {...{ message, ...props, index }}
                     key={message.id}
+                    deleteMessage={props.deleteMessage}
+                    updateMessage={props.updateMessage}
+                    availableRoles={props.availableRoles}
+                    message={message}
+                    index={index}
                   />
                 );
               })}
