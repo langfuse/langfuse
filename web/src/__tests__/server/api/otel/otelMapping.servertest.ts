@@ -332,7 +332,104 @@ describe("OTel Resource Span Mapping", () => {
       },
     };
 
+    it("should interpret an empty buffer as an unset parentSpanId", async () => {
+      // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
+      // Empty buffers where detected as truthy, i.e. behaved like they had a parent span.
+      // Setup
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                parentSpanId: {
+                  type: "Buffer",
+                  data: [],
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      // Expect a span and a trace to be created
+      expect(langfuseEvents).toHaveLength(2);
+    });
+
+    it("should interpret openinference LLM calls as a generation", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                attributes: [
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "LLM" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      // Check that we create a generation
+      expect(
+        langfuseEvents.some((event) => event.type === "generation-create"),
+      ).toBe(true);
+    });
+
     it.each([
+      [
+        "should cast input_tokens from string to number",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.input_tokens",
+          otelAttributeValue: { stringValue: "15" },
+          entityAttributeKey: "usageDetails.input",
+          entityAttributeValue: 15,
+        },
+      ],
+      [
+        "should extract environment on trace for langfuse.environment",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.environment",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract environment on observation for deployment.environment.name",
+        {
+          entity: "observation",
+          otelAttributeKey: "deployment.environment.name",
+          otelAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should fallback to default on observation if no environment present",
+        {
+          entity: "observation",
+          otelAttributeKey: "unused.key",
+          otelAttributeValue: { stringValue: "" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "default",
+        },
+      ],
       [
         "should extract promptName on observation from langfuse.prompt.name",
         {
@@ -414,6 +511,16 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract providedModelName from llm.model_name",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.model_name",
+          otelAttributeValue: { stringValue: "gpt-4" },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gpt-4",
+        },
+      ],
+      [
         "should extract modelParameters from gen_ai.request (request.temperature)",
         {
           entity: "observation",
@@ -432,6 +539,18 @@ describe("OTel Resource Span Mapping", () => {
             intValue: { low: 100, high: 0, unsigned: false },
           },
           entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract usage from llm.token_count (input_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.token_count.prompt",
+          otelAttributeValue: {
+            intValue: { low: 100, high: 0, unsigned: false },
+          },
+          entityAttributeKey: "usageDetails.input",
           entityAttributeValue: 100,
         },
       ],
@@ -705,6 +824,36 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: "1.0.5",
         },
       ],
+      [
+        "should extract environment on trace for langfuse.environment",
+        {
+          entity: "trace",
+          otelResourceAttributeKey: "langfuse.environment",
+          otelResourceAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should extract environment on observation for deployment.environment.name",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "deployment.environment.name",
+          otelResourceAttributeValue: { stringValue: "test" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "test",
+        },
+      ],
+      [
+        "should fallback to default on observation if no environment present",
+        {
+          entity: "observation",
+          otelResourceAttributeKey: "unused.key",
+          otelResourceAttributeValue: { stringValue: "" },
+          entityAttributeKey: "environment",
+          entityAttributeValue: "default",
+        },
+      ],
     ])(
       "ResourceAttributes: %s",
       (
@@ -730,6 +879,126 @@ describe("OTel Resource Span Mapping", () => {
           scopeSpans: [
             {
               spans: [defaultSpanProps],
+            },
+          ],
+        };
+
+        // When
+        const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+        // Then
+        const entity: { body: Record<string, any> } =
+          spec.entity === "trace" ? langfuseEvents[0] : langfuseEvents[1];
+        expect(entity.body[spec.entityAttributeKey]).toEqual(
+          spec.entityAttributeValue,
+        );
+      },
+    );
+
+    it.each([
+      [
+        "should extract input on trace from event attributes",
+        {
+          entity: "trace",
+          otelEventName: "gen_ai.content.prompt",
+          otelEventAttributeKey: "gen_ai.prompt",
+          otelEventAttributeValue: {
+            stringValue: "user: What is LLM Observability?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "user: What is LLM Observability?",
+        },
+      ],
+      [
+        "should extract array input on trace event attributes",
+        {
+          entity: "trace",
+          otelEventName: "gen_ai.content.prompt",
+          otelEventAttributeKey: "gen_ai.prompt",
+          otelEventAttributeValue: {
+            arrayValue: {
+              values: [
+                {
+                  stringValue: "Reply with the word 'java'",
+                },
+              ],
+            },
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: ["Reply with the word 'java'"],
+        },
+      ],
+      [
+        "should extract output on observation from event attributes",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.content.completion",
+          otelEventAttributeKey: "gen_ai.completion",
+          otelEventAttributeValue: {
+            stringValue:
+              "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue:
+            "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+        },
+      ],
+      [
+        "should extract output on observation from event attributes even if no gen_ai.completion attribute is available",
+        {
+          entity: "observation",
+          otelEventName: "gen_ai.content.completion",
+          otelEventAttributeKey: "gen_ai.something_else",
+          otelEventAttributeValue: {
+            stringValue:
+              "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: {
+            "gen_ai.something_else":
+              "assistant: LLM Observability stands for logs, metrics, and traces observability.",
+          },
+        },
+      ],
+    ])(
+      "Events: %s",
+      (
+        _name: string,
+        spec: {
+          entity: string;
+          otelEventName: string;
+          otelEventAttributeKey: string;
+          otelEventAttributeValue: any;
+          entityAttributeKey: string;
+          entityAttributeValue: any;
+        },
+      ) => {
+        // Setup
+        const resourceSpan = {
+          resource: {},
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  events: [
+                    {
+                      timeUnixNano: {
+                        low: 1327691067,
+                        high: 404677085,
+                        unsigned: true,
+                      },
+                      name: spec.otelEventName,
+                      attributes: [
+                        {
+                          key: spec.otelEventAttributeKey,
+                          value: spec.otelEventAttributeValue,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
             },
           ],
         };

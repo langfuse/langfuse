@@ -91,8 +91,7 @@ ${labels.length > 0 ? labels.map((label) => `const prompt = await langfuse.getPr
 
 // Get by version number, usually not recommended as it requires code changes to deploy new prompt versions
 langfuse.getPrompt("${name}", ${version})
-
-}`;
+`;
 
 export const PromptDetail = () => {
   const projectId = useProjectIdFromURL();
@@ -377,7 +376,7 @@ export const PromptDetail = () => {
                         </span>
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto">
                       <CreateExperimentsForm
                         key={`create-experiment-form-${prompt.id}`}
                         projectId={projectId as string}
@@ -455,10 +454,12 @@ export const PromptDetail = () => {
             >
               <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
                 {prompt.type === PromptType.Chat && chatMessages ? (
-                  <OpenAiMessageView
-                    messages={chatMessages}
-                    collapseLongHistory={false}
-                  />
+                  <div className="w-full">
+                    <OpenAiMessageView
+                      messages={chatMessages}
+                      collapseLongHistory={false}
+                    />
+                  </div>
                 ) : typeof prompt.prompt === "string" ? (
                   <CodeView content={prompt.prompt} title="Text Prompt" />
                 ) : (

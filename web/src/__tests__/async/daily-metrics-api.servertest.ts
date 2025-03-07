@@ -81,4 +81,92 @@ describe("/api/public/metrics/daily API Endpoint", () => {
       expect(usage.totalCost).toBe(600);
     }
   });
+
+  it("should filter daily metrics by environment", async () => {
+    const testEnvironment = randomUUID();
+    const traces = [
+      createTrace({
+        user_id: "user-1",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+        environment: testEnvironment,
+      }),
+      createTrace({
+        user_id: "user-1",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        metadata: { key: "value" },
+        release: "1.0.0",
+        version: "2.0.0",
+        environment: "default",
+      }),
+    ];
+
+    const observations = [
+      createObservation({
+        trace_id: traces[0].id,
+        project_id: traces[0].project_id,
+        name: "observation-name-1",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 1000,
+        provided_model_name: "model-1",
+        environment: testEnvironment,
+      }),
+      createObservation({
+        trace_id: traces[0].id,
+        project_id: traces[0].project_id,
+        name: "observation-name-3",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 100000,
+        provided_model_name: "model-2",
+        environment: testEnvironment,
+      }),
+      createObservation({
+        trace_id: traces[1].id,
+        project_id: traces[1].project_id,
+        name: "observation-name-1",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 1000,
+        provided_model_name: "model-1",
+        environment: "default",
+      }),
+      createObservation({
+        trace_id: traces[1].id,
+        project_id: traces[1].project_id,
+        name: "observation-name-3",
+        end_time: new Date().getTime(),
+        start_time: new Date().getTime() - 100000,
+        provided_model_name: "model-2",
+        environment: "default",
+      }),
+    ];
+
+    await createTracesCh(traces);
+    await createObservationsCh(observations);
+
+    const metrics = await makeZodVerifiedAPICall(
+      GetMetricsDailyV1Response,
+      "GET",
+      `/api/public/metrics/daily?environment=${testEnvironment}`,
+    );
+
+    expect(metrics.body.meta.totalItems).toBe(1);
+    expect(metrics.body.meta.totalPages).toBe(1);
+
+    const metric = metrics.body.data[0];
+    expect(metric.countTraces).toBe(1);
+    expect(metric.countObservations).toBe(2);
+    expect(metric.usage).toHaveLength(2);
+    expect(metric.totalCost).toBe(600);
+    for (const usage of metric.usage) {
+      expect(usage.model).toMatch(/model-\d/g);
+      expect(usage.inputUsage).toBe(1234);
+      expect(usage.outputUsage).toBe(5678);
+      expect(usage.totalUsage).toBe(6912);
+      expect(usage.countObservations).toBe(1);
+      expect(usage.countTraces).toBe(1);
+      expect(usage.totalCost).toBe(300);
+    }
+  });
 });

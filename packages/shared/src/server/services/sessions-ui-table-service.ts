@@ -20,6 +20,7 @@ export type SessionDataReturnType = {
   user_ids: string[];
   trace_count: number;
   trace_tags: string[];
+  trace_environment?: string;
 };
 
 export type SessionWithMetricsReturnType = SessionDataReturnType & {
@@ -129,7 +130,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
           trace_ids, 
           user_ids, 
           trace_count, 
-          trace_tags`;
+          trace_tags,
+          trace_environment`;
       break;
     case "metrics":
       sqlSelect = `
@@ -140,6 +142,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         user_ids, 
         trace_count, 
         trace_tags,
+        trace_environment,
         total_observations,
         duration,
         session_usage_details,
@@ -162,7 +165,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
 
   tracesFilter.push(...createFilterFromFilterState(filter, sessionCols));
 
-  const tracesFilterRes = tracesFilter.apply();
+  const tracesFilterRes = tracesFilter
+    .filter((f) => f.field !== "environment")
+    .apply();
 
   const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
     (f) =>
@@ -183,7 +188,10 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   }
 
   const additionalSingleTraceFilter = tracesFilter.find(
-    (f) => f.field === "bookmarked" || f.field === "session_id",
+    (f) =>
+      f.field === "bookmarked" ||
+      f.field === "session_id" ||
+      f.field === "environment",
   );
 
   if (additionalSingleTraceFilter) {
@@ -264,14 +272,17 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             groupArray(t.id) AS trace_ids,
             groupUniqArray(t.user_id) AS user_ids,
             count(*) as trace_count,
-            groupUniqArrayArray(t.tags) as trace_tags
+            groupUniqArrayArray(t.tags) as trace_tags,
+            anyLast(t.environment) as trace_environment
             -- Aggregate observations data at session level
             ${
               selectMetrics
                 ? `
             ,
             sum(o.obs_count) as total_observations,
-            date_diff('millisecond', min(min_start_time), max(max_end_time)) as duration,
+            -- Use minIf, because ClickHouse fills 1970-01-01 on left joins. We assume that no
+            -- LLM session started on that date so this behaviour should yield better results.
+            date_diff('millisecond', minIf(min_start_time, min_start_time > '1970-01-01'), max(max_end_time)) as duration,
             sumMap(o.sum_usage_details) as session_usage_details,
             sumMap(o.sum_cost_details) as session_cost_details,
             arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,

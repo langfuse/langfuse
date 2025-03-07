@@ -22,6 +22,12 @@ export const sessionCols: UiColumnMapping[] = [
     clickhouseSelect: "user_ids",
   },
   {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "environment",
+  },
+  {
     uiTableName: "Session Duration",
     uiTableId: "sessionDuration",
     clickhouseTableName: "traces",

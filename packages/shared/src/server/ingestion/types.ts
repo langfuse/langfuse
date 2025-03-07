@@ -58,21 +58,25 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
-const RawUsageOrCostDetails = z.record(
+const CostDetails = z
+  .record(z.string(), z.number().nonnegative().nullish())
+  .nullish();
+
+const RawUsageDetails = z.record(
   z.string(),
-  z.number().nonnegative().nullish(),
+  z.number().int().nonnegative().nullish(),
 );
 
 const OpenAIUsageSchema = z
   .object({
-    prompt_tokens: z.number().nonnegative(),
-    completion_tokens: z.number().nonnegative(),
-    total_tokens: z.number().nonnegative(),
+    prompt_tokens: z.number().int().nonnegative(),
+    completion_tokens: z.number().int().nonnegative(),
+    total_tokens: z.number().int().nonnegative(),
     prompt_tokens_details: z
-      .record(z.string(), z.number().nonnegative())
+      .record(z.string(), z.number().int().nonnegative())
       .nullish(),
     completion_tokens_details: z
-      .record(z.string(), z.number().nonnegative())
+      .record(z.string(), z.number().int().nonnegative())
       .nullish(),
   })
   .strict()
@@ -86,7 +90,7 @@ const OpenAIUsageSchema = z
       prompt_tokens_details,
       completion_tokens_details,
     } = v;
-    const result: z.infer<typeof RawUsageOrCostDetails> & {
+    const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
@@ -112,11 +116,20 @@ const OpenAIUsageSchema = z
 
     return result;
   })
-  .pipe(RawUsageOrCostDetails);
+  .pipe(RawUsageDetails);
 
-export const UsageOrCostDetails = z
-  .union([OpenAIUsageSchema, RawUsageOrCostDetails])
+export const UsageDetails = z
+  .union([OpenAIUsageSchema, RawUsageDetails])
   .nullish();
+
+export const EnvironmentName = z
+  .string()
+  .max(40, "Maximum length is 40 characters")
+  .regex(
+    /^(?!langfuse)[a-z0-9-_]+$/,
+    "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it must not start with 'langfuse'",
+  )
+  .default("default");
 
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.
@@ -130,6 +143,7 @@ export const TraceBody = z.object({
   output: z.any().nullish(),
   sessionId: z.string().nullish(),
   userId: z.string().nullish(),
+  environment: EnvironmentName,
   metadata: jsonSchema.nullish(),
   release: z.string().nullish(),
   version: z.string().nullish(),
@@ -139,6 +153,7 @@ export const TraceBody = z.object({
 
 export const OptionalObservationBody = z.object({
   traceId: z.string().nullish(),
+  environment: EnvironmentName,
   name: z.string().nullish(),
   startTime: stringDateTime,
   metadata: jsonSchema.nullish(),
@@ -184,8 +199,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -214,8 +229,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -230,6 +245,7 @@ const BaseScoreBody = z.object({
   id: z.string().nullish(),
   name: NonEmptyString,
   traceId: z.string(),
+  environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
   source: z
@@ -369,8 +385,8 @@ export const LegacyObservationBody = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
   level: ObservationLevel.nullish(),
@@ -382,18 +398,6 @@ export const SdkLogEvent = z.object({
   log: jsonSchema,
   id: z.string().nullish(), // Not used, but makes downstream processing easier.
 });
-
-// definitions for the ingestion API
-
-export const observationTypes = [
-  "observation-create",
-  "observation-update",
-  "generation-create",
-  "generation-update",
-  "span-create",
-  "span-update",
-  "event-create",
-];
 
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
@@ -474,26 +478,11 @@ export const ingestionEvent = z.discriminatedUnion("type", [
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
 
 export const ingestionBatchEvent = z.array(ingestionEvent);
-export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
-
-export const ingestionEventWithProjectId = ingestionEvent.and(
-  z.object({ projectId: z.string() }),
-);
-export type IngestionEventWithProjectIdType = z.infer<
-  typeof ingestionEventWithProjectId
->;
 
 export const ingestionApiSchema = z.object({
   batch: ingestionBatchEvent,
   metadata: jsonSchema.nullish(),
 });
-
-export const ingestionApiSchemaWithProjectId = ingestionApiSchema.extend({
-  projectId: z.string(),
-});
-export type IngestionApiSchemaWithProjectId = z.infer<
-  typeof ingestionApiSchemaWithProjectId
->;
 
 export type ObservationEvent =
   | z.infer<typeof legacyObservationCreateEvent>

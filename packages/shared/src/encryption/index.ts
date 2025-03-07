@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { env } from "../env";
 
 const ENCRYPTION_KEY: string | undefined = env.ENCRYPTION_KEY; // Must be 256 bits (32 bytes, 64 hex characters)
-const IV_LENGTH: number = 16; // For AES, this is always 16
+const IV_LENGTH: number = 12; // For AES-GCM, this is always 12
 
 // Alternatively: openssl rand -hex 32
 export function keyGen() {
@@ -23,7 +23,7 @@ export function encrypt(plainText: string): string {
   const cipher = crypto.createCipheriv(
     "aes-256-gcm",
     Buffer.from(ENCRYPTION_KEY, "hex"),
-    iv
+    iv,
   );
   let encrypted = cipher.update(plainText, "utf8", "hex");
   encrypted += cipher.final("hex");
@@ -49,7 +49,7 @@ export function decrypt(text: string): string {
   const decipher = crypto.createDecipheriv(
     "aes-256-gcm",
     Buffer.from(ENCRYPTION_KEY, "hex"),
-    iv
+    iv,
   );
   decipher.setAuthTag(authTag);
 

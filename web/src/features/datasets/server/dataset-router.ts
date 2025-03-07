@@ -8,6 +8,7 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
 import { paginationZod, DatasetStatus } from "@langfuse/shared";
+import { TRPCError } from "@trpc/server";
 import {
   createDatasetRunsTable,
   createDatasetRunsTableWithoutMetrics,
@@ -16,6 +17,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import { logger } from "@langfuse/shared/src/server";
+import { createId as createCuid } from "@paralleldrive/cuid2";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
   if (data === "") return Prisma.DbNull;
@@ -31,6 +33,23 @@ const formatDatasetItemData = (data: string | null | undefined) => {
 };
 
 export const datasetRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const dataset = await ctx.prisma.dataset.findFirst({
+        where: {
+          projectId: input.projectId,
+        },
+        select: { id: true },
+        take: 1,
+      });
+
+      return dataset !== null;
+    }),
   allDatasetMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -436,6 +455,60 @@ export const datasetRouter = createTRPCRouter({
       });
       return deletedDataset;
     }),
+  deleteDatasetItem: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      // First get the item to use in audit log
+      const item = await ctx.prisma.datasetItem.findUnique({
+        where: {
+          id_projectId: {
+            id: input.datasetItemId,
+            projectId: input.projectId,
+          },
+          datasetId: input.datasetId,
+        },
+      });
+
+      if (!item) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset item not found",
+        });
+      }
+
+      // Delete the dataset item
+      const deletedItem = await ctx.prisma.datasetItem.delete({
+        where: {
+          id_projectId: {
+            id: input.datasetItemId,
+            projectId: input.projectId,
+          },
+          datasetId: input.datasetId,
+        },
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "datasetItem",
+        resourceId: deletedItem.id,
+        action: "delete",
+        before: item,
+      });
+
+      return deletedItem;
+    }),
   duplicateDataset: protectedProjectProcedure
     .input(
       z.object({
@@ -465,7 +538,10 @@ export const datasetRouter = createTRPCRouter({
         },
       });
       if (!dataset) {
-        throw new Error("Dataset not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
       }
 
       // find a unique name for the new dataset
@@ -556,7 +632,10 @@ export const datasetRouter = createTRPCRouter({
         },
       });
       if (!dataset) {
-        throw new Error("Dataset not found");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Dataset not found",
+        });
       }
 
       const datasetItem = await ctx.prisma.datasetItem.create({
@@ -584,12 +663,14 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        datasetId: z.string(),
         items: z.array(
           z.object({
+            datasetId: z.string(),
             input: z.string().nullish(),
             expectedOutput: z.string().nullish(),
             metadata: z.string().nullish(),
+            sourceTraceId: z.string().optional(),
+            sourceObservationId: z.string().optional(),
           }),
         ),
       }),
@@ -601,31 +682,53 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const dataset = await ctx.prisma.dataset.findUnique({
+      // Verify all datasets exist and belong to the project
+      const datasetIds = [
+        ...new Set(input.items.map((item) => item.datasetId)),
+      ];
+      const datasets = await ctx.prisma.dataset.findMany({
         where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
+          id: { in: datasetIds },
+          projectId: input.projectId,
         },
       });
 
-      if (!dataset) {
-        throw new Error("Dataset not found");
+      if (datasets.length !== datasetIds.length) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "One or more datasets not found",
+        });
       }
 
-      const datasetItems = input.items.map((item) => ({
+      const itemsWithIds = input.items.map((item) => ({
+        id: createCuid(),
         input: formatDatasetItemData(item.input),
         expectedOutput: formatDatasetItemData(item.expectedOutput),
         metadata: formatDatasetItemData(item.metadata),
-        datasetId: input.datasetId,
+        datasetId: item.datasetId,
+        sourceTraceId: item.sourceTraceId,
+        sourceObservationId: item.sourceObservationId,
         projectId: input.projectId,
         status: DatasetStatus.ACTIVE,
       }));
 
-      return await ctx.prisma.datasetItem.createMany({
-        data: datasetItems,
+      await ctx.prisma.datasetItem.createMany({
+        data: itemsWithIds,
       });
+
+      await Promise.all(
+        itemsWithIds.map(async (item) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetItem",
+            resourceId: item.id,
+            action: "create",
+            after: item,
+          }),
+        ),
+      );
+
+      return;
     }),
 
   runitemsByRunIdOrItemId: protectedProjectProcedure

@@ -6,6 +6,7 @@ import {
   ObservationRecordInsertType,
   recordGauge,
   recordHistogram,
+  recordIncrement,
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -97,6 +98,7 @@ export class ClickhouseWriter {
         spanKind: SpanKind.CONSUMER,
       },
       async () => {
+        recordIncrement("langfuse.queue.clickhouse_writer.request");
         await Promise.all([
           this.flush(TableName.Traces, fullQueue),
           this.flush(TableName.Scores, fullQueue),
@@ -174,8 +176,10 @@ export class ClickhouseWriter {
           });
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
+          recordIncrement("langfuse.queue.clickhouse_writer.error");
           logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record ${item.data}.`,
+            `Max attempts reached for ${tableName} record. Dropping record.`,
+            { item: item.data },
           );
         }
       });

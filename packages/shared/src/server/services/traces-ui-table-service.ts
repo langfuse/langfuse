@@ -35,6 +35,7 @@ export type TracesTableReturnType = Pick<
   | "version"
   | "user_id"
   | "session_id"
+  | "environment"
   | "tags"
   | "public"
 >;
@@ -49,6 +50,7 @@ export type TracesAllUiReturnType = {
   version: string | null;
   public: boolean;
   bookmarked: boolean;
+  environment: string | null;
   sessionId: string | null;
   tags: string[];
 };
@@ -87,6 +89,7 @@ export const convertToUiTableRows = (
     release: row.release ?? null,
     version: row.version ?? null,
     userId: row.user_id ?? null,
+    environment: row.environment ?? null,
     sessionId: row.session_id ?? null,
     public: row.public,
   };
@@ -259,6 +262,7 @@ const getTracesTableGeneric = async <T>(props: FetchTracesTableProps) => {
         t.release as release,
         t.version as version,
         t.user_id as user_id,
+        t.environment as environment,
         t.session_id as session_id,
         t.public as public`;
       break;

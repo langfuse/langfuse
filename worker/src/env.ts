@@ -7,6 +7,7 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   DATABASE_URL: z.string(),
+  HOSTNAME: z.string().default("0.0.0.0"),
   PORT: z.coerce
     .number({
       description:
@@ -39,7 +40,7 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
-  BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(1_000_000),
+  BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(1_500_000),
   BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS: z.coerce
     .number()
     .positive()
@@ -207,6 +208,11 @@ const EnvSchema = z.object({
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+
+  LANGFUSE_S3_CONCURRENT_READS: z.coerce
+    .number()
+    .positive()
+    .default(50),
 });
 
 export const env: z.infer<typeof EnvSchema> =

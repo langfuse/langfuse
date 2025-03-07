@@ -2,11 +2,9 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Fragment } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import {
   ChatMlArraySchema,
@@ -16,6 +14,8 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -25,15 +25,21 @@ export const IOPreview: React.FC<{
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  currentView?: "pretty" | "json";
+  setIsPrettyViewAvailable?: (value: boolean) => void;
 }> = ({
   isLoading = false,
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
   media,
+  currentView,
   ...props
 }) => {
-  const [currentView, setCurrentView] = useState<"pretty" | "json">("pretty");
+  const [localCurrentView, setLocalCurrentView] = useState<"pretty" | "json">(
+    "pretty",
+  );
+  const selectedView = currentView ?? localCurrentView;
   const capture = usePostHogClientCapture();
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
@@ -84,6 +90,11 @@ export const IOPreview: React.FC<{
   const isPrettyViewAvailable =
     inChatMlArray.success || inMarkdown.success || outMarkdown.success;
 
+  useEffect(() => {
+    props.setIsPrettyViewAvailable?.(isPrettyViewAvailable);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPrettyViewAvailable]);
+
   // If there are additional input fields beyond the messages, render them
   const additionalInput =
     typeof input === "object" && input !== null && !Array.isArray(input)
@@ -95,23 +106,28 @@ export const IOPreview: React.FC<{
   // default I/O
   return (
     <>
-      {isPrettyViewAvailable ? (
-        <div className="flex flex-row justify-between">
+      {isPrettyViewAvailable && !currentView ? (
+        <div className="flex w-full flex-row justify-start">
           <Tabs
-            value={currentView}
-            onValueChange={(v) => {
-              setCurrentView(v as "pretty" | "json"),
-                capture("trace_detail:io_mode_switch", { view: v });
+            className="h-fit py-0.5"
+            value={selectedView}
+            onValueChange={(value) => {
+              capture("trace_detail:io_mode_switch", { view: value });
+              setLocalCurrentView(value as "pretty" | "json");
             }}
           >
-            <TabsList>
-              <TabsTrigger value="pretty">Pretty ✨</TabsTrigger>
-              <TabsTrigger value="json">JSON</TabsTrigger>
+            <TabsList className="h-fit py-0.5">
+              <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                Formatted
+              </TabsTrigger>
+              <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                JSON
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
       ) : null}
-      {isPrettyViewAvailable && currentView === "pretty" ? (
+      {isPrettyViewAvailable && selectedView === "pretty" ? (
         <>
           {inChatMlArray.success ? (
             <OpenAiMessageView
@@ -152,7 +168,7 @@ export const IOPreview: React.FC<{
                 <MarkdownJsonView
                   title="Output"
                   content={output}
-                  customCodeHeaderClassName="bg-muted-green dark:bg-secondary"
+                  customCodeHeaderClassName="bg-secondary"
                   media={media?.filter((m) => m.field === "output") ?? []}
                 />
               ) : null}
@@ -160,14 +176,13 @@ export const IOPreview: React.FC<{
           )}
         </>
       ) : null}
-      {currentView === "json" || !isPrettyViewAvailable ? (
+      {selectedView === "json" || !isPrettyViewAvailable ? (
         <>
           {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
               title="Input"
               json={input ?? null}
               isLoading={isLoading}
-              className="flex-1"
               media={media?.filter((m) => m.field === "input") ?? []}
             />
           ) : null}
@@ -176,7 +191,6 @@ export const IOPreview: React.FC<{
               title="Output"
               json={outputClean}
               isLoading={isLoading}
-              className="flex-1"
               media={media?.filter((m) => m.field === "output") ?? []}
             />
           ) : null}
@@ -228,8 +242,7 @@ export const OpenAiMessageView: React.FC<{
                       content={message.content}
                       className={cn(!!message.json && "rounded-b-none")}
                       customCodeHeaderClassName={cn(
-                        message.role === "assistant" &&
-                          "bg-muted-green dark:bg-secondary",
+                        message.role === "assistant" && "bg-secondary",
                         message.role === "system" && "bg-primary-foreground",
                       )}
                       audio={message.audio}

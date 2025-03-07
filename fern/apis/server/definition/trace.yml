@@ -50,6 +50,10 @@ service:
           release:
             type: optional<string>
             docs: Optional filter to only include traces with a certain release.
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for traces where the environment is one of the provided values.
       response: Traces
 
 types:

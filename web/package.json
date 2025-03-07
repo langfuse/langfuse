@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.29.1",
+  "version": "3.37.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -59,6 +59,7 @@
     "@opentelemetry/sdk-node": "^0.53.0",
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
+    "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/instrumentation": "^6.3.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",

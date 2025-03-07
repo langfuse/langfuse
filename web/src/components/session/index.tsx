@@ -202,20 +202,24 @@ export const SessionPage: React.FC<{
             href: `/project/${projectId}/sessions`,
           },
         ],
-        actionButtonsLeft: [
-          <StarSessionToggle
-            key="star"
-            projectId={projectId}
-            sessionId={sessionId}
-            value={session.data?.bookmarked ?? false}
-          />,
-          <PublishSessionSwitch
-            projectId={projectId}
-            sessionId={sessionId}
-            isPublic={session.data?.public ?? false}
-            key="publish"
-          />,
-        ],
+        actionButtonsLeft: (
+          <div className="flex items-center gap-0">
+            <StarSessionToggle
+              key="star"
+              projectId={projectId}
+              sessionId={sessionId}
+              value={session.data?.bookmarked ?? false}
+              size="icon-xs"
+            />
+            <PublishSessionSwitch
+              projectId={projectId}
+              sessionId={sessionId}
+              isPublic={session.data?.public ?? false}
+              key="publish"
+              size="icon-xs"
+            />
+          </div>
+        ),
         actionButtonsRight: [
           <DetailPageNav
             key="nav"

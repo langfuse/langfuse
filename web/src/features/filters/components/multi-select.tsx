@@ -34,6 +34,7 @@ const getFreeTextInput = (
 
 export function MultiSelect({
   title,
+  label,
   values,
   onValueChange,
   options,
@@ -42,6 +43,7 @@ export function MultiSelect({
   isCustomSelectEnabled = false,
 }: {
   title?: string;
+  label?: string;
   values: string[];
   onValueChange: (values: string[]) => void;
   options: FilterOption[] | readonly FilterOption[];
@@ -101,7 +103,7 @@ export function MultiSelect({
           )}
           disabled={disabled}
         >
-          Select
+          {label ?? "Select"}
           <ChevronDown className="h-4 w-4 opacity-50" />
           {selectedValues.size > 0 && (
             <>
