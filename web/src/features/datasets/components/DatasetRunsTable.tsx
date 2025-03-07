@@ -20,7 +20,7 @@ import {
 } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { useIndividualScoreColumns } from "@/src/features/scores/hooks/useIndividualScoreColumns";
-import { ChevronDown, Columns3, MoreVertical } from "lucide-react";
+import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,13 @@ import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 
 export type DatasetRunRowData = {
   id: string;
@@ -64,12 +71,23 @@ const DatasetRunTableMultiSelectAction = ({
   selectedRunIds,
   projectId,
   datasetId,
+  setRowSelection,
 }: {
   selectedRunIds: string[];
   projectId: string;
   datasetId: string;
+  setRowSelection: (value: Record<string, boolean>) => void;
 }) => {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const mutDelete = api.datasets.deleteDatasetRuns.useMutation({
+    onSuccess: () => {
+      utils.datasets.invalidate();
+      setRowSelection({});
+    },
+  });
+
   return (
     <>
       <DropdownMenu>
@@ -98,8 +116,48 @@ const DatasetRunTableMultiSelectAction = ({
               <span>Compare</span>
             </DropdownMenuItem>
           </Link>
+          <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
+            <Trash className="mr-2 h-4 w-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!mutDelete.isLoading) {
+            setIsDeleteDialogOpen(isOpen);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="mb-4">Please confirm</DialogTitle>
+            <DialogDescription className="text-md p-0">
+              This action cannot be undone and removes all the data associated
+              with {selectedRunIds.length} dataset run
+              {selectedRunIds.length > 1 ? "s" : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <Button
+            variant="destructive"
+            loading={mutDelete.isLoading}
+            disabled={mutDelete.isLoading}
+            onClick={async (event) => {
+              event.preventDefault();
+              capture("dataset_run:delete_form_submit");
+              await mutDelete.mutateAsync({
+                projectId,
+                datasetRunIds: selectedRunIds,
+              });
+              setIsDeleteDialogOpen(false);
+            }}
+          >
+            Delete Dataset Runs
+          </Button>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -461,6 +519,7 @@ export function DatasetRunsTable(props: {
               )}
               projectId={props.projectId}
               datasetId={props.datasetId}
+              setRowSelection={setSelectedRows}
             />
           ) : null,
         ]}
