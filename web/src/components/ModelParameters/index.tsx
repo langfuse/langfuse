@@ -21,14 +21,8 @@ import {
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
 import { useState } from "react";
-import {
-  CircleChevronDown,
-  CircleChevronUp,
-  CircleChevronUpIcon,
-  Dot,
-} from "lucide-react";
+import { CircleChevronDown, CircleChevronUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Separator } from "@/src/components/ui/separator";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
