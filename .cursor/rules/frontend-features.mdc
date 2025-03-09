@@ -30,4 +30,4 @@ alwaysApply: true
 ## Styling
 
 - We use Tailwind CSS
-- We use a standard color pallet which automatically handles light/dark mode, see [globals.css](mdc:web/src/styles/globals.css)
+- We use a standard color palette which automatically handles light/dark mode, see [globals.css](mdc:web/src/styles/globals.css)
