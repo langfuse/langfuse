@@ -88,7 +88,6 @@ export const EvaluatorDetail = () => {
       ? {
           ...evaluator.data,
           evalTemplate: evaluator.data.evalTemplate,
-          jobExecutionsByState: evaluator.data.jobExecutionsByState,
         }
       : undefined;
 
