@@ -10,6 +10,7 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -92,6 +93,16 @@ export default withMiddlewares({
             id: datasetRun.id,
           },
         },
+      });
+
+      await auditLog({
+        action: "delete",
+        resourceType: "datasetRun",
+        resourceId: datasetRun.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        before: datasetRun,
       });
 
       return {
