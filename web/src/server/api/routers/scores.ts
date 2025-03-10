@@ -31,7 +31,7 @@ import {
   getScoresUiTable,
   getScoreNames,
   getTracesGroupedByTags,
-  deleteScore,
+  deleteScores,
   upsertScore,
   logger,
   getTraceById,
@@ -348,7 +348,8 @@ export const scoresRouter = createTRPCRouter({
         });
 
         // Delete the score from Clickhouse
-        await deleteScore(input.projectId, clickhouseScore.id);
+        // TODO: Move to queue
+        await deleteScores(input.projectId, [clickhouseScore.id]);
         score = clickhouseScore;
       }
 

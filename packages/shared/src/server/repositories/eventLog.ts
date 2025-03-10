@@ -81,6 +81,37 @@ export const getEventLogByProjectIdBeforeDate = (
   });
 };
 
+export const getEventLogByProjectIdAndEntityIds = (
+  projectId: string,
+  entityType: "observation" | "trace" | "score",
+  entityIds: string[],
+): AsyncGenerator<EventLogRecordReadType> => {
+  const query = `
+    select *
+    from event_log
+    where project_id = {projectId: String}
+      and entity_type = {entityType: String}
+      and entity_id in ({entityIds: Array(String)})
+  `;
+
+  return queryClickhouseStream<EventLogRecordReadType>({
+    query,
+    params: {
+      projectId,
+      entityType,
+      entityIds,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120_000, // 2 minutes
+    },
+    tags: {
+      feature: "eventLog",
+      kind: "list",
+      projectId,
+    },
+  });
+};
+
 export const getEventLogByProjectIdAndTraceIds = (
   projectId: string,
   traceIds: string[],

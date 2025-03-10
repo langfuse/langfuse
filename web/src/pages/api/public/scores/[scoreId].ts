@@ -9,12 +9,15 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import {
-  deleteScore,
   getScoreById,
   logger,
   traceException,
+  ScoreDeleteQueue,
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { QueueJobs } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
+import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -43,9 +46,18 @@ export default withMiddlewares({
     name: "Delete Score",
     querySchema: DeleteScoreQuery,
     responseSchema: DeleteScoreResponse,
+    successStatusCode: 202,
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
-      await deleteScore(auth.scope.projectId, scoreId);
+
+      const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
+      if (!scoreDeleteQueue) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ScoreDeleteQueue not initialized",
+        });
+      }
+
       await auditLog({
         action: "delete",
         resourceType: "score",
@@ -54,7 +66,18 @@ export default withMiddlewares({
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
       });
-      return { message: "Score deleted successfully" };
+
+      await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: auth.scope.projectId,
+          scoreIds: [scoreId],
+        },
+        name: QueueJobs.ScoreDelete,
+      });
+
+      return { message: "Score deletion queued successfully" };
     },
   }),
 });
