@@ -17,7 +17,6 @@ import {
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { QueueJobs } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { TRPCError } from "@trpc/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -52,10 +51,7 @@ export default withMiddlewares({
 
       const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
       if (!scoreDeleteQueue) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "ScoreDeleteQueue not initialized",
-        });
+        throw new InternalServerError("ScoreDeleteQueue not initialized");
       }
 
       await auditLog({

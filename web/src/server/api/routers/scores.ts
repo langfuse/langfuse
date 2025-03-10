@@ -39,8 +39,12 @@ import {
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
   hasAnyScore,
+  ScoreDeleteQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -323,8 +327,6 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      let score: Score | null | undefined = null;
-
       // Fetch the current score from Clickhouse
       const clickhouseScore = await getScoreById(
         input.projectId,
@@ -338,28 +340,34 @@ export const scoresRouter = createTRPCRouter({
         throw new LangfuseNotFoundError(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
         );
-      } else {
-        await auditLog({
-          session: ctx.session,
-          resourceType: "score",
-          resourceId: input.id,
-          action: "delete",
-          before: clickhouseScore,
+      }
+
+      const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
+      if (!scoreDeleteQueue) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ScoreDeleteQueue not initialized",
         });
-
-        // Delete the score from Clickhouse
-        // TODO: Move to queue
-        await deleteScores(input.projectId, [clickhouseScore.id]);
-        score = clickhouseScore;
       }
 
-      if (!score) {
-        throw new InternalServerError(
-          `Annotation score could not be deleted in project ${input.projectId}`,
-        );
-      }
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: input.id,
+        action: "delete",
+        before: clickhouseScore,
+      });
 
-      return validateDbScore(score);
+      // Delete the score from Clickhouse
+      await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: input.projectId,
+          scoreIds: [input.id],
+        },
+        name: QueueJobs.ScoreDelete,
+      });
     }),
   getScoreKeysAndProps: protectedProjectProcedure
     .input(
