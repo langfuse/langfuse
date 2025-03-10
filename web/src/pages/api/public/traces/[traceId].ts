@@ -157,9 +157,8 @@ export default withMiddlewares({
         resourceId: traceId,
         action: "delete",
         projectId: auth.scope.projectId,
-        userId: auth.scope.publicKey,
+        apiKeyId: auth.scope.apiKeyId,
         orgId: auth.scope.orgId,
-        orgRole: Role.ADMIN, // TODO: Maybe we should add a new API Key role here?
       });
 
       // Add to delete queue
