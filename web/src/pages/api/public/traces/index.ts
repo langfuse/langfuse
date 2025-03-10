@@ -138,7 +138,7 @@ export default withMiddlewares({
         name: QueueJobs.TraceDelete,
       });
 
-      return { message: "Traces delete successfully" };
+      return { message: "Traces deleted successfully" };
     },
   }),
 });
