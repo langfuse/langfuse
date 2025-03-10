@@ -1,6 +1,6 @@
 import { capitalize } from "lodash";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import {
   ChatMessageRole,
   SYSTEM_ROLES,
@@ -86,8 +86,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     }
   };
 
-  const placeholder = `Enter ${getRoleNamePlaceholder(message.role)} message here.`;
-
   return (
     <Card
       ref={setNodeRef}
@@ -120,15 +118,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             {capitalize(message.role)}
           </Button>
         </div>
-        <CodeMirrorEditor
+        <MemoizedEditor
           value={message.content}
           onChange={(value) => updateMessage(message.id, "content", value)}
-          mode="prompt"
-          minHeight={30}
-          className="w-full"
-          editable={true}
-          lineNumbers={false}
-          placeholder={placeholder}
+          role={message.role}
         />
         <Button
           variant="ghost"
@@ -142,3 +135,25 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     </Card>
   );
 };
+
+const MemoizedEditor = memo(function MemoizedEditor(props: {
+  value: string;
+  role: (typeof ROLES)[1];
+  onChange: (value: string) => void;
+}) {
+  const { value, role, onChange } = props;
+  const placeholder = `Enter ${getRoleNamePlaceholder(role)} message here.`;
+
+  return (
+    <CodeMirrorEditor
+      value={value}
+      onChange={onChange}
+      mode="prompt"
+      minHeight={30}
+      className="w-full"
+      editable={true}
+      lineNumbers={false}
+      placeholder={placeholder}
+    />
+  );
+});
