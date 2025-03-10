@@ -12,6 +12,12 @@ const clientTestConfig = {
   testEnvironment: "jest-environment-jsdom",
 };
 
+const unitTestConfig = {
+  displayName: "unit",
+  testMatch: ["/**/*.unit.test.[jt]s?(x)"],
+  testEnvironment: "jest-environment-jsdom",
+};
+
 const serverTestConfig = {
   displayName: "sync-server",
   testMatch: ["/**/*.servertest.[jt]s?(x)"],
@@ -49,6 +55,12 @@ const config = {
     await createJestConfig(clientTestConfig)(),
     {
       ...(await createJestConfig(serverTestConfig)()),
+      transformIgnorePatterns: [
+        `/web/node_modules/(?!(${esModules.join("|")})/)`,
+      ],
+    },
+    {
+      ...(await createJestConfig(unitTestConfig)()),
       transformIgnorePatterns: [
         `/web/node_modules/(?!(${esModules.join("|")})/)`,
       ],

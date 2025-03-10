@@ -1,7 +1,8 @@
 import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { env } from "../../env";
-import { logger } from "../logger";
+import { env } from "../../../env";
+import { logger } from "../../logger";
+import { buildAndResolvePromptGraph } from "./utils/promptDependencies";
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -53,17 +54,19 @@ export class PromptService {
     const { projectId, promptName, version, label } = params;
 
     if (version) {
-      return await this.prisma.prompt.findFirst({
+      const prompt = await this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
           version,
         },
       });
+
+      return this.resolvePrompt(prompt);
     }
 
     if (label) {
-      return await this.prisma.prompt.findFirst({
+      const prompt = await this.prisma.prompt.findFirst({
         where: {
           projectId,
           name: promptName,
@@ -72,11 +75,28 @@ export class PromptService {
           },
         },
       });
+
+      return this.resolvePrompt(prompt);
     }
 
     this.logError("Invalid prompt params", params);
 
     return null;
+  }
+
+  private async resolvePrompt(prompt: Prompt | null) {
+    if (!prompt) return prompt;
+
+    const promptGraph = await buildAndResolvePromptGraph({
+      projectId: prompt.projectId,
+      parentPrompt: prompt,
+    });
+
+    return {
+      ...prompt,
+      prompt: promptGraph.resolvedPrompt,
+      resolutionGraph: promptGraph.graph,
+    };
   }
 
   private async shouldUseCache(params: PromptParams): Promise<boolean> {
@@ -167,7 +187,7 @@ export class PromptService {
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
     // Important to *pre*fix LOCK as otherwise it would be deleted by deleteKeysByPrefix
-    return `LOCK:${this.getCacheKeyPrefix(params)}`;
+    return `LOCK:prompt:${params.projectId}`;
   }
 
   public async invalidateCache(
@@ -175,26 +195,11 @@ export class PromptService {
   ): Promise<void> {
     if (!this.cacheEnabled) return;
 
-    const cacheKeyPrefix = this.getCacheKeyPrefix(params);
+    const keyIndexKey = this.getKeyIndexKey(params);
+    const keys = await this.redis?.smembers(keyIndexKey);
 
-    try {
-      const startTime = Date.now();
-      this.logInfo("Invalidating cache for prefix", cacheKeyPrefix);
-
-      const keyIndexKey = this.getKeyIndexKey(params);
-      const keys = await this.redis?.smembers(keyIndexKey);
-
-      // Delete all keys for the prefix and the key index
-      await this.redis?.del([...(keys ?? []), keyIndexKey]);
-
-      this.logInfo(
-        `Cache invalidated for prefix ${cacheKeyPrefix} in ${Date.now() - startTime}ms`,
-      );
-    } catch (e) {
-      this.logError("Error deleting keys for prefix", cacheKeyPrefix, e);
-
-      throw e;
-    }
+    // Delete all keys for the prefix and the key index
+    await this.redis?.del([...(keys ?? []), keyIndexKey]);
   }
 
   private getCacheKey(params: PromptParams): string {
@@ -212,7 +217,7 @@ export class PromptService {
   private getKeyIndexKey(
     params: Pick<PromptParams, "projectId" | "promptName">,
   ): string {
-    return `prompt_key_index:${params.projectId}:${params.promptName}`;
+    return `prompt_key_index:${params.projectId}`;
   }
 
   private logError(message: string, ...args: any[]) {

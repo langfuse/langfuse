@@ -25,6 +25,7 @@ import {
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
   getAggregatedScoresForPrompts,
+  buildAndResolvePromptGraph,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
@@ -304,7 +305,20 @@ export const promptRouter = createTRPCRouter({
             projectId,
             name: input.promptName,
           },
+          include: {
+            PromptDependency: {
+              select: {
+                parentId: true,
+              },
+            },
+          },
         });
+
+        if (prompts.some((prompt) => prompt.PromptDependency.length > 0)) {
+          throw Error(
+            "Other prompts are depending on prompt versions you are trying to delete. Please delete the dependent prompts first.",
+          );
+        }
 
         for (const prompt of prompts) {
           await auditLog(
@@ -363,8 +377,20 @@ export const promptRouter = createTRPCRouter({
             id: input.promptVersionId,
             projectId,
           },
+          include: {
+            PromptDependency: {
+              select: { parentId: true },
+            },
+          },
         });
         const { name: promptName } = promptVersion;
+
+        // TODO: improve by returning actual names and versions that depend on this prompt
+        if (promptVersion.PromptDependency.length > 0) {
+          throw Error(
+            "Prompt(s) are depending on this prompt you are trying to delete. Please delete the dependent prompt first.",
+          );
+        }
 
         await auditLog(
           {
@@ -570,6 +596,42 @@ export const promptRouter = createTRPCRouter({
         distinct: ["name"],
       });
     }),
+
+  getPromptLinkOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const query = Prisma.sql`
+        SELECT 
+          p.name,
+          array_agg(DISTINCT p.version) as "versions",
+          array_agg(DISTINCT l) FILTER (WHERE l IS NOT NULL) AS "labels"
+        FROM
+          prompts p
+          LEFT JOIN LATERAL unnest(labels) AS l ON TRUE
+        WHERE
+          project_id = ${input.projectId}
+          AND type = 'text'
+        GROUP BY
+          p.name
+      `;
+
+      const result = await ctx.prisma.$queryRaw<
+        {
+          name: string;
+          versions: number[];
+          labels: string[];
+        }[]
+      >(query);
+
+      return result;
+    }),
+
   updateTags: protectedProjectProcedure
     .input(
       z.object({
@@ -750,6 +812,34 @@ export const promptRouter = createTRPCRouter({
           ),
           traceScores: aggregateScores(promptTraceScores?.scores ?? []),
         };
+      });
+    }),
+  resolvePromptGraph: protectedProjectProcedure
+    .input(
+      z.object({
+        promptId: z.string(),
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { promptId, projectId } = input;
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId,
+        scope: "prompts:read",
+      });
+
+      const prompt = await ctx.prisma.prompt.findUniqueOrThrow({
+        where: {
+          id: promptId,
+          projectId,
+        },
+      });
+
+      return buildAndResolvePromptGraph({
+        projectId: input.projectId,
+        parentPrompt: prompt,
       });
     }),
 });

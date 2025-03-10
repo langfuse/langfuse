@@ -492,6 +492,16 @@ export type Prompt = {
     labels: Generated<string[]>;
     commit_message: string | null;
 };
+export type PromptDependency = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    parent_id: string;
+    child_name: string;
+    child_label: string | null;
+    child_version: number | null;
+};
 export type QueueBackUp = {
     id: string;
     project_id: string | null;
@@ -590,6 +600,7 @@ export type DB = {
     prices: Price;
     project_memberships: ProjectMembership;
     projects: Project;
+    prompt_dependencies: PromptDependency;
     prompts: Prompt;
     queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
