@@ -126,7 +126,7 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
+if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.ScoreDelete, scoreDeleteProcessor, {
     concurrency: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
     limiter: {
