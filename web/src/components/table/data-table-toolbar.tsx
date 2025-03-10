@@ -133,15 +133,14 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {environmentFilter && (
-          <div className="flex max-w-md items-center">
-            <MultiSelect
-              title="Environment"
-              values={environmentFilter.values}
-              onValueChange={environmentFilter.onValueChange}
-              options={environmentFilter.options}
-              className="my-0 w-auto min-w-[150px] max-w-[250px] overflow-hidden"
-            />
-          </div>
+          <MultiSelect
+            title="Environment"
+            label="Env"
+            values={environmentFilter.values}
+            onValueChange={environmentFilter.onValueChange}
+            options={environmentFilter.options}
+            className="my-0 w-auto overflow-hidden"
+          />
         )}
         {selectedOption && setDateRangeAndOption && (
           <TableDateRangeDropdown

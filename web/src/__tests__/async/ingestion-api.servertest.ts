@@ -242,6 +242,89 @@ describe("/api/public/ingestion API Endpoint", () => {
     },
   );
 
+  it.each([
+    "&",
+    "$",
+    "@",
+    "=",
+    ";",
+    "/",
+    "+",
+    " ",
+    ",",
+    "?",
+    // "\\",
+    "{",
+    "}",
+    "^",
+    "%",
+    "`",
+    "]",
+    '"',
+    ">",
+    "[",
+    "~",
+    "<",
+    "#",
+    "|",
+  ])("should test special S3 characters in IDs (%s)", async (char: string) => {
+    const traceId = randomUUID();
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: randomUUID(),
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: `${traceId}-${char}-test`,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById(`${traceId}-${char}-test`, projectId);
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(`${traceId}-${char}-test`);
+      expect(trace!.projectId).toBe(projectId);
+      expect(trace!.environment).toEqual("default");
+    });
+  });
+
+  it("should fail for \\r in id", async () => {
+    const traceId = v4();
+
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: `${v4()}-\r-test`,
+          type: "trace-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: traceId,
+            userId: "user-1",
+            metadata: { key: "value" },
+            release: "1.0.0",
+            version: "2.0.0",
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+    expect("errors" in response.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(response.body.errors.length).toBe(1);
+    expect(response.body.errors[0].message).toBe("Invalid request data");
+    expect(response.body.errors[0].error).toContain(
+      "ID cannot contain carriage return characters",
+    );
+  });
+
   it("should fail for long trace name", async () => {
     const traceId = v4();
 
@@ -263,6 +346,36 @@ describe("/api/public/ingestion API Endpoint", () => {
             metadata: { key: "value" },
             release: "1.0.0",
             version: "2.0.0",
+          },
+        },
+      ],
+    });
+
+    expect(response.status).toBe(207);
+    expect("errors" in response.body).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    expect(response.body.errors.length).toBe(1);
+    expect(response.body.errors[0].message).toBe("Invalid request data");
+  });
+
+  it("should fail for float in usageDetails", async () => {
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [
+        {
+          id: v4(),
+          type: "generation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: randomUUID(),
+            traceId: randomUUID(),
+            parentObservationId: randomUUID(),
+            startTime: new Date().toISOString(),
+            model: "gpt-4",
+            input: { text: "input" },
+            output: { text: "output" },
+            usageDetails: {
+              key: 0.1,
+            },
           },
         },
       ],

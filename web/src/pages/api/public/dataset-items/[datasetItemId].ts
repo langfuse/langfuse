@@ -9,6 +9,7 @@ import {
   transformDbDatasetItemToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -74,6 +75,16 @@ export default withMiddlewares({
             id: datasetItemId,
           },
         },
+      });
+
+      await auditLog({
+        action: "delete",
+        resourceType: "datasetItem",
+        resourceId: datasetItemId,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        before: datasetItem,
       });
 
       return {

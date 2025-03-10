@@ -28,9 +28,11 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { Badge } from "@/src/components/ui/badge";
 
 type RowData = {
   userId: string;
+  environment?: string;
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
@@ -221,6 +223,25 @@ const UsersTable = () => {
       },
     },
     {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: RowData["environment"] = row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
+    },
+    {
       accessorKey: "firstEvent",
       header: "First Event",
       headerTooltip: {
@@ -349,6 +370,7 @@ const UsersTable = () => {
                   data: userRowData.rows?.map((t) => {
                     return {
                       userId: t.id,
+                      environment: t.environment ?? undefined,
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:

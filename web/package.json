@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.37.0",
+  "version": "3.38.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -155,7 +155,7 @@
     "unified": "^11.0.5",
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
-    "vaul": "^0.9.1",
+    "vaul": "^1.1.2",
     "vis-network": "^9.1.9",
     "zod": "^3.23.8"
   },
