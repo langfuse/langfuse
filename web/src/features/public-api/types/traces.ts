@@ -102,7 +102,7 @@ export const DeleteTraceV1Response = z
 // DELETE /api/public/traces
 export const DeleteTracesV1Body = z
   .object({
-    traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
+    traceIds: z.array(z.string()).min(1, "At least 1 traceId is required."),
   })
   .strict();
 export const DeleteTracesV1Response = z
