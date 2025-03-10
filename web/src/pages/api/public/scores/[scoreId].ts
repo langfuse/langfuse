@@ -14,6 +14,7 @@ import {
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -45,6 +46,14 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { scoreId } = query;
       await deleteScore(auth.scope.projectId, scoreId);
+      await auditLog({
+        action: "delete",
+        resourceType: "score",
+        resourceId: scoreId,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+      });
       return { message: "Score deleted successfully" };
     },
   }),

@@ -11,6 +11,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { InvalidRequestError } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const getPromptsHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   const authCheck = await authorizePromptRequestOrThrow(req);
@@ -67,6 +68,16 @@ const postPromptsHandler = async (
     }
 
     throw err;
+  });
+
+  await auditLog({
+    action: "create",
+    resourceType: "prompt",
+    resourceId: createdPrompt.id,
+    projectId: authCheck.scope.projectId,
+    orgId: authCheck.scope.orgId,
+    apiKeyId: authCheck.scope.apiKeyId,
+    after: createdPrompt,
   });
 
   return res.status(201).json(createdPrompt);

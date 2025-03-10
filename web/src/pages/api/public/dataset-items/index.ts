@@ -15,6 +15,7 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -93,6 +94,16 @@ export default withMiddlewares({
         }
         throw e;
       }
+
+      await auditLog({
+        action: "create",
+        resourceType: "datasetItem",
+        resourceId: item.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        after: item,
+      });
 
       return transformDbDatasetItemToAPIDatasetItem({
         ...item,

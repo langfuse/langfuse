@@ -1,4 +1,8 @@
-import { prisma as _prisma, type Role } from "@langfuse/shared/src/db";
+import {
+  prisma as _prisma,
+  type Role,
+  AuditLogRecordType,
+} from "@langfuse/shared/src/db";
 
 export type AuditableResource =
   | "annotationQueue"
@@ -71,6 +75,7 @@ export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
           userOrgRole: log.session.orgRole,
           projectId: log.session.projectId,
           userProjectRole: log.session.projectRole,
+          type: AuditLogRecordType.USER,
         }
       : "userId" in log
         ? {
@@ -79,11 +84,13 @@ export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
             userOrgRole: log.orgRole,
             projectId: log.projectId,
             userProjectRole: log.projectRole,
+            type: AuditLogRecordType.USER,
           }
         : {
             apiKeyId: log.apiKeyId,
             orgId: log.orgId,
             projectId: log.projectId,
+            type: AuditLogRecordType.API_KEY,
           };
 
   await (prisma ?? _prisma).auditLog.create({
