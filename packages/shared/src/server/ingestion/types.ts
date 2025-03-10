@@ -8,6 +8,7 @@ import { type ScoreSourceType } from "../repositories";
 export const idSchema = z
   .string()
   .min(1)
+  .max(800) // AWS S3 allows for 1024 bytes for object keys and we need enough room to construct the entire key/path. https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
   .refine((id) => !id.includes("\r"), {
     message: "ID cannot contain carriage return characters",
   });
