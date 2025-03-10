@@ -5278,10 +5278,10 @@ components:
       title: DeleteTraceResponse
       type: object
       properties:
-        success:
-          type: boolean
+        message:
+          type: string
       required:
-        - success
+        - message
     Sort:
       title: Sort
       type: object

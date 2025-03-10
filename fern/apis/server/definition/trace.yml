@@ -84,7 +84,7 @@ types:
       meta: pagination.MetaResponse
   DeleteTraceResponse:
     properties:
-      success: boolean
+      message: string
   Sort:
     properties:
       id: string
