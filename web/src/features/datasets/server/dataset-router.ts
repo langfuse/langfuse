@@ -807,12 +807,19 @@ export const datasetRouter = createTRPCRouter({
       });
 
       // Add scores to the run items while also keeping the datasetRunName
+      const runItemNameMap = runItems.reduce(
+        (map, item) => {
+          map[item.id] = item.datasetRunName;
+          return map;
+        },
+        {} as Record<string, string>,
+      );
+
       const parsedRunItems = (
         await getRunItemsByRunIdOrItemId(input.projectId, runItems)
       ).map((ri) => ({
         ...ri,
-        datasetRunName: runItems.find((rawRunItem) => ri.id === rawRunItem.id)
-          ?.datasetRunName,
+        datasetRunName: runItemNameMap[ri.id],
       }));
 
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
