@@ -2,6 +2,7 @@ import {
   createObservation,
   createScore,
   createTrace,
+  getScoresByIds,
 } from "@langfuse/shared/src/server";
 import {
   createObservationsCh,
@@ -10,10 +11,15 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { GetScoreResponse, GetScoresResponse } from "@langfuse/shared";
+import {
+  DeleteScoreResponse,
+  GetScoreResponse,
+  GetScoresResponse,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
+import waitForExpect from "wait-for-expect";
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -96,6 +102,38 @@ describe("/api/public/scores API Endpoint", () => {
       );
 
       expect(fetchedScore.status).toBe(200);
+    });
+  });
+
+  describe("DELETE /api/public/scores/:scoreId", () => {
+    it("should delete a score", async () => {
+      // Setup
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const scoreId = v4();
+
+      const score = createScore({
+        id: scoreId,
+        project_id: projectId,
+      });
+      await createScoresCh([score]);
+
+      // When
+      const deleteResponse = await makeZodVerifiedAPICall(
+        DeleteScoreResponse,
+        "DELETE",
+        `/api/public/scores/${scoreId}`,
+        undefined,
+        auth,
+        202,
+      );
+
+      // Then
+      expect(deleteResponse.status).toBe(202);
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, [scoreId]);
+        expect(scores).toHaveLength(0);
+      });
     });
   });
 

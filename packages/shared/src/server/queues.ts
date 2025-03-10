@@ -34,6 +34,10 @@ export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
   traceIds: z.array(z.string()),
 });
+export const ScoresQueueEventSchema = z.object({
+  projectId: z.string(),
+  scoreIds: z.array(z.string()),
+});
 export const ProjectQueueEventSchema = z.object({
   projectId: z.string(),
   orgId: z.string(),
@@ -65,6 +69,15 @@ export const DataRetentionProcessingEventSchema = z.object({
 export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   "actionId",
   [
+    z.object({
+      actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.nativeEnum(BatchExportTableName),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.nativeEnum(BatchActionType),
+    }),
     z.object({
       actionId: z.literal("trace-delete"),
       projectId: z.string(),
@@ -114,6 +127,7 @@ export type CreateEvalQueueEventType = z.infer<
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
+export type ScoresQueueEventType = z.infer<typeof ScoresQueueEventSchema>;
 export type ProjectQueueEventType = z.infer<typeof ProjectQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
@@ -152,6 +166,7 @@ export enum QueueName {
   DataRetentionProcessingQueue = "data-retention-processing-queue",
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
+  ScoreDelete = "score-delete",
 }
 
 export enum QueueJobs {
@@ -173,6 +188,7 @@ export enum QueueJobs {
   DataRetentionProcessingJob = "data-retention-processing-job",
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
+  ScoreDelete = "score-delete",
 }
 
 export type TQueueJobTypes = {
@@ -187,6 +203,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: TracesQueueEventType | TraceQueueEventType;
     name: QueueJobs.TraceDelete;
+  };
+  [QueueName.ScoreDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: ScoresQueueEventType;
+    name: QueueJobs.ScoreDelete;
   };
   [QueueName.ProjectDelete]: {
     timestamp: Date;
