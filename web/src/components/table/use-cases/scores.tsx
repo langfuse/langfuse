@@ -33,6 +33,8 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchExportTableName } from "@langfuse/shared";
 
 export type ScoresTableRow = {
   id: string;
@@ -497,6 +499,13 @@ export default function ScoresTable({
           onValueChange: setSelectedEnvironments,
           options: environmentOptions.map((env) => ({ value: env })),
         }}
+        actionButtons={
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Scores}
+            key="batchExport"
+          />
+        }
       />
       <DataTable
         columns={columns}
