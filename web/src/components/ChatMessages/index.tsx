@@ -1,5 +1,5 @@
 import { PlusCircleIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { ChatMessageRole, SYSTEM_ROLES } from "@langfuse/shared";
@@ -26,78 +26,101 @@ import {
 import { isString } from "@/src/utils/types";
 
 type ChatMessagesProps = MessagesContext;
-export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
-  const { messages } = props;
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const prevMessageCount = useRef(0);
+export const ChatMessages: React.FC<ChatMessagesProps> = memo(
+  function ChatMessages(props) {
+    const { messages } = props;
+    const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+    const prevMessageCount = useRef(0);
 
-  // Scroll to bottom when new messages are added
-  useEffect(() => {
-    if (prevMessageCount.current < messages.length && scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current;
-      scrollElement.scrollTop = scrollElement.scrollHeight;
-    }
-    prevMessageCount.current = messages.length;
-  }, [scrollAreaRef, messages.length]);
+    // Scroll to bottom when new messages are added
+    useEffect(() => {
+      if (prevMessageCount.current < messages.length && scrollAreaRef.current) {
+        const scrollElement = scrollAreaRef.current;
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      }
+      prevMessageCount.current = messages.length;
+    }, [scrollAreaRef, messages.length]);
 
-  const sensors = useSensors(
-    useSensor(MouseSensor, {}),
-    useSensor(TouchSensor, {}),
-    useSensor(KeyboardSensor, {}),
-  );
+    const sensors = useSensors(
+      useSensor(MouseSensor, {}),
+      useSensor(TouchSensor, {}),
+      useSensor(KeyboardSensor, {}),
+    );
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
+    function handleDragEnd(event: DragEndEvent) {
+      const { active, over } = event;
 
-    if (active && over && active.id !== over.id) {
-      if (isString(active.id) && isString(over.id)) {
-        const newIndex = messages.findIndex((m) => m.id === over.id);
-        const oldIndex = messages.findIndex((m) => m.id === active.id);
-        if (newIndex < 0 || oldIndex < 0) {
-          return;
+      if (active && over && active.id !== over.id) {
+        if (isString(active.id) && isString(over.id)) {
+          const newIndex = messages.findIndex((m) => m.id === over.id);
+          const oldIndex = messages.findIndex((m) => m.id === active.id);
+          if (newIndex < 0 || oldIndex < 0) {
+            return;
+          }
+          // prevent reordering system messages
+          if (SYSTEM_ROLES.includes(messages[newIndex].role)) {
+            return;
+          }
+          const newMessages = arrayMove(messages, oldIndex, newIndex);
+          props.setMessages(newMessages);
         }
-        // prevent reordering system messages
-        if (SYSTEM_ROLES.includes(messages[newIndex].role)) {
-          return;
-        }
-        const newMessages = arrayMove(messages, oldIndex, newIndex);
-        props.setMessages(newMessages);
       }
     }
-  }
 
-  return (
-    <DndContext
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      onDragEnd={handleDragEnd}
-      sensors={sensors}
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
-          <div className="mb-4 flex-1 space-y-3">
-            <SortableContext
-              items={props.messages.map((message) => message.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {props.messages.map((message, index) => {
-                return (
-                  <ChatMessageComponent
-                    {...{ message, ...props, index }}
-                    key={message.id}
-                  />
-                );
-              })}
-            </SortableContext>
+    return (
+      <DndContext
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        onDragEnd={handleDragEnd}
+        sensors={sensors}
+      >
+        <div className="flex h-full flex-col">
+          <div
+            className="flex-1 overflow-auto scroll-smooth"
+            ref={scrollAreaRef}
+          >
+            <div className="mb-4 flex-1 space-y-3">
+              <SortableContext
+                items={props.messages.map((message) => message.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {props.messages.map((message, index) => {
+                  return (
+                    <ChatMessageComponent
+                      key={message.id}
+                      message={message}
+                      index={index}
+                      deleteMessage={props.deleteMessage}
+                      updateMessage={props.updateMessage}
+                      availableRoles={props.availableRoles}
+                    />
+                  );
+                })}
+              </SortableContext>
+            </div>
+          </div>
+          <div className="py-3">
+            <AddMessageButton {...props} />
           </div>
         </div>
-        <div className="py-3">
-          <AddMessageButton {...props} />
-        </div>
-      </div>
-    </DndContext>
-  );
-};
+      </DndContext>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Only rerender when message count or roles change.
+    // Content changes are handled by text areas directly.
+    // Note: DnDContext recreation prevents memoization inside ChatMessageComponent.
+    const prevMessages = prevProps.messages;
+    const nextMessages = nextProps.messages;
+
+    const isSameMessageLength = prevMessages.length === nextMessages.length;
+    const isSameMessageRoles = prevMessages.every(
+      (prevMessage, index) => prevMessage.role === nextMessages[index]?.role,
+    );
+
+    return isSameMessageLength && isSameMessageRoles;
+  },
+);
 
 type AddMessageButtonProps = Pick<MessagesContext, "messages" | "addMessage">;
 const AddMessageButton: React.FC<AddMessageButtonProps> = ({
