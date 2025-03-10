@@ -26,7 +26,6 @@ import {
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { Role } from "@langfuse/shared/src/db";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({

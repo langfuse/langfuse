@@ -24,8 +24,6 @@ import Decimal from "decimal.js";
 import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
-import { Role } from "@langfuse/shared/src/db";
-import { z } from "zod";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
