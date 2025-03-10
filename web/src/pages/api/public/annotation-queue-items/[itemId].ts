@@ -61,8 +61,11 @@ export default withMiddlewares({
 
       // Update the item - status can only be set to COMPLETED
       const updateData = {
-        status: AnnotationQueueStatus.COMPLETED,
-        completedAt: new Date(), // Always set completedAt when status is COMPLETED
+        ...body,
+        completedAt:
+          body.status === AnnotationQueueStatus.COMPLETED
+            ? new Date()
+            : undefined,
       };
 
       const item = await prisma.annotationQueueItem.update({
