@@ -17,7 +17,7 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
-import { UiColumnMapping, UiColumnMappings } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -345,7 +345,7 @@ export const getTracesGroupedByUsers = async (
   searchQuery?: string,
   limit?: number,
   offset?: number,
-  columns?: UiColumnMapping[],
+  columns?: UiColumnMappings,
 ) => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
@@ -404,7 +404,7 @@ export const getTracesGroupedByUsers = async (
 export type GroupedTracesQueryProp = {
   projectId: string;
   filter: FilterState;
-  columns?: UiColumnMapping[];
+  columns?: UiColumnMappings;
 };
 
 export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
