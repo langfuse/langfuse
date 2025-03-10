@@ -139,6 +139,7 @@ export const auditLogsRouter = createTRPCRouter({
               };
               break;
             default:
+              /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
               const exhaustiveCheckDefault: never = log.type;
               throw new Error(`Type ${log.type} not found`);
           }
