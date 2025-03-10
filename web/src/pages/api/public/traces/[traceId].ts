@@ -4,6 +4,8 @@ import { transformDbToApiObservation } from "@/src/features/public-api/types/obs
 import {
   GetTraceV1Query,
   GetTraceV1Response,
+  DeleteTraceV1Query,
+  DeleteTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import {
   filterAndValidateDbScoreList,
@@ -15,8 +17,15 @@ import {
   getScoresForTraces,
   getTraceById,
   traceException,
+  QueueJobs,
+  TraceDeleteQueue,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
+import { randomUUID } from "crypto";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { TRPCError } from "@trpc/server";
+import { Role } from "@langfuse/shared/src/db";
+import { z } from "zod";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -125,6 +134,46 @@ export default withMiddlewares({
           )
           .toNumber(),
       };
+    },
+  }),
+
+  DELETE: createAuthedAPIRoute({
+    name: "Delete Single Trace",
+    querySchema: DeleteTraceV1Query,
+    responseSchema: DeleteTraceV1Response,
+    fn: async ({ query, auth }) => {
+      const { traceId } = query;
+
+      const traceDeleteQueue = TraceDeleteQueue.getInstance();
+      if (!traceDeleteQueue) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "TraceDeleteQueue not initialized",
+        });
+      }
+
+      await auditLog({
+        resourceType: "trace",
+        resourceId: traceId,
+        action: "delete",
+        projectId: auth.scope.projectId,
+        userId: auth.scope.publicKey,
+        orgId: auth.scope.orgId,
+        orgRole: Role.ADMIN, // TODO: Maybe we should add a new API Key role here?
+      });
+
+      // Add to delete queue
+      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: auth.scope.projectId,
+          traceIds: [traceId],
+        },
+        name: QueueJobs.TraceDelete,
+      });
+
+      return { message: "Trace deleted successfully" };
     },
   }),
 });
