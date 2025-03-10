@@ -596,6 +596,42 @@ export const promptRouter = createTRPCRouter({
         distinct: ["name"],
       });
     }),
+
+  getPromptLinkOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const query = Prisma.sql`
+        SELECT 
+          p.name,
+          array_agg(DISTINCT p.version) as "versions",
+          array_agg(DISTINCT l) FILTER (WHERE l IS NOT NULL) AS "labels"
+        FROM
+          prompts p
+          LEFT JOIN LATERAL unnest(labels) AS l ON TRUE
+        WHERE
+          project_id = ${input.projectId}
+          AND type = 'text'
+        GROUP BY
+          p.name
+      `;
+
+      const result = await ctx.prisma.$queryRaw<
+        {
+          name: string;
+          versions: number[];
+          labels: string[];
+        }[]
+      >(query);
+
+      return result;
+    }),
+
   updateTags: protectedProjectProcedure
     .input(
       z.object({

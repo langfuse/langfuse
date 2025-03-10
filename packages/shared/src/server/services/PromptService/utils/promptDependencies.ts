@@ -132,7 +132,9 @@ export async function buildAndResolvePromptGraph(params: {
         const combinedPattern = [versionPattern, ...labelPatterns].join("|");
         const regex = new RegExp(combinedPattern, "g");
 
-        resolvedPrompt = resolvedPrompt.replace(regex, resolvedDepPrompt);
+        const replaceValue = JSON.stringify(resolvedDepPrompt).slice(1, -1); // this is necessary to avoid parsing errors as resolved value is unstringified
+
+        resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
       }
 
       seen.delete(currentPrompt.id);

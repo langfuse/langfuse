@@ -77,6 +77,8 @@ export const createPrompt = async ({
       dependencies: promptDependencies,
     });
   } catch (err) {
+    console.error(err);
+
     throw new InvalidRequestError(
       err instanceof Error ? err.message : "Failed to resolve dependency graph",
     );

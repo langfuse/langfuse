@@ -14,6 +14,7 @@ import {
   TabsBarContent,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -52,8 +53,6 @@ import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPro
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
-import { Switch } from "@/src/components/ui/switch";
-import { Label } from "@/src/components/ui/label";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 
 const getPythonCode = (
@@ -115,7 +114,9 @@ export const PromptDetail = () => {
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
-  const [showResolvedPrompt, setShowResolvedPrompt] = useState(false);
+  const [resolutionMode, setResolutionMode] = useState<"tagged" | "resolved">(
+    "tagged",
+  );
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
@@ -155,7 +156,9 @@ export const PromptDetail = () => {
   let chatMessages: z.infer<typeof ChatMlArraySchema> | null = null;
   try {
     chatMessages = ChatMlArraySchema.parse(
-      showResolvedPrompt ? promptGraph.data?.resolvedPrompt : prompt?.prompt,
+      resolutionMode === "resolved"
+        ? promptGraph.data?.resolvedPrompt
+        : prompt?.prompt,
     );
   } catch (error) {
     if (PromptType.Chat === prompt?.type) {
@@ -482,15 +485,28 @@ export const PromptDetail = () => {
             >
               <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
                 {promptGraph.data?.graph && (
-                  <div className="flex items-center justify-end space-x-2 px-1 py-2">
-                    <Label htmlFor="show-resolved-prompt" className="text-sm">
-                      Resolve prompt dependencies
-                    </Label>
-                    <Switch
-                      id="show-resolved-prompt"
-                      checked={showResolvedPrompt}
-                      onCheckedChange={setShowResolvedPrompt}
-                    />
+                  <div className="flex items-center justify-end py-2">
+                    <Tabs
+                      value={resolutionMode}
+                      onValueChange={(value) => {
+                        setResolutionMode(value as "tagged" | "resolved");
+                      }}
+                    >
+                      <TabsList className="h-auto gap-1">
+                        <TabsTrigger
+                          value="resolved"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Resolved prompt
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="tagged"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Tagged prompt
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
                   </div>
                 )}
                 {prompt.type === PromptType.Chat && chatMessages ? (
@@ -502,7 +518,8 @@ export const PromptDetail = () => {
                     />
                   </div>
                 ) : typeof prompt.prompt === "string" ? (
-                  showResolvedPrompt && promptGraph.data?.resolvedPrompt ? (
+                  resolutionMode === "resolved" &&
+                  promptGraph.data?.resolvedPrompt ? (
                     <CodeView
                       content={String(promptGraph.data.resolvedPrompt)}
                       title="Text Prompt (resolved)"
