@@ -40,7 +40,7 @@ type AuditLog = {
   | {
       userId: string;
       orgId: string;
-      orgRole: Role;
+      orgRole?: Role;
       projectId?: string;
       projectRole?: Role;
     }
@@ -50,10 +50,15 @@ type AuditLog = {
           id: string;
         };
         orgId: string;
-        orgRole: Role;
+        orgRole?: Role;
         projectId?: string;
         projectRole?: Role;
       };
+    }
+  | {
+      apiKeyId: string;
+      orgId: string;
+      projectId?: string;
     }
 );
 
@@ -67,13 +72,19 @@ export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
           projectId: log.session.projectId,
           userProjectRole: log.session.projectRole,
         }
-      : {
-          userId: log.userId,
-          orgId: log.orgId,
-          userOrgRole: log.orgRole,
-          projectId: log.projectId,
-          userProjectRole: log.projectRole,
-        };
+      : "userId" in log
+        ? {
+            userId: log.userId,
+            orgId: log.orgId,
+            userOrgRole: log.orgRole,
+            projectId: log.projectId,
+            userProjectRole: log.projectRole,
+          }
+        : {
+            apiKeyId: log.apiKeyId,
+            orgId: log.orgId,
+            projectId: log.projectId,
+          };
 
   await (prisma ?? _prisma).auditLog.create({
     data: {

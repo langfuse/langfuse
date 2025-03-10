@@ -696,23 +696,31 @@ model Price {
   @@map("prices")
 }
 
+enum AuditLogRecordType {
+  USER
+  API_KEY
+}
+
 // No FK constraints to preserve audit logs
 model AuditLog {
-  id              String   @id @default(cuid())
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
-  userId          String   @map("user_id")
-  orgId           String   @map("org_id")
-  userOrgRole     String   @map("user_org_role")
-  projectId       String?  @map("project_id")
-  userProjectRole String?  @map("user_project_role")
-  resourceType    String   @map("resource_type")
-  resourceId      String   @map("resource_id")
+  id              String             @id @default(cuid())
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at")
+  type            AuditLogRecordType @default(USER)
+  apiKeyId        String?            @map("api_key_id")
+  userId          String?            @map("user_id")
+  orgId           String             @map("org_id")
+  userOrgRole     String?            @map("user_org_role")
+  projectId       String?            @map("project_id")
+  userProjectRole String?            @map("user_project_role")
+  resourceType    String             @map("resource_type")
+  resourceId      String             @map("resource_id")
   action          String
-  before          String? //stringified JSON
+  before          String? // stringified JSON
   after           String? // stringified JSON
 
   @@index([projectId])
+  @@index([apiKeyId])
   @@index([userId])
   @@index([orgId])
   @@index([createdAt])
