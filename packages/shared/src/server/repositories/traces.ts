@@ -17,7 +17,7 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
-import { UiColumnMapping } from "../../tableDefinitions";
+import { UiColumnMapping, UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -293,7 +293,7 @@ export const getTraceById = async (
 
 export const getTracesGroupedByName = async (
   projectId: string,
-  tableDefinitions: UiColumnMapping[] = tracesTableUiColumnDefinitions,
+  tableDefinitions: UiColumnMappings = tracesTableUiColumnDefinitions,
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
