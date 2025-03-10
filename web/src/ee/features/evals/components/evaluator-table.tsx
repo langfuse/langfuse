@@ -173,7 +173,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
     return {
       id: jobConfig.id,
-      status: jobConfig.finalStatus || jobConfig.status,
+      status: jobConfig.finalStatus,
       createdAt: jobConfig.createdAt.toLocaleString(),
       template: jobConfig.evalTemplate
         ? {

@@ -33,7 +33,6 @@ import {
   generateJobExecutionCounts,
 } from "@/src/ee/features/evals/utils/job-execution-utils";
 
-// Component to display job execution counts in a compact way
 const JobExecutionCounts = ({
   jobExecutionsByState,
 }: {
@@ -89,8 +88,7 @@ export const EvaluatorDetail = () => {
       ? {
           ...evaluator.data,
           evalTemplate: evaluator.data.evalTemplate,
-          jobExecutionsByState:
-            (evaluator.data as any).jobExecutionsByState || [],
+          jobExecutionsByState: evaluator.data.jobExecutionsByState,
         }
       : undefined;
 
@@ -118,11 +116,7 @@ export const EvaluatorDetail = () => {
               </div>
             )}
             <StatusBadge
-              type={(
-                evaluator.data?.finalStatus ||
-                evaluator.data?.status ||
-                ""
-              ).toLowerCase()}
+              type={(evaluator.data?.finalStatus).toLowerCase()}
               isLive
               className="max-h-8"
             />
