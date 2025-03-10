@@ -27,7 +27,6 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
-  getScoresByIds,
   getScoresUiTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";

@@ -31,7 +31,6 @@ import {
   getScoresUiTable,
   getScoreNames,
   getTracesGroupedByTags,
-  deleteScores,
   upsertScore,
   logger,
   getTraceById,
