@@ -4,6 +4,7 @@ import {
   BatchExportQuerySchema,
   BatchExportQueryType,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
   FilterCondition,
   TimeFilter,
@@ -15,10 +16,9 @@ import {
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
   streamTransformations,
-  BatchExportJobType,
+  type BatchExportJobType,
   FullObservationsWithScores,
   getPublicSessionsFilter,
-  getScoresForObservations,
   getObservationsTableWithModelData,
   getDistinctScoreNames,
   getTracesTable,
@@ -27,23 +27,28 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
+  getScoresForObservations,
+  getScoresUiTable,
+  type ScoreUiTableRow,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
 const tableNameToTimeFilterColumn = {
-  sessions: "createdAt",
-  traces: "timestamp",
-  generations: "startTime",
-  dataset_run_items: "createdAt",
+  [BatchExportTableName.Sessions]: "createdAt",
+  [BatchExportTableName.Traces]: "timestamp",
+  [BatchExportTableName.Generations]: "startTime",
+  [BatchExportTableName.DatasetRunItems]: "createdAt",
+  [BatchExportTableName.Scores]: "timestamp",
 };
 
 const tableNameToTimeFilterColumnCh = {
-  sessions: "createdAt",
-  traces: "timestamp",
-  generations: "startTime",
-  dataset_run_items: "createdAt",
+  [BatchExportTableName.Sessions]: "created_at",
+  [BatchExportTableName.Traces]: "timestamp",
+  [BatchExportTableName.Generations]: "start_time",
+  [BatchExportTableName.DatasetRunItems]: "created_at",
+  [BatchExportTableName.Scores]: "timestamp",
 };
 
 const isGenerationTimestampFilter = (
@@ -365,6 +370,40 @@ export const getDatabaseReadStream = async ({
             createdAt: item.created_at,
             updatedAt: item.updated_at,
             datasetName: item.dataset_name,
+          }));
+        },
+        1000,
+        exportLimit,
+      );
+    }
+    case "scores": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const scores = await getScoresUiTable({
+            projectId,
+            filter: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            orderBy: orderBy,
+            limit: pageSize,
+            offset: offset,
+          });
+
+          return scores.map((score: ScoreUiTableRow) => ({
+            id: score.id,
+            traceId: score.traceId,
+            timestamp: score.timestamp,
+            source: score.source,
+            name: score.name,
+            dataType: score.dataType,
+            value: score.value,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId: score.observationId,
+            traceName: score.traceName,
+            userId: score.traceUserId,
+            traceTags: score.traceTags,
+            environment: score.environment,
           }));
         },
         1000,
