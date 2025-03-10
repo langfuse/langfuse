@@ -85,7 +85,6 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Annotation queue item not found");
       }
 
-      // Update the item - status can only be set to COMPLETED
       const updateData = {
         ...body,
         completedAt:
