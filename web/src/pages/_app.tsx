@@ -62,6 +62,13 @@ if (
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    session_recording: {
+      maskCapturedNetworkRequestFn(request) {
+        request.requestBody = request.requestBody ? "REDACTED" : undefined;
+        request.responseBody = request.responseBody ? "REDACTED" : undefined;
+        return request;
+      },
+    },
     autocapture: false,
     enable_heatmaps: false,
   });
