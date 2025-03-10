@@ -115,7 +115,7 @@ export const EvaluatorDetail = () => {
               </div>
             )}
             <StatusBadge
-              type={(evaluator.data?.finalStatus).toLowerCase()}
+              type={evaluator.data?.finalStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
