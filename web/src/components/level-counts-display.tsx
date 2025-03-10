@@ -24,7 +24,7 @@ export function LevelCountsDisplay({
   const nonZeroCounts = counts.filter((item) => item.count > 0);
 
   return (
-    <div className="flex min-h-6 flex-row gap-2 overflow-x-auto whitespace-nowrap">
+    <div className="flex min-h-6 flex-row items-center gap-2 overflow-x-auto whitespace-nowrap">
       {nonZeroCounts.map(
         ({ level, count, symbol, customNumberFormatter }, index) => (
           <React.Fragment key={level}>
