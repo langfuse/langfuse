@@ -1915,6 +1915,38 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a specific trace",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces/:traceId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of the trace to delete"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "List",
           "request": {
             "description": "Get list of traces",
@@ -1996,6 +2028,39 @@
             "method": "GET",
             "auth": null,
             "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Multiple",
+          "request": {
+            "description": "Delete multiple traces",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"traceIds\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }

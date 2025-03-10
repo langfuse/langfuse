@@ -2536,6 +2536,52 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    delete:
+      description: Delete a specific trace
+      operationId: trace_delete
+      tags:
+        - Trace
+      parameters:
+        - name: traceId
+          in: path
+          description: The unique langfuse identifier of the trace to delete
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/traces:
     get:
       description: Get list of traces
@@ -2675,6 +2721,60 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    delete:
+      description: Delete multiple traces
+      operationId: trace_deleteMultiple
+      tags:
+        - Trace
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                traceIds:
+                  type: array
+                  items:
+                    type: string
+                  description: List of trace IDs to delete
+              required:
+                - traceIds
 components:
   schemas:
     CreateCommentRequest:
@@ -5174,6 +5274,14 @@ components:
       required:
         - data
         - meta
+    DeleteTraceResponse:
+      title: DeleteTraceResponse
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
     Sort:
       title: Sort
       type: object
