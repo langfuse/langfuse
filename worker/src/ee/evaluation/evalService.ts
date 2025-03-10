@@ -680,9 +680,7 @@ export async function extractVariablesFromTracingData({
 
         return {
           var: variable,
-          value: parseUnknownToString(
-            (observation as Record<string, unknown>)[mapping.selectedColumnId],
-          ),
+          value: parseDatabaseRowToString(observation, mapping),
           environment: observation.environment,
         };
       }
