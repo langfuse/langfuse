@@ -1,6 +1,6 @@
 import { capitalize } from "lodash";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useState, useCallback } from "react";
 import {
   ChatMessageRole,
   SYSTEM_ROLES,
@@ -86,6 +86,11 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     }
   };
 
+  const onValueChange = useCallback(
+    (value: string) => updateMessage(message.id, "content", value),
+    [message.id, updateMessage],
+  );
+
   return (
     <Card
       ref={setNodeRef}
@@ -120,7 +125,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         </div>
         <MemoizedEditor
           value={message.content}
-          onChange={(value) => updateMessage(message.id, "content", value)}
+          onChange={onValueChange}
           role={message.role}
         />
         <Button
