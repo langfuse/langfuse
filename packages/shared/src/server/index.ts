@@ -3,7 +3,6 @@ export * from "./services/email/organizationInvitation/sendMembershipInvitationE
 export * from "./services/email/batchExportSuccess/sendBatchExportSuccessEmail";
 export * from "./services/email/passwordReset/sendResetPasswordVerificationRequest";
 export * from "./services/PromptService";
-export * from "./services/PromptService/utils/promptDependencies";
 export * from "./services/traces-ui-table-service";
 export * from "./auth/apiKeys";
 export * from "./auth/customSsoProvider";

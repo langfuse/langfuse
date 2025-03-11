@@ -2,7 +2,18 @@ import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
-import { buildAndResolvePromptGraph } from "./utils/promptDependencies";
+import { escapeRegex } from "./utils";
+import {
+  PromptGraph,
+  PromptParams,
+  PartialPrompt,
+  ResolvedPromptGraph,
+  PromptServiceMetrics,
+} from "./types";
+
+import { ParsedPromptDependencyTag } from "@langfuse/shared";
+
+export const MAX_PROMPT_NESTING_DEPTH = 5;
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -27,7 +38,9 @@ export class PromptService {
       const cachedPrompt = await this.getCachedPrompt(params);
 
       this.incrementMetric(
-        cachedPrompt ? Metrics.PromptCacheHit : Metrics.PromptCacheMiss,
+        cachedPrompt
+          ? PromptServiceMetrics.PromptCacheHit
+          : PromptServiceMetrics.PromptCacheMiss,
       );
 
       if (cachedPrompt) {
@@ -87,7 +100,7 @@ export class PromptService {
   private async resolvePrompt(prompt: Prompt | null) {
     if (!prompt) return prompt;
 
-    const promptGraph = await buildAndResolvePromptGraph({
+    const promptGraph = await this.buildAndResolvePromptGraph({
       projectId: prompt.projectId,
       parentPrompt: prompt,
     });
@@ -220,6 +233,143 @@ export class PromptService {
     return `prompt_key_index:${params.projectId}`;
   }
 
+  public async buildAndResolvePromptGraph(params: {
+    projectId: string;
+    parentPrompt: PartialPrompt;
+    dependencies?: ParsedPromptDependencyTag[];
+  }): Promise<ResolvedPromptGraph> {
+    const { projectId, parentPrompt, dependencies } = params;
+
+    const graph: PromptGraph = {
+      root: {
+        name: parentPrompt.name,
+        version: parentPrompt.version,
+        id: parentPrompt.id,
+      },
+      dependencies: {},
+    };
+    const seen = new Set<string>();
+
+    const resolve = async (
+      currentPrompt: PartialPrompt,
+      deps: ParsedPromptDependencyTag[] | undefined,
+      level: number,
+    ) => {
+      // Nesting depth check
+      if (level >= MAX_PROMPT_NESTING_DEPTH) {
+        throw Error(
+          `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
+        );
+      }
+
+      // Circular dependency check
+      if (
+        seen.has(currentPrompt.id) ||
+        (currentPrompt.name === parentPrompt.name &&
+          currentPrompt.id !== parentPrompt.id)
+      ) {
+        throw Error(
+          `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
+        );
+      }
+
+      seen.add(currentPrompt.id);
+
+      // deps can be either passed (if a prompt is created and content was scanned) or retrieved from db
+      let promptDependencies = deps;
+      if (!deps) {
+        promptDependencies = (
+          await this.prisma.promptDependency.findMany({
+            where: {
+              projectId,
+              parentId: currentPrompt.id,
+            },
+            select: {
+              childName: true,
+              childLabel: true,
+              childVersion: true,
+            },
+          })
+        ).map(
+          (dep) =>
+            ({
+              name: dep.childName,
+              ...(dep.childVersion
+                ? { type: "version", version: dep.childVersion }
+                : { type: "label", label: dep.childLabel }),
+            }) as ParsedPromptDependencyTag,
+        );
+      }
+
+      if (promptDependencies && promptDependencies.length) {
+        // Instantiate resolved prompt, use stringfied version for regex operations
+        // Do this inside if clause to skip stringify/parse overhead for prompts without dependencies
+        let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
+
+        for (const dep of promptDependencies) {
+          const depPrompt = await this.prisma.prompt.findFirst({
+            where: {
+              projectId,
+              name: dep.name,
+              ...(dep.type === "version"
+                ? { version: dep.version }
+                : { labels: { has: dep.label } }),
+            },
+          });
+
+          const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
+
+          if (!depPrompt)
+            throw Error(`Prompt dependency not found: ${logName}`);
+          if (depPrompt.type !== "text")
+            throw Error(`Prompt dependency is not a text prompt: ${logName}`);
+
+          // side-effect: populate adjacency list to return later as well
+          graph.dependencies[currentPrompt.id] ??= [];
+          graph.dependencies[currentPrompt.id].push({
+            id: depPrompt.id,
+            name: depPrompt.name,
+            version: depPrompt.version,
+          });
+
+          // resolve the prompt content recursively
+          const resolvedDepPrompt = await resolve(
+            depPrompt,
+            undefined,
+            level + 1,
+          );
+
+          const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
+          const labelPatterns = depPrompt.labels.map(
+            (label) =>
+              `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
+          );
+          const combinedPattern = [versionPattern, ...labelPatterns].join("|");
+          const regex = new RegExp(combinedPattern, "g");
+
+          const replaceValue = JSON.stringify(resolvedDepPrompt).slice(1, -1); // this is necessary to avoid parsing errors as resolved value is unstringified
+
+          resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
+        }
+
+        seen.delete(currentPrompt.id);
+
+        return JSON.parse(resolvedPrompt);
+      } else {
+        seen.delete(currentPrompt.id);
+
+        return currentPrompt.prompt;
+      }
+    };
+
+    const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
+
+    return {
+      graph: Object.keys(graph.dependencies).length > 0 ? graph : null,
+      resolvedPrompt,
+    };
+  }
+
   private logError(message: string, ...args: any[]) {
     logger.error(`[PromptService] ${message}`, ...args);
   }
@@ -232,24 +382,11 @@ export class PromptService {
     logger.debug(`[PromptService] ${message}`, ...args);
   }
 
-  private incrementMetric(name: Metrics, value: number = 1) {
+  private incrementMetric(name: PromptServiceMetrics, value: number = 1) {
     try {
       this.metricIncrementer?.(name, value);
     } catch (e) {
       this.logError("Error incrementing metric", name, e);
     }
   }
-}
-
-type PromptParams = {
-  projectId: string;
-  promptName: string;
-} & (
-  | { version: number; label: undefined }
-  | { version: null | undefined; label: string }
-);
-
-enum Metrics {
-  PromptCacheHit = "prompt_cache_hit",
-  PromptCacheMiss = "prompt_cache_miss",
 }

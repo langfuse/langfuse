@@ -17,7 +17,6 @@ import {
   PromptService,
   redis,
 } from "@langfuse/shared/src/server";
-import { buildAndResolvePromptGraph } from "@langfuse/shared/src/server";
 
 export type CreatePromptParams = CreatePromptTRPCType & {
   createdBy: string;
@@ -62,10 +61,11 @@ export const createPrompt = async ({
   const finalTags = [...new Set(tags ?? latestPrompt?.tags ?? [])];
   const newPromptId = uuidv4();
 
+  const promptService = new PromptService(prisma, redis);
   const promptDependencies = parsePromptDependencyTags(prompt);
 
   try {
-    await buildAndResolvePromptGraph({
+    await promptService.buildAndResolvePromptGraph({
       projectId,
       parentPrompt: {
         id: newPromptId,
@@ -140,7 +140,6 @@ export const createPrompt = async ({
     );
 
   // Lock and invalidate cache for _all_ versions and labels of the prompt name
-  const promptService = new PromptService(prisma, redis);
   await promptService.lockCache({ projectId, promptName: name });
   await promptService.invalidateCache({ projectId, promptName: name });
 

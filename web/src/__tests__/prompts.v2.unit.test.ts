@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { parsePromptDependencyTags } from "@langfuse/shared/src/server";
+import { parsePromptDependencyTags } from "@langfuse/shared";
 
 describe("Prompt dependency management", () => {
   describe("Parsing prompt dependency tags", () => {
