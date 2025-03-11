@@ -43,13 +43,12 @@ import {
   hasAnyScore,
   ScoreDeleteQueue,
   QueueJobs,
-  TraceDeleteQueue,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import { TRPCError } from "@trpc/server";
-import { randomUUID } from "crypto";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure

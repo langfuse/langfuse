@@ -1,13 +1,13 @@
 import z from "zod";
 import { OrderByState } from "../../../interfaces/orderBy";
-import { UiColumnMapping } from "../../../tableDefinitions";
+import { UiColumnMappings } from "../../../tableDefinitions";
 import { logger } from "../../logger";
 
 type OrderByStateNotNull = Exclude<OrderByState, null>;
 
 export function orderByToClickhouseSql(
   orderBy: OrderByState | OrderByState[] = [],
-  tableColumns: UiColumnMapping[],
+  tableColumns: UiColumnMappings,
 ): string {
   if (
     !orderBy ||

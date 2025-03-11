@@ -766,6 +766,7 @@ export const datasetRouter = createTRPCRouter({
           datasetItemId: string;
           projectId: string;
           datasetRunId: string;
+          datasetRunName: string;
         }>
       >`
         SELECT 
@@ -777,11 +778,15 @@ export const datasetRouter = createTRPCRouter({
           dri.created_at AS "createdAt",
           dri.updated_at AS "updatedAt",
           dri.project_id AS "projectId",
-          dri.dataset_run_id AS "datasetRunId"
+          dri.dataset_run_id AS "datasetRunId",
+          dr.name AS "datasetRunName"
         FROM dataset_run_items dri
         INNER JOIN dataset_items di
           ON dri.dataset_item_id = di.id 
           AND dri.project_id = di.project_id
+        INNER JOIN dataset_runs dr
+          ON dri.dataset_run_id = dr.id
+          AND dri.project_id = dr.project_id
         WHERE 
           dri.project_id = ${input.projectId}
           ${filterQuery}
@@ -801,10 +806,25 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      // Add scores to the run items while also keeping the datasetRunName
+      const runItemNameMap = runItems.reduce(
+        (map, item) => {
+          map[item.id] = item.datasetRunName;
+          return map;
+        },
+        {} as Record<string, string>,
+      );
+      const parsedRunItems = (
+        await getRunItemsByRunIdOrItemId(input.projectId, runItems)
+      ).map((ri) => ({
+        ...ri,
+        datasetRunName: runItemNameMap[ri.id],
+      }));
+
       // Note: We early return in case of no run items, when adding parameters here, make sure to update the early return above
       return {
         totalRunItems,
-        runItems: await getRunItemsByRunIdOrItemId(input.projectId, runItems),
+        runItems: parsedRunItems,
       };
     }),
   datasetItemsBasedOnTraceOrObservation: protectedProjectProcedure

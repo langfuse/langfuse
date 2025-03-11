@@ -1,6 +1,6 @@
-import { UiColumnMapping } from "./types";
+import { UiColumnMappings } from "./types";
 
-export const dashboardColumnDefinitions: UiColumnMapping[] = [
+export const dashboardColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",

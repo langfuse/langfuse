@@ -1,6 +1,6 @@
-import { UiColumnMapping } from "./types";
+import { UiColumnMappings } from "./types";
 
-export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
+export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "⭐️",
     uiTableId: "bookmarked",

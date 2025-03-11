@@ -1,6 +1,6 @@
-import { UiColumnMapping } from "./types";
+import { UiColumnMappings } from "./types";
 
-export const scoresTableUiColumnDefinitions: UiColumnMapping[] = [
+export const scoresTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "ID",
     uiTableId: "id",
