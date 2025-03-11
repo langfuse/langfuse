@@ -554,17 +554,17 @@ export const getScoreNames = async (
   }));
 };
 
-export const deleteScore = async (projectId: string, scoreId: string) => {
+export const deleteScores = async (projectId: string, scoreIds: string[]) => {
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
-    AND id = {scoreId: String};
+    AND id in ({scoreIds: Array(String)});
   `;
   await commandClickhouse({
     query: query,
     params: {
       projectId,
-      scoreId,
+      scoreIds,
     },
     tags: {
       feature: "tracing",
