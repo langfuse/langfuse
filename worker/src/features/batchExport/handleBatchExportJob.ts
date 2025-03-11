@@ -38,7 +38,7 @@ import Decimal from "decimal.js";
 const tableNameToTimeFilterColumn = {
   [BatchExportTableName.Sessions]: "createdAt",
   [BatchExportTableName.Traces]: "timestamp",
-  [BatchExportTableName.Generations]: "startTime",
+  [BatchExportTableName.Observations]: "startTime",
   [BatchExportTableName.DatasetRunItems]: "createdAt",
   [BatchExportTableName.Scores]: "timestamp",
 };
@@ -46,7 +46,7 @@ const tableNameToTimeFilterColumn = {
 const tableNameToTimeFilterColumnCh = {
   [BatchExportTableName.Sessions]: "created_at",
   [BatchExportTableName.Traces]: "timestamp",
-  [BatchExportTableName.Generations]: "start_time",
+  [BatchExportTableName.Observations]: "start_time",
   [BatchExportTableName.DatasetRunItems]: "created_at",
   [BatchExportTableName.Scores]: "timestamp",
 };
@@ -119,21 +119,6 @@ export const getDatabaseReadStream = async ({
   };
 
   switch (tableName) {
-    case "scores": {
-      return new DatabaseReadStream<unknown>(
-        async (pageSize: number, offset: number) =>
-          getScoresUiTable({
-            projectId,
-            filter: filter ?? [],
-            orderBy,
-            limit: pageSize,
-            offset,
-          }),
-        1000,
-        exportLimit,
-      );
-    }
-
     case "sessions":
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
@@ -192,7 +177,7 @@ export const getDatabaseReadStream = async ({
         1000,
         exportLimit,
       );
-    case "generations": {
+    case "observations": {
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
