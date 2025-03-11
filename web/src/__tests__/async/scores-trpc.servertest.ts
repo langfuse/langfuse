@@ -1,6 +1,26 @@
 /** @jest-environment node */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
+const mockAddScoreDelete = jest.fn();
+const mockAddBatchAction = jest.fn();
+
+jest.mock("@langfuse/shared/src/server", () => {
+  const originalModule = jest.requireActual("@langfuse/shared/src/server");
+  return {
+    ...originalModule,
+    ScoreDeleteQueue: {
+      getInstance: jest.fn(() => ({
+        add: mockAddScoreDelete,
+      })),
+    },
+    BatchActionQueue: {
+      getInstance: jest.fn(() => ({
+        add: mockAddBatchAction,
+      })),
+    },
+  };
+});
+
 import type { Session } from "next-auth";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
@@ -9,10 +29,11 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   createScore,
   createScoresCh,
-  getScoresByIds,
+  ScoreDeleteQueue,
+  BatchActionQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import waitForExpect from "wait-for-expect";
 
 describe("scores trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -62,6 +83,7 @@ describe("scores trpc", () => {
         project_id: projectId,
       });
       await createScoresCh([createdScore]);
+      const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
 
       // When
       await caller.scores.deleteMany({
@@ -70,10 +92,15 @@ describe("scores trpc", () => {
       });
 
       // Then
-      await waitForExpect(async () => {
-        const scores = await getScoresByIds(projectId, [createdScore.id]);
-        expect(scores).toHaveLength(0);
-      });
+      expect(scoreDeleteQueue.add).toHaveBeenCalledWith(
+        QueueJobs.ScoreDelete,
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            projectId,
+            scoreIds: [createdScore.id],
+          }),
+        }),
+      );
     });
 
     it("should delete scores via batch query", async () => {
@@ -84,6 +111,7 @@ describe("scores trpc", () => {
         name: scoreName,
       });
       await createScoresCh([createdScore]);
+      const batchActionQueue = BatchActionQueue.getInstance();
 
       // When
       await caller.scores.deleteMany({
@@ -104,10 +132,16 @@ describe("scores trpc", () => {
       });
 
       // Then
-      await waitForExpect(async () => {
-        const scores = await getScoresByIds(projectId, [createdScore.id]);
-        expect(scores).toHaveLength(0);
-      });
+      expect(batchActionQueue.add).toHaveBeenCalledWith(
+        QueueJobs.BatchActionProcessingJob,
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            projectId,
+            actionId: "score-delete",
+          }),
+        }),
+        expect.objectContaining({}),
+      );
     });
 
     it("should throw an error if batchAction and scoreIds are missing", async () => {
