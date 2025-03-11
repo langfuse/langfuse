@@ -1267,8 +1267,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 });
 
 describe("prompt composability", () => {
-  beforeEach(() => pruneDatabase());
-  afterAll(() => pruneDatabase());
+  //beforeEach(() => pruneDatabase());
+  //afterAll(() => pruneDatabase());
 
   it("can create a prompt with dependencies linked via label", async () => {
     const { projectId: newProjectId, auth: newAuth } =
@@ -1570,7 +1570,8 @@ describe("prompt composability", () => {
   });
 
   it("handles deeply nested dependencies (3+ levels)", async () => {
-    const { auth: newAuth } = await createOrgProjectAndApiKey();
+    //const { auth: newAuth } = await createOrgProjectAndApiKey();
+    const newAuth = undefined;
 
     // Create level 3 (deepest) prompts
     await makeAPICall(
@@ -1641,8 +1642,7 @@ describe("prompt composability", () => {
   });
 
   it("handles multiple dependencies at the same level", async () => {
-    const { projectId: newProjectId, auth: newAuth } =
-      await createOrgProjectAndApiKey();
+    const { auth: newAuth } = await createOrgProjectAndApiKey();
 
     // Create multiple child prompts
     await makeAPICall(
@@ -1712,8 +1712,7 @@ describe("prompt composability", () => {
   });
 
   it("handles version-specific dependencies", async () => {
-    const { projectId: newProjectId, auth: newAuth } =
-      await createOrgProjectAndApiKey();
+    const { auth: newAuth } = await createOrgProjectAndApiKey();
 
     // Create child prompt with multiple versions
     await makeAPICall(

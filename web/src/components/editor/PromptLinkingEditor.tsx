@@ -4,8 +4,8 @@ import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "@radix-ui/react-icons";
 import { PromptSelectionDialog } from "@/src/features/prompts/components/PromptSelectionDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+
 type PromptLinkingEditorProps = {
   value: string;
   onChange?: (value: string) => void;
