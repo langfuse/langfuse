@@ -260,7 +260,7 @@ export const traceRouter = createTRPCRouter({
   deleteMany: protectedProjectProcedure
     .input(
       z.object({
-        traceIds: z.array(z.string()).min(1, "Minimum 1 trace_Id is required."),
+        traceIds: z.array(z.string()).min(1, "Minimum 1 traceId is required."),
         projectId: z.string(),
         query: BatchActionQuerySchema.optional(),
         isBatchAction: z.boolean().default(false),
