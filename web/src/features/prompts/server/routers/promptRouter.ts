@@ -506,14 +506,14 @@ export const promptRouter = createTRPCRouter({
 
         // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
+        await promptService.lockCache({ projectId, name });
+        await promptService.invalidateCache({ projectId, name });
 
         // Execute transaction
         await ctx.prisma.$transaction(transaction);
 
         // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        await promptService.unlockCache({ projectId, name });
       } catch (e) {
         logger.error(e);
         throw e;
