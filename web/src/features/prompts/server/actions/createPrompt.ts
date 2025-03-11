@@ -7,6 +7,8 @@ import {
   InvalidRequestError,
   parsePromptDependencyTags,
   jsonSchema,
+  type PromptDependency,
+  type Prompt,
 } from "@langfuse/shared";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import { LATEST_PROMPT_LABEL } from "@/src/features/prompts/constants";
@@ -144,7 +146,10 @@ export const createPrompt = async ({
   await promptService.invalidateCache({ projectId, promptName: name });
 
   // Create prompt and update previous prompt versions
-  const [createdPrompt] = await prisma.$transaction(create);
+  const [createdPrompt] = (await prisma.$transaction(create)) as [
+    Prompt,
+    ...PromptDependency[],
+  ];
 
   // Unlock cache
   await promptService.unlockCache({ projectId, promptName: name });
