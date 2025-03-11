@@ -520,11 +520,13 @@ export function CreateLLMApiKeyForm({
                   <Switch
                     disabled={
                       currentAdapter === LLMAdapter.Azure ||
-                      currentAdapter === LLMAdapter.Bedrock
+                      currentAdapter === LLMAdapter.Bedrock ||
+                      currentAdapter === LLMAdapter.Atla
                     }
                     checked={
                       currentAdapter === LLMAdapter.Azure ||
-                      currentAdapter === LLMAdapter.Bedrock
+                      currentAdapter === LLMAdapter.Bedrock ||
+                      currentAdapter === LLMAdapter.Atla
                         ? false
                         : field.value
                     }
@@ -579,12 +581,12 @@ export function CreateLLMApiKeyForm({
                   </Button>
                 </span>
               ))}
-              {/* TODO: Disable the custom model button for Atla. */}
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => append({ value: "" })}
                 className="w-full"
+                disabled={currentAdapter === LLMAdapter.Atla}
               >
                 <PlusIcon
                   className="-ml-0.5 mr-1.5 h-5 w-5"
