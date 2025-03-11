@@ -143,6 +143,11 @@ export const ingestionQueueProcessorBuilder = (
       );
 
       // Download all events from folder into a local array
+      const maxKeys = projectIdsToRedirectToSecondaryQueue.includes(
+        job.data.payload.authCheck.scope.projectId,
+      )
+        ? env.LANGFUSE_INGESTION_SECONDARY_QUEUE_MAX_S3_LIST_KEYS
+        : 1000;
       const clickhouseEntityType = getClickhouseEntityType(
         job.data.payload.data.type,
       );

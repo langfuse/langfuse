@@ -31,7 +31,10 @@ export interface StorageService {
 
   download(path: string): Promise<string>;
 
-  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
+  listFiles(
+    prefix: string,
+    maxKeys: number, // only supported on AWS
+  ): Promise<{ file: string; createdAt: Date }[]>;
 
   getSignedUrl(
     fileName: string,
@@ -225,6 +228,7 @@ class AzureBlobStorageService implements StorageService {
 
   public async listFiles(
     prefix: string,
+    _maxKeys = 1000,
   ): Promise<{ file: string; createdAt: Date }[]> {
     try {
       await this.createContainerIfNotExists();
@@ -398,10 +402,12 @@ class S3StorageService implements StorageService {
 
   public async listFiles(
     prefix: string,
+    maxKeys = 1000,
   ): Promise<{ file: string; createdAt: Date }[]> {
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: prefix,
+      MaxKeys: maxKeys,
     });
 
     try {

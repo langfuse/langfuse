@@ -60,6 +60,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  // Limit the number of keys we fetch from S3 for projects that are in the secondary queue
+  LANGFUSE_INGESTION_SECONDARY_QUEUE_MAX_S3_LIST_KEYS: z.coerce
+    .number()
+    .positive()
+    .default(1000),
   LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z.string().optional(),
   LANGFUSE_INGESTION_CLICKHOUSE_WRITE_BATCH_SIZE: z.coerce
     .number()
