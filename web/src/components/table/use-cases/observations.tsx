@@ -873,7 +873,7 @@ export default function ObservationsTable({
         actionButtons={
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Generations}
+            tableName={BatchExportTableName.Observations}
             key="batchExport"
           />
         }
