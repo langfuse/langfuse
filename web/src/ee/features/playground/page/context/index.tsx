@@ -136,28 +136,33 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
 
-  const addMessage: PlaygroundContextType["addMessage"] = (role, content) => {
-    const message = createEmptyMessage(role, content);
-    setMessages((prev) => [...prev, message]);
+  const addMessage: PlaygroundContextType["addMessage"] = useCallback(
+    (role, content) => {
+      const message = createEmptyMessage(role, content);
+      setMessages((prev) => [...prev, message]);
 
-    return message;
-  };
+      return message;
+    },
+    [],
+  );
 
-  const updateMessage: PlaygroundContextType["updateMessage"] = (
-    id,
-    key,
-    value,
-  ) => {
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === id ? { ...message, [key]: value } : message,
-      ),
-    );
-  };
+  const updateMessage: PlaygroundContextType["updateMessage"] = useCallback(
+    (id, key, value) => {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === id ? { ...message, [key]: value } : message,
+        ),
+      );
+    },
+    [],
+  );
 
-  const deleteMessage: PlaygroundContextType["deleteMessage"] = (id) => {
-    setMessages((prev) => prev.filter((message) => message.id !== id));
-  };
+  const deleteMessage: PlaygroundContextType["deleteMessage"] = useCallback(
+    (id) => {
+      setMessages((prev) => prev.filter((message) => message.id !== id));
+    },
+    [],
+  );
 
   const handleSubmit: PlaygroundContextType["handleSubmit"] =
     useCallback(async () => {
@@ -216,15 +221,18 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updatePromptVariableValue = (variable: string, value: string) => {
-    setPromptVariables((prev) =>
-      prev.map((v) => (v.name === variable ? { ...v, value } : v)),
-    );
-  };
+  const updatePromptVariableValue = useCallback(
+    (variable: string, value: string) => {
+      setPromptVariables((prev) =>
+        prev.map((v) => (v.name === variable ? { ...v, value } : v)),
+      );
+    },
+    [],
+  );
 
-  const deletePromptVariable = (variable: string) => {
+  const deletePromptVariable = useCallback((variable: string) => {
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
-  };
+  }, []);
 
   return (
     <PlaygroundContext.Provider

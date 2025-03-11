@@ -27,22 +27,25 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
+  getScoresUiTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
 const tableNameToTimeFilterColumn = {
+  scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
   dataset_run_items: "createdAt",
 };
 
 const tableNameToTimeFilterColumnCh = {
+  scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
   dataset_run_items: "createdAt",
 };
 
@@ -114,6 +117,21 @@ export const getDatabaseReadStream = async ({
   };
 
   switch (tableName) {
+    case "scores": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) =>
+          getScoresUiTable({
+            projectId,
+            filter: filter ?? [],
+            orderBy,
+            limit: pageSize,
+            offset,
+          }),
+        1000,
+        exportLimit,
+      );
+    }
+
     case "sessions":
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
@@ -172,7 +190,7 @@ export const getDatabaseReadStream = async ({
         1000,
         exportLimit,
       );
-    case "generations": {
+    case "observations": {
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(

@@ -23,7 +23,7 @@ export default function PeekView(props: {
 }) {
   return (
     <Drawer open={props.open} modal={false} onClose={props.onClose}>
-      <DrawerContent size="lg" className="mx-auto">
+      <DrawerContent size="lg" className="mx-auto" data-vaul-no-drag>
         <DrawerHeader className="sticky top-0 z-10 mb-2 flex flex-row items-center justify-between rounded-tl-xl border-b bg-background p-3">
           <DrawerTitle className="flex flex-row items-center gap-2">
             <div className="mb-2 mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -48,7 +48,7 @@ export default function PeekView(props: {
         </DrawerHeader>
         <div
           data-vaul-no-drag
-          className="mb-4 h-full flex-1 gap-4 overflow-hidden px-4"
+          className="mb-4 h-full flex-1 select-text gap-4 overflow-hidden px-4"
         >
           {props.children}
         </div>

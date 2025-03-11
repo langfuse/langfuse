@@ -24,6 +24,9 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   InternalServerError,
+  BatchActionQuerySchema,
+  BatchActionType,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -31,7 +34,6 @@ import {
   getScoresUiTable,
   getScoreNames,
   getTracesGroupedByTags,
-  deleteScore,
   upsertScore,
   logger,
   getTraceById,
@@ -39,8 +41,14 @@ import {
   convertDateToClickhouseDateTime,
   searchExistingAnnotationScore,
   hasAnyScore,
+  ScoreDeleteQueue,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -156,6 +164,78 @@ export const scoresRouter = createTRPCRouter({
         name: names.map((i) => ({ value: i.name, count: i.count })),
         tags: tags,
       };
+    }),
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        scoreIds: z
+          .array(z.string())
+          .min(1, "Minimum 1 scoreId is required.")
+          .nullable(),
+        projectId: z.string(),
+        query: BatchActionQuerySchema.optional(),
+        isBatchAction: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // We reuse the trace-deletion entitlement here as this is a very similar and destructive operation.
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "traces:delete",
+      });
+
+      throwIfNoEntitlement({
+        entitlement: "trace-deletion",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      if (input.isBatchAction && input.query) {
+        return createBatchActionJob({
+          projectId: input.projectId,
+          actionId: "score-delete",
+          actionType: BatchActionType.Delete,
+          tableName: BatchExportTableName.Scores,
+          session: ctx.session,
+          query: input.query,
+        });
+      }
+      if (input.scoreIds) {
+        const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
+        if (!scoreDeleteQueue) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "ScoreDeleteQueue not initialized",
+          });
+        }
+
+        await Promise.all(
+          input.scoreIds.map((scoreId) =>
+            auditLog({
+              resourceType: "score",
+              resourceId: scoreId,
+              action: "delete",
+              session: ctx.session,
+            }),
+          ),
+        );
+
+        return scoreDeleteQueue.add(QueueJobs.ScoreDelete, {
+          timestamp: new Date(),
+          id: randomUUID(),
+          payload: {
+            projectId: input.projectId,
+            scoreIds: input.scoreIds,
+          },
+          name: QueueJobs.ScoreDelete,
+        });
+      }
+      throw new TRPCError({
+        message:
+          "Either batchAction or scoreIds must be provided to delete scores.",
+        code: "BAD_REQUEST",
+      });
     }),
   createAnnotationScore: protectedProjectProcedure
     .input(CreateAnnotationScoreData)
@@ -323,8 +403,6 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
-      let score: Score | null | undefined = null;
-
       // Fetch the current score from Clickhouse
       const clickhouseScore = await getScoreById(
         input.projectId,
@@ -338,27 +416,34 @@ export const scoresRouter = createTRPCRouter({
         throw new LangfuseNotFoundError(
           `No annotation score with id ${input.id} in project ${input.projectId} in Clickhouse`,
         );
-      } else {
-        await auditLog({
-          session: ctx.session,
-          resourceType: "score",
-          resourceId: input.id,
-          action: "delete",
-          before: clickhouseScore,
+      }
+
+      const scoreDeleteQueue = ScoreDeleteQueue.getInstance();
+      if (!scoreDeleteQueue) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ScoreDeleteQueue not initialized",
         });
-
-        // Delete the score from Clickhouse
-        await deleteScore(input.projectId, clickhouseScore.id);
-        score = clickhouseScore;
       }
 
-      if (!score) {
-        throw new InternalServerError(
-          `Annotation score could not be deleted in project ${input.projectId}`,
-        );
-      }
+      await auditLog({
+        session: ctx.session,
+        resourceType: "score",
+        resourceId: input.id,
+        action: "delete",
+        before: clickhouseScore,
+      });
 
-      return validateDbScore(score);
+      // Delete the score from Clickhouse
+      await scoreDeleteQueue.add(QueueJobs.ScoreDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: input.projectId,
+          scoreIds: [input.id],
+        },
+        name: QueueJobs.ScoreDelete,
+      });
     }),
   getScoreKeysAndProps: protectedProjectProcedure
     .input(

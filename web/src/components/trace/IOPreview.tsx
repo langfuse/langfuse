@@ -160,6 +160,7 @@ export const IOPreview: React.FC<{
               {!(hideIfNull && !input) && !hideInput ? (
                 <MarkdownJsonView
                   title="Input"
+                  className="ph-no-capture"
                   content={input}
                   media={media?.filter((m) => m.field === "input") ?? []}
                 />
@@ -167,6 +168,7 @@ export const IOPreview: React.FC<{
               {!(hideIfNull && !output) && !hideOutput ? (
                 <MarkdownJsonView
                   title="Output"
+                  className="ph-no-capture"
                   content={output}
                   customCodeHeaderClassName="bg-secondary"
                   media={media?.filter((m) => m.field === "output") ?? []}
@@ -181,6 +183,7 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
               title="Input"
+              className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
@@ -189,6 +192,7 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !output) && !hideOutput ? (
             <JSONView
               title="Output"
+              className="ph-no-capture"
               json={outputClean}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
@@ -223,7 +227,7 @@ export const OpenAiMessageView: React.FC<{
   );
 
   return (
-    <div className="flex max-h-full min-h-0 flex-col gap-2">
+    <div className="ph-no-capture flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">

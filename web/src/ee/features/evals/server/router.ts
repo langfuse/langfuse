@@ -37,6 +37,8 @@ import { traceException } from "@langfuse/shared/src/server";
 import { isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
+import { type PrismaClient } from "@prisma/client";
+import { type JobExecutionState } from "@/src/ee/features/evals/utils/job-execution-utils";
 
 const APIEvaluatorSchema = z.object({
   id: z.string(),
@@ -116,6 +118,56 @@ const UpdateEvalJobSchema = z.object({
   status: z.nativeEnum(EvaluatorStatus).optional(),
   timeScope: TimeScopeSchema.optional(),
 });
+
+const fetchJobExecutionsByState = async ({
+  prisma,
+  projectId,
+  configIds,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  configIds: string[];
+}) => {
+  return prisma.jobExecution.groupBy({
+    where: {
+      jobConfiguration: {
+        projectId: projectId,
+        jobType: "EVAL",
+        id: { in: configIds },
+      },
+      projectId: projectId,
+    },
+    by: ["status", "jobConfigurationId"],
+    _count: true,
+  });
+};
+
+export const calculateEvaluatorFinalStatus = (
+  status: string,
+  timeScope: string[],
+  jobExecutionsByState: JobExecutionState[],
+): string => {
+  // If timeScope is only "EXISTING" and there are no pending jobs and there are some jobs,
+  // then the status is "FINISHED", otherwise it's the original status
+  const hasPendingJobs = jobExecutionsByState.some(
+    (je) => je.status === "PENDING",
+  );
+  const totalJobCount = jobExecutionsByState.reduce(
+    (acc, je) => acc + je._count,
+    0,
+  );
+
+  if (
+    timeScope.length === 1 &&
+    timeScope[0] === "EXISTING" &&
+    !hasPendingJobs &&
+    totalJobCount > 0
+  ) {
+    return "FINISHED";
+  }
+
+  return status;
+};
 
 export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
@@ -220,17 +272,10 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      const jobExecutionsByState = await ctx.prisma.jobExecution.groupBy({
-        where: {
-          jobConfiguration: {
-            projectId: input.projectId,
-            jobType: "EVAL",
-            id: { in: configs.map((c) => c.id) },
-          },
-          projectId: input.projectId,
-        },
-        by: ["status", "jobConfigurationId"],
-        _count: true,
+      const jobExecutionsByState = await fetchJobExecutionsByState({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        configIds: configs.map((c) => c.id),
       });
 
       return {
@@ -238,6 +283,13 @@ export const evalRouter = createTRPCRouter({
           ...config,
           jobExecutionsByState: jobExecutionsByState.filter(
             (je) => je.jobConfigurationId === config.id,
+          ),
+          finalStatus: calculateEvaluatorFinalStatus(
+            config.status,
+            Array.isArray(config.timeScope) ? config.timeScope : [],
+            jobExecutionsByState.filter(
+              (je) => je.jobConfigurationId === config.id,
+            ),
           ),
         })),
         totalCount: count,
@@ -273,7 +325,25 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      return config;
+      if (!config) return null;
+
+      const jobExecutionsByState = await fetchJobExecutionsByState({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        configIds: [config.id],
+      });
+
+      const finalStatus = calculateEvaluatorFinalStatus(
+        config.status,
+        Array.isArray(config.timeScope) ? config.timeScope : [],
+        jobExecutionsByState,
+      );
+
+      return {
+        ...config,
+        jobExecutionsByState: jobExecutionsByState,
+        finalStatus,
+      };
     }),
 
   allTemplatesForName: protectedProjectProcedure

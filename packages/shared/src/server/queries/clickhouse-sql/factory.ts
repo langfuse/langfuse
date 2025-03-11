@@ -3,7 +3,7 @@ import { singleFilter } from "../../../interfaces/filters";
 import { FilterCondition } from "../../../types";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
-import { UiColumnMapping } from "../../../tableDefinitions";
+import { UiColumnMappings } from "../../../tableDefinitions";
 import {
   StringFilter,
   DateTimeFilter,
@@ -29,7 +29,7 @@ export class QueryBuilderError extends Error {
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
 export const createFilterFromFilterState = (
   filter: FilterCondition[],
-  columnMapping: UiColumnMapping[],
+  columnMapping: UiColumnMappings,
 ) => {
   return filter.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
@@ -120,7 +120,7 @@ export const createFilterFromFilterState = (
 
 const matchAndVerifyTracesUiColumn = (
   filter: z.infer<typeof singleFilter>,
-  uiTableDefinitions: UiColumnMapping[],
+  uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name
   logger.debug(`Filter to match: ${JSON.stringify(filter)}`);

@@ -39,30 +39,47 @@ export function AuditLogsTable(props: { projectId: string }) {
       },
     },
     {
-      accessorKey: "user",
-      header: "User",
+      accessorKey: "actor",
+      header: "Actor",
       headerTooltip: {
-        description: "The user within Langfuse who performed the action.",
+        description: "The actor within Langfuse who performed the action.",
       },
       cell: (row) => {
-        const user = row.getValue() as AuditLogRow["user"];
-        return (
-          <div className="flex items-center gap-2">
-            <Avatar className="h-6 w-6">
-              {user?.image && (
-                <AvatarImage src={user.image} alt={user?.name ?? "User"} />
-              )}
-              <AvatarFallback>
-                {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
-              </AvatarFallback>
-            </Avatar>
-            <span
-              className={cn("text-sm", !user?.name && "text-muted-foreground")}
-            >
-              {user?.name ?? user?.email ?? user.id}
-            </span>
-          </div>
-        );
+        const actor = row.getValue() as AuditLogRow["actor"];
+        if (actor.type === "USER") {
+          const user = actor.body;
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-6 w-6">
+                {user?.image && (
+                  <AvatarImage src={user.image} alt={user?.name ?? "User"} />
+                )}
+                <AvatarFallback>
+                  {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span
+                className={cn(
+                  "text-sm",
+                  !user?.name && "text-muted-foreground",
+                )}
+              >
+                {user?.name ?? user?.email ?? user.id}
+              </span>
+            </div>
+          );
+        }
+
+        if (actor.type === "API_KEY") {
+          const apiKey = actor.body;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{apiKey?.publicKey ?? apiKey?.id}</span>
+            </div>
+          );
+        }
+
+        return null;
       },
     },
     {

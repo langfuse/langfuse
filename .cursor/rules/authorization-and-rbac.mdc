@@ -1,0 +1,6 @@
+---
+description: How to manage authorization and RBAC within full-stack langfuse features
+globs: web/
+alwaysApply: true
+---
+See [README.md](mdc:web/src/features/rbac/README.md) for details

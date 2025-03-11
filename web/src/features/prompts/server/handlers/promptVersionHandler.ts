@@ -5,6 +5,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { updatePrompt } from "@/src/features/prompts/server/actions/updatePrompts";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const UpdatePromptBodySchema = z.object({
   newLabels: z
@@ -29,6 +30,15 @@ export const promptVersionHandler = withMiddlewares({
           projectId: auth.scope.projectId,
           promptVersion: Number(promptVersion),
           newLabels,
+        });
+
+        await auditLog({
+          action: "update",
+          resourceType: "prompt",
+          resourceId: prompt.id,
+          projectId: auth.scope.projectId,
+          orgId: auth.scope.orgId,
+          apiKeyId: auth.scope.apiKeyId,
         });
 
         logger.info(`Prompt updated ${JSON.stringify(prompt)}`);
