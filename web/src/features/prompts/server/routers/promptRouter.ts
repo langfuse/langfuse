@@ -413,7 +413,7 @@ export const promptRouter = createTRPCRouter({
             },
           },
         });
-        const { name, version, labels } = promptVersion;
+        const { name: promptName, version, labels } = promptVersion;
 
         const dependents = await ctx.prisma.$queryRaw<
           {
@@ -434,7 +434,7 @@ export const promptRouter = createTRPCRouter({
           WHERE
             p.project_id = ${projectId}
             AND pd.project_id = ${projectId}
-            AND pd.child_name = ${name}
+            AND pd.child_name = ${promptName}
             AND (
               (pd."child_version" IS NOT NULL AND pd."child_version" = ${version})
               OR
@@ -446,7 +446,7 @@ export const promptRouter = createTRPCRouter({
           const dependencyMessages = dependents
             .map(
               (d) =>
-                `${d.parent_name} v${d.parent_version} depends on ${name} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+                `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
             )
             .join("\n");
 
@@ -481,7 +481,7 @@ export const promptRouter = createTRPCRouter({
           const newLatestPrompt = await ctx.prisma.prompt.findFirst({
             where: {
               projectId,
-              name,
+              name: promptName,
               id: { not: input.promptVersionId },
             },
             orderBy: [{ version: "desc" }],
@@ -506,14 +506,14 @@ export const promptRouter = createTRPCRouter({
 
         // Lock and invalidate cache for _all_ versions and labels of the prompt
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, name });
-        await promptService.invalidateCache({ projectId, name });
+        await promptService.lockCache({ projectId, promptName });
+        await promptService.invalidateCache({ projectId, promptName });
 
         // Execute transaction
         await ctx.prisma.$transaction(transaction);
 
         // Unlock cache
-        await promptService.unlockCache({ projectId, name });
+        await promptService.unlockCache({ projectId, promptName });
       } catch (e) {
         logger.error(e);
         throw e;
