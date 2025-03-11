@@ -23,6 +23,7 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  Atla = "atla",
 }
 
 export enum ChatMessageRole {
@@ -152,6 +153,8 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
+export const atlaModels = ["atla-selene", "atla-selene-20250214"] as const;
+
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
@@ -161,6 +164,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.Atla]: atlaModels,
 } as const;
 
 export type LLMFunctionCall = {

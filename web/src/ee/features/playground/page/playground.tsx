@@ -3,6 +3,8 @@ import { usePlaygroundContext } from "./context";
 import { Variables } from "./components/Variables";
 import { Messages } from "./components/Messages";
 
+// TODO: We need to make sure that Atla doesn't show up in the playground.
+
 export default function Playground() {
   const playgroundContext = usePlaygroundContext();
 

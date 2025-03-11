@@ -117,7 +117,7 @@ export const useModelParams = () => {
   };
 };
 
-function getDefaultAdapterParams(
+export function getDefaultAdapterParams(
   adapter: LLMAdapter,
 ): Omit<UIModelParams, "provider" | "model"> {
   switch (adapter) {
@@ -193,6 +193,21 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: true },
         max_tokens: { value: 256, enabled: true },
         top_p: { value: 1, enabled: true },
+      };
+    // Atla models have specific parameters:
+    // - temperature: 0 for reproducibility.
+    // - max_tokens: unused -- this allows model to complete its critique and scoring.
+    // - top_p: 1 for deterministic responses.
+    case LLMAdapter.Atla:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 1, enabled: false },
+        max_tokens: { value: 1, enabled: false },
+        top_p: { value: 0, enabled: false },
       };
   }
 }

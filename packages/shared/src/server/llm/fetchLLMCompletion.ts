@@ -234,6 +234,33 @@ export async function fetchLLMCompletion(
       maxRetries,
       apiKey,
     });
+  } else if (modelParams.adapter === LLMAdapter.Atla) {
+    // TODO: Finalize.
+    // TODO: make env variable.
+    const atlaBaseURL = "http://localhost:8000/v1/integrations/langfuse";
+
+    // TODO: do we need to define our own ChatAtla?
+
+    // The Atla endpoint supports a subset of OpenAI parameters.
+    // - temperature: 0 for reproducibility.
+    // - max_tokens: unused -- this allows model to complete its critique and scoring.
+    // - top_p: 1 for deterministic responses.
+    // - streaming : not supported.
+    chatModel = new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: modelParams.model,
+      temperature: 0,
+      maxTokens: undefined,
+      topP: 1, // Atla models do not support top_p.
+      streamUsage: false, // Atla models do not support streaming.
+      callbacks: finalCallbacks,
+      maxRetries,
+      configuration: {
+        baseURL: atlaBaseURL,
+        defaultHeaders: extraHeaders,
+      },
+      timeout: 1000 * 60 * 2, // 2 minutes timeout
+    });
   } else {
     // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;
