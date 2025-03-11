@@ -27,6 +27,7 @@ import {
   getAggregatedScoresForPrompts,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { TRPCError } from "@trpc/server";
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -313,10 +314,40 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        if (prompts.some((prompt) => prompt.PromptDependency.length > 0)) {
-          throw Error(
-            "Other prompts are depending on prompt versions you are trying to delete. Please delete the dependent prompts first.",
-          );
+        const dependents = await ctx.prisma.$queryRaw<
+          {
+            parent_name: string;
+            parent_version: number;
+            child_version: number;
+            child_label: string;
+          }[]
+        >`
+          SELECT
+            p."name" AS "parent_name",
+            p."version" AS "parent_version",
+            pd."child_version" AS "child_version",
+            pd."child_label" AS "child_label"
+          FROM
+            prompt_dependencies pd
+            INNER JOIN prompts p ON p.id = pd.parent_id
+          WHERE
+            p.project_id = ${projectId}
+            AND pd.project_id = ${projectId}
+            AND pd.child_name = ${input.promptName}
+      `;
+
+        if (dependents.length > 0) {
+          const dependencyMessages = dependents
+            .map(
+              (d) =>
+                `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+            )
+            .join("\n");
+
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Other prompts are depending on prompt versions you are trying to delete:\n\n${dependencyMessages}\n\nPlease delete the dependent prompts first.`,
+          });
         }
 
         for (const prompt of prompts) {
@@ -382,13 +413,47 @@ export const promptRouter = createTRPCRouter({
             },
           },
         });
-        const { name: promptName } = promptVersion;
+        const { name, version, labels } = promptVersion;
 
-        // TODO: improve by returning actual names and versions that depend on this prompt
-        if (promptVersion.PromptDependency.length > 0) {
-          throw Error(
-            "Prompt(s) are depending on this prompt you are trying to delete. Please delete the dependent prompt first.",
-          );
+        const dependents = await ctx.prisma.$queryRaw<
+          {
+            parent_name: string;
+            parent_version: number;
+            child_version: number;
+            child_label: string;
+          }[]
+        >`
+          SELECT
+            p."name" AS "parent_name",
+            p."version" AS "parent_version",
+            pd."child_version" AS "child_version",
+            pd."child_label" AS "child_label"
+          FROM
+            prompt_dependencies pd
+            INNER JOIN prompts p ON p.id = pd.parent_id
+          WHERE
+            p.project_id = ${projectId}
+            AND pd.project_id = ${projectId}
+            AND pd.child_name = ${name}
+            AND (
+              (pd."child_version" IS NOT NULL AND pd."child_version" = ${version})
+              OR
+              (pd."child_label" IS NOT NULL AND pd."child_label" IN (${Prisma.join(labels)}))
+            )
+      `;
+
+        if (dependents.length > 0) {
+          const dependencyMessages = dependents
+            .map(
+              (d) =>
+                `${d.parent_name} v${d.parent_version} depends on ${name} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+            )
+            .join("\n");
+
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Other prompts are depending on the prompt version you are trying to delete:\n\n${dependencyMessages}\n\nPlease delete the dependent prompts first.`,
+          });
         }
 
         await auditLog(
