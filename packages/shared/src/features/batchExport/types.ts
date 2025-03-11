@@ -18,11 +18,11 @@ export enum BatchExportFileFormat {
 }
 
 export enum BatchExportTableName {
+  Scores = "scores",
   Sessions = "sessions",
   Traces = "traces",
   Generations = "generations",
   DatasetRunItems = "dataset_run_items",
-  Scores = "scores",
 }
 
 export const exportOptions: Record<
