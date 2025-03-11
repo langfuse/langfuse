@@ -117,6 +117,16 @@ export const ingestionQueueProcessorBuilder = (
           job.data.payload.authCheck.scope.projectId,
         )
       ) {
+        // TEMPORARY OVERWRITE: WE JUST ACK WHATEVER COMES IN. THIS IS A TEMPORARY FIX TO RESTORE NORMAL OPERATIONS
+        return;
+      }
+
+      if (
+        enableRedirectToSecondaryQueue &&
+        projectIdsToRedirectToSecondaryQueue.includes(
+          job.data.payload.authCheck.scope.projectId,
+        )
+      ) {
         logger.debug(
           `Redirecting ingestion event to secondary queue for project ${job.data.payload.authCheck.scope.projectId}`,
         );
@@ -143,17 +153,11 @@ export const ingestionQueueProcessorBuilder = (
       );
 
       // Download all events from folder into a local array
-      const maxKeys = projectIdsToRedirectToSecondaryQueue.includes(
-        job.data.payload.authCheck.scope.projectId,
-      )
-        ? env.LANGFUSE_INGESTION_SECONDARY_QUEUE_MAX_S3_LIST_KEYS
-        : 1000;
       const clickhouseEntityType = getClickhouseEntityType(
         job.data.payload.data.type,
       );
       const eventFiles = await s3Client.listFiles(
         `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
-        maxKeys,
       );
 
       recordDistribution(
