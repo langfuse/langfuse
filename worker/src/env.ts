@@ -101,6 +101,7 @@ const EnvSchema = z.object({
     .positive()
     .default(25),
   LANGFUSE_TRACE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
+  LANGFUSE_SCORE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
@@ -160,6 +161,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_PROJECT_DELETE_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -209,10 +213,7 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
-  LANGFUSE_S3_CONCURRENT_READS: z.coerce
-    .number()
-    .positive()
-    .default(50),
+  LANGFUSE_S3_CONCURRENT_READS: z.coerce.number().positive().default(50),
 });
 
 export const env: z.infer<typeof EnvSchema> =
