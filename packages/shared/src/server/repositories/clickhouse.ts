@@ -5,7 +5,7 @@ import {
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
-import { randomUUID } from "crypto";
+import crypto, { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { context, trace } from "@opentelemetry/api";
