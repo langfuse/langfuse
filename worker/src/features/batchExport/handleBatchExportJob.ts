@@ -37,7 +37,7 @@ const tableNameToTimeFilterColumn = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
   dataset_run_items: "createdAt",
 };
 
@@ -45,7 +45,7 @@ const tableNameToTimeFilterColumnCh = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
   dataset_run_items: "createdAt",
 };
 
@@ -190,7 +190,7 @@ export const getDatabaseReadStream = async ({
         1000,
         exportLimit,
       );
-    case "generations": {
+    case "observations": {
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(

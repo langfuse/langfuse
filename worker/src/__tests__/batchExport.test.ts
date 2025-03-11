@@ -17,11 +17,11 @@ describe("batch export test suite", () => {
   it("should export observations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const generations = [
+    const observations = [
       createObservation({
         project_id: projectId,
         trace_id: randomUUID(),
-        type: "GENERATION",
+        type: "SPAN",
       }),
       createObservation({
         project_id: projectId,
@@ -31,24 +31,24 @@ describe("batch export test suite", () => {
       createObservation({
         project_id: projectId,
         trace_id: randomUUID(),
-        type: "GENERATION",
+        type: "EVENT",
       }),
     ];
 
     const score = createScore({
       project_id: projectId,
       trace_id: randomUUID(),
-      observation_id: generations[0].id,
+      observation_id: observations[0].id,
       name: "test",
       value: 123,
     });
 
     await createScoresCh([score]);
-    await createObservationsCh(generations);
+    await createObservationsCh(observations);
 
     const stream = await getDatabaseReadStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Generations,
+      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [],
       orderBy: { column: "startTime", order: "DESC" },
@@ -64,17 +64,20 @@ describe("batch export test suite", () => {
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: generations[0].id,
-          name: generations[0].name,
+          id: observations[0].id,
+          name: observations[0].name,
+          type: observations[0].type,
           test: [score.value],
         }),
         expect.objectContaining({
-          id: generations[1].id,
-          name: generations[1].name,
+          id: observations[1].id,
+          name: observations[1].name,
+          type: observations[1].type,
         }),
         expect.objectContaining({
-          id: generations[2].id,
-          name: generations[2].name,
+          id: observations[2].id,
+          name: observations[2].name,
+          type: observations[2].type,
         }),
       ]),
     );
@@ -83,7 +86,7 @@ describe("batch export test suite", () => {
   it("should export observations with filter and sorting", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
-    const generations = [
+    const observations = [
       createObservation({
         project_id: projectId,
         trace_id: randomUUID(),
@@ -94,24 +97,24 @@ describe("batch export test suite", () => {
       createObservation({
         project_id: projectId,
         trace_id: randomUUID(),
-        type: "GENERATION",
+        type: "EVENT",
         name: "test2",
         start_time: new Date("2024-01-02").getTime(),
       }),
       createObservation({
         project_id: projectId,
         trace_id: randomUUID(),
-        type: "GENERATION",
+        type: "SPAN",
         name: "test3",
         start_time: new Date("2024-01-03").getTime(),
       }),
     ];
 
-    await createObservationsCh(generations);
+    await createObservationsCh(observations);
 
     const stream = await getDatabaseReadStream({
       projectId: projectId,
-      tableName: BatchExportTableName.Generations,
+      tableName: BatchExportTableName.Observations,
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
