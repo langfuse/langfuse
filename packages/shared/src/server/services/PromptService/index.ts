@@ -11,7 +11,7 @@ import {
   PromptServiceMetrics,
 } from "./types";
 
-import { ParsedPromptDependencyTag } from "@langfuse/shared";
+import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
 
