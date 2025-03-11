@@ -104,7 +104,7 @@ export function PromptSelectionDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
           <p className="text-sm text-muted-foreground">
-            Referenced prompts are dynamically resolved and inserted at when
+            Referenced prompts are dynamically resolved and inserted when
             fetched via API/SDK. This enables modular design—create complex
             prompts from reusable, independently maintained components.
           </p>
