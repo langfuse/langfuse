@@ -13,3 +13,6 @@ CREATE TABLE "prompt_dependencies" (
 
 ALTER TABLE "prompt_dependencies" ADD CONSTRAINT "prompt_dependencies_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "prompt_dependencies" ADD CONSTRAINT "prompt_dependencies_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "prompts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE INDEX "prompt_dependencies_project_id_parent_id" ON "prompt_dependencies"("project_id", "parent_id");
+CREATE INDEX "prompt_dependencies_project_id_child_name" ON "prompt_dependencies"("project_id", "child_name");

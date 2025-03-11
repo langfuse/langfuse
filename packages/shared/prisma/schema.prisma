@@ -675,6 +675,8 @@ model PromptDependency {
   childLabel   String? @map("child_label")
   childVersion Int?    @map("child_version")
 
+  @@index([projectId, parentId])
+  @@index([projectId, childName])
   @@map("prompt_dependencies")
 }
 
