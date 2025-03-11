@@ -484,7 +484,7 @@ export default function ScoresTable({
             type: BatchActionType.Delete,
             label: "Delete Scores",
             description:
-              "This action permanently deletes score and cannot be undone. Score deletion happens asynchronously and may take up to 15 minutes.",
+              "This action permanently deletes scores and cannot be undone. Score deletion happens asynchronously and may take up to 15 minutes.",
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
