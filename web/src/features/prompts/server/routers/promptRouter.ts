@@ -481,7 +481,7 @@ export const promptRouter = createTRPCRouter({
           const newLatestPrompt = await ctx.prisma.prompt.findFirst({
             where: {
               projectId,
-              name: promptName,
+              name,
               id: { not: input.promptVersionId },
             },
             orderBy: [{ version: "desc" }],
