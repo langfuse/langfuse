@@ -129,19 +129,8 @@ types:
         type: optional<string>
         docs: Commit message for this prompt version.
       resolutionGraph:
-        type: optional<PromptGraph>
+        type: optional<map<string, unknown>>
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
-
-  PromptReferenceInGraph:
-    properties:
-      name: string
-      version: integer
-      id: string
-
-  PromptGraph:
-    properties:
-      root: PromptReferenceInGraph
-      dependencies: map<string, PromptReferenceInGraph>
 
   ChatMessage:
     properties:
