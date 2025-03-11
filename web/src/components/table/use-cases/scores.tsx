@@ -572,6 +572,11 @@ export default function ScoresTable({
               tableName={BatchExportTableName.Scores}
             />
           ) : null,
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Scores}
+            key="batchExport"
+          />,
         ]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
@@ -592,13 +597,6 @@ export default function ScoresTable({
           onValueChange: setSelectedEnvironments,
           options: environmentOptions.map((env) => ({ value: env })),
         }}
-        actionButtons={
-          <BatchExportTableButton
-            {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Scores}
-            key="batchExport"
-          />
-        }
       />
       <DataTable
         columns={columns}
