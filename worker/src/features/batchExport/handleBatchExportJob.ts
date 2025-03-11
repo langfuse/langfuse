@@ -36,19 +36,19 @@ import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
 const tableNameToTimeFilterColumn = {
+  [BatchExportTableName.Scores]: "timestamp",
   [BatchExportTableName.Sessions]: "createdAt",
   [BatchExportTableName.Traces]: "timestamp",
   [BatchExportTableName.Observations]: "startTime",
   [BatchExportTableName.DatasetRunItems]: "createdAt",
-  [BatchExportTableName.Scores]: "timestamp",
 };
 
 const tableNameToTimeFilterColumnCh = {
-  [BatchExportTableName.Sessions]: "created_at",
-  [BatchExportTableName.Traces]: "timestamp",
-  [BatchExportTableName.Observations]: "start_time",
-  [BatchExportTableName.DatasetRunItems]: "created_at",
   [BatchExportTableName.Scores]: "timestamp",
+  [BatchExportTableName.Sessions]: "createdAt",
+  [BatchExportTableName.Traces]: "timestamp",
+  [BatchExportTableName.Observations]: "startTime",
+  [BatchExportTableName.DatasetRunItems]: "createdAt",
 };
 
 const isGenerationTimestampFilter = (
