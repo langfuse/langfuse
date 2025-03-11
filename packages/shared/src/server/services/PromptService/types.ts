@@ -1,4 +1,4 @@
-import { type Prompt } from "@langfuse/shared";
+import { type Prompt } from "../../../db";
 
 export type PromptParams = {
   projectId: string;
