@@ -33,6 +33,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type ScoresTableRow = {
   id: string;
@@ -172,6 +173,20 @@ export default function ScoresTable({
   const scores = api.scores.all.useQuery(getAllPayload);
   const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
+
+  // TODO: Implement
+  const scoreDeleteMutation = api.scores.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Scores deleted",
+        description:
+          "Selected scores will be deleted. Scores are removed asynchronously and may continue to be visible for up to 15 minutes.",
+      });
+    },
+    onSettled: () => {
+      void utils.scores.all.invalidate();
+    },
+  });
 
   const filterOptions = api.scores.filterOptions.useQuery(
     {
