@@ -153,6 +153,7 @@ export const ingestionQueueProcessorBuilder = (
       );
       const eventFiles = await s3Client.listFiles(
         `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${job.data.payload.authCheck.scope.projectId}/${clickhouseEntityType}/${job.data.payload.data.eventBodyId}/`,
+        maxKeys,
       );
 
       recordDistribution(
