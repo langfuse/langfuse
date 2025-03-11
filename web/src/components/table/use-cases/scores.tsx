@@ -187,7 +187,6 @@ export default function ScoresTable({
   const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
-  // TODO: Implement
   const scoreDeleteMutation = api.scores.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
