@@ -11,7 +11,7 @@ import { Button } from "@/src/components/ui/button";
 const getPromptUrl = (projectId: string, tag: ParsedPromptDependencyTag) => {
   const baseUrl = `/project/${projectId}/prompts/`;
   if (tag.type === "version") {
-    return `${baseUrl}${encodeURIComponent(tag.name)}?versions=${tag.version}`;
+    return `${baseUrl}${encodeURIComponent(tag.name)}?version=${tag.version}`;
   } else {
     return `${baseUrl}${encodeURIComponent(tag.name)}?label=${encodeURIComponent(tag.label)}`;
   }
