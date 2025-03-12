@@ -9,7 +9,9 @@ describe("PromptService", () => {
   let mockRedis: jest.Mocked<Redis>;
   let mockMetricIncrementer: jest.Mock;
 
-  const mockPrompt: Omit<Prompt, "updatedAt" | "createdAt"> = {
+  const mockPrompt: Omit<Prompt, "updatedAt" | "createdAt"> & {
+    resolutionGraph: null;
+  } = {
     id: "1",
     projectId: "project1",
     name: "testPrompt",
@@ -21,12 +23,17 @@ describe("PromptService", () => {
     isActive: null,
     config: {},
     tags: [],
+    commitMessage: null,
+    resolutionGraph: null,
   };
 
   beforeEach(() => {
     mockPrisma = {
       prompt: {
         findFirst: jest.fn(),
+      },
+      promptDependency: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     } as unknown as jest.Mocked<PrismaClient>;
 
@@ -94,7 +101,7 @@ describe("PromptService", () => {
       );
 
       expect(mockRedis.sadd).toHaveBeenCalledWith(
-        "prompt_key_index:project1:testPrompt",
+        "prompt_key_index:project1",
         "prompt:project1:testPrompt:1",
       );
     });
@@ -124,7 +131,7 @@ describe("PromptService", () => {
       });
 
       expect(mockRedis.setex).toHaveBeenCalledWith(
-        "LOCK:prompt:project1:testPrompt",
+        "LOCK:prompt:project1",
         30,
         "locked",
       );
@@ -138,9 +145,7 @@ describe("PromptService", () => {
         promptName: "testPrompt",
       });
 
-      expect(mockRedis.del).toHaveBeenCalledWith(
-        "LOCK:prompt:project1:testPrompt",
-      );
+      expect(mockRedis.del).toHaveBeenCalledWith("LOCK:prompt:project1");
     });
   });
 
@@ -151,8 +156,13 @@ describe("PromptService", () => {
         promptName: "testPrompt",
       });
 
+      // Legacy index
       expect(mockRedis.smembers).toHaveBeenCalledWith(
         "prompt_key_index:project1:testPrompt",
+      );
+
+      expect(mockRedis.smembers).toHaveBeenCalledWith(
+        "prompt_key_index:project1",
       );
     });
   });

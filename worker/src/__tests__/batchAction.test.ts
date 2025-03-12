@@ -5,9 +5,12 @@ import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJ
 import { getDatabaseReadStream } from "../features/batchExport/handleBatchExportJob";
 import {
   createOrgProjectAndApiKey,
+  createScore,
+  createScoresCh,
   createTrace,
   createTracesCh,
   getQueue,
+  getScoresByIds,
   logger,
   QueueJobs,
   QueueName,
@@ -119,6 +122,31 @@ describe("select all test suite", () => {
     }
     expect(remainingRows).toHaveLength(1);
     expect(remainingRows[0].userId).toBe("user2");
+  });
+
+  it("should handle score deletions", async () => {
+    // Setup
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const score = createScore({ project_id: projectId });
+    await createScoresCh([score]);
+
+    // When
+    await handleBatchActionJob({
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "score-delete",
+        tableName: BatchExportTableName.Scores,
+        query: {},
+      },
+    });
+
+    // Then
+    const scores = await getScoresByIds(projectId, [score.id]);
+    expect(scores).toHaveLength(0);
   });
 
   it("should create eval jobs for historic traces", async () => {

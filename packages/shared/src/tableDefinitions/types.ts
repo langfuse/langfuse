@@ -1,11 +1,13 @@
-export type UiColumnMapping = {
+export type UiColumnMappings = readonly UiColumnMapping[];
+
+export type UiColumnMapping = Readonly<{
   uiTableName: string;
   uiTableId: string;
   clickhouseTableName: string;
   clickhouseSelect: string;
   clickhouseTypeOverwrite?: string;
   queryPrefix?: string;
-};
+}>;
 
 export type OptionsDefinition = {
   value: string;

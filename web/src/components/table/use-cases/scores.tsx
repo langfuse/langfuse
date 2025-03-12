@@ -22,6 +22,8 @@ import {
   isPresent,
   type FilterState,
   type ScoreDataType,
+  BatchExportTableName,
+  BatchActionType,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
@@ -33,6 +35,14 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import React, { useState } from "react";
+import type { TableAction } from "@/src/features/table/types";
+import type { RowSelectionState } from "@tanstack/react-table";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 
 export type ScoresTableRow = {
   id: string;
@@ -89,10 +99,13 @@ export default function ScoresTable({
   hiddenColumns?: string[];
   localStorageSuffix?: string;
 }) {
+  const utils = api.useUtils();
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
   const { selectedOption, dateRange, setDateRangeAndOption } =
@@ -173,6 +186,38 @@ export default function ScoresTable({
   const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload);
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
 
+  const scoreDeleteMutation = api.scores.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Scores deleted",
+        description:
+          "Selected scores will be deleted. Scores are removed asynchronously and may continue to be visible for up to 15 minutes.",
+      });
+    },
+    onSettled: () => {
+      void utils.scores.all.invalidate();
+    },
+  });
+
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
+
+  const handleDeleteScores = async ({ projectId }: { projectId: string }) => {
+    const selectedScoreIds = Object.keys(selectedRows).filter((scoreId) =>
+      scores.data?.scores.map((s) => s.id).includes(scoreId),
+    );
+
+    await scoreDeleteMutation.mutateAsync({
+      projectId,
+      scoreIds: selectedScoreIds,
+      query: {
+        filter: filterState,
+        orderBy: orderByState,
+      },
+      isBatchAction: selectAll,
+    });
+    setSelectedRows({});
+  };
+
   const filterOptions = api.scores.filterOptions.useQuery(
     {
       projectId,
@@ -194,7 +239,14 @@ export default function ScoresTable({
     },
   );
 
+  const { selectActionColumn } = TableSelectionManager<ScoresTableRow>({
+    projectId,
+    tableName: "scores",
+    setSelectedRows,
+  });
+
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
+    selectActionColumn,
     {
       accessorKey: "traceId",
       id: "traceId",
@@ -259,7 +311,6 @@ export default function ScoresTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("environment") as string | undefined;
         return value ? (
@@ -423,6 +474,25 @@ export default function ScoresTable({
     },
   ];
 
+  const tableActions: TableAction[] = [
+    ...(hasTraceDeletionEntitlement
+      ? [
+          {
+            id: "score-delete",
+            type: BatchActionType.Delete,
+            label: "Delete Scores",
+            description:
+              "This action permanently deletes scores and cannot be undone. Score deletion happens asynchronously and may take up to 15 minutes.",
+            accessCheck: {
+              scope: "traces:delete",
+              entitlement: "trace-deletion",
+            },
+            execute: handleDeleteScores,
+          } as TableAction,
+        ]
+      : []),
+  ];
+
   const columns = rawColumns.filter(
     (c) => !!c.id && !hiddenColumns.includes(c.id),
   );
@@ -488,10 +558,32 @@ export default function ScoresTable({
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
+        actionButtons={[
+          Object.keys(selectedRows).filter((scoreId) =>
+            scores.data?.scores.map((s) => s.id).includes(scoreId),
+          ).length > 0 ? (
+            <TableActionMenu
+              key="scores-multi-select-actions"
+              projectId={projectId}
+              actions={tableActions}
+              tableName={BatchExportTableName.Scores}
+            />
+          ) : null,
+        ]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
+        multiSelect={{
+          selectAll,
+          setSelectAll,
+          selectedRowIds: Object.keys(selectedRows).filter((scoreId) =>
+            scores.data?.scores.map((s) => s.id).includes(scoreId),
+          ),
+          setRowSelection: setSelectedRows,
+          totalCount,
+          ...paginationState,
+        }}
         environmentFilter={{
           values: selectedEnvironments,
           onValueChange: setSelectedEnvironments,
@@ -526,6 +618,8 @@ export default function ScoresTable({
         onColumnVisibilityChange={setColumnVisibility}
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
         rowHeight={rowHeight}
       />
     </>

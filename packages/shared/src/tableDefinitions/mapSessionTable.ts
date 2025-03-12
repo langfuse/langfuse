@@ -1,6 +1,6 @@
-import { UiColumnMapping } from ".";
+import { UiColumnMappings } from ".";
 
-export const sessionCols: UiColumnMapping[] = [
+export const sessionCols: UiColumnMappings = [
   // we do not access the traces scores in ClickHouse. We default back to the trace timestamps.
 
   {

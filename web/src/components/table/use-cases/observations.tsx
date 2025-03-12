@@ -318,7 +318,6 @@ export default function ObservationsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["environment"] =
           row.getValue("environment");
@@ -873,7 +872,7 @@ export default function ObservationsTable({
         actionButtons={
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Generations}
+            tableName={BatchExportTableName.Observations}
             key="batchExport"
           />
         }

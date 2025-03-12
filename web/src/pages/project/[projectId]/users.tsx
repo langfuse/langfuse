@@ -228,7 +228,6 @@ const UsersTable = () => {
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: RowData["environment"] = row.getValue("environment");
         return value ? (
