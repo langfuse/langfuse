@@ -71,7 +71,7 @@ export const GenerationOutput = () => {
         ref={scrollAreaRef}
       >
         <div className="mb-4 flex w-full items-center">
-          <p className="flex-1 text-xs font-semibold">Output</p>
+          <p className="flex-1 text-sm font-semibold">Output</p>
           {copyButton}
         </div>
         <pre className="whitespace-break-spaces break-words text-xs">
