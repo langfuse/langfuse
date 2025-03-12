@@ -35,7 +35,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
     const newLabelsSet = new Set([...newLabels, ...prompt.labels]);
     const removedLabels = [];
 
-    // Prompts cannot be removed since the newLabelsSet includes the old labels
+    // Prompt labels cannot be removed here since the newLabelsSet includes the old labels
     // Keeping this dependent check below as a safeguard in case the above changes
     for (const oldLabel of prompt.labels) {
       if (!newLabelsSet.has(oldLabel)) {
