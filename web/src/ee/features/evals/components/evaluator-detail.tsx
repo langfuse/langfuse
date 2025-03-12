@@ -32,6 +32,7 @@ import {
   type JobExecutionState,
   generateJobExecutionCounts,
 } from "@/src/ee/features/evals/utils/job-execution-utils";
+import { useGlobalOverflowSuppressor } from "@/src/features/ui-global-overflow-suppress/global-overflow-suppressor-provider";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -52,6 +53,19 @@ export const EvaluatorDetail = () => {
   const evaluatorId = router.query.evaluatorId as string;
 
   const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const { suppress, setSuppress } = useGlobalOverflowSuppressor();
+
+  React.useEffect(() => {
+    if (!suppress) {
+      setSuppress(true);
+      return () => {
+        setSuppress(false);
+      };
+    }
+    // In this case, we want to suppress the overflow only on mount and avoid cyclic re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // get the current template by id
   const evaluator = api.evals.configById.useQuery({

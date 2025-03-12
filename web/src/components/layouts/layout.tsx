@@ -16,6 +16,8 @@ import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizati
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
+import { useGlobalOverflowSuppressor } from "@/src/features/ui-global-overflow-suppress/global-overflow-suppressor-provider";
+import { cn } from "@/src/utils/tailwind";
 
 const signOutUser = async () => {
   sessionStorage.clear();
@@ -207,6 +209,8 @@ export default function Layout(props: PropsWithChildren) {
 
   const activePathName = navigation.find(({ isActive }) => isActive)?.title;
 
+  const { suppress } = useGlobalOverflowSuppressor();
+
   if (session.status === "loading") return <Spinner message="Loading" />;
 
   // If the user has a token, but does not exist in the database, sign them out
@@ -297,7 +301,7 @@ export default function Layout(props: PropsWithChildren) {
           href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon-16x16.png`}
         />
       </Head>
-      <div>
+      <div className={cn({ "overflow-hidden": suppress })}>
         <SidebarProvider>
           <AppSidebar
             navItems={topNavigation}
