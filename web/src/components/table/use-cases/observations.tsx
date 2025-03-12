@@ -318,7 +318,6 @@ export default function ObservationsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationsTableRow["environment"] =
           row.getValue("environment");
