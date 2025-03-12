@@ -210,6 +210,12 @@ export const ObservationPreview = ({
                     </Badge>
                   ) : null}
 
+                  {preloadedObservation.environment ? (
+                    <Badge variant="tertiary">
+                      Environment: {preloadedObservation.environment}
+                    </Badge>
+                  ) : null}
+
                   {thisCost ? (
                     <BreakdownTooltip
                       details={preloadedObservation.costDetails}
