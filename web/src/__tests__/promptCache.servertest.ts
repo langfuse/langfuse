@@ -156,8 +156,13 @@ describe("PromptService", () => {
         promptName: "testPrompt",
       });
 
+      // Legacy index
       expect(mockRedis.smembers).toHaveBeenCalledWith(
         "prompt_key_index:project1:testPrompt",
+      );
+
+      expect(mockRedis.smembers).toHaveBeenCalledWith(
+        "prompt_key_index:project1",
       );
     });
   });
