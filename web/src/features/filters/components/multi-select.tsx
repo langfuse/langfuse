@@ -138,7 +138,7 @@ export function MultiSelect({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="center">
+      <PopoverContent className="p-0 w-full min-w-[200px] max-w-[600px]" align="center">
         <InputCommand>
           <InputCommandInput placeholder={title} />
           <InputCommandList>
@@ -172,7 +172,7 @@ export function MultiSelect({
                     >
                       <Check className={cn("h-4 w-4")} />
                     </div>
-                    <span className="overflow-x-scroll">
+                    <span className="truncate" title={option.displayValue ?? option.value}>
                       {option.displayValue ?? option.value}
                     </span>
                     {option.count !== undefined ? (
