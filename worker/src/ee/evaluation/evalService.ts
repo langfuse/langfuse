@@ -176,9 +176,8 @@ export const createEvalJobs = async ({
       const observationExists = await checkObservationExists(
         event.projectId,
         observationId,
-        new Date(),
+        "timestamp" in event ? new Date(event.timestamp) : new Date(),
       );
-
       if (!observationExists) {
         logger.warn(
           `Observation ${observationId} not found, retrying dataset eval later`,
