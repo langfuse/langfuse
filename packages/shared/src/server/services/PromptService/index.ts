@@ -211,8 +211,23 @@ export class PromptService {
     const keyIndexKey = this.getKeyIndexKey(params);
     const keys = await this.redis?.smembers(keyIndexKey);
 
+    /*
+     * Previously, the cache key index was based on both projectId and promptName.
+     * Now with prompt composability, we only use projectId for the key index.
+     * When invalidating the cache, we delete all keys for a projectId.
+     * For backwards compatibility, we also clear any existing entries in the old
+     * key index format (projectId + promptName) to ensure consistent caching.
+     */
+    const legacyKeyIndexKey = `${keyIndexKey}:${params.promptName}`;
+    const legacyKeys = await this.redis?.smembers(legacyKeyIndexKey);
+
     // Delete all keys for the prefix and the key index
-    await this.redis?.del([...(keys ?? []), keyIndexKey]);
+    await this.redis?.del([
+      ...(keys ?? []),
+      keyIndexKey,
+      ...(legacyKeys ?? []),
+      legacyKeyIndexKey,
+    ]);
   }
 
   private getCacheKey(params: PromptParams): string {
