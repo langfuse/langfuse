@@ -3174,20 +3174,6 @@ components:
       enum:
         - TRACE
         - OBSERVATION
-    AnnotationQueueItemCounts:
-      title: AnnotationQueueItemCounts
-      type: object
-      properties:
-        pending:
-          type: integer
-        completed:
-          type: integer
-        total:
-          type: integer
-      required:
-        - pending
-        - completed
-        - total
     AnnotationQueue:
       title: AnnotationQueue
       type: object
@@ -3203,8 +3189,6 @@ components:
           type: array
           items:
             type: string
-        itemCounts:
-          $ref: '#/components/schemas/AnnotationQueueItemCounts'
         createdAt:
           type: string
           format: date-time
@@ -3215,7 +3199,6 @@ components:
         - id
         - name
         - scoreConfigIds
-        - itemCounts
         - createdAt
         - updatedAt
     AnnotationQueueItem:
@@ -3287,6 +3270,7 @@ components:
         status:
           $ref: '#/components/schemas/AnnotationQueueStatus'
           nullable: true
+          description: Defaults to PENDING for new queue items
       required:
         - objectId
         - objectType

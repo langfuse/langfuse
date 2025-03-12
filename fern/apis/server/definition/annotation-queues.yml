@@ -116,19 +116,12 @@ types:
       - TRACE
       - OBSERVATION
 
-  AnnotationQueueItemCounts:
-    properties:
-      pending: integer
-      completed: integer
-      total: integer
-
   AnnotationQueue:
     properties:
       id: string
       name: string
       description: optional<string>
       scoreConfigIds: list<string>
-      itemCounts: AnnotationQueueItemCounts
       createdAt: datetime
       updatedAt: datetime
 
@@ -157,7 +150,9 @@ types:
     properties:
       objectId: string
       objectType: AnnotationQueueObjectType
-      status: optional<AnnotationQueueStatus>
+      status:
+        type: optional<AnnotationQueueStatus>
+        docs: Defaults to PENDING for new queue items
 
   UpdateAnnotationQueueItemRequest:
     properties:

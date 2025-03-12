@@ -109,7 +109,7 @@ export const CreateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 // PATCH /annotation-queues/:queueId/items/:itemId
 export const UpdateAnnotationQueueItemBody = z
   .object({
-    status: z.literal(AnnotationQueueStatus.COMPLETED),
+    status: z.nativeEnum(AnnotationQueueStatus).optional(),
   })
   .strict();
 
