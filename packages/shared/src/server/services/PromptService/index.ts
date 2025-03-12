@@ -288,7 +288,7 @@ export class PromptService {
       if (
         seen.has(currentPrompt.id) ||
         (currentPrompt.name === parentPrompt.name &&
-          currentPrompt.id !== parentPrompt.id)
+          currentPrompt.id !== parentPrompt.id) // ensure that the parent prompt cannot reference a prompt of the same name but different version
       ) {
         throw Error(
           `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
@@ -347,7 +347,7 @@ export class PromptService {
             throw Error(`Prompt dependency is not a text prompt: ${logName}`);
 
           // side-effect: populate adjacency list to return later as well
-          graph.dependencies[currentPrompt.id] ??= [];
+          graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
           graph.dependencies[currentPrompt.id].push({
             id: depPrompt.id,
             name: depPrompt.name,
