@@ -29,6 +29,7 @@ export const clickhouseClient = (
       log_comment: JSON.stringify(params.tags ?? {}),
       async_insert: 1,
       wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
+      input_format_json_throw_on_bad_escape_sequence: 0,
     },
   });
 };

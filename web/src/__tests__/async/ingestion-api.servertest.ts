@@ -79,7 +79,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           id: randomUUID(),
           timestamp: new Date().toISOString(),
           metadata: { hello: "world" },
-          input: "test\ud8000test",
+          input: "test\ud800test",
           environment: "production",
         },
       },
