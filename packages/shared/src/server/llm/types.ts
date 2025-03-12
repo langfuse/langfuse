@@ -19,11 +19,11 @@ export type ChatMessageWithId = ChatMessage & { id: string };
 export enum LLMAdapter {
   Anthropic = "anthropic",
   OpenAI = "openai",
+  Atla = "atla",
   Azure = "azure",
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
-  Atla = "atla",
 }
 
 export enum ChatMessageRole {

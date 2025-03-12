@@ -84,7 +84,7 @@ export const useModelParams = () => {
     }
   }, [availableModels, modelParams.model.value]);
 
-  // Update adapter and max temperature when provider changes
+  // Update adapter, max temperature, temperature, max_tokens, top_p when provider changes
   useEffect(() => {
     if (selectedProviderApiKey?.adapter) {
       setModelParams((prev) => ({
@@ -93,15 +93,32 @@ export const useModelParams = () => {
           value: selectedProviderApiKey.adapter,
           enabled: true,
         },
-        maxTemperature: getDefaultAdapterParams(selectedProviderApiKey.adapter)
-          .maxTemperature,
+        maxTemperature: {
+          value: getDefaultAdapterParams(selectedProviderApiKey.adapter)
+            .maxTemperature.value,
+          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter)
+            .maxTemperature.enabled,
+        },
         temperature: {
           value: Math.min(
             prev.temperature.value,
             getDefaultAdapterParams(selectedProviderApiKey.adapter)
               .maxTemperature.value,
           ),
-          enabled: true,
+          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter)
+            .temperature.enabled,
+        },
+        max_tokens: {
+          value: getDefaultAdapterParams(selectedProviderApiKey.adapter)
+            .max_tokens.value,
+          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter)
+            .max_tokens.enabled,
+        },
+        top_p: {
+          value: getDefaultAdapterParams(selectedProviderApiKey.adapter).top_p
+            .value,
+          enabled: getDefaultAdapterParams(selectedProviderApiKey.adapter).top_p
+            .enabled,
         },
       }));
     }
@@ -206,8 +223,8 @@ export function getDefaultAdapterParams(
         },
         temperature: { value: 0, enabled: false },
         maxTemperature: { value: 1, enabled: false },
-        max_tokens: { value: 1, enabled: false },
-        top_p: { value: 0, enabled: false },
+        max_tokens: { value: 4096, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
   }
 }
