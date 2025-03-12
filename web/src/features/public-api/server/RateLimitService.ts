@@ -258,6 +258,7 @@ const getPlanBasedRateLimitConfig = (
           throw new Error(`Unhandled resource case: ${exhaustiveCheckDefault}`);
       }
     case "cloud:team":
+    case "cloud:enterprise":
       switch (resource) {
         case "ingestion":
           return {
