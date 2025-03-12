@@ -389,6 +389,34 @@ describe("OTel Resource Span Mapping", () => {
       ).toBe(true);
     });
 
+    it("should use logfire.msg as span name", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: "wrong name",
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "right name" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      expect(langfuseEvents[0].body.name).toBe("right name");
+      expect(langfuseEvents[1].body.name).toBe("right name");
+    });
+
     it.each([
       [
         "should cast input_tokens from string to number",
