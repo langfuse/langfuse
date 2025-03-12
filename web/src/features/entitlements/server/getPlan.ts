@@ -23,8 +23,9 @@ export function getOrganizationPlanServerSide(
           case "Pro":
             return "cloud:pro";
           case "Team":
-          case "Enterprise":
             return "cloud:team";
+          case "Enterprise":
+            return "cloud:enterprise";
         }
       }
       // stripe plan via product id

@@ -88,6 +88,21 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
+  "cloud:enterprise": {
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "rbac-project-roles",
+      "audit-logs",
+      "data-retention",
+    ],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
   oss: {
     entitlements: [...selfHostedAllPlansEntitlements],
     entitlementLimits: {

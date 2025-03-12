@@ -282,7 +282,6 @@ export default function SessionsTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: SessionTableRow["environment"] =
           row.getValue("environment");
