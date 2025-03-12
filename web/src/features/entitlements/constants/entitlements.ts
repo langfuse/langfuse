@@ -88,7 +88,6 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
-  // same as team
   "cloud:enterprise": {
     entitlements: [
       ...cloudAllPlansEntitlements,

@@ -257,7 +257,6 @@ const getPlanBasedRateLimitConfig = (
           const exhaustiveCheckDefault: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheckDefault}`);
       }
-    // team and enterprise have same limits
     case "cloud:team":
     case "cloud:enterprise":
       switch (resource) {
