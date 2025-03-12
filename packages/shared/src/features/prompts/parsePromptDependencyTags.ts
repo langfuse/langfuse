@@ -33,6 +33,11 @@ export function parsePromptDependencyTags(
       continue; // Skip this tag if name is not the first parameter. This makes it easier to replace the tag with the resolved prompt.
     }
 
+    // There can be only 2 parts
+    if (parts.length !== 2) {
+      continue;
+    }
+
     parts.forEach((part) => {
       const [key, value] = part.split("=");
       params[key] = value;
