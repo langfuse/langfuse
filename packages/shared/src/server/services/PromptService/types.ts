@@ -1,5 +1,9 @@
 import { type Prompt } from "../../../db";
 
+export type PromptResult = Prompt & {
+  resolutionGraph: PromptGraph | null;
+};
+
 export type PromptParams = {
   projectId: string;
   promptName: string;

@@ -9,6 +9,7 @@ import {
   PartialPrompt,
   ResolvedPromptGraph,
   PromptServiceMetrics,
+  PromptResult,
 } from "./types";
 
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
@@ -33,7 +34,7 @@ export class PromptService {
     this.ttlSeconds = env.LANGFUSE_CACHE_PROMPT_TTL_SECONDS;
   }
 
-  public async getPrompt(params: PromptParams): Promise<Prompt | null> {
+  public async getPrompt(params: PromptParams): Promise<PromptResult | null> {
     if (await this.shouldUseCache(params)) {
       const cachedPrompt = await this.getCachedPrompt(params);
 
@@ -63,7 +64,9 @@ export class PromptService {
     return dbPrompt;
   }
 
-  private async getDbPrompt(params: PromptParams): Promise<Prompt | null> {
+  private async getDbPrompt(
+    params: PromptParams,
+  ): Promise<PromptResult | null> {
     const { projectId, promptName, version, label } = params;
 
     if (version) {
@@ -97,7 +100,9 @@ export class PromptService {
     return null;
   }
 
-  private async resolvePrompt(prompt: Prompt | null) {
+  private async resolvePrompt(
+    prompt: Prompt | null,
+  ): Promise<PromptResult | null> {
     if (!prompt) return prompt;
 
     const promptGraph = await this.buildAndResolvePromptGraph({
@@ -124,12 +129,14 @@ export class PromptService {
     return !isLocked;
   }
 
-  private async getCachedPrompt(params: PromptParams): Promise<Prompt | null> {
+  private async getCachedPrompt(
+    params: PromptParams,
+  ): Promise<PromptResult | null> {
     try {
       const key = this.getCacheKey(params);
       const value = await this.redis?.getex(key, "EX", this.ttlSeconds);
 
-      if (value) return JSON.parse(value) as Prompt;
+      if (value) return JSON.parse(value) as PromptResult;
     } catch (e) {
       this.logError("Error getting cached prompt", e);
     }
@@ -137,7 +144,7 @@ export class PromptService {
     return null;
   }
 
-  private async cachePrompt(params: PromptParams & { prompt: Prompt }) {
+  private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
     try {
       const keyIndexKey = this.getKeyIndexKey(params);
       const key = this.getCacheKey(params);
