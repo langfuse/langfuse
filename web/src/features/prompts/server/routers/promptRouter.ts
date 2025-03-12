@@ -305,13 +305,6 @@ export const promptRouter = createTRPCRouter({
             projectId,
             name: input.promptName,
           },
-          include: {
-            PromptDependency: {
-              select: {
-                parentId: true,
-              },
-            },
-          },
         });
 
         const dependents = await ctx.prisma.$queryRaw<
@@ -406,11 +399,6 @@ export const promptRouter = createTRPCRouter({
           where: {
             id: input.promptVersionId,
             projectId,
-          },
-          include: {
-            PromptDependency: {
-              select: { parentId: true },
-            },
           },
         });
         const { name: promptName, version, labels } = promptVersion;
