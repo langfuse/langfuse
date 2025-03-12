@@ -409,6 +409,74 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.status).toBe(AnnotationQueueStatus.PENDING);
     });
 
+    it("should create queue items with different object types and statuses", async () => {
+      // Create a queue item with TRACE object type
+      const traceObjectId = uuidv4();
+      const traceResponse = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        {
+          objectId: traceObjectId,
+          objectType: AnnotationQueueObjectType.TRACE,
+          status: AnnotationQueueStatus.COMPLETED,
+        },
+        auth,
+      );
+
+      expect(traceResponse.status).toBe(200);
+      expect(traceResponse.body.objectType).toBe(
+        AnnotationQueueObjectType.TRACE,
+      );
+
+      // Create a queue item with OBSERVATION object type
+      const observationObjectId = uuidv4();
+      const observationResponse = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        {
+          objectId: observationObjectId,
+          objectType: AnnotationQueueObjectType.OBSERVATION,
+          status: AnnotationQueueStatus.PENDING,
+        },
+        auth,
+      );
+
+      expect(observationResponse.status).toBe(200);
+      expect(observationResponse.body.objectType).toBe(
+        AnnotationQueueObjectType.OBSERVATION,
+      );
+
+      // Verify we can retrieve items with different object types
+      const itemsResponse = await makeZodVerifiedAPICall(
+        GetAnnotationQueueItemsResponse,
+        "GET",
+        `/api/public/annotation-queues/${queueId}/items`,
+        undefined,
+        auth,
+      );
+
+      expect(itemsResponse.status).toBe(200);
+
+      // Find our created items in the response
+      const traceItem = itemsResponse.body.data.find(
+        (item) => item.objectId === traceObjectId,
+      );
+      const observationItem = itemsResponse.body.data.find(
+        (item) => item.objectId === observationObjectId,
+      );
+
+      expect(traceItem).toBeDefined();
+      expect(traceItem?.objectType).toBe(AnnotationQueueObjectType.TRACE);
+      expect(traceItem?.status).toBe(AnnotationQueueStatus.COMPLETED);
+      expect(observationItem).toBeDefined();
+      expect(observationItem?.objectType).toBe(
+        AnnotationQueueObjectType.OBSERVATION,
+      );
+      expect(observationItem?.status).toBe(AnnotationQueueStatus.PENDING);
+    });
+
     it("should return 404 for non-existent queue", async () => {
       const nonExistentId = uuidv4();
       const response = await makeAPICall(
@@ -455,6 +523,43 @@ describe("Annotation Queues API Endpoints", () => {
       expect(response.body.id).toBe(newItemId);
       expect(response.body.status).toBe(AnnotationQueueStatus.COMPLETED);
       expect(response.body.completedAt).not.toBeNull();
+    });
+
+    it("should update an annotation queue item from COMPLETED to PENDING", async () => {
+      // Create a new item with COMPLETED status
+      const createResponse = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        {
+          objectId: uuidv4(),
+          objectType: AnnotationQueueObjectType.TRACE,
+          status: AnnotationQueueStatus.COMPLETED,
+        },
+        auth,
+      );
+
+      const newItemId = createResponse.body.id;
+
+      // Verify it was created with COMPLETED status
+      expect(createResponse.body.status).toBe(AnnotationQueueStatus.COMPLETED);
+      expect(createResponse.body.completedAt).not.toBeNull();
+
+      // Update it to PENDING
+      const response = await makeZodVerifiedAPICall(
+        UpdateAnnotationQueueItemResponse,
+        "PATCH",
+        `/api/public/annotation-queues/${queueId}/items/${newItemId}`,
+        {
+          status: AnnotationQueueStatus.PENDING,
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.id).toBe(newItemId);
+      expect(response.body.status).toBe(AnnotationQueueStatus.PENDING);
+      expect(response.body.completedAt).not.toBeNull(); // is not reset by moving to PENDING
     });
 
     it("should return 404 for non-existent queue item", async () => {
