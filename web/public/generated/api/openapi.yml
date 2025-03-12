@@ -4999,6 +4999,13 @@ components:
           type: string
           nullable: true
           description: Commit message for this prompt version.
+        resolutionGraph:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            The dependency resolution graph for the current prompt. Null if
+            prompt has no dependencies.
       required:
         - name
         - version

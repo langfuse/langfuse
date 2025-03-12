@@ -12,6 +12,7 @@ import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
 
 const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -25,6 +26,7 @@ export function JSONView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
+  projectIdForPromptButtons?: string;
 }) {
   // some users ingest stringified json nested in json, parse it
   const parsedJson = deepParseJson(props.json);
@@ -65,6 +67,13 @@ export function JSONView(props: {
       >
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
+        ) : props.projectIdForPromptButtons ? (
+          <code className="whitespace-pre-wrap break-words">
+            {renderContentWithPromptButtons(
+              props.projectIdForPromptButtons,
+              String(parsedJson),
+            )}
+          </code>
         ) : (
           <React18JsonView
             src={parsedJson}
@@ -136,7 +145,7 @@ export function JSONView(props: {
 }
 
 export function CodeView(props: {
-  content: string | undefined | null;
+  content: string | React.ReactNode[] | undefined | null;
   className?: string;
   defaultCollapsed?: boolean;
   title?: string;
@@ -147,7 +156,11 @@ export function CodeView(props: {
 
   const handleCopy = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(props.content ?? "");
+    void navigator.clipboard.writeText(
+      typeof props.content === "string"
+        ? props.content
+        : (props.content?.join("\n") ?? ""),
+    );
     setTimeout(() => setIsCopied(false), 1000);
   };
 
