@@ -69,6 +69,21 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
+    [
+      "clickhouse-non-printable-characters",
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          metadata: { hello: "world" },
+          input: "test\ud8000test",
+          environment: "production",
+        },
+      },
+    ],
   ])(
     "should create traces via the ingestion API (%s)",
     async (_name: string, entity: any) => {
