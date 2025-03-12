@@ -248,6 +248,21 @@ const extractEnvironment = (
   return "default";
 };
 
+const extractName = (
+  spanName: string,
+  attributes: Record<string, unknown>,
+): string => {
+  const nameKeys = ["logfire.msg"];
+  for (const key of nameKeys) {
+    if (attributes[key]) {
+      return typeof attributes[key] === "string"
+        ? (attributes[key] as string)
+        : JSON.stringify(attributes[key]);
+    }
+  }
+  return spanName;
+};
+
 const extractUserId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
@@ -391,7 +406,7 @@ export const convertOtelSpanToIngestionEvent = (
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
-          name: span.name,
+          name: extractName(span.name, attributes),
           metadata: {
             attributes,
             resourceAttributes,
@@ -429,7 +444,7 @@ export const convertOtelSpanToIngestionEvent = (
           "hex",
         ),
         parentObservationId,
-        name: span.name,
+        name: extractName(span.name, attributes),
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
 
