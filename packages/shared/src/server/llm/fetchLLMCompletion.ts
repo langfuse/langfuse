@@ -242,6 +242,10 @@ export async function fetchLLMCompletion(
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      streamUsage: false,
       callbacks: finalCallbacks,
       maxRetries,
       configuration: {
