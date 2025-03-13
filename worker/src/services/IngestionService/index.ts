@@ -620,6 +620,7 @@ export class IngestionService {
     const final_usage_details = this.getUsageUnits(
       observationRecord,
       internalModel,
+      projectId,
     );
     const modelPrices = await this.getModelPrices(internalModel?.id);
 
@@ -653,6 +654,7 @@ export class IngestionService {
   private getUsageUnits(
     observationRecord: ObservationRecordInsertType,
     model: Model | null | undefined,
+    projectId: string,
   ): Pick<
     ObservationRecordInsertType,
     "usage_details" | "provided_usage_details"
@@ -668,6 +670,16 @@ export class IngestionService {
       model &&
       Object.keys(providedUsageDetails).length === 0
     ) {
+      if (
+        (
+          env.LANGFUSE_SECONDARY_INGESTION_QUEUE_ENABLED_PROJECT_IDS?.split(
+            ",",
+          ) ?? []
+        ).includes(projectId)
+      ) {
+        return { usage_details: {}, provided_usage_details: {} };
+      }
+
       const newInputCount = tokenCount({
         text: observationRecord.input,
         model,
