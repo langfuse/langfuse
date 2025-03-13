@@ -127,9 +127,9 @@ export const getDatabaseReadStream = async ({
             filter: filter
               ? [...filter, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
-            orderBy: orderBy,
+            orderBy,
             limit: pageSize,
-            offset: offset,
+            offset,
           });
 
           return scores.map((score: ScoreUiTableRow) => ({

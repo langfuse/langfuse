@@ -1,4 +1,5 @@
 import { BatchExportTableName } from "@langfuse/shared";
+import { BatchActionType } from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
 import { randomUUID } from "crypto";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
@@ -140,7 +141,12 @@ describe("select all test suite", () => {
         projectId,
         actionId: "score-delete",
         tableName: BatchExportTableName.Scores,
-        query: {},
+        cutoffCreatedAt: new Date(),
+        query: {
+          filter: null,
+          orderBy: { column: "timestamp", order: "DESC" },
+        },
+        type: BatchActionType.Delete,
       },
     });
 
