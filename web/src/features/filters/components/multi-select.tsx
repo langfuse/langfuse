@@ -172,7 +172,7 @@ export function MultiSelect({
                     >
                       <Check className={cn("h-4 w-4")} />
                     </div>
-                    <span className="overflow-x-scroll">
+                    <span className="flex-1 overflow-x-auto">
                       {option.displayValue ?? option.value}
                     </span>
                     {option.count !== undefined ? (
