@@ -4465,9 +4465,10 @@ components:
       required:
         - successes
         - errors
-    OpenAIUsageSchema:
-      title: OpenAIUsageSchema
+    OpenAICompletionUsageSchema:
+      title: OpenAICompletionUsageSchema
       type: object
+      description: OpenAI Usage schema from (Chat-)Completion APIs
       properties:
         prompt_tokens:
           type: integer
@@ -4489,13 +4490,39 @@ components:
         - prompt_tokens
         - completion_tokens
         - total_tokens
+    OpenAIResponseUsageSchema:
+      title: OpenAIResponseUsageSchema
+      type: object
+      description: OpenAI Usage schema from Response API
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        input_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+        output_tokens_details:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+      required:
+        - input_tokens
+        - output_tokens
+        - total_tokens
     UsageDetails:
       title: UsageDetails
       oneOf:
         - type: object
           additionalProperties:
             type: integer
-        - $ref: '#/components/schemas/OpenAIUsageSchema'
+        - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
+        - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
     GetMediaResponse:
       title: GetMediaResponse
       type: object
