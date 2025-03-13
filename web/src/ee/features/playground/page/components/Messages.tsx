@@ -64,7 +64,7 @@ const SubmitButton = () => {
         <TooltipContent className="m- m-6 w-[24rem]">
           <p>
             Atla models are trained to be evaluation models and are not
-            compatiable with chat completions.
+            recommended for use in the playground.
           </p>
         </TooltipContent>
       </Tooltip>
