@@ -19,6 +19,7 @@ import {
   type BatchExportJobType,
   FullObservationsWithScores,
   getPublicSessionsFilter,
+  getScoresForObservations,
   getObservationsTableWithModelData,
   getDistinctScoreNames,
   getTracesTable,
@@ -27,7 +28,6 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
-  getScoresForObservations,
   type ScoreUiTableRow,
   getScoresUiTable,
 } from "@langfuse/shared/src/server";
@@ -35,20 +35,20 @@ import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
-const tableNameToTimeFilterColumn = {
-  [BatchExportTableName.Scores]: "timestamp",
-  [BatchExportTableName.Sessions]: "createdAt",
-  [BatchExportTableName.Traces]: "timestamp",
-  [BatchExportTableName.Observations]: "startTime",
-  [BatchExportTableName.DatasetRunItems]: "createdAt",
+const tableNameToTimeFilterColumn: Record<BatchExportTableName, string> = {
+  scores: "timestamp",
+  sessions: "createdAt",
+  traces: "timestamp",
+  observations: "startTime",
+  dataset_run_items: "createdAt",
 };
 
-const tableNameToTimeFilterColumnCh = {
-  [BatchExportTableName.Scores]: "timestamp",
-  [BatchExportTableName.Sessions]: "createdAt",
-  [BatchExportTableName.Traces]: "timestamp",
-  [BatchExportTableName.Observations]: "startTime",
-  [BatchExportTableName.DatasetRunItems]: "createdAt",
+const tableNameToTimeFilterColumnCh: Record<BatchExportTableName, string> = {
+  scores: "timestamp",
+  sessions: "createdAt",
+  traces: "timestamp",
+  observations: "startTime",
+  dataset_run_items: "createdAt",
 };
 
 const isGenerationTimestampFilter = (
@@ -119,6 +119,41 @@ export const getDatabaseReadStream = async ({
   };
 
   switch (tableName) {
+    case "scores": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const scores = await getScoresUiTable({
+            projectId,
+            filter: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            orderBy: orderBy,
+            limit: pageSize,
+            offset: offset,
+          });
+
+          return scores.map((score: ScoreUiTableRow) => ({
+            id: score.id,
+            traceId: score.traceId,
+            timestamp: score.timestamp,
+            source: score.source,
+            name: score.name,
+            dataType: score.dataType,
+            value: score.value,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId: score.observationId,
+            traceName: score.traceName,
+            userId: score.traceUserId,
+            traceTags: score.traceTags,
+            environment: score.environment,
+          }));
+        },
+        1000,
+        exportLimit,
+      );
+    }
+
     case "sessions":
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
@@ -370,40 +405,6 @@ export const getDatabaseReadStream = async ({
             createdAt: item.created_at,
             updatedAt: item.updated_at,
             datasetName: item.dataset_name,
-          }));
-        },
-        1000,
-        exportLimit,
-      );
-    }
-    case "scores": {
-      return new DatabaseReadStream<unknown>(
-        async (pageSize: number, offset: number) => {
-          const scores = await getScoresUiTable({
-            projectId,
-            filter: filter
-              ? [...filter, createdAtCutoffFilter]
-              : [createdAtCutoffFilter],
-            orderBy: orderBy,
-            limit: pageSize,
-            offset: offset,
-          });
-
-          return scores.map((score: ScoreUiTableRow) => ({
-            id: score.id,
-            traceId: score.traceId,
-            timestamp: score.timestamp,
-            source: score.source,
-            name: score.name,
-            dataType: score.dataType,
-            value: score.value,
-            stringValue: score.stringValue,
-            comment: score.comment,
-            observationId: score.observationId,
-            traceName: score.traceName,
-            userId: score.traceUserId,
-            traceTags: score.traceTags,
-            environment: score.environment,
           }));
         },
         1000,
