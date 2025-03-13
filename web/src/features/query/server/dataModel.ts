@@ -52,6 +52,17 @@ export const traceView = {
       relationTable: "observations",
       relationColumn: "id",
       function: "uniq",
+
+      name: "Observations Count",
+      label: "Observations Count",
+      sql: "count(observations.id)", // Problem: We need to group by trace id first before we can apply further aggregations
+      relationsTable: "observations", // Check filter builder for this
+    },
+  },
+  tableRelations: {
+    observations: {
+      joinStatement:
+        "LEFT JOIN observations ON traces.id = observations.trace_id",
     },
   },
   timeDimension: {
