@@ -235,10 +235,6 @@ export async function fetchLLMCompletion(
       apiKey,
     });
   } else if (modelParams.adapter === LLMAdapter.Atla) {
-    // TODO: Finalize.
-    // TODO: make env variable.
-    const atlaBaseURL = "http://localhost:8000/v1/integrations/langfuse";
-
     // Atla models do not support:
     // - temperature
     // - max_tokens
@@ -250,7 +246,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       configuration: {
-        baseURL: atlaBaseURL,
+        baseURL: baseURL,
         defaultHeaders: extraHeaders,
       },
       timeout: 1000 * 60 * 2, // 2 minutes timeout

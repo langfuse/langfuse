@@ -21,6 +21,7 @@ export const uiCustomizationRouter = createTRPCRouter({
       defaultBaseUrlOpenAI: env.LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI,
       defaultBaseUrlAnthropic: env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
       defaultBaseUrlAzure: env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
+      defaultBaseUrlAtla: env.LANGFUSE_UI_DEFAULT_BASE_URL_ATLA,
     };
   }),
 });

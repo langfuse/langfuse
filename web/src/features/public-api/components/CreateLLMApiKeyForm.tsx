@@ -104,6 +104,11 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
+      case LLMAdapter.Atla:
+        return (
+          customization?.defaultBaseUrlAtla ??
+          "https://api.atla-ai.com/v1/integrations/langfuse"
+        );
       default:
         return "";
     }
@@ -412,7 +417,7 @@ export function CreateLLMApiKeyForm({
           <FormField
             control={form.control}
             name="baseURL"
-            render={() => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel>API Base URL</FormLabel>
                 <FormDescription>
@@ -420,15 +425,9 @@ export function CreateLLMApiKeyForm({
                 </FormDescription>
                 <FormControl>
                   <Input
-                    value="https://api.atla.ai/v1/integrations/langfuse"
+                    {...field}
+                    placeholder="https://api.atla.ai/v1/integrations/langfuse"
                     disabled
-                    onChange={() => {
-                      // Set the baseURL field value even though the input is disabled
-                      form.setValue(
-                        "baseURL",
-                        "https://api.atla.ai/v1/integrations/langfuse",
-                      );
-                    }}
                   />
                 </FormControl>
               </FormItem>
