@@ -1,6 +1,6 @@
-import { UiColumnMapping } from "./types";
+import { UiColumnMappings } from "./types";
 
-export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
+export const tracesTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "⭐️",
     uiTableId: "bookmarked",
@@ -61,6 +61,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMapping[] = [
     uiTableId: "release",
     clickhouseTableName: "traces",
     clickhouseSelect: "release",
+  },
+  {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "environment",
   },
   {
     uiTableName: "Tags",

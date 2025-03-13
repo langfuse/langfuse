@@ -294,6 +294,7 @@ const getPlanBasedRateLimitConfig = (
       }
     case "cloud:pro":
     case "cloud:team":
+    case "cloud:enterprise":
       switch (resource) {
         case "ingestion":
           return {

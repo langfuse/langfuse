@@ -1,5 +1,6 @@
-import { ScoreSource, ScoreDataType, Score } from "@prisma/client";
+import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
+import { Score, ScoreSourceType } from "./types";
 
 export type ScoreAggregation = {
   id: string;
@@ -16,11 +17,12 @@ export const convertToScore = (row: ScoreRecordReadType): Score => {
     id: row.id,
     timestamp: new Date(row.timestamp),
     projectId: row.project_id,
+    environment: row.environment,
     traceId: row.trace_id,
     observationId: row.observation_id ?? null,
     name: row.name,
     value: row.value ?? null,
-    source: row.source as ScoreSource,
+    source: row.source as ScoreSourceType,
     comment: row.comment ?? null,
     authorUserId: row.author_user_id ?? null,
     configId: row.config_id ?? null,
@@ -38,7 +40,7 @@ export const convertScoreAggregation = (row: ScoreAggregation) => {
     name: row.name,
     stringValue: row.string_value,
     value: Number(row.value),
-    source: row.source as ScoreSource,
+    source: row.source as ScoreSourceType,
     dataType: row.data_type as ScoreDataType,
     comment: row.comment,
   };

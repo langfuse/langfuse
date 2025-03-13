@@ -28,23 +28,23 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([name, scores]) => (
           <Badge
-            variant="outline"
+            variant="tertiary"
             key={name}
-            className="grid grid-cols-[1fr,auto] gap-1 font-normal"
+            className="flex flex-row gap-1 px-1 font-normal"
           >
-            <p className="truncate" title={name}>
+            <div className="w-fit max-w-20 truncate" title={name}>
               {name}:
-            </p>
+            </div>
             <div className="flex items-center gap-1 text-nowrap">
               {scores.map((s, i) => (
                 <span
                   key={i}
-                  className="group/score ml-1 rounded-sm first:ml-0"
+                  className="group/score ml-1 flex items-center gap-0.5 rounded-sm font-medium first:ml-0"
                 >
                   {s.stringValue ?? s.value?.toFixed(2) ?? ""}
                   {s.comment && (
                     <HoverCard>
-                      <HoverCardTrigger className="ml-1 inline-block cursor-pointer">
+                      <HoverCardTrigger className="mb-1 inline-block cursor-pointer">
                         <MessageCircleMore size={12} />
                       </HoverCardTrigger>
                       <HoverCardContent className="overflow-hidden whitespace-normal break-normal">

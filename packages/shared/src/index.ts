@@ -38,9 +38,13 @@ export * from "./features/comments/types";
 // experiments
 export * from "./features/experiments/utils";
 
+// prompts
+export * from "./features/prompts/parsePromptDependencyTags";
+
 // export db types only
 export * from "@prisma/client";
 export { type DB } from "../prisma/generated/types";
+export * from "./server/repositories/types";
 
 // errors
 export * from "./errors/index";

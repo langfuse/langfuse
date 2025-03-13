@@ -7,6 +7,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -33,6 +34,16 @@ export default withMiddlewares({
           description: description ?? null,
           metadata: metadata ?? undefined,
         },
+      });
+
+      await auditLog({
+        action: "create",
+        resourceType: "dataset",
+        resourceId: dataset.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        after: dataset,
       });
 
       return dataset;

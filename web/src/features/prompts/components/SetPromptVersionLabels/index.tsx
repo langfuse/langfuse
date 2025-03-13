@@ -1,7 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
-
-import { PlusIcon, TagIcon } from "lucide-react";
-
+import React, { useEffect, useState, useRef, type ReactNode } from "react";
+import { CircleFadingArrowUp, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   InputCommand,
@@ -23,15 +21,23 @@ import { LabelCommandItem } from "./LabelCommandItem";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
+  promptLabels,
   prompt,
   isOpen,
   setIsOpen,
+  title,
+  showOnlyOnHover = false,
 }: {
+  promptLabels: string[];
   prompt: Prompt;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  title?: ReactNode;
+  showOnlyOnHover?: boolean;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -74,6 +80,12 @@ export function SetPromptVersionLabels({
     },
   });
 
+  const sortedLabels = [...promptLabels].sort((a, b) => {
+    if (a === PRODUCTION_LABEL) return -1;
+    if (b === PRODUCTION_LABEL) return 1;
+    return a.localeCompare(b);
+  });
+
   const handleSubmitLabels = async () => {
     if (!projectId) {
       alert("Project ID is missing");
@@ -90,32 +102,54 @@ export function SetPromptVersionLabels({
     setIsOpen(false);
   };
 
+  const handleOnOpenChange = (open: boolean) => {
+    if (!hasAccess) setIsOpen(false);
+    else setIsOpen(open);
+  };
+
   return (
-    <Popover
-      key={prompt.id}
-      open={isOpen}
-      onOpenChange={(open) => {
-        setIsOpen(open);
-        setIsAddingLabel(false);
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7 px-0"
-          aria-label="Set prompt labels"
-          title="Set prompt labels"
-          disabled={!hasAccess}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
+    <Popover open={isOpen} onOpenChange={handleOnOpenChange} modal={false}>
+      <PopoverTrigger asChild data-version-trigger="true">
+        <div
+          className={cn(
+            "flex min-w-0 max-w-full cursor-pointer flex-wrap gap-1",
+            !hasAccess && "cursor-not-allowed",
+          )}
         >
-          <TagIcon className="h-4 w-4" />
-        </Button>
+          {title && title}
+          {sortedLabels.map((label) => (
+            <StatusBadge
+              type={label}
+              key={label}
+              className="break-all sm:break-normal"
+              isLive={label === PRODUCTION_LABEL}
+            />
+          ))}
+          <Button
+            variant="outline"
+            title="Add prompt version label"
+            className={cn(
+              "h-6 w-6 bg-muted-gray text-primary",
+              showOnlyOnHover && "opacity-0 group-hover:opacity-100",
+              !hasAccess && "cursor-not-allowed group-hover:opacity-50",
+            )}
+          >
+            <CircleFadingArrowUp className="h-3.5 w-3.5 shrink-0" />
+          </Button>
+        </div>
       </PopoverTrigger>
-      <PopoverContent>
-        <div onClick={(event) => event.stopPropagation()}>
+      <PopoverContent
+        className="fixed max-h-[50vh] overflow-y-auto"
+        style={{
+          top: "var(--popover-top)",
+          left: "var(--popover-left)",
+          transform: "none",
+        }}
+      >
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className="flex flex-col"
+        >
           <h2 className="text-md mb-3 font-semibold">Prompt version labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}

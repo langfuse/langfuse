@@ -1,5 +1,6 @@
-import { Model, Observation, Prisma } from "@prisma/client";
+import { Model, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
+import { Observation } from "../repositories";
 
 export async function findModel(p: {
   event: {

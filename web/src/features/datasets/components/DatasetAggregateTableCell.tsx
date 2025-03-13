@@ -87,7 +87,7 @@ const DatasetAggregateCell = ({
             (!!!observationId ? trace.isLoading : observation.isLoading) ||
             !data
           }
-          data={data?.output}
+          data={data?.output ?? "null"}
           className={"bg-accent-light-green"}
           singleLine={singleLine}
         />

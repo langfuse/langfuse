@@ -1,4 +1,4 @@
-import { type Observation } from "@langfuse/shared/src/db";
+import { type Observation } from "@langfuse/shared";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { type AppRouter } from "@/src/server/api/root";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";

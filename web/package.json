@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.28.3",
+  "version": "3.42.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -59,6 +59,7 @@
     "@opentelemetry/sdk-node": "^0.53.0",
     "@opentelemetry/sdk-trace-base": "^1.26.0",
     "@opentelemetry/sdk-trace-node": "^1.26.0",
+    "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/instrumentation": "^6.3.0",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.1.2",
@@ -154,7 +155,7 @@
     "unified": "^11.0.5",
     "use-query-params": "^2.2.1",
     "uuid": "^9.0.1",
-    "vaul": "^0.9.1",
+    "vaul": "^1.1.2",
     "vis-network": "^9.1.9",
     "zod": "^3.23.8"
   },

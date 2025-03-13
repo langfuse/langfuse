@@ -3,12 +3,19 @@ import {
   GetTracesV1Query,
   GetTracesV1Response,
   PostTracesV1Response,
+  DeleteTracesV1Body,
+  DeleteTracesV1Response,
 } from "@/src/features/public-api/types/traces";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
 
-import { eventTypes, logger } from "@langfuse/shared/src/server";
+import {
+  eventTypes,
+  logger,
+  QueueJobs,
+  TraceDeleteQueue,
+} from "@langfuse/shared/src/server";
 
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
@@ -16,6 +23,9 @@ import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
+import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -62,6 +72,7 @@ export default withMiddlewares({
         userId: query.userId ?? undefined,
         name: query.name ?? undefined,
         tags: query.tags ?? undefined,
+        environment: query.environment ?? undefined,
         sessionId: query.sessionId ?? undefined,
         version: query.version ?? undefined,
         release: query.release ?? undefined,
@@ -84,6 +95,48 @@ export default withMiddlewares({
           totalPages: Math.ceil(finalCount / query.limit),
         },
       };
+    },
+  }),
+
+  DELETE: createAuthedAPIRoute({
+    name: "Delete Multiple Traces",
+    bodySchema: DeleteTracesV1Body,
+    responseSchema: DeleteTracesV1Response,
+    fn: async ({ body, auth }) => {
+      const { traceIds } = body;
+
+      const traceDeleteQueue = TraceDeleteQueue.getInstance();
+      if (!traceDeleteQueue) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "TraceDeleteQueue not initialized",
+        });
+      }
+
+      await Promise.all(
+        traceIds.map((traceId) =>
+          auditLog({
+            resourceType: "trace",
+            resourceId: traceId,
+            action: "delete",
+            projectId: auth.scope.projectId,
+            apiKeyId: auth.scope.apiKeyId,
+            orgId: auth.scope.orgId,
+          }),
+        ),
+      );
+
+      await traceDeleteQueue.add(QueueJobs.TraceDelete, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        payload: {
+          projectId: auth.scope.projectId,
+          traceIds: traceIds,
+        },
+        name: QueueJobs.TraceDelete,
+      });
+
+      return { message: "Traces deleted successfully" };
     },
   }),
 });

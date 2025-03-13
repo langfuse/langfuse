@@ -3,9 +3,11 @@ type Accuracy = "minute" | "second" | "millisecond";
 export const LocalIsoDate = ({
   date,
   accuracy = "second",
+  className,
 }: {
   date: Date;
   accuracy?: Accuracy;
+  className?: string;
 }) => {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
     return null;
@@ -37,5 +39,9 @@ export const LocalIsoDate = ({
   const localDateString = formatDate(date, false, accuracy);
   const utcDateString = formatDate(date, true, "millisecond");
 
-  return <span title={`UTC: ${utcDateString}`}>{localDateString}</span>;
+  return (
+    <span title={`UTC: ${utcDateString}`} className={className}>
+      {localDateString}
+    </span>
+  );
 };

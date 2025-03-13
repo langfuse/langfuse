@@ -4,6 +4,7 @@ export const planLabels = {
   "cloud:core": "Core",
   "cloud:pro": "Pro",
   "cloud:team": "Team",
+  "cloud:enterprise": "Enterprise",
   "self-hosted:pro": "Pro (self-hosted)",
   "self-hosted:enterprise": "Enterprise (self-hosted)",
 } as const;

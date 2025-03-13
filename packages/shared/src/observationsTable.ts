@@ -1,8 +1,8 @@
-import { ObservationLevel } from "@prisma/client";
 import {
   type OptionsDefinition,
   type ColumnDefinition,
-} from "./tableDefinitions/types";
+} from "./tableDefinitions";
+import { ObservationLevelType } from "./server";
 
 // to be used server side
 export const observationsTableCols: ColumnDefinition[] = [
@@ -102,7 +102,12 @@ export const observationsTableCols: ColumnDefinition[] = [
     id: "level",
     type: "stringOptions",
     internal: 'o."level"::text',
-    options: Object.values(ObservationLevel).map((value) => ({ value })),
+    options: [
+      { value: "DEBUG" },
+      { value: "DEFAULT" },
+      { value: "WARNING" },
+      { value: "ERROR" },
+    ] as { value: ObservationLevelType }[],
   },
   {
     name: "Status Message",

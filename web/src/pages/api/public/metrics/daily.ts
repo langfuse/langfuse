@@ -23,6 +23,9 @@ export default withMiddlewares({
         traceName: query.traceName ?? undefined,
         userId: query.userId ?? undefined,
         tags: query.tags ?? undefined,
+        // We need to map environment to both keys to propagate the filter to all tables.
+        traceEnvironment: query.environment ?? undefined,
+        observationEnvironment: query.environment ?? undefined,
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
       };

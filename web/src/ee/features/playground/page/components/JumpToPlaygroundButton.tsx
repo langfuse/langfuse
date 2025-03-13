@@ -19,6 +19,7 @@ import {
   ZodModelConfig,
 } from "@langfuse/shared";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { cn } from "@/src/utils/tailwind";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -36,6 +37,7 @@ type JumpToPlaygroundButtonProps = (
     }
 ) & {
   variant?: "outline" | "secondary";
+  className?: string;
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -89,8 +91,8 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     >
       <span>
         <Terminal className="h-4 w-4" />
-        <span className="ml-2">
-          {props.source === "generation" ? "Test in playground" : "Playground"}
+        <span className={cn("hidden md:ml-2 md:inline", props.className)}>
+          Playground
         </span>
       </span>
     </Button>

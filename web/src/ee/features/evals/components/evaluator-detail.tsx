@@ -27,6 +27,24 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import Page from "@/src/components/layouts/page";
+import { LevelCountsDisplay } from "@/src/components/level-counts-display";
+import {
+  type JobExecutionState,
+  generateJobExecutionCounts,
+} from "@/src/ee/features/evals/utils/job-execution-utils";
+
+const JobExecutionCounts = ({
+  jobExecutionsByState,
+}: {
+  jobExecutionsByState?: JobExecutionState[];
+}) => {
+  if (!jobExecutionsByState || jobExecutionsByState.length === 0) {
+    return null;
+  }
+
+  const counts = generateJobExecutionCounts(jobExecutionsByState);
+  return <LevelCountsDisplay counts={counts} />;
+};
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -67,7 +85,10 @@ export const EvaluatorDetail = () => {
 
   const existingEvaluator =
     evaluator.data && evaluator.data.evalTemplate
-      ? { ...evaluator.data, evalTemplate: evaluator.data.evalTemplate }
+      ? {
+          ...evaluator.data,
+          evalTemplate: evaluator.data.evalTemplate,
+        }
       : undefined;
 
   return (
@@ -83,13 +104,22 @@ export const EvaluatorDetail = () => {
             href: `/project/${router.query.projectId as string}/evals`,
           },
         ],
+
         actionButtonsRight: (
           <>
+            {evaluator.data?.jobExecutionsByState && (
+              <div className="flex flex-col items-center justify-center rounded-md bg-muted-gray px-2">
+                <JobExecutionCounts
+                  jobExecutionsByState={evaluator.data.jobExecutionsByState}
+                />
+              </div>
+            )}
             <StatusBadge
-              type={evaluator.data?.status.toLowerCase()}
+              type={evaluator.data?.finalStatus.toLowerCase()}
               isLive
               className="max-h-8"
             />
+
             <DeactivateEvaluator
               projectId={projectId}
               evaluator={evaluator.data ?? undefined}
@@ -157,6 +187,7 @@ export const EvaluatorDetail = () => {
                   className="flex min-h-6 items-center"
                 />
               </CardDescription>
+
               <div className="flex w-full flex-col items-start justify-between space-y-2 pb-4">
                 <EvaluatorForm
                   key={existingEvaluator.id}
@@ -223,7 +254,11 @@ export function DeactivateEvaluator({
       <PopoverTrigger asChild>
         <div className="flex items-center">
           <Switch
-            disabled={!hasAccess}
+            disabled={
+              !hasAccess ||
+              (evaluator?.timeScope?.length === 1 &&
+                evaluator.timeScope[0] === "EXISTING")
+            }
             checked={isActive}
             className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
           />

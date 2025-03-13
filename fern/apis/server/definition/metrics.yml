@@ -29,6 +29,10 @@ service:
             type: optional<string>
             allow-multiple: true
             docs: Optional filter for metrics where traces include all of these tags
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for metrics where events include any of these environments
           fromTimestamp:
             type: optional<datetime>
             docs: Optional filter to only include traces and observations on or after a certain datetime (ISO 8601)

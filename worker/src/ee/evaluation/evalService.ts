@@ -1,8 +1,9 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod";
-import { ScoreSource, JobConfigState } from "@prisma/client";
+import { JobConfigState } from "@prisma/client";
 import {
+  ScoreSource,
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
@@ -21,6 +22,7 @@ import {
   TraceQueueEventType,
   StorageService,
   StorageServiceFactory,
+  CreateEvalQueueEventType,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -36,6 +38,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   variableMapping,
+  JobTimeScope,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { backOff } from "exponential-backoff";
@@ -66,16 +69,37 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 // there might be multiple eval jobs to create for a single trace
 export const createEvalJobs = async ({
   event,
+  enforcedJobTimeScope,
 }: {
-  event: TraceQueueEventType | DatasetRunItemUpsertEventType;
+  event:
+    | TraceQueueEventType
+    | DatasetRunItemUpsertEventType
+    | CreateEvalQueueEventType;
+  enforcedJobTimeScope?: JobTimeScope;
 }) => {
   // Fetch all configs for a given project. Those may be dataset or trace configs.
-  const configs = await kyselyPrisma.$kysely
+  let configsQuery = kyselyPrisma.$kysely
     .selectFrom("job_configurations")
     .selectAll()
     .where(sql.raw("job_type::text"), "=", "EVAL")
-    .where("project_id", "=", event.projectId)
-    .execute();
+    .where("project_id", "=", event.projectId);
+
+  if ("configId" in event) {
+    // if configid is set in the event, we only want to fetch the one config
+    configsQuery = configsQuery.where("id", "=", event.configId);
+  }
+
+  // for dataset_run_item_upsert queue + trace queue, we do not want to execute evals on configs,
+  // which were only allowed to run on historic data. Hence, we need to filter all configs which have "NEW" in the time_scope column.
+  if (enforcedJobTimeScope) {
+    configsQuery = configsQuery.where(
+      "time_scope",
+      "@>",
+      sql<string[]>`ARRAY[${enforcedJobTimeScope}]`,
+    );
+  }
+
+  const configs = await configsQuery.execute();
 
   if (configs.length === 0) {
     logger.debug("No evaluation jobs found for project", event.projectId);
@@ -99,7 +123,7 @@ export const createEvalJobs = async ({
     const traceExists = await checkTraceExists(
       event.projectId,
       event.traceId,
-      new Date(),
+      "timestamp" in event ? new Date(event.timestamp) : new Date(),
       config.target_object === "trace" ? validatedFilter : [],
     );
 
@@ -137,7 +161,6 @@ export const createEvalJobs = async ({
             AND dri.trace_id = ${event.traceId}
             ${condition}
         `);
-
         datasetItem = datasetItems.shift();
       }
     }
@@ -153,9 +176,8 @@ export const createEvalJobs = async ({
       const observationExists = await checkObservationExists(
         event.projectId,
         observationId,
-        new Date(),
+        "timestamp" in event ? new Date(event.timestamp) : new Date(),
       );
-
       if (!observationExists) {
         logger.warn(
           `Observation ${observationId} not found, retrying dataset eval later`,
@@ -326,7 +348,7 @@ export const evaluate = async ({
     },
   });
 
-  logger.info(
+  logger.debug(
     `Evaluating job ${job.id} for project ${event.projectId} with template ${template.id}. Searching for context...`,
   );
 
@@ -347,6 +369,9 @@ export const evaluate = async ({
   logger.debug(
     `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
   );
+
+  // Get environment from trace or observation variables
+  const environment = mappingResult.find((r) => r.environment)?.environment;
 
   // compile the prompt and send out the LLM request
   let prompt;
@@ -438,6 +463,7 @@ export const evaluate = async ({
     value: parsedLLMOutput.score,
     comment: parsedLLMOutput.reasoning,
     source: ScoreSource.EVAL,
+    environment: environment ?? "default",
   };
 
   // Write score to S3 and ingest into queue for Clickhouse processing
@@ -519,7 +545,7 @@ export async function extractVariablesFromTracingData({
   // this here are variables which were inserted by users. Need to validate before DB query.
   variableMapping: z.infer<typeof variableMappingList>;
   datasetItemId?: string;
-}): Promise<{ var: string; value: string }[]> {
+}): Promise<{ var: string; value: string; environment?: string }[]> {
   return Promise.all(
     variables.map(async (variable) => {
       const mapping = variableMapping.find(
@@ -593,10 +619,7 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const trace: Record<string, unknown> | undefined = await getTraceById(
-          traceId,
-          projectId,
-        );
+        const trace = await getTraceById(traceId, projectId);
 
         // user facing errors
         if (!trace) {
@@ -611,6 +634,7 @@ export async function extractVariablesFromTracingData({
         return {
           var: variable,
           value: parseDatabaseRowToString(trace, mapping),
+          environment: trace.environment,
         };
       }
 
@@ -633,7 +657,7 @@ export async function extractVariablesFromTracingData({
           return { var: variable, value: "" };
         }
 
-        const observation: Record<string, unknown> | undefined = (
+        const observation = (
           await getObservationForTraceIdByName(
             traceId,
             projectId,
@@ -655,7 +679,8 @@ export async function extractVariablesFromTracingData({
 
         return {
           var: variable,
-          value: parseUnknownToString(observation[mapping.selectedColumnId]),
+          value: parseDatabaseRowToString(observation, mapping),
+          environment: observation.environment,
         };
       }
 

@@ -17,7 +17,7 @@ import {
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../../tableDefinitions/mapTracesTable";
-import { UiColumnMapping } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -196,13 +196,13 @@ export const getTracesBySessionId = async (
 
 export const hasAnyTrace = async (projectId: string) => {
   const query = `
-    SELECT count(*) as count
+    SELECT 1
     FROM traces
     WHERE project_id = {projectId: String}
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<{ count: string }>({
+  const rows = await queryClickhouse<{ 1: number }>({
     query,
     params: {
       projectId,
@@ -210,12 +210,12 @@ export const hasAnyTrace = async (projectId: string) => {
     tags: {
       feature: "tracing",
       type: "trace",
-      kind: "exists",
+      kind: "hasAny",
       projectId,
     },
   });
 
-  return rows.length > 0 && Number(rows[0].count) > 0;
+  return rows.length > 0;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({
@@ -324,7 +324,7 @@ export const getTraceById = async (
 
 export const getTracesGroupedByName = async (
   projectId: string,
-  tableDefinitions: UiColumnMapping[] = tracesTableUiColumnDefinitions,
+  tableDefinitions: UiColumnMappings = tracesTableUiColumnDefinitions,
   timestampFilter?: FilterState,
 ) => {
   const chFilter = timestampFilter
@@ -376,7 +376,7 @@ export const getTracesGroupedByUsers = async (
   searchQuery?: string,
   limit?: number,
   offset?: number,
-  columns?: UiColumnMapping[],
+  columns?: UiColumnMappings,
 ) => {
   const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
@@ -435,7 +435,7 @@ export const getTracesGroupedByUsers = async (
 export type GroupedTracesQueryProp = {
   projectId: string;
   filter: FilterState;
-  columns?: UiColumnMapping[];
+  columns?: UiColumnMappings;
 };
 
 export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
@@ -593,6 +593,32 @@ export const deleteTracesByProjectId = async (projectId: string) => {
   });
 };
 
+export const hasAnyUser = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND user_id IS NOT NULL
+    AND user_id != ''
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+    },
+    tags: {
+      feature: "tracing",
+      type: "user",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
 export const getTotalUserCount = async (
   projectId: string,
   filter: FilterState,
@@ -658,6 +684,7 @@ export const getUserMetrics = async (
       WITH stats as (
         SELECT
             t.user_id as user_id,
+            anyLast(t.environment) as environment,
             count(distinct o.id) as obs_count,
             sumMap(usage_details) as sum_usage_details,
             sum(total_cost) as sum_total_cost,
@@ -700,6 +727,7 @@ export const getUserMetrics = async (
                     t.user_id,
                     t.project_id,
                     t.timestamp,
+                    t.environment,
                     ROW_NUMBER() OVER (
                         PARTITION BY id
                         ORDER BY
@@ -726,6 +754,7 @@ export const getUserMetrics = async (
         obs_count,
         trace_count,
         user_id,
+        environment,
         sum_total_cost,
         max_timestamp,
         min_timestamp
@@ -736,6 +765,7 @@ export const getUserMetrics = async (
 
   const rows = await queryClickhouse<{
     user_id: string;
+    environment: string;
     max_timestamp: string;
     min_timestamp: string;
     input_usage: string;
@@ -768,6 +798,7 @@ export const getUserMetrics = async (
 
   return rows.map((row) => ({
     userId: row.user_id,
+    environment: row.environment,
     maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
     minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
     inputUsage: Number(row.input_usage),

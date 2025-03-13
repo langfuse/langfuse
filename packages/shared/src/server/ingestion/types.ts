@@ -3,7 +3,17 @@ import { z } from "zod";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
-import { ObservationLevel, ScoreSource } from "@prisma/client";
+import { type ScoreSourceType } from "../repositories";
+
+export const idSchema = z
+  .string()
+  .min(1)
+  .max(800) // AWS S3 allows for 1024 bytes for object keys and we need enough room to construct the entire key/path. https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+  .refine((id) => !id.includes("\r"), {
+    message: "ID cannot contain carriage return characters",
+  });
+
+const ObservationLevel = z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
 
 export const Usage = z.object({
   input: z.number().int().nullish(),
@@ -56,21 +66,25 @@ export const usage = MixedUsage.nullish()
   // ensure output is always of new usage model
   .pipe(Usage.nullish());
 
-const RawUsageOrCostDetails = z.record(
+const CostDetails = z
+  .record(z.string(), z.number().nonnegative().nullish())
+  .nullish();
+
+const RawUsageDetails = z.record(
   z.string(),
-  z.number().nonnegative().nullish(),
+  z.number().int().nonnegative().nullish(),
 );
 
 const OpenAIUsageSchema = z
   .object({
-    prompt_tokens: z.number().nonnegative(),
-    completion_tokens: z.number().nonnegative(),
-    total_tokens: z.number().nonnegative(),
+    prompt_tokens: z.number().int().nonnegative(),
+    completion_tokens: z.number().int().nonnegative(),
+    total_tokens: z.number().int().nonnegative(),
     prompt_tokens_details: z
-      .record(z.string(), z.number().nonnegative())
+      .record(z.string(), z.number().int().nonnegative())
       .nullish(),
     completion_tokens_details: z
-      .record(z.string(), z.number().nonnegative())
+      .record(z.string(), z.number().int().nonnegative())
       .nullish(),
   })
   .strict()
@@ -84,7 +98,7 @@ const OpenAIUsageSchema = z
       prompt_tokens_details,
       completion_tokens_details,
     } = v;
-    const result: z.infer<typeof RawUsageOrCostDetails> & {
+    const result: z.infer<typeof RawUsageDetails> & {
       input: number;
       output: number;
       total: number;
@@ -110,17 +124,26 @@ const OpenAIUsageSchema = z
 
     return result;
   })
-  .pipe(RawUsageOrCostDetails);
+  .pipe(RawUsageDetails);
 
-export const UsageOrCostDetails = z
-  .union([OpenAIUsageSchema, RawUsageOrCostDetails])
+export const UsageDetails = z
+  .union([OpenAIUsageSchema, RawUsageDetails])
   .nullish();
+
+export const EnvironmentName = z
+  .string()
+  .max(40, "Maximum length is 40 characters")
+  .regex(
+    /^(?!langfuse)[a-z0-9-_]+$/,
+    "Only alphanumeric lower case characters, hyphens, and underscores are allowed, and it must not start with 'langfuse'",
+  )
+  .default("default");
 
 // Using z.any instead of jsonSchema for input/output as we saw huge CPU overhead for large numeric arrays.
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 export const TraceBody = z.object({
-  id: z.string().nullish(),
+  id: idSchema.nullish(),
   timestamp: stringDateTime,
   name: z.string().max(1000).nullish(),
   externalId: z.string().nullish(),
@@ -128,6 +151,7 @@ export const TraceBody = z.object({
   output: z.any().nullish(),
   sessionId: z.string().nullish(),
   userId: z.string().nullish(),
+  environment: EnvironmentName,
   metadata: jsonSchema.nullish(),
   release: z.string().nullish(),
   version: z.string().nullish(),
@@ -136,24 +160,25 @@ export const TraceBody = z.object({
 });
 
 export const OptionalObservationBody = z.object({
-  traceId: z.string().nullish(),
+  traceId: idSchema.nullish(),
+  environment: EnvironmentName,
   name: z.string().nullish(),
   startTime: stringDateTime,
   metadata: jsonSchema.nullish(),
   input: z.any().nullish(),
   output: z.any().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   parentObservationId: z.string().nullish(),
   version: z.string().nullish(),
 });
 
 export const CreateEventEvent = OptionalObservationBody.extend({
-  id: NonEmptyString,
+  id: idSchema,
 });
 
 export const UpdateEventEvent = OptionalObservationBody.extend({
-  id: NonEmptyString,
+  id: idSchema,
 });
 
 export const CreateSpanBody = CreateEventEvent.extend({
@@ -182,8 +207,8 @@ export const CreateGenerationBody = CreateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -212,8 +237,8 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
     )
     .nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   promptName: z.string().nullish(),
   promptVersion: z.number().int().nullish(),
 }).refine((value) => {
@@ -225,12 +250,15 @@ export const UpdateGenerationBody = UpdateSpanBody.extend({
 });
 
 const BaseScoreBody = z.object({
-  id: z.string().nullish(),
+  id: idSchema.nullish(),
   name: NonEmptyString,
   traceId: z.string(),
+  environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
-  source: z.nativeEnum(ScoreSource).default(ScoreSource.API),
+  source: z
+    .enum(["API", "EVAL", "ANNOTATION"])
+    .default("API" as ScoreSourceType),
 });
 
 /**
@@ -272,8 +300,8 @@ export const ScoreBody = z.discriminatedUnion("dataType", [
 
 // LEGACY, only required for backwards compatibility
 export const LegacySpanPostSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -281,28 +309,28 @@ export const LegacySpanPostSchema = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
 
 export const LegacySpanPatchSchema = z.object({
-  spanId: z.string(),
-  traceId: z.string().nullish(),
+  spanId: idSchema,
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
   metadata: jsonSchema.nullish(),
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
 
 export const LegacyGenerationsCreateSchema = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -319,14 +347,14 @@ export const LegacyGenerationsCreateSchema = z.object({
   usage: usage,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
 
 export const LegacyGenerationPatchSchema = z.object({
-  generationId: z.string(),
-  traceId: z.string().nullish(),
+  generationId: idSchema,
+  traceId: idSchema.nullish(),
   name: z.string().nullish(),
   startTime: stringDateTime,
   endTime: stringDateTime,
@@ -342,14 +370,14 @@ export const LegacyGenerationPatchSchema = z.object({
   completion: jsonSchema.nullish(),
   usage: usage,
   metadata: jsonSchema.nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
 
 export const LegacyObservationBody = z.object({
-  id: z.string().nullish(),
-  traceId: z.string().nullish(),
+  id: idSchema.nullish(),
+  traceId: idSchema.nullish(),
   type: z.enum(["GENERATION", "SPAN", "EVENT"]),
   name: z.string().nullish(),
   startTime: stringDateTime,
@@ -365,11 +393,11 @@ export const LegacyObservationBody = z.object({
   input: jsonSchema.nullish(),
   output: jsonSchema.nullish(),
   usage: usage,
-  usageDetails: UsageOrCostDetails,
-  costDetails: UsageOrCostDetails,
+  usageDetails: UsageDetails,
+  costDetails: CostDetails,
   metadata: jsonSchema.nullish(),
   parentObservationId: z.string().nullish(),
-  level: z.nativeEnum(ObservationLevel).nullish(),
+  level: ObservationLevel.nullish(),
   statusMessage: z.string().nullish(),
   version: z.string().nullish(),
 });
@@ -378,18 +406,6 @@ export const SdkLogEvent = z.object({
   log: jsonSchema,
   id: z.string().nullish(), // Not used, but makes downstream processing easier.
 });
-
-// definitions for the ingestion API
-
-export const observationTypes = [
-  "observation-create",
-  "observation-update",
-  "generation-create",
-  "generation-update",
-  "span-create",
-  "span-update",
-  "event-create",
-];
 
 export const eventTypes = {
   TRACE_CREATE: "trace-create",
@@ -406,7 +422,7 @@ export const eventTypes = {
 } as const;
 
 const base = z.object({
-  id: z.string(),
+  id: idSchema,
   timestamp: z.string().datetime({ offset: true }),
   metadata: jsonSchema.nullish(),
 });
@@ -468,28 +484,6 @@ export const ingestionEvent = z.discriminatedUnion("type", [
   legacyObservationUpdateEvent,
 ]);
 export type IngestionEventType = z.infer<typeof ingestionEvent>;
-
-export const ingestionBatchEvent = z.array(ingestionEvent);
-export type IngestionBatchEventType = z.infer<typeof ingestionBatchEvent>;
-
-export const ingestionEventWithProjectId = ingestionEvent.and(
-  z.object({ projectId: z.string() }),
-);
-export type IngestionEventWithProjectIdType = z.infer<
-  typeof ingestionEventWithProjectId
->;
-
-export const ingestionApiSchema = z.object({
-  batch: ingestionBatchEvent,
-  metadata: jsonSchema.nullish(),
-});
-
-export const ingestionApiSchemaWithProjectId = ingestionApiSchema.extend({
-  projectId: z.string(),
-});
-export type IngestionApiSchemaWithProjectId = z.infer<
-  typeof ingestionApiSchemaWithProjectId
->;
 
 export type ObservationEvent =
   | z.infer<typeof legacyObservationCreateEvent>

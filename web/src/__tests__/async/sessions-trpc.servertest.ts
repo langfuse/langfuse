@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
-describe("traces trps", () => {
+describe("traces trpc", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   beforeEach(async () => await pruneDatabase());
@@ -105,6 +105,7 @@ describe("traces trps", () => {
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
         projectId: projectId,
+        environment: "default",
         bookmarked: false,
         public: false,
         traces: expect.arrayContaining([
@@ -152,6 +153,36 @@ describe("traces trps", () => {
 
       // Then
       expect(sessions.sessions).toBeDefined();
+    });
+  });
+
+  describe("sessions.countAll", () => {
+    it("should count sessions", async () => {
+      // Setup
+      const sessionId = randomUUID();
+
+      await prisma.traceSession.create({
+        data: {
+          id: sessionId,
+          projectId,
+        },
+      });
+
+      const trace = createTrace({
+        project_id: projectId,
+        session_id: sessionId,
+      });
+      await createTracesCh([trace]);
+
+      // When
+      const sessions = await caller.sessions.countAll({
+        projectId,
+        filter: null,
+        orderBy: null,
+      });
+
+      // Then
+      expect(sessions.totalCount).toBeGreaterThan(0);
     });
   });
 });

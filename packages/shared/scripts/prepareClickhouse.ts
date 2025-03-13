@@ -67,6 +67,7 @@ export const prepareClickhouse = async (
       concat('release_', toString(randUniform(0, 100))) AS release,
       concat('version_', toString(randUniform(0, 100))) AS version,
       '${projectId}' AS project_id,
+      'default' AS environment,
       if(rand() < 0.8, true, false) as public,
       if(rand() < 0.8, true, false) as bookmarked,
       array('tag1', 'tag2') as tags,
@@ -85,6 +86,7 @@ export const prepareClickhouse = async (
     SELECT toString(number) AS id,
       toString(floor(randUniform(0, ${tracesPerProject}))) AS trace_id,
       '${projectId}' AS project_id,
+      'default' AS environment,
       if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
       toString(rand()) AS parent_observation_id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
@@ -143,9 +145,10 @@ export const prepareClickhouse = async (
 
     const scoresQuery = `
     INSERT INTO scores
-    SELECT toString(floor(randUniform(0, 100))) AS id,
+    SELECT toString(number) AS id,
       toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
       '${projectId}' AS project_id,
+      'default' AS environment,
       toString(floor(randUniform(0, ${tracesPerProject}))) AS trace_id,
       if(
         rand() > 0.9,

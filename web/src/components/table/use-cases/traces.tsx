@@ -2,6 +2,7 @@ import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import TableLink from "@/src/components/table/table-link";
+import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -9,7 +10,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -34,7 +35,7 @@ import {
   type FilterState,
   type TraceOptions,
   tracesTableColsWithOptions,
-  type ObservationLevel,
+  type ObservationLevelType,
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
@@ -56,7 +57,6 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { Separator } from "@/src/components/ui/separator";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -65,12 +65,20 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
 import {
+  LevelCountsDisplay,
+  type LevelCount,
+} from "@/src/components/level-counts-display";
+import {
   DropdownMenuContent,
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -78,7 +86,7 @@ export type TracesTableRow = {
   timestamp: Date;
   name: string;
   userId: string;
-  level?: ObservationLevel;
+  level?: ObservationLevelType;
   observationCount?: bigint;
   levelCounts: {
     errorCount?: bigint;
@@ -92,6 +100,7 @@ export type TracesTableRow = {
   release?: string;
   version?: string;
   sessionId?: string;
+  environment?: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
@@ -114,8 +123,6 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
 };
-
-export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 
 export default function TracesTable({
   projectId,
@@ -163,7 +170,34 @@ export default function TracesTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = userFilterState.concat(
+    userIdFilter,
+    dateRangeFilter,
+    environmentFilter,
+  );
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -186,8 +220,12 @@ export default function TracesTable({
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
-  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -434,6 +472,25 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["environment"] =
+          row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
     },
     {
       accessorKey: "userId",
@@ -736,27 +793,15 @@ export default function TracesTable({
           row.getValue("levelCounts");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
 
-        const nonZeroCounts = Object.entries(value).filter(
-          ([_, count]) => count > 0,
+        const counts: LevelCount[] = Object.entries(value).map(
+          ([level, count]) => ({
+            level: formatAsLabel(level),
+            count,
+            symbol: LevelSymbols[formatAsLabel(level)],
+          }),
         );
 
-        return (
-          <div className="flex min-h-6 flex-row gap-2 overflow-x-auto whitespace-nowrap">
-            {nonZeroCounts.map(([level, count], index) => (
-              <React.Fragment key={level}>
-                <div className="flex min-w-6 flex-row gap-2">
-                  <span className="text-xs">
-                    {LevelSymbols[formatAsLabel(level)]}{" "}
-                    {numberFormatter(count, 0)}
-                  </span>
-                </div>
-                {index < nonZeroCounts.length - 1 && (
-                  <Separator orientation="vertical" className="h-5" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        );
+        return <LevelCountsDisplay counts={counts} />;
       },
       enableHiding: true,
     },
@@ -889,6 +934,7 @@ export default function TracesTable({
             version: trace.version ?? undefined,
             userId: trace.userId ?? "",
             sessionId: trace.sessionId ?? undefined,
+            environment: trace.environment ?? undefined,
             latency: trace.latency === null ? undefined : trace.latency,
             tags: trace.tags,
             usage: {
@@ -964,6 +1010,11 @@ export default function TracesTable({
           setRowSelection: setSelectedRows,
           totalCount,
           ...paginationState,
+        }}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
         }}
       />
       <DataTable

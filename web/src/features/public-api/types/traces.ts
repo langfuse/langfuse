@@ -23,6 +23,7 @@ export const APITrace = z
     release: z.string().nullable(),
     version: z.string().nullable(),
     projectId: z.string(),
+    environment: z.string().default("default"),
     public: z.boolean(),
     bookmarked: z.boolean(),
     tags: z.array(z.string()),
@@ -52,6 +53,7 @@ export const GetTracesV1Query = z.object({
   userId: z.string().nullish(),
   name: z.string().nullish(),
   tags: z.union([z.array(z.string()), z.string()]).nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
   sessionId: z.string().nullish(),
   version: z.string().nullish(),
   release: z.string().nullish(),
@@ -86,3 +88,25 @@ export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchema),
   observations: z.array(APIObservation),
 }).strict();
+
+// DELETE /api/public/traces/{traceId}
+export const DeleteTraceV1Query = z.object({
+  traceId: z.string(),
+});
+export const DeleteTraceV1Response = z
+  .object({
+    message: z.string(),
+  })
+  .strict();
+
+// DELETE /api/public/traces
+export const DeleteTracesV1Body = z
+  .object({
+    traceIds: z.array(z.string()).min(1, "At least 1 traceId is required."),
+  })
+  .strict();
+export const DeleteTracesV1Response = z
+  .object({
+    message: z.string(),
+  })
+  .strict();

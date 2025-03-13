@@ -3,7 +3,7 @@
 
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["tracing", "views", "relationJoins", "metrics"]
+  previewFeatures = ["views", "relationJoins", "metrics"]
 }
 
 datasource db {
@@ -109,17 +109,15 @@ model Organization {
 }
 
 model Project {
-  id                  String                 @id @default(cuid())
-  orgId               String                 @map("org_id")
-  createdAt           DateTime               @default(now()) @map("created_at")
-  updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
-  deletedAt           DateTime?              @map("deleted_at")
+  id                  String                    @id @default(cuid())
+  orgId               String                    @map("org_id")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at")
+  deletedAt           DateTime?                 @map("deleted_at")
   name                String
-  retentionDays       Int?                   @map("retention_days")
+  retentionDays       Int?                      @map("retention_days")
   projectMembers      ProjectMembership[]
-  organization        Organization           @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  traces              Trace[]
-  observations        Observation[]
+  organization        Organization              @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys             ApiKey[]
   dataset             Dataset[]
   invitations         MembershipInvitation[]
@@ -131,7 +129,6 @@ model Project {
   JobExecution        JobExecution[]
   LlmApiKeys          LlmApiKeys[]
   PosthogIntegration  PosthogIntegration[]
-  Score               Score[]
   scoreConfig         ScoreConfig[]
   BatchExport         BatchExport[]
   comment             Comment[]
@@ -140,6 +137,10 @@ model Project {
   TraceMedia          TraceMedia[]
   Media               Media[]
   ObservationMedia    ObservationMedia[]
+  LegacyTrace         LegacyPrismaTrace[]
+  LegacyObservation   LegacyPrismaObservation[]
+  LegacyScore         LegacyPrismaScore[]
+  PromptDependency    PromptDependency[]
 
   @@index([orgId])
   @@map("projects")
@@ -267,13 +268,14 @@ enum Role {
 }
 
 model TraceSession {
-  id         String   @default(cuid())
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
-  projectId  String   @map("project_id")
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  bookmarked Boolean  @default(false)
-  public     Boolean  @default(false)
+  id          String   @default(cuid())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  projectId   String   @map("project_id")
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bookmarked  Boolean  @default(false)
+  public      Boolean  @default(false)
+  environment String   @default("default")
 
   @@id([id, projectId])
   @@index([projectId])
@@ -282,9 +284,7 @@ model TraceSession {
   @@map("trace_sessions")
 }
 
-// Update TraceView below when making changes to this model!
-
-model Trace {
+model LegacyPrismaTrace {
   id         String   @id @default(cuid())
   externalId String?  @map("external_id")
   timestamp  DateTime @default(now())
@@ -315,80 +315,43 @@ model Trace {
   @@map("traces")
 }
 
-// This view is based on the trace table. Once prisma supports
-// inheritance, we should remove code duplication here.
-view TraceView {
-  // trace fields
-  id         String   @id @default(cuid())
-  externalId String?  @map("external_id")
-  timestamp  DateTime @default(now())
-  name       String?
-  userId     String?  @map("user_id")
-  metadata   Json?
-  release    String?
-  version    String?
-  projectId  String   @map("project_id")
-  public     Boolean  @default(false)
-  bookmarked Boolean  @default(false)
-  tags       String[] @default([])
-  input      Json?
-  output     Json?
-  sessionId  String?  @map("session_id")
-  createdAt  DateTime @map("created_at")
-  updatedAt  DateTime @map("updated_at")
-
-  // calculated fields
-  duration Float? @map("duration") // can be null if no observations in trace
-
-  @@map("traces_view")
-}
-
-// Update ObservationView below when making changes to this model!
-// traceId is optional only due to timing during data injestion 
-// (traceId is not necessarily known at the time of observation creation)
-model Observation {
-  id                  String           @id @default(cuid())
-  traceId             String?          @map("trace_id")
-  projectId           String           @map("project_id")
-  type                ObservationType
-  startTime           DateTime         @default(now()) @map("start_time")
-  endTime             DateTime?        @map("end_time")
-  name                String?
-  metadata            Json?
-  parentObservationId String?          @map("parent_observation_id")
-  level               ObservationLevel @default(DEFAULT)
-  statusMessage       String?          @map("status_message")
-  version             String?
-  createdAt           DateTime         @default(now()) @map("created_at")
-  updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at")
-
+model LegacyPrismaObservation {
+  id                   String                       @id @default(cuid())
+  traceId              String?                      @map("trace_id")
+  projectId            String                       @map("project_id")
+  project              Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type                 LegacyPrismaObservationType
+  startTime            DateTime                     @default(now()) @map("start_time")
+  endTime              DateTime?                    @map("end_time")
+  name                 String?
+  metadata             Json?
+  parentObservationId  String?                      @map("parent_observation_id")
+  level                LegacyPrismaObservationLevel @default(DEFAULT)
+  statusMessage        String?                      @map("status_message")
+  version              String?
+  createdAt            DateTime                     @default(now()) @map("created_at")
+  updatedAt            DateTime                     @default(now()) @updatedAt @map("updated_at")
   // GENERATION ONLY
-  model           String? // user-provided model attribute
-  internalModel   String? @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
-  internalModelId String? @map("internal_model_id") // matched model.id that is matched at ingestion time
-
-  modelParameters  Json?
-  input            Json?
-  output           Json?
-  promptTokens     Int     @default(0) @map("prompt_tokens")
-  completionTokens Int     @default(0) @map("completion_tokens")
-  totalTokens      Int     @default(0) @map("total_tokens")
-  unit             String?
-
+  model                String? // user-provided model attribute
+  internalModel        String?                      @map("internal_model") // matched model.name that is matched at ingestion time, to be deprecated
+  internalModelId      String?                      @map("internal_model_id") // matched model.id that is matched at ingestion time
+  modelParameters      Json?
+  input                Json?
+  output               Json?
+  promptTokens         Int                          @default(0) @map("prompt_tokens")
+  completionTokens     Int                          @default(0) @map("completion_tokens")
+  totalTokens          Int                          @default(0) @map("total_tokens")
+  unit                 String?
   // User provided cost at ingestion
-  inputCost  Decimal? @map("input_cost")
-  outputCost Decimal? @map("output_cost")
-  totalCost  Decimal? @map("total_cost")
-
+  inputCost            Decimal?                     @map("input_cost")
+  outputCost           Decimal?                     @map("output_cost")
+  totalCost            Decimal?                     @map("total_cost")
   // Calculated cost
-  calculatedInputCost  Decimal? @map("calculated_input_cost")
-  calculatedOutputCost Decimal? @map("calculated_output_cost")
-  calculatedTotalCost  Decimal? @map("calculated_total_cost")
-
-  completionStartTime DateTime? @map("completion_start_time")
-  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  promptId String? @map("prompt_id") // no fk constraint, prompt can be deleted
+  calculatedInputCost  Decimal?                     @map("calculated_input_cost")
+  calculatedOutputCost Decimal?                     @map("calculated_output_cost")
+  calculatedTotalCost  Decimal?                     @map("calculated_total_cost")
+  completionStartTime  DateTime?                    @map("completion_start_time")
+  promptId             String?                      @map("prompt_id") // no fk constraint, prompt can be deleted
 
   @@unique([id, projectId])
   @@index([projectId, internalModel, startTime, unit])
@@ -405,88 +368,42 @@ model Observation {
   @@map("observations")
 }
 
-// This view is a mix of the observation and model. Once prisma supports
-// inheritance, we should remove code duplication here.
-view ObservationView {
-  id                  String           @id @default(cuid())
-  traceId             String?          @map("trace_id")
-  projectId           String           @map("project_id")
-  type                ObservationType
-  startTime           DateTime         @map("start_time")
-  endTime             DateTime?        @map("end_time")
-  name                String?
-  metadata            Json?
-  parentObservationId String?          @map("parent_observation_id")
-  level               ObservationLevel @default(DEFAULT)
-  statusMessage       String?          @map("status_message")
-  version             String?
-  createdAt           DateTime         @map("created_at")
-  updatedAt           DateTime         @map("updated_at")
-
-  // GENERATION ONLY
-  model               String?
-  modelParameters     Json?
-  input               Json?
-  output              Json?
-  promptTokens        Int       @default(0) @map("prompt_tokens")
-  completionTokens    Int       @default(0) @map("completion_tokens")
-  totalTokens         Int       @default(0) @map("total_tokens")
-  unit                String?
-  completionStartTime DateTime? @map("completion_start_time")
-
-  // prompts
-  promptId      String? @map("prompt_id")
-  promptName    String? @map("prompt_name")
-  promptVersion Int?    @map("prompt_version")
-
-  // model fields
-  modelId     String?  @map("model_id")
-  inputPrice  Decimal? @map("input_price")
-  outputPrice Decimal? @map("output_price")
-  totalPrice  Decimal? @map("total_price")
-
-  // calculated fields
-  calculatedInputCost  Decimal? @map("calculated_input_cost")
-  calculatedOutputCost Decimal? @map("calculated_output_cost")
-  calculatedTotalCost  Decimal? @map("calculated_total_cost")
-  latency              Float?   @map("latency")
-  timeToFirstToken     Float?   @map("time_to_first_token")
-
-  @@map("observations_view")
-}
-
-enum ObservationType {
+enum LegacyPrismaObservationType {
   SPAN
   EVENT
   GENERATION
+
+  @@map("ObservationType")
 }
 
-enum ObservationLevel {
+enum LegacyPrismaObservationLevel {
   DEBUG
   DEFAULT
   WARNING
   ERROR
+
+  @@map("ObservationLevel")
 }
 
-model Score {
-  id            String        @id @default(cuid())
-  timestamp     DateTime      @default(now())
-  projectId     String        @map("project_id")
-  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+model LegacyPrismaScore {
+  id            String                  @id @default(cuid())
+  timestamp     DateTime                @default(now())
+  projectId     String                  @map("project_id")
+  project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name          String
   value         Float? // always defined if data type is NUMERIC or BOOLEAN, optional for CATEGORICAL
-  source        ScoreSource
-  authorUserId  String?       @map("author_user_id")
+  source        LegacyPrismaScoreSource
+  authorUserId  String?                 @map("author_user_id")
   comment       String?
-  traceId       String        @map("trace_id")
-  observationId String?       @map("observation_id")
-  configId      String?       @map("config_id")
-  stringValue   String?       @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
-  queueId       String?       @map("queue_id")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at")
-  dataType      ScoreDataType @default(NUMERIC) @map("data_type")
-  scoreConfig   ScoreConfig?  @relation(fields: [configId], references: [id], onDelete: SetNull)
+  traceId       String                  @map("trace_id")
+  observationId String?                 @map("observation_id")
+  configId      String?                 @map("config_id")
+  stringValue   String?                 @map("string_value") // always defined if data type is CATEGORICAL or BOOLEAN, null for NUMERIC
+  queueId       String?                 @map("queue_id")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at")
+  dataType      ScoreDataType           @default(NUMERIC) @map("data_type")
+  scoreConfig   ScoreConfig?            @relation(fields: [configId], references: [id], onDelete: SetNull)
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index(timestamp)
@@ -501,26 +418,28 @@ model Score {
   @@map("scores")
 }
 
-enum ScoreSource {
+enum LegacyPrismaScoreSource {
   ANNOTATION
   API
   EVAL
+
+  @@map("ScoreSource")
 }
 
 model ScoreConfig {
-  id          String        @id @default(cuid())
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
-  projectId   String        @map("project_id")
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id          String              @id @default(cuid())
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at")
+  projectId   String              @map("project_id")
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
-  dataType    ScoreDataType @map("data_type")
-  isArchived  Boolean       @default(false) @map("is_archived")
-  minValue    Float?        @map("min_value")
-  maxValue    Float?        @map("max_value")
-  categories  Json?         @map("categories")
+  dataType    ScoreDataType       @map("data_type")
+  isArchived  Boolean             @default(false) @map("is_archived")
+  minValue    Float?              @map("min_value")
+  maxValue    Float?              @map("max_value")
+  categories  Json?               @map("categories")
   description String?
-  score       Score[]
+  legacyScore LegacyPrismaScore[]
 
   @@unique([id, projectId]) // used for upserts via prisma
   @@index([dataType])
@@ -722,15 +641,16 @@ model Prompt {
 
   createdBy String @map("created_by")
 
-  prompt        Json
-  name          String
-  version       Int
-  type          String   @default("text")
-  isActive      Boolean? @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
-  config        Json     @default("{}") @db.Json
-  tags          String[] @default([])
-  labels        String[] @default([])
-  commitMessage String?  @map("commit_message")
+  prompt           Json
+  name             String
+  version          Int
+  type             String             @default("text")
+  isActive         Boolean?           @map("is_active") // Deprecated. To be removed once 'production' labels work as expected.
+  config           Json               @default("{}") @db.Json
+  tags             String[]           @default([])
+  labels           String[]           @default([])
+  commitMessage    String?            @map("commit_message")
+  PromptDependency PromptDependency[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -738,6 +658,26 @@ model Prompt {
   @@index([updatedAt])
   @@index([tags(ops: ArrayOps)], type: Gin)
   @@map("prompts")
+}
+
+model PromptDependency {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  parentId String @map("parent_id")
+  parent   Prompt @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  childName    String  @map("child_name")
+  childLabel   String? @map("child_label")
+  childVersion Int?    @map("child_version")
+
+  @@index([projectId, parentId])
+  @@index([projectId, childName])
+  @@map("prompt_dependencies")
 }
 
 // Update ObservationView below when making changes to this model!
@@ -778,23 +718,31 @@ model Price {
   @@map("prices")
 }
 
+enum AuditLogRecordType {
+  USER
+  API_KEY
+}
+
 // No FK constraints to preserve audit logs
 model AuditLog {
-  id              String   @id @default(cuid())
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
-  userId          String   @map("user_id")
-  orgId           String   @map("org_id")
-  userOrgRole     String   @map("user_org_role")
-  projectId       String?  @map("project_id")
-  userProjectRole String?  @map("user_project_role")
-  resourceType    String   @map("resource_type")
-  resourceId      String   @map("resource_id")
+  id              String             @id @default(cuid())
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at")
+  type            AuditLogRecordType @default(USER)
+  apiKeyId        String?            @map("api_key_id")
+  userId          String?            @map("user_id")
+  orgId           String             @map("org_id")
+  userOrgRole     String?            @map("user_org_role")
+  projectId       String?            @map("project_id")
+  userProjectRole String?            @map("user_project_role")
+  resourceType    String             @map("resource_type")
+  resourceId      String             @map("resource_id")
   action          String
-  before          String? //stringified JSON
+  before          String? // stringified JSON
   after           String? // stringified JSON
 
   @@index([projectId])
+  @@index([apiKeyId])
   @@index([userId])
   @@index([orgId])
   @@index([createdAt])
@@ -853,6 +801,7 @@ model JobConfiguration {
   variableMapping Json           @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
+  timeScope       String[]       @default(["NEW"]) @map("time_scope")
   JobExecution    JobExecution[]
 
   @@index([projectId, id])

@@ -24,6 +24,7 @@ export function extractVariables(mustacheString: string): string[] {
   const matches = Array.from(mustacheString.matchAll(MUSTACHE_REGEX))
     .map((match) => match[1])
     .filter(isValidVariableName);
+
   return [...new Set(matches)];
 }
 

@@ -9,6 +9,7 @@ import MessageResponse from "./interfaces/MessageResponse";
 require("dotenv").config();
 
 import {
+  evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
@@ -44,6 +45,7 @@ import {
   dataRetentionProcessor,
 } from "./queues/dataRetentionQueue";
 import { batchActionQueueProcessor } from "./queues/batchActionQueue";
+import { scoreDeleteProcessor } from "./queues/scoreDelete";
 
 const app = express();
 
@@ -72,6 +74,16 @@ if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.TraceUpsert,
     evalJobTraceCreatorQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.CreateEvalQueue,
+    evalJobCreatorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
     },
@@ -109,6 +121,17 @@ if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
     limiter: {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
+      duration: 15_000,
+    },
+  });
+}
+
+if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.ScoreDelete, scoreDeleteProcessor, {
+    concurrency: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
+    limiter: {
+      // Process at most `max` delete jobs per 15 seconds
+      max: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
       duration: 15_000,
     },
   });

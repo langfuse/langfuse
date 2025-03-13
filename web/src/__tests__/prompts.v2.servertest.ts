@@ -9,14 +9,16 @@ import {
   PromptType,
   type ValidatedPrompt,
 } from "@/src/features/prompts/server/utils/validation";
-
+import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "ai";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
   createOrgProjectAndApiKey,
   getObservationById,
+  MAX_PROMPT_NESTING_DEPTH,
 } from "@langfuse/shared/src/server";
+import { randomUUID } from "node:crypto";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -71,6 +73,7 @@ const testPromptEquality = (
   expect(prompt.createdBy).toBe(promptParams.createdBy);
   expect(prompt.config).toEqual(promptParams.config);
   expect(prompt.tags).toEqual([]);
+  expect(prompt.resolutionGraph).toBeNull();
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
@@ -1260,6 +1263,1234 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  describe("prompt composability", () => {
+    beforeEach(() => pruneDatabase());
+    afterAll(() => pruneDatabase());
+
+    it("can create a prompt with dependencies linked via label", async () => {
+      const { projectId: newProjectId, auth: newAuth } =
+        await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "child-prompt",
+          prompt: "I am a child prompt",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent prompt with dependency
+      const parentPromptContent =
+        "Parent prompt with dependency: @@@langfusePrompt:name=child-prompt|label=production@@@";
+      const response = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "parent-prompt",
+          prompt: parentPromptContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      expect(response.status).toBe(201);
+
+      // Verify dependency was created
+      const dependencies = await prisma.promptDependency.findMany({
+        where: {
+          projectId: newProjectId,
+          childName: "child-prompt",
+        },
+      });
+
+      expect(dependencies.length).toBe(1);
+      expect(dependencies[0].childLabel).toBe("production");
+
+      // Get the resolved prompt
+      const getResponse = await makeAPICall(
+        "GET",
+        `${baseURI}/parent-prompt?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(getResponse.status).toBe(200);
+      const responseBody = getResponse.body as unknown as Prompt;
+      const parsedPrompt = responseBody.prompt as string;
+
+      // Verify the resolution graph is returned with the correct structure
+      const parentId = responseBody.id;
+
+      expect(responseBody.resolutionGraph).toEqual({
+        root: {
+          name: "parent-prompt",
+          version: 1,
+          id: parentId,
+        },
+        dependencies: {
+          [parentId]: [
+            {
+              name: "child-prompt",
+              version: 1,
+              id: expect.any(String),
+            },
+          ],
+        },
+      });
+
+      // Verify the dependency was resolved correctly
+      expect(parsedPrompt).toBe(
+        "Parent prompt with dependency: I am a child prompt",
+      );
+
+      // Create another version of the child prompt with the same name and production label
+      // This will automatically strip the production label from the previous version
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "child-prompt",
+          prompt: "I am an updated child prompt",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt again to check if it now uses the new version
+      const getResponseAfterUpdate = await makeAPICall(
+        "GET",
+        `${baseURI}/parent-prompt?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(getResponseAfterUpdate.status).toBe(200);
+      const responseBodyAfterUpdate =
+        getResponseAfterUpdate.body as unknown as Prompt;
+      const parsedPromptAfterUpdate = responseBodyAfterUpdate.prompt as string;
+
+      expect(parsedPromptAfterUpdate).toBe(
+        "Parent prompt with dependency: I am an updated child prompt",
+      );
+
+      expect(responseBodyAfterUpdate.resolutionGraph).toEqual({
+        root: {
+          name: "parent-prompt",
+          version: 1,
+          id: parentId,
+        },
+        dependencies: {
+          [parentId]: [
+            {
+              name: "child-prompt",
+              version: 2,
+              id: expect.any(String),
+            },
+          ],
+        },
+      });
+
+      const childPrompts = await prisma.prompt.findMany({
+        where: {
+          projectId: newProjectId,
+          name: "child-prompt",
+        },
+        orderBy: {
+          version: "asc",
+        },
+      });
+
+      expect(childPrompts.length).toBe(2);
+    });
+
+    it("resolves prompt dependencies correctly when linked via label", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "nested-child",
+          prompt: "I am a nested child",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create intermediate prompt with dependency
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "intermediate",
+          prompt:
+            "Intermediate with dependency: @@@langfusePrompt:name=nested-child|label=production@@@",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent prompt with dependency
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "nested-parent",
+          prompt:
+            "Parent with nested dependency: @@@langfusePrompt:name=intermediate|label=production@@@",
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/nested-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "Parent with nested dependency: Intermediate with dependency: I am a nested child",
+      );
+    });
+
+    it("resolves prompt dependencies correctly when linked via version", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt with version
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "version-linked-child",
+          prompt: "I am version 3 of the child prompt",
+          type: "text",
+          version: 1,
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent prompt with version-specific dependency
+      const parentPromptContent =
+        "Parent with version dependency: @@@langfusePrompt:name=version-linked-child|version=1@@@";
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "version-linked-parent",
+          prompt: parentPromptContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/version-linked-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "Parent with version dependency: I am version 3 of the child prompt",
+      );
+      expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
+    });
+
+    it("detects circular dependencies", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create first prompt
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "circular-a",
+          prompt: "Prompt A without dependency",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create second prompt that depends on the first - this should be rejected due to circular dependency
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "circular-b",
+          prompt:
+            "Prompt B with dependency: @@@langfusePrompt:name=circular-a|label=production@@@",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      const circularResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "circular-a",
+          prompt:
+            "Prompt A with dependency: @@@langfusePrompt:name=circular-b|label=production@@@",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // The second call should be rejected with a 400 error
+      expect(circularResponse.status).toBe(400);
+      const circularResponseBody = circularResponse.body as unknown as {
+        error: string;
+      };
+      expect(JSON.stringify(circularResponseBody)).toContain("circular");
+    });
+
+    it("handles deeply nested dependencies (3+ levels)", async () => {
+      //const { auth: newAuth } = await createOrgProjectAndApiKey();
+      const newAuth = undefined;
+
+      // Create level 3 (deepest) prompts
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "level-3-a",
+          prompt: "I am level 3 prompt A",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "level-3-b",
+          prompt: "I am level 3 prompt B",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create level 2 prompt that depends on level 3 prompts
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "level-2",
+          prompt:
+            "Level 2 with dependencies: @@@langfusePrompt:name=level-3-a|label=production@@@ and @@@langfusePrompt:name=level-3-b|label=production@@@",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create level 1 prompt that depends on level 2
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "level-1",
+          prompt:
+            "Level 1 with dependency: @@@langfusePrompt:name=level-2|label=production@@@",
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/level-1?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "Level 1 with dependency: Level 2 with dependencies: I am level 3 prompt A and I am level 3 prompt B",
+      );
+      expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
+    });
+
+    it("handles multiple dependencies at the same level", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create multiple child prompts
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "child-a",
+          prompt: "I am child prompt A",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "child-b",
+          prompt: "I am child prompt B",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "child-c",
+          prompt: "I am child prompt C",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent prompt with multiple dependencies
+      const parentPromptContent = `Parent prompt with multiple dependencies: First: @@@langfusePrompt:name=child-a|label=production@@@ Second: @@@langfusePrompt:name=child-b|label=production@@@ Third: @@@langfusePrompt:name=child-c|label=production@@@`;
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "multi-parent",
+          prompt: parentPromptContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/multi-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "Parent prompt with multiple dependencies: First: I am child prompt A Second: I am child prompt B Third: I am child prompt C",
+      );
+      expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
+    });
+
+    it("handles version-specific dependencies", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt with multiple versions
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "versioned-child",
+          prompt: "I am version 1",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "versioned-child",
+          prompt: "I am version 2",
+          type: "text",
+          version: 2,
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent prompt with version-specific dependency
+      const parentPromptContent =
+        "Parent with version dependency: @@@langfusePrompt:name=versioned-child|version=1@@@";
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "version-parent",
+          prompt: parentPromptContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/version-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toBe(
+        "Parent with version dependency: I am version 1",
+      );
+      expect(responseBody.prompt).not.toContain("@@@langfusePrompt");
+    });
+
+    it("resolves prompt dependencies in chat prompts correctly", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create child text prompt
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "chat-child-text",
+          prompt: "I am a text prompt used in a chat prompt",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent chat prompt with dependency
+      const chatPromptContent = [
+        { role: "system", content: "You are a helpful assistant" },
+        {
+          role: "user",
+          content:
+            "Here's some context: @@@langfusePrompt:name=chat-child-text|label=production@@@",
+        },
+      ];
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "chat-parent",
+          prompt: chatPromptContent,
+          type: "chat",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/chat-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      expect(responseBody.prompt).toEqual([
+        { role: "system", content: "You are a helpful assistant" },
+        {
+          role: "user",
+          content:
+            "Here's some context: I am a text prompt used in a chat prompt",
+        },
+      ]);
+      expect(JSON.stringify(responseBody.prompt)).not.toContain(
+        "@@@langfusePrompt",
+      );
+    });
+
+    it("supports nested dependencies in chat prompts", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create nested child text prompt
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "nested-child",
+          prompt: "I am a nested child prompt",
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create intermediate text prompt with dependency
+      const intermediatePromptContent =
+        "Intermediate prompt with dependency: @@@langfusePrompt:name=nested-child|label=production@@@";
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "intermediate-prompt",
+          prompt: intermediatePromptContent,
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Create parent chat prompt with dependency to intermediate
+      const chatPromptContent = [
+        { role: "system", content: "You are a helpful assistant" },
+        {
+          role: "user",
+          content:
+            "Here's some context: @@@langfusePrompt:name=intermediate-prompt|label=production@@@",
+        },
+      ];
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "nested-chat-parent",
+          prompt: chatPromptContent,
+          type: "chat",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/nested-chat-parent?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      const parsedPrompt = responseBody.prompt;
+      expect(parsedPrompt).toEqual([
+        { role: "system", content: "You are a helpful assistant" },
+        {
+          role: "user",
+          content:
+            "Here's some context: Intermediate prompt with dependency: I am a nested child prompt",
+        },
+      ]);
+      expect(JSON.stringify(parsedPrompt)).not.toContain("@@@langfusePrompt");
+    });
+
+    it("should ignore invalid prompt tags", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create a prompt with invalid dependency tags
+      const invalidTagPromptContent = JSON.stringify({
+        text: "This prompt has invalid tags: @@@langfusePrompt:invalid@@@, @@@langfusePrompt:name=missing-type@@@, @@@langfusePrompt:name=no-version-or-label@@@",
+      });
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "prompt-with-invalid-tags",
+          prompt: invalidTagPromptContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/prompt-with-invalid-tags?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      const parsedPrompt = JSON.parse(responseBody.prompt as string);
+
+      // The invalid tags should remain unchanged in the resolved prompt
+      expect(parsedPrompt.text).toContain("@@@langfusePrompt:invalid@@@");
+      expect(parsedPrompt.text).toContain(
+        "@@@langfusePrompt:name=missing-type@@@",
+      );
+      expect(parsedPrompt.text).toContain(
+        "@@@langfusePrompt:name=no-version-or-label@@@",
+      );
+    });
+
+    it("should handle duplicate dependency tags for the same prompt", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create a parent prompt
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "parent-prompt",
+          prompt: "I am a parent prompt",
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Create a prompt with duplicate dependency tags
+      const duplicateTagsPromptContent =
+        "This prompt has duplicate tags: @@@langfusePrompt:name=parent-prompt|version=1@@@ and again @@@langfusePrompt:name=parent-prompt|version=1@@@";
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "prompt-with-duplicate-tags",
+          prompt: duplicateTagsPromptContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/prompt-with-duplicate-tags?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+
+      const responseBody = response.body as unknown as Prompt;
+      const parsedPrompt = responseBody.prompt as string;
+
+      // The duplicate tags should be resolved to the same prompt
+      expect(parsedPrompt).toBe(
+        "This prompt has duplicate tags: I am a parent prompt and again I am a parent prompt",
+      );
+    });
+
+    it("should handle special characters in prompt names", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create prompts with special characters in names
+      const specialCharPrompts = [
+        { name: "prompt-with-hyphens", prompt: "Hyphen content", type: "text" },
+        {
+          name: "prompt_with_underscores",
+          prompt: "Underscore content",
+          type: "text",
+        },
+        { name: "prompt.with.dots", prompt: "Dot content", type: "text" },
+        {
+          name: "prompt123WithNumbers",
+          prompt: "Number content",
+          type: "text",
+        },
+        { name: "prompt with spaces", prompt: "Space content", type: "text" },
+      ];
+
+      // Create all the special character prompts
+      for (const promptData of specialCharPrompts) {
+        const response = await makeAPICall(
+          "POST",
+          baseURI,
+          promptData,
+          newAuth,
+        );
+        expect(response.status).toBe(201);
+      }
+
+      // Create a prompt that references all the special character prompts
+      const dependencyContent = `
+      Reference prompts with special chars:
+      @@@langfusePrompt:name=prompt-with-hyphens|version=1@@@
+      @@@langfusePrompt:name=prompt_with_underscores|version=1@@@
+      @@@langfusePrompt:name=prompt.with.dots|version=1@@@
+      @@@langfusePrompt:name=prompt123WithNumbers|version=1@@@
+      @@@langfusePrompt:name=prompt with spaces|version=1@@@
+    `;
+
+      await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "prompt-with-special-char-dependencies",
+          prompt: dependencyContent,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // Get the resolved prompt
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/prompt-with-special-char-dependencies?version=1`,
+        undefined,
+        newAuth,
+      );
+
+      expect(response.status).toBe(200);
+      const responseBody = response.body as unknown as Prompt;
+      const parsedPrompt = responseBody.prompt as string;
+
+      // Verify the exact resolved prompt string
+      const expectedPrompt = `
+      Reference prompts with special chars:
+      Hyphen content
+      Underscore content
+      Dot content
+      Number content
+      Space content
+    `;
+      expect(parsedPrompt).toBe(expectedPrompt);
+    }, 10_000);
+
+    it("should disallow a prompt that references itself", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+
+      // First, create the prompt without self-reference
+      const initialPromptName = "self-referencing-prompt";
+      const initialPromptContent = "This is the initial content";
+
+      const createResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: initialPromptName,
+          prompt: initialPromptContent,
+          type: "text",
+        },
+        auth,
+      );
+
+      expect(createResponse.status).toBe(201);
+
+      // Now try to update the prompt to include a reference to itself
+      const selfReferenceContent = `This prompt references itself:
+      @@@langfusePrompt:name=self-referencing-prompt|version=1@@@
+      And that's it!`;
+
+      const updateResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: initialPromptName,
+          prompt: selfReferenceContent,
+          type: "text",
+        },
+        auth,
+      );
+
+      // Expect the request to fail with a 400 Bad Request
+      expect(updateResponse.status).toBe(400);
+      // Check that the response contains an error about circular dependency
+      expect(JSON.stringify(updateResponse.body)).toContain(
+        "Circular dependency",
+      );
+    });
+
+    it("should return an error when a dependent prompt doesn't exist", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create a prompt that references a non-existent prompt
+      const promptWithNonExistentDependency = `This prompt references a non-existent prompt:
+      @@@langfusePrompt:name=non-existent-prompt|version=1@@@
+      End of prompt.`;
+
+      // Create the prompt with the non-existent dependency
+      const createResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "prompt-with-missing-dependency",
+          prompt: promptWithNonExistentDependency,
+          type: "text",
+        },
+        newAuth,
+      );
+
+      // The creation should succeed as dependencies are resolved at retrieval time
+      expect(createResponse.status).toBe(400);
+
+      expect(JSON.stringify(createResponse.body)).toContain("not found");
+    });
+
+    it("should return an error when a dependent prompt exists but in a different project", async () => {
+      // Create two different organizations with their own projects
+      await createOrgProjectAndApiKey();
+      const { auth: auth2 } = await createOrgProjectAndApiKey();
+
+      // Create a prompt in the first project
+      const foreignProjectId = randomUUID();
+      await prisma.project.upsert({
+        where: { id: foreignProjectId },
+        update: {
+          name: "test-foreign-llm-app",
+          orgId: "seed-org-id",
+        },
+        create: {
+          id: foreignProjectId,
+          name: "test-foreign-llm-app",
+          orgId: "seed-org-id",
+        },
+      });
+      await prisma.prompt.create({
+        data: {
+          name: "cross-project-prompt",
+          prompt: "This prompt belongs to project 1",
+          type: "TEXT",
+          version: 1,
+          projectId: foreignProjectId,
+          createdBy: "test-user",
+        },
+      });
+
+      // Create a prompt in the second project that references the prompt from the first project
+      const promptWithCrossProjectDependency = `This prompt references a prompt from another project: @@@langfusePrompt:name=cross-project-prompt|version=1@@@ End of prompt.`;
+
+      // Create the prompt with the cross-project dependency
+      const createResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "prompt-with-cross-project-dependency",
+          prompt: promptWithCrossProjectDependency,
+          type: "text",
+        },
+        auth2,
+      );
+
+      expect(createResponse.status).toBe(400);
+
+      expect(JSON.stringify(createResponse.body)).toContain("not found");
+
+      await prisma.project.delete({
+        where: { id: foreignProjectId },
+      });
+    });
+
+    it("should throw an error if MAX_PROMPT_NESTING_DEPTH is exceeded", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      // Create prompts with increasing depth
+      for (let i = MAX_PROMPT_NESTING_DEPTH; i >= 1; i--) {
+        const promptName = `depth-${i}`;
+        let promptContent = "";
+
+        if (i === MAX_PROMPT_NESTING_DEPTH) {
+          // The deepest prompt has no dependencies
+          promptContent = "I am the deepest prompt";
+        } else {
+          // Each prompt depends on the one deeper than it
+          promptContent = `Level ${i} with dependency: @@@langfusePrompt:name=depth-${i + 1}|label=production@@@`;
+        }
+
+        const response = await makeAPICall(
+          "POST",
+          baseURI,
+          {
+            name: promptName,
+            prompt: promptContent,
+            type: "text",
+            labels: ["production"],
+          },
+          newAuth,
+        );
+
+        expect(response.status).toBe(201);
+      }
+
+      // Try to create the depth-0 prompt which would exceed the max nesting depth
+      const promptName = "depth-0";
+      const promptContent = `Level 0 with dependency: @@@langfusePrompt:name=depth-1|label=production@@@`;
+
+      const createResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: promptName,
+          prompt: promptContent,
+          type: "text",
+          labels: ["production"],
+        },
+        newAuth,
+      );
+
+      // Expect an error response
+      expect(createResponse.status).toBe(400);
+      expect(JSON.stringify(createResponse.body)).toContain(
+        "Maximum nesting depth exceeded",
+      );
+    }, 10_000);
+  });
+
+  describe("Parsing prompt dependency tags", () => {
+    it("should extract prompt dependency tags with version", () => {
+      const content =
+        "This is a test with @@@langfusePrompt:name=test|version=1@@@ dependency";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "test",
+        version: 1,
+        type: "version",
+      });
+    });
+    it("should handle prompt names with special characters", () => {
+      const content = `
+        @@@langfusePrompt:name=test-with-hyphens|version=1@@@
+        @@@langfusePrompt:name=test with spaces|label=production@@@
+        @@@langfusePrompt:name=test_with_underscores|version=2@@@
+        @@@langfusePrompt:name=test.with.dots|label=staging@@@
+        @@@langfusePrompt:name=test123WithNumbers|version=3@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(5);
+      expect(result[0]).toEqual({
+        name: "test-with-hyphens",
+        version: 1,
+        type: "version",
+      });
+      expect(result[1]).toEqual({
+        name: "test with spaces",
+        label: "production",
+        type: "label",
+      });
+      expect(result[2]).toEqual({
+        name: "test_with_underscores",
+        version: 2,
+        type: "version",
+      });
+      expect(result[3]).toEqual({
+        name: "test.with.dots",
+        label: "staging",
+        type: "label",
+      });
+      expect(result[4]).toEqual({
+        name: "test123WithNumbers",
+        version: 3,
+        type: "version",
+      });
+    });
+
+    it("should extract prompt dependency tags with label", () => {
+      const content =
+        "This is a test with @@@langfusePrompt:name=test|label=production@@@ dependency";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "test",
+        label: "production",
+        type: "label",
+      });
+    });
+
+    it("should extract multiple prompt dependency tags", () => {
+      const content = `
+        First dependency: @@@langfusePrompt:name=first|version=1@@@
+        Second dependency: @@@langfusePrompt:name=second|label=staging@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        name: "first",
+        version: 1,
+        type: "version",
+      });
+      expect(result[1]).toEqual({
+        name: "second",
+        label: "staging",
+        type: "label",
+      });
+    });
+
+    it("should ignore invalid prompt dependency tags", () => {
+      const content = `
+        Valid: @@@langfusePrompt:name=valid|version=1@@@
+        Invalid: @@@langfusePrompt:version=1@@@
+        Also invalid: @@@langfusePrompt:name=invalid|something=else@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "valid",
+        version: 1,
+        type: "version",
+      });
+    });
+
+    it("should return empty array when no tags are found", () => {
+      const content = "This is a test with no dependency tags";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should handle tags with special characters in name", () => {
+      const content =
+        "Tag with special chars @@@langfusePrompt:name=test-prompt_123|version=2@@@";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "test-prompt_123",
+        version: 2,
+        type: "version",
+      });
+    });
+
+    it("should handle tags with special characters in label", () => {
+      const content =
+        "Tag with special chars @@@langfusePrompt:name=test|label=prod-v1.0_beta@@@";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "test",
+        label: "prod-v1.0_beta",
+        type: "label",
+      });
+    });
+
+    it("should correctly coerce version to number", () => {
+      const content =
+        "Version as string @@@langfusePrompt:name=test|version=123@@@";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "test",
+        version: 123,
+        type: "version",
+      });
+      expect(typeof (result[0] as any).version).toBe("number");
+    });
+
+    it("should handle tags with spaces in the content", () => {
+      const content =
+        "Tag with spaces @@@langfusePrompt:name=my prompt|label=production label@@@";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "my prompt",
+        label: "production label",
+        type: "label",
+      });
+    });
+
+    it("should handle multiple tags with the same name but different versions/labels", () => {
+      const content = `
+        @@@langfusePrompt:name=same|version=1@@@
+        @@@langfusePrompt:name=same|version=2@@@
+        @@@langfusePrompt:name=same|label=production@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(3);
+      expect(result[0]).toEqual({ name: "same", version: 1, type: "version" });
+      expect(result[1]).toEqual({ name: "same", version: 2, type: "version" });
+      expect(result[2]).toEqual({
+        name: "same",
+        label: "production",
+        type: "label",
+      });
+    });
+
+    it("should handle tags with the PRODUCTION_LABEL constant value", () => {
+      const content = "@@@langfusePrompt:name=test|label=production@@@";
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "test",
+        label: "production",
+        type: "label",
+      });
+    });
+
+    it("should ignore malformed tags that don't match the regex pattern", () => {
+      const content = `
+        Valid: @@@langfusePrompt:name=valid|version=1@@@
+        Malformed: @@langfusePrompt:name=test|version=1@@
+        Also malformed: @@@langfusePrompt:name=test|version=1
+        And: langfusePrompt:name=test|version=1@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "valid",
+        version: 1,
+        type: "version",
+      });
+    });
+    it("should not parse langfuseMedia tags as prompt dependency tags", () => {
+      const content = `
+        @@@langfusePrompt:name=valid|version=1@@@
+        @@@langfuseMedia:type=image/jpeg|id=cc48838a-3da8-4ca4-a007-2cf8df930e69|source=base64@@@
+        @@@langfusePrompt:name=another|label=production@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        name: "valid",
+        version: 1,
+        type: "version",
+      });
+      expect(result[1]).toEqual({
+        name: "another",
+        label: "production",
+        type: "label",
+      });
+    });
+
+    it("should reject tags where name is not the first parameter", () => {
+      const content = `
+        Valid: @@@langfusePrompt:name=valid|version=1@@@
+        Invalid: @@@langfusePrompt:version=1|name=test@@@
+      `;
+      const result = parsePromptDependencyTags(content);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        name: "valid",
+        version: 1,
+        type: "version",
+      });
+    });
   });
 });
 

@@ -25,8 +25,9 @@ export function getOrganizationPlanServerSide(
           case "Pro":
             return "cloud:pro";
           case "Team":
-          case "Enterprise":
             return "cloud:team";
+          case "Enterprise":
+            return "cloud:enterprise";
           default:
             const exhaustiveCheck: never = cloudConfig.plan;
             throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);

@@ -61,13 +61,20 @@ const immutableEntityKeys: {
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
   [TableName.Observations]: (keyof ObservationRecordInsertType)[];
 } = {
-  [TableName.Traces]: ["id", "project_id", "timestamp", "created_at"],
+  [TableName.Traces]: [
+    "id",
+    "project_id",
+    "timestamp",
+    "created_at",
+    "environment",
+  ],
   [TableName.Scores]: [
     "id",
     "project_id",
     "timestamp",
     "trace_id",
     "created_at",
+    "environment",
   ],
   [TableName.Observations]: [
     "id",
@@ -75,6 +82,7 @@ const immutableEntityKeys: {
     "trace_id",
     "start_time",
     "created_at",
+    "environment",
   ],
 };
 
@@ -171,6 +179,7 @@ export class IngestionService {
           return {
             id: entityId,
             project_id: projectId,
+            environment: validatedScore.environment,
             timestamp: this.getMillisecondTimestamp(scoreEvent.timestamp),
             name: validatedScore.name,
             value: validatedScore.value,
@@ -411,6 +420,7 @@ export class IngestionService {
         id: finalObservationRecord.id,
         timestamp: finalObservationRecord.start_time,
         project_id: projectId,
+        environment: finalObservationRecord.environment,
         created_at: Date.now(),
         updated_at: Date.now(),
         metadata: {},
@@ -619,7 +629,7 @@ export class IngestionService {
       final_usage_details.usage_details ?? {},
     );
 
-    logger.info(
+    logger.debug(
       `Calculated costs and usage for observation ${observationRecord.id} with model ${internalModel?.id}`,
       {
         cost: final_cost_details.cost_details,
@@ -667,7 +677,7 @@ export class IngestionService {
         model,
       });
 
-      logger.info(
+      logger.debug(
         `Tokenized observation ${observationRecord.id} with model ${model.id}, input: ${newInputCount}, output: ${newOutputCount}`,
       );
 
@@ -945,6 +955,7 @@ export class IngestionService {
         release: trace.body.release,
         version: trace.body.version,
         project_id: projectId,
+        environment: trace.body.environment,
         public: trace.body.public ?? false,
         bookmarked: false,
         tags: trace.body.tags ?? [],
@@ -1058,6 +1069,8 @@ export class IngestionService {
         trace_id: obs.body.traceId ?? v4(),
         type: observationType,
         name: obs.body.name,
+        environment:
+          "environment" in obs.body ? obs.body.environment : "default",
         start_time: this.getMillisecondTimestamp(
           obs.body.startTime ?? obs.timestamp,
         ),

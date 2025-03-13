@@ -75,20 +75,30 @@ export function ItemBadge({
   type,
   showLabel = false,
   isSmall = false,
+  className,
 }: {
   type: LangfuseItemType;
   showLabel?: boolean;
   isSmall?: boolean;
+  className?: string;
 }) {
   const Icon = iconMap[type] || ListTree; // Default to ListTree if unknown type
-  const iconClass = cn(iconVariants({ type }), isSmall ? "h-3 w-3" : "h-4 w-4");
+
+  // Modify this line to ensure the icon is properly sized
+  const iconClass = cn(
+    iconVariants({ type }),
+    isSmall ? "h-3 w-3" : "h-4 w-4",
+    className,
+  );
+
   const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
 
   return (
     <Badge
       variant="outline"
+      title={label}
       className={cn(
-        "flex max-w-fit items-center gap-1 bg-background",
+        "flex max-w-fit items-center gap-1 border-2 bg-background px-1",
         isSmall && "h-4",
       )}
     >

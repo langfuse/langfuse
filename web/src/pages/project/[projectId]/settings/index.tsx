@@ -15,7 +15,10 @@ import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import {
+  useEntitlements,
+  useHasEntitlement,
+} from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
@@ -24,15 +27,193 @@ import { BatchExportsSettingsPage } from "@/src/features/batch-exports/component
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
-import { env } from "@/src/env.mjs";
 import ContainerPage from "@/src/components/layouts/container-page";
+
+type ProjectSettingsPage = {
+  title: string;
+  slug: string;
+  show?: boolean | (() => boolean);
+  cmdKKeywords?: string[];
+} & ({ content: React.ReactNode } | { href: string });
+
+export function useProjectSettingsPages(): ProjectSettingsPage[] {
+  const router = useRouter();
+  const { project, organization } = useQueryProject();
+  const showBillingSettings = useHasEntitlement("cloud-billing");
+  const showRetentionSettings = useHasEntitlement("data-retention");
+
+  const entitlements = useEntitlements();
+  const showLLMConnectionsSettings =
+    entitlements.includes("playground") ||
+    entitlements.includes("model-based-evaluations");
+
+  if (!project || !organization || !router.query.projectId) {
+    return [];
+  }
+
+  return getProjectSettingsPages({
+    project,
+    organization,
+    showBillingSettings,
+    showRetentionSettings,
+    showLLMConnectionsSettings,
+  });
+}
+
+export const getProjectSettingsPages = ({
+  project,
+  organization,
+  showBillingSettings,
+  showRetentionSettings,
+  showLLMConnectionsSettings,
+}: {
+  project: { id: string; name: string };
+  organization: { id: string; name: string };
+  showBillingSettings: boolean;
+  showRetentionSettings: boolean;
+  showLLMConnectionsSettings: boolean;
+}): ProjectSettingsPage[] => [
+  {
+    title: "General",
+    slug: "index",
+    cmdKKeywords: ["name", "id", "delete", "transfer", "ownership"],
+    content: (
+      <div className="flex flex-col gap-6">
+        <HostNameProject />
+        <RenameProject />
+        {showRetentionSettings && <ConfigureRetention />}
+        <div>
+          <Header title="Debug Information" />
+          <JSONView
+            title="Metadata"
+            json={{
+              project: { name: project.name, id: project.id },
+              org: { name: organization.name, id: organization.id },
+            }}
+          />
+        </div>
+        <SettingsDangerZone
+          items={[
+            {
+              title: "Transfer ownership",
+              description:
+                "Transfer this project to another organization where you have the ability to create projects.",
+              button: <TransferProjectButton />,
+            },
+            {
+              title: "Delete this project",
+              description:
+                "Once you delete a project, there is no going back. Please be certain.",
+              button: <DeleteProjectButton />,
+            },
+          ]}
+        />
+      </div>
+    ),
+  },
+  {
+    title: "API Keys",
+    slug: "api-keys",
+    cmdKKeywords: ["auth", "public key", "secret key"],
+    content: (
+      <div className="flex flex-col gap-6">
+        <ApiKeyList projectId={project.id} />
+      </div>
+    ),
+  },
+  {
+    title: "LLM Connections",
+    slug: "llm-connections",
+    cmdKKeywords: [
+      "llm",
+      "provider",
+      "openai",
+      "anthropic",
+      "azure",
+      "playground",
+      "evaluation",
+      "endpoint",
+      "api",
+    ],
+    content: (
+      <div className="flex flex-col gap-6">
+        <LlmApiKeyList projectId={project.id} />
+      </div>
+    ),
+    show: showLLMConnectionsSettings,
+  },
+  {
+    title: "Models",
+    slug: "models",
+    cmdKKeywords: ["cost", "token"],
+    content: <ModelsSettings projectId={project.id} />,
+  },
+  {
+    title: "Scores / Evaluation",
+    slug: "scores",
+    cmdKKeywords: ["config"],
+    content: <ScoreConfigSettings projectId={project.id} />,
+  },
+  {
+    title: "Members",
+    slug: "members",
+    cmdKKeywords: ["invite", "user"],
+    content: (
+      <div>
+        <Header title="Project Members" />
+        <div>
+          <MembersTable
+            orgId={organization.id}
+            project={{ id: project.id, name: project.name }}
+          />
+        </div>
+        <div>
+          <MembershipInvitesPage
+            orgId={organization.id}
+            projectId={project.id}
+          />
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "Integrations",
+    slug: "integrations",
+    cmdKKeywords: ["posthog"],
+    content: <Integrations projectId={project.id} />,
+  },
+  {
+    title: "Exports",
+    slug: "exports",
+    cmdKKeywords: ["csv", "download", "json", "batch"],
+    content: <BatchExportsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Audit Logs",
+    slug: "audit-logs",
+    cmdKKeywords: ["trail"],
+    content: <AuditLogsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Billing",
+    slug: "billing",
+    href: `/organization/${organization.id}/settings/billing`,
+    show: showBillingSettings,
+  },
+  {
+    title: "Organization Settings",
+    slug: "organization",
+    href: `/organization/${organization.id}/settings`,
+  },
+];
 
 export default function SettingsPage() {
   const { project, organization } = useQueryProject();
   const router = useRouter();
-  const showBillingSettings = useHasEntitlement("cloud-billing");
-  const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+  const pages = useProjectSettingsPages();
+
   if (!project || !organization) return null;
+
   return (
     <ContainerPage
       headerProps={{
@@ -41,112 +222,7 @@ export default function SettingsPage() {
     >
       <PagedSettingsContainer
         activeSlug={router.query.page as string | undefined}
-        pages={[
-          {
-            title: "General",
-            slug: "index",
-            content: (
-              <div className="flex flex-col gap-6">
-                <HostNameProject />
-                <RenameProject />
-                {isLangfuseCloud && <ConfigureRetention />}
-                <div>
-                  <Header title="Debug Information" />
-                  <JSONView
-                    title="Metadata"
-                    json={{
-                      project: { name: project.name, id: project.id },
-                      org: { name: organization.name, id: organization.id },
-                    }}
-                  />
-                </div>
-                <SettingsDangerZone
-                  items={[
-                    {
-                      title: "Transfer ownership",
-                      description:
-                        "Transfer this project to another organization where you have the ability to create projects.",
-                      button: <TransferProjectButton />,
-                    },
-                    {
-                      title: "Delete this project",
-                      description:
-                        "Once you delete a project, there is no going back. Please be certain.",
-                      button: <DeleteProjectButton />,
-                    },
-                  ]}
-                />
-              </div>
-            ),
-          },
-          {
-            title: "API Keys",
-            slug: "api-keys",
-            content: (
-              <div className="flex flex-col gap-6">
-                <ApiKeyList projectId={project.id} />
-                <LlmApiKeyList projectId={project.id} />
-              </div>
-            ),
-          },
-          {
-            title: "Models",
-            slug: "models",
-            content: <ModelsSettings projectId={project.id} />,
-          },
-          {
-            title: "Scores / Evaluation",
-            slug: "scores",
-            content: <ScoreConfigSettings projectId={project.id} />,
-          },
-          {
-            title: "Members",
-            slug: "members",
-            content: (
-              <div>
-                <Header title="Project Members" />
-                <div>
-                  <MembersTable
-                    orgId={organization.id}
-                    project={{ id: project.id, name: project.name }}
-                  />
-                </div>
-                <div>
-                  <MembershipInvitesPage
-                    orgId={organization.id}
-                    projectId={project.id}
-                  />
-                </div>
-              </div>
-            ),
-          },
-          {
-            title: "Integrations",
-            slug: "integrations",
-            content: <Integrations projectId={project.id} />,
-          },
-          {
-            title: "Exports",
-            slug: "exports",
-            content: <BatchExportsSettingsPage projectId={project.id} />,
-          },
-          {
-            title: "Audit Logs",
-            slug: "audit-logs",
-            content: <AuditLogsSettingsPage projectId={project.id} />,
-          },
-          {
-            title: "Billing",
-            slug: "billing",
-            href: `/organization/${organization.id}/settings/billing`,
-            show: showBillingSettings,
-          },
-          {
-            title: "Organization Settings",
-            slug: "organization",
-            href: `/organization/${organization.id}/settings`,
-          },
-        ]}
+        pages={pages}
       />
     </ContainerPage>
   );

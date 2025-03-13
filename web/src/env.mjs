@@ -98,6 +98,7 @@ export const env = createEnv({
     AUTH_GITLAB_ISSUER: z.string().optional(),
     AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GITLAB_CHECKS: zAuthChecks,
+    AUTH_GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
@@ -137,6 +138,11 @@ export const env = createEnv({
     AUTH_CUSTOM_CHECKS: zAuthChecks,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
+    AUTH_WORKOS_CLIENT_ID: z.string().optional(),
+    AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
+    AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_WORKOS_ORGANIZATION_ID: z.string().optional(),
+    AUTH_WORKOS_CONNECTION_ID: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
@@ -281,6 +287,10 @@ export const env = createEnv({
       .optional(),
     LANGFUSE_INIT_USER_NAME: z.string().optional(),
     LANGFUSE_INIT_USER_PASSWORD: z.string().optional(),
+    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z
+      .number()
+      .positive()
+      .default(50_000),
   },
 
   /**
@@ -373,13 +383,16 @@ export const env = createEnv({
       process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_CLIENT_AUTH_METHOD: process.env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
     AUTH_GITLAB_CHECKS: process.env.AUTH_GITLAB_CHECKS,
+    AUTH_GITLAB_URL: process.env.AUTH_GITLAB_URL,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
     AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING:
-      process.env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING ?? process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING, // fallback on old env var
+      process.env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING ??
+      process.env.AUTH_AZURE_ALLOW_ACCOUNT_LINKING, // fallback on old env var
     AUTH_AZURE_AD_CLIENT_AUTH_METHOD:
-      process.env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD ?? process.env.AUTH_AZURE_CLIENT_AUTH_METHOD, // fallback on old env var
+      process.env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD ??
+      process.env.AUTH_AZURE_CLIENT_AUTH_METHOD, // fallback on old env var
     AUTH_AZURE_AD_CHECKS:
       process.env.AUTH_AZURE_AD_CHECKS ?? process.env.AUTH_AZURE_CHECKS, // fallback on old env var
     AUTH_OKTA_CLIENT_ID: process.env.AUTH_OKTA_CLIENT_ID,
@@ -422,6 +435,11 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
+    AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
+    AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: process.env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING,
+    AUTH_WORKOS_ORGANIZATION_ID: process.env.AUTH_WORKOS_ORGANIZATION_ID,
+    AUTH_WORKOS_CONNECTION_ID: process.env.AUTH_WORKOS_CONNECTION_ID,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
@@ -543,6 +561,8 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+    LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
+      process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

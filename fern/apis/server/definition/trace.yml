@@ -15,6 +15,15 @@ service:
           type: string
           docs: The unique langfuse identifier of a trace
       response: commons.TraceWithFullDetails
+    delete:
+      docs: Delete a specific trace
+      method: DELETE
+      path: /traces/{traceId}
+      path-parameters:
+        traceId:
+          type: string
+          docs: The unique langfuse identifier of the trace to delete
+      response: DeleteTraceResponse
     list:
       docs: Get list of traces
       method: GET
@@ -50,13 +59,32 @@ service:
           release:
             type: optional<string>
             docs: Optional filter to only include traces with a certain release.
+          environment:
+            type: optional<string>
+            allow-multiple: true
+            docs: Optional filter for traces where the environment is one of the provided values.
       response: Traces
+    deleteMultiple:
+      docs: Delete multiple traces
+      method: DELETE
+      path: /traces
+      request:
+        name: DeleteTracesRequest
+        body:
+          properties:
+            traceIds:
+              type: list<string>
+              docs: List of trace IDs to delete
+      response: DeleteTraceResponse
 
 types:
   Traces:
     properties:
       data: list<commons.TraceWithDetails>
       meta: pagination.MetaResponse
+  DeleteTraceResponse:
+    properties:
+      message: string
   Sort:
     properties:
       id: string

@@ -2,7 +2,7 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import {
   type ScoreDataType,
-  type ScoreSource,
+  type ScoreSourceType,
   type FilterState,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -13,7 +13,7 @@ import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
-import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 const dropValuesForCategoricalScores = (
@@ -26,7 +26,11 @@ const dropValuesForCategoricalScores = (
 };
 
 const scoreNameSourceDataTypeMatch =
-  (scoreName: string, scoreSource: ScoreSource, scoreDataType: ScoreDataType) =>
+  (
+    scoreName: string,
+    scoreSource: ScoreSourceType,
+    scoreDataType: ScoreDataType,
+  ) =>
   (item: DatabaseRow) =>
     item.scoreName === scoreName &&
     item.scoreSource === scoreSource &&
@@ -36,10 +40,12 @@ export const ScoresTable = ({
   className,
   projectId,
   globalFilterState,
+  isLoading = false,
 }: {
   className: string;
   projectId: string;
   globalFilterState: FilterState;
+  isLoading?: boolean;
 }) => {
   const localFilters = createTracesTimeFilter(
     globalFilterState,
@@ -78,6 +84,7 @@ export const ScoresTable = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -121,6 +128,7 @@ export const ScoresTable = ({
             skipBatch: true,
           },
         },
+        enabled: !isLoading,
       },
     ),
   );
@@ -139,7 +147,7 @@ export const ScoresTable = ({
 
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
-      const scoreSource = metric.scoreSource as ScoreSource;
+      const scoreSource = metric.scoreSource as ScoreSourceType;
       const scoreDataType = metric.scoreDataType as ScoreDataType;
 
       const zeroValueScore = zeroValueScores.data.find(
@@ -177,6 +185,7 @@ export const ScoresTable = ({
       className={className}
       title="Scores"
       isLoading={
+        isLoading ||
         metrics.isLoading ||
         zeroValueScores.isLoading ||
         oneValueScores.isLoading
@@ -215,6 +224,7 @@ export const ScoresTable = ({
         ])}
         collapse={{ collapsed: 5, expanded: 20 }}
         isLoading={
+          isLoading ||
           metrics.isLoading ||
           zeroValueScores.isLoading ||
           oneValueScores.isLoading

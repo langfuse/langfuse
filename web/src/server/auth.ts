@@ -28,6 +28,7 @@ import Auth0Provider from "next-auth/providers/auth0";
 import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import KeycloakProvider from "next-auth/providers/keycloak";
+import WorkOSProvider from "next-auth/providers/workos";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -50,6 +51,7 @@ import {
 } from "@/src/features/entitlements/server/getPlan";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -111,8 +113,7 @@ const staticProviders: Provider[] = [
         }
       }
 
-      const blockedDomains =
-        env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+      const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
       if (domain && blockedDomains.includes(domain)) {
         throw new Error(
@@ -295,6 +296,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
       },
+      authorization: {
+        url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
+        params: { scope: 'read_user' },
+      },
+      token: `${env.AUTH_GITLAB_URL}/oauth/token`,
+      userinfo: `${env.AUTH_GITLAB_URL}/api/v4/user`,
       checks: env.AUTH_GITLAB_CHECKS,
     }),
   );
@@ -356,6 +363,19 @@ if (
     }),
   );
 
+if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
+  staticProviders.push(
+    WorkOSProvider({
+      clientId: env.AUTH_WORKOS_CLIENT_ID,
+      clientSecret: env.AUTH_WORKOS_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: "client_secret_post",
+      },
+    }),
+  );
+
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
@@ -395,6 +415,11 @@ const extendedPrismaAdapter: Adapter = {
     if (data.provider === "keycloak") {
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
+    }
+
+    // WorkOS returns profile data that doesn't match the schema
+    if (data.provider === "workos") {
+      delete data["profile"];
     }
 
     // Optionally, remove fields returned by the provider that cause issues with the adapter

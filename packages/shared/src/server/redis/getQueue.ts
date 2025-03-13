@@ -16,6 +16,8 @@ import { MeteringDataPostgresExportQueue } from "./meteringDataPostgresExportQue
 import { DataRetentionQueue } from "./dataRetentionQueue";
 import { DataRetentionProcessingQueue } from "./dataRetentionProcessingQueue";
 import { BatchActionQueue } from "./batchActionQueue";
+import { CreateEvalQueue } from "./createEvalQueue";
+import { ScoreDeleteQueue } from "./scoreDelete";
 
 export function getQueue(queueName: QueueName): Queue | null {
   switch (queueName) {
@@ -53,6 +55,10 @@ export function getQueue(queueName: QueueName): Queue | null {
       return DataRetentionProcessingQueue.getInstance();
     case QueueName.BatchActionQueue:
       return BatchActionQueue.getInstance();
+    case QueueName.CreateEvalQueue:
+      return CreateEvalQueue.getInstance();
+    case QueueName.ScoreDelete:
+      return ScoreDeleteQueue.getInstance();
     default:
       const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

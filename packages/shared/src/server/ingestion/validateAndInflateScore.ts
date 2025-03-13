@@ -4,7 +4,8 @@ import {
   validateDbScoreConfigSafe,
   ValidatedScoreConfig,
 } from "../../../src";
-import { prisma, Score, ScoreDataType } from "../../db";
+import { prisma, ScoreDataType } from "../../db";
+import { Score } from "../repositories";
 
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
 

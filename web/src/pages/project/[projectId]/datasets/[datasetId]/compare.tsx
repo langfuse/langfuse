@@ -11,7 +11,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/src/components/ui/popover";
-import { MarkdownOrJsonView } from "@/src/components/trace/IOPreview";
+import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
   DialogContent,
@@ -189,7 +189,7 @@ export default function DatasetCompare() {
                 onClick={() => capture("dataset_run:new_form_open")}
               >
                 <FlaskConical className="h-4 w-4" />
-                <span className="ml-2">New experiment</span>
+                <span className="ml-2 hidden md:block">New experiment</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -209,7 +209,7 @@ export default function DatasetCompare() {
             <PopoverTrigger asChild>
               <Button variant="outline">
                 <FolderKanban className="mr-2 h-4 w-4" />
-                Dataset details
+                <span className="hidden md:block">Dataset details</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
@@ -222,9 +222,7 @@ export default function DatasetCompare() {
                 </div>
                 <div>
                   <h4 className="mb-1 font-medium">Metadata</h4>
-                  <MarkdownOrJsonView
-                    content={dataset.data?.metadata ?? null}
-                  />
+                  <MarkdownJsonView content={dataset.data?.metadata ?? null} />
                 </div>
               </div>
             </PopoverContent>
@@ -243,6 +241,7 @@ export default function DatasetCompare() {
             title="Select runs"
             placeholder="Select runs to compare"
             className="w-fit"
+            variant="outline"
             hideClearButton
             options={runs.map((run) => ({
               key: run.key,

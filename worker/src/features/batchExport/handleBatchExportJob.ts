@@ -4,18 +4,19 @@ import {
   BatchExportQuerySchema,
   BatchExportQueryType,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
   FilterCondition,
-  Score,
   TimeFilter,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  Score,
   DatabaseReadStream,
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
   streamTransformations,
-  BatchExportJobType,
+  type BatchExportJobType,
   FullObservationsWithScores,
   getPublicSessionsFilter,
   getScoresForObservations,
@@ -27,21 +28,27 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
+  type ScoreUiTableRow,
+  getScoresUiTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
-const tableNameToTimeFilterColumn = {
+const tableNameToTimeFilterColumn: Record<BatchExportTableName, string> = {
+  scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
+  dataset_run_items: "createdAt",
 };
 
-const tableNameToTimeFilterColumnCh = {
+const tableNameToTimeFilterColumnCh: Record<BatchExportTableName, string> = {
+  scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
+  dataset_run_items: "createdAt",
 };
 
 const isGenerationTimestampFilter = (
@@ -112,6 +119,41 @@ export const getDatabaseReadStream = async ({
   };
 
   switch (tableName) {
+    case "scores": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const scores = await getScoresUiTable({
+            projectId,
+            filter: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            orderBy,
+            limit: pageSize,
+            offset,
+          });
+
+          return scores.map((score: ScoreUiTableRow) => ({
+            id: score.id,
+            traceId: score.traceId,
+            timestamp: score.timestamp,
+            source: score.source,
+            name: score.name,
+            dataType: score.dataType,
+            value: score.value,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId: score.observationId,
+            traceName: score.traceName,
+            userId: score.traceUserId,
+            traceTags: score.traceTags,
+            environment: score.environment,
+          }));
+        },
+        1000,
+        exportLimit,
+      );
+    }
+
     case "sessions":
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
@@ -170,7 +212,7 @@ export const getDatabaseReadStream = async ({
         1000,
         exportLimit,
       );
-    case "generations": {
+    case "observations": {
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
@@ -325,8 +367,52 @@ export const getDatabaseReadStream = async ({
         exportLimit,
       );
     }
+
+    case "dataset_run_items": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const items = await prisma.$queryRaw<
+            Array<{
+              id: string;
+              project_id: string;
+              dataset_item_id: string;
+              trace_id: string;
+              observation_id: string | null;
+              created_at: Date;
+              updated_at: Date;
+              dataset_name: string;
+            }>
+          >`
+            SELECT dri.*, d.name as dataset_name
+
+            FROM dataset_run_items dri 
+              JOIN dataset_items di ON dri.dataset_item_id = di.id AND dri.project_id = di.project_id 
+              JOIN datasets d ON di.dataset_id = d.id AND d.project_id = dri.project_id
+            WHERE dri.project_id = ${projectId}
+            AND dri.created_at < ${cutoffCreatedAt}
+
+            ORDER BY dri.created_at DESC
+            LIMIT ${pageSize}
+            OFFSET ${offset}
+          `;
+
+          return items.map((item) => ({
+            id: item.id,
+            projectId: item.project_id,
+            datasetItemId: item.dataset_item_id,
+            traceId: item.trace_id,
+            observationId: item.observation_id,
+            createdAt: item.created_at,
+            updatedAt: item.updated_at,
+            datasetName: item.dataset_name,
+          }));
+        },
+        1000,
+        exportLimit,
+      );
+    }
     default:
-      throw new Error("Invalid table name: " + tableName);
+      throw new Error(`Unhandled table case: ${tableName}`);
   }
 };
 

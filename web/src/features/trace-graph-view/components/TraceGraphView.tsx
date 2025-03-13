@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
-
 import type { APIScore, Trace } from "@langfuse/shared";
-import { Trace as TraceView } from "@/src/components/trace";
 import type { ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
@@ -25,7 +23,7 @@ type TraceGraphViewProps = {
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
-  const { trace, observations, scores, projectId } = props;
+  const { observations } = props;
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const { graph, nodeToParentObservationMap } = useMemo(
     () => parseGraph({ observations }),
@@ -65,22 +63,12 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
   );
 
   return (
-    <div className="grid h-full grid-rows-[1fr_1.618fr] gap-4">
+    <div className="grid h-full w-full gap-4">
       <TraceGraphCanvas
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
       />
-      <div className="h-full overflow-y-auto">
-        <TraceView
-          key={trace.id}
-          trace={trace}
-          scores={scores}
-          projectId={projectId}
-          observations={observations}
-          defaultMinObservationLevel="DEBUG"
-        />
-      </div>
     </div>
   );
 };
@@ -125,6 +113,8 @@ function parseGraph(params: {
       ) {
         nodeToParentObservationMap.set(node, o.id);
       }
+    } else {
+      nodeToParentObservationMap.set(node, o.id);
     }
   });
 

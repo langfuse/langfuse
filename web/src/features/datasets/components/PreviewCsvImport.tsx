@@ -267,6 +267,7 @@ export function PreviewCsvImport({
                 input: JSON.stringify(itemInput),
                 expectedOutput: JSON.stringify(itemExpected),
                 metadata: JSON.stringify(itemMetadata),
+                datasetId,
               });
             } catch (error) {
               throw new Error(
@@ -283,7 +284,6 @@ export function PreviewCsvImport({
       for (const [index, chunk] of chunks.entries()) {
         await mutCreateManyDatasetItems.mutateAsync({
           projectId,
-          datasetId,
           items: chunk,
         });
 

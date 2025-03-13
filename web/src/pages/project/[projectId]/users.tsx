@@ -23,9 +23,16 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
+import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
+import { Badge } from "@/src/components/ui/badge";
 
 type RowData = {
   userId: string;
+  environment?: string;
   firstEvent: string;
   lastEvent: string;
   totalEvents: string;
@@ -34,6 +41,44 @@ type RowData = {
 };
 
 export default function UsersPage() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+
+  // Check if the user has any users
+  const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchInterval: 10_000,
+    },
+  );
+
+  const showOnboarding = !isLoading && !hasAnyUser;
+
+  return (
+    <Page
+      headerProps={{
+        title: "Users",
+        help: {
+          description:
+            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
+          href: "https://langfuse.com/docs/user-explorer",
+        },
+      }}
+      scrollable={showOnboarding}
+    >
+      {/* Show onboarding screen if user has no users */}
+      {showOnboarding ? <UsersOnboarding /> : <UsersTable />}
+    </Page>
+  );
+}
+
+const UsersTable = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -64,7 +109,33 @@ export default function UsersPage() {
       ]
     : [];
 
-  const filterState = userFilterState.concat(dateRangeFilter);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = userFilterState.concat(
+    dateRangeFilter,
+    environmentFilter,
+  );
 
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -149,6 +220,24 @@ export default function UsersPage() {
             />
           </>
         ) : undefined;
+      },
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: RowData["environment"] = row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
       },
     },
     {
@@ -244,16 +333,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <Page
-      headerProps={{
-        title: "Users",
-        help: {
-          description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
-          href: "https://langfuse.com/docs/user-explorer",
-        },
-      }}
-    >
+    <>
       <DataTableToolbar
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
@@ -262,9 +342,14 @@ export default function UsersPage() {
         selectedOption={selectedOption}
         setDateRangeAndOption={setDateRangeAndOption}
         searchConfig={{
-          placeholder: "Search by id",
+          placeholder: "Search by user id",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
+        }}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
         }}
       />
       <DataTable
@@ -284,6 +369,7 @@ export default function UsersPage() {
                   data: userRowData.rows?.map((t) => {
                     return {
                       userId: t.id,
+                      environment: t.environment ?? undefined,
                       firstEvent:
                         t.firstTrace?.toLocaleString() ?? "No event yet",
                       lastEvent:
@@ -308,6 +394,6 @@ export default function UsersPage() {
           state: paginationState,
         }}
       />
-    </Page>
+    </>
   );
-}
+};

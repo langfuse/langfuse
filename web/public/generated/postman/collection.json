@@ -40,6 +40,296 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Annotation Queues",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "List Queues",
+          "request": {
+            "description": "Get all annotation queues",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues?page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Queue",
+          "request": {
+            "description": "Get an annotation queue by ID",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "List Queue Items",
+          "request": {
+            "description": "Get items for a specific annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items?status=&page=&limit=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by status"
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "page number, starts at 1"
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "limit of items per page"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Get Queue Item",
+          "request": {
+            "description": "Get a specific item from an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                },
+                {
+                  "key": "itemId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Create Queue Item",
+          "request": {
+            "description": "Add an item to an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"objectId\": \"example\",\n    \"objectType\": \"TRACE\",\n    \"status\": \"PENDING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Update Queue Item",
+          "request": {
+            "description": "Update an annotation queue item",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                },
+                {
+                  "key": "itemId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"PENDING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Queue Item",
+          "request": {
+            "description": "Remove an item from an annotation queue",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/annotation-queues/:queueId/items/:itemId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "annotation-queues",
+                ":queueId",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "queueId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue"
+                },
+                {
+                  "key": "itemId",
+                  "value": "",
+                  "description": "The unique identifier of the annotation queue item"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Comments",
       "item": [
         {
@@ -280,6 +570,38 @@
             "body": null
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a dataset item and all its run items. This action is irreversible.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/dataset-items/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "dataset-items",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
@@ -473,6 +795,45 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete Run",
+          "request": {
+            "description": "Delete a dataset run and all its run items. This action is irreversible.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/datasets/:datasetName/runs/:runName",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "datasets",
+                ":datasetName",
+                "runs",
+                ":runName"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "datasetName",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "runName",
+                  "value": "",
+                  "description": null
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "Get Runs",
           "request": {
             "description": "Get dataset runs",
@@ -558,7 +919,7 @@
           "_type": "endpoint",
           "name": "Batch",
           "request": {
-            "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+            "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
             "url": {
               "raw": "{{baseUrl}}/api/public/ingestion",
               "host": [
@@ -583,7 +944,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n                \"name\": \"My Trace\",\n                \"userId\": \"1234-5678-90ab-cdef\",\n                \"input\": \"My input\",\n                \"output\": \"My output\",\n                \"sessionId\": \"1234-5678-90ab-cdef\",\n                \"release\": \"1.0.0\",\n                \"version\": \"1.0.0\",\n                \"metadata\": \"My metadata\",\n                \"tags\": [\n                    \"tag1\",\n                    \"tag2\"\n                ],\n                \"public\": true\n            }\n        }\n    ]\n}",
+              "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n                \"environment\": \"production\",\n                \"name\": \"My Trace\",\n                \"userId\": \"1234-5678-90ab-cdef\",\n                \"input\": \"My input\",\n                \"output\": \"My output\",\n                \"sessionId\": \"1234-5678-90ab-cdef\",\n                \"release\": \"1.0.0\",\n                \"version\": \"1.0.0\",\n                \"metadata\": \"My metadata\",\n                \"tags\": [\n                    \"tag1\",\n                    \"tag2\"\n                ],\n                \"public\": true\n            }\n        }\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -597,7 +958,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -622,7 +983,7 @@
                 "auth": null,
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n                \"name\": \"My Trace\",\n                \"userId\": \"1234-5678-90ab-cdef\",\n                \"input\": \"My input\",\n                \"output\": \"My output\",\n                \"sessionId\": \"1234-5678-90ab-cdef\",\n                \"release\": \"1.0.0\",\n                \"version\": \"1.0.0\",\n                \"metadata\": \"My metadata\",\n                \"tags\": [\n                    \"tag1\",\n                    \"tag2\"\n                ],\n                \"public\": true\n            }\n        }\n    ]\n}",
+                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"trace-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n                \"environment\": \"production\",\n                \"name\": \"My Trace\",\n                \"userId\": \"1234-5678-90ab-cdef\",\n                \"input\": \"My input\",\n                \"output\": \"My output\",\n                \"sessionId\": \"1234-5678-90ab-cdef\",\n                \"release\": \"1.0.0\",\n                \"version\": \"1.0.0\",\n                \"metadata\": \"My metadata\",\n                \"tags\": [\n                    \"tag1\",\n                    \"tag2\"\n                ],\n                \"public\": true\n            }\n        }\n    ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -639,7 +1000,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -664,7 +1025,7 @@
                 "auth": null,
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"span-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"traceId\": \"1234-5678-90ab-cdef\",\n                \"startTime\": \"2022-01-01T00:00:00.000Z\"\n            }\n        }\n    ]\n}",
+                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"span-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"traceId\": \"1234-5678-90ab-cdef\",\n                \"startTime\": \"2022-01-01T00:00:00.000Z\",\n                \"environment\": \"test\"\n            }\n        }\n    ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -681,7 +1042,7 @@
               "status": "OK",
               "code": 200,
               "originalRequest": {
-                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
+                "description": "Batched ingestion for Langfuse Tracing.\nIf you want to use tracing via the API, such as to build your own Langfuse client implementation, this is the only API route you need to implement.\n\nWithin each batch, there can be multiple events.\nEach event has a type, an id, a timestamp, metadata and a body.\nInternally, we refer to this as the \"event envelope\" as it tells us something about the event but not the trace.\nWe use the event id within this envelope to deduplicate messages to avoid processing the same event twice, i.e. the event id should be unique per request.\nThe event.body.id is the ID of the actual trace and will be used for updates and will be visible within the Langfuse App.\nI.e. if you want to update a trace, you'd use the same body id, but separate event IDs.\n\nNotes:\n- Introduction to data model: https://langfuse.com/docs/tracing-data-model\n- Batch sizes are limited to 3.5 MB in total. You need to adjust the number of events per batch accordingly.\n- The API does not return a 4xx status code for input errors. Instead, it responds with a 207 status code, which includes a list of the encountered errors.",
                 "url": {
                   "raw": "{{baseUrl}}/api/public/ingestion",
                   "host": [
@@ -706,7 +1067,7 @@
                 "auth": null,
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"score-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"traceId\": \"1234-5678-90ab-cdef\",\n                \"name\": \"My Score\",\n                \"value\": 0.9\n            }\n        }\n    ]\n}",
+                  "raw": "{\n    \"batch\": [\n        {\n            \"id\": \"abcdef-1234-5678-90ab\",\n            \"timestamp\": \"2022-01-01T00:00:00.000Z\",\n            \"type\": \"score-create\",\n            \"body\": {\n                \"id\": \"abcdef-1234-5678-90ab\",\n                \"traceId\": \"1234-5678-90ab-cdef\",\n                \"name\": \"My Score\",\n                \"value\": 0.9,\n                \"environment\": \"default\"\n            }\n        }\n    ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -845,7 +1206,7 @@
           "request": {
             "description": "Get daily metrics of the Langfuse project",
             "url": {
-              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=&fromTimestamp=&toTimestamp=",
+              "raw": "{{baseUrl}}/api/public/metrics/daily?page=&limit=&traceName=&userId=&tags=&environment=&fromTimestamp=&toTimestamp=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -880,6 +1241,11 @@
                   "key": "tags",
                   "value": "",
                   "description": "Optional filter for metrics where traces include all of these tags"
+                },
+                {
+                  "key": "environment",
+                  "value": "",
+                  "description": "Optional filter for metrics where events include any of these environments"
                 },
                 {
                   "key": "fromTimestamp",
@@ -1086,7 +1452,7 @@
           "request": {
             "description": "Get a list of observations",
             "url": {
-              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&fromStartTime=&toStartTime=&version=",
+              "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1130,6 +1496,11 @@
                   "key": "parentObservationId",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "environment",
+                  "value": "",
+                  "description": "Optional filter for observations where the environment is one of the provided values."
                 },
                 {
                   "key": "fromStartTime",
@@ -1544,7 +1915,7 @@
           "request": {
             "description": "Get a list of scores",
             "url": {
-              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&queueId=&dataType=&traceTags=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1583,6 +1954,11 @@
                   "key": "toTimestamp",
                   "value": "",
                   "description": "Optional filter to only include scores created before a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "environment",
+                  "value": "",
+                  "description": "Optional filter for scores where the environment is one of the provided values."
                 },
                 {
                   "key": "source",
@@ -1711,7 +2087,7 @@
           "request": {
             "description": "Get sessions",
             "url": {
-              "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=",
+              "raw": "{{baseUrl}}/api/public/sessions?page=&limit=&fromTimestamp=&toTimestamp=&environment=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1740,6 +2116,11 @@
                   "key": "toTimestamp",
                   "value": "",
                   "description": "Optional filter to only include sessions created before a certain datetime (ISO 8601)"
+                },
+                {
+                  "key": "environment",
+                  "value": "",
+                  "description": "Optional filter for sessions where the environment is one of the provided values."
                 }
               ],
               "variable": []
@@ -1824,11 +2205,43 @@
         },
         {
           "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a specific trace",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces/:traceId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of the trace to delete"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "List",
           "request": {
             "description": "Get list of traces",
             "url": {
-              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=",
+              "raw": "{{baseUrl}}/api/public/traces?page=&limit=&userId=&name=&sessionId=&fromTimestamp=&toTimestamp=&orderBy=&tags=&version=&release=&environment=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1892,6 +2305,11 @@
                   "key": "release",
                   "value": "",
                   "description": "Optional filter to only include traces with a certain release."
+                },
+                {
+                  "key": "environment",
+                  "value": "",
+                  "description": "Optional filter for traces where the environment is one of the provided values."
                 }
               ],
               "variable": []
@@ -1900,6 +2318,39 @@
             "method": "GET",
             "auth": null,
             "body": null
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete Multiple",
+          "request": {
+            "description": "Delete multiple traces",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"traceIds\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }

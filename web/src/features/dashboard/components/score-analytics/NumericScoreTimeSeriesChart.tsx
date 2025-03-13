@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { Card } from "@/src/components/ui/card";
 import {
-  type ScoreSource,
+  type ScoreSourceType,
   type FilterState,
   type ScoreDataType,
 } from "@langfuse/shared";
@@ -22,7 +22,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
-  source: ScoreSource;
+  source: ScoreSourceType;
   dataType: ScoreDataType;
   name: string;
   agg: DashboardDateRangeAggregationOption;

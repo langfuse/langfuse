@@ -10,6 +10,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   POST: createAuthedAPIRoute({
@@ -32,6 +33,16 @@ export default withMiddlewares({
           id: v4(),
           projectId: auth.scope.projectId,
         },
+      });
+
+      await auditLog({
+        action: "create",
+        resourceType: "comment",
+        resourceId: comment.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        after: comment,
       });
 
       return { id: comment.id };

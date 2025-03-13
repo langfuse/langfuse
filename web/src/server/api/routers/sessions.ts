@@ -30,6 +30,7 @@ import {
   getPublicSessionsFilter,
   logger,
   getSessionsWithMetrics,
+  hasAnySession,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 
@@ -41,6 +42,15 @@ const SessionFilterOptions = z.object({
 });
 
 export const sessionRouter = createTRPCRouter({
+  hasAny: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await hasAnySession(input.projectId);
+    }),
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
@@ -68,6 +78,7 @@ export const sessionRouter = createTRPCRouter({
             id: true,
             bookmarked: true,
             public: true,
+            environment: true,
           },
         });
         return {
@@ -83,6 +94,7 @@ export const sessionRouter = createTRPCRouter({
             public:
               prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
               false,
+            environment: s.trace_environment,
           })),
         };
       } catch (e) {
@@ -169,6 +181,7 @@ export const sessionRouter = createTRPCRouter({
           public:
             prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
             false,
+          environment: s.trace_environment,
           trace_count: Number(s.trace_count),
           total_observations: Number(s.total_observations),
           sessionDuration: Number(s.duration) / 1000,
