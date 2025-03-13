@@ -59,6 +59,7 @@ services:
     depends_on: *langfuse-depends-on
     ports:
       - "3000:3000"
+    restart: always
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_URL: http://localhost:3000
@@ -137,6 +138,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
+    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres # CHANGEME
