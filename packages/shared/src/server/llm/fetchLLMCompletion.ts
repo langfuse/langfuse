@@ -191,6 +191,9 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       timeout: 1000 * 60 * 2, // 2 minutes timeout
+      configuration: {
+        defaultHeaders: extraHeaders,
+      },
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
     const { region } = BedrockConfigSchema.parse(config);
