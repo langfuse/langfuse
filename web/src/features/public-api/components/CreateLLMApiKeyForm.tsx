@@ -409,7 +409,8 @@ export function CreateLLMApiKeyForm({
         )}
 
         {/* Extra Headers */}
-        {currentAdapter === "openai" ? (
+        {currentAdapter === LLMAdapter.OpenAI ||
+        currentAdapter === LLMAdapter.Azure ? (
           <FormField
             control={form.control}
             name="extraHeaders"
