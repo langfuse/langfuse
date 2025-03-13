@@ -36,6 +36,7 @@ import {
   QueueJobs,
   TraceDeleteQueue,
   getTracesTableMetrics,
+  getEnvironmentsForProject,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
@@ -150,7 +151,7 @@ export const traceRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { timestampFilter } = input;
 
-      const [scoreNames, traceNames, tags] = await Promise.all([
+      const [scoreNames, traceNames, tags, environments] = await Promise.all([
         getScoresGroupedByName(
           input.projectId,
           timestampFilter ? [timestampFilter] : [],
@@ -164,12 +165,16 @@ export const traceRouter = createTRPCRouter({
           projectId: input.projectId,
           filter: timestampFilter ? [timestampFilter] : [],
         }),
+        getEnvironmentsForProject({
+          projectId: input.projectId,
+        }),
       ]);
 
       return {
         name: traceNames.map((n) => ({ value: n.name })),
         scores_avg: scoreNames.map((s) => s.name),
         tags: tags,
+        environment: environments.map((e) => ({ value: e.environment })),
       };
     }),
   byId: protectedGetTraceProcedure

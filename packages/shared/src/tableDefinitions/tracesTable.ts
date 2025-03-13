@@ -18,6 +18,13 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 't."environment"',
+    options: [], // to be filled in at runtime
+  },
+  {
     name: "Timestamp",
     id: "timestamp",
     type: "datetime",
@@ -183,6 +190,7 @@ export type TraceOptions = {
   scores_avg: Array<string>;
   name: Array<OptionsDefinition>;
   tags: Array<OptionsDefinition>;
+  environment: Array<OptionsDefinition>;
 };
 export type DatasetOptions = {
   datasetId: Array<OptionsDefinition>;
@@ -214,6 +222,9 @@ export function tracesTableColsWithOptions(
     }
     if (col.id === "tags") {
       return { ...col, options: options?.tags ?? [] };
+    }
+    if (col.id === "environment") {
+      return { ...col, options: options?.environment ?? [] };
     }
     return col;
   });
