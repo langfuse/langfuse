@@ -199,7 +199,7 @@ export function CreateLLMApiKeyForm({
       if (!testResult.success) throw new Error(testResult.error);
     } catch (error) {
       console.error(error);
-      form.setError("secretKey", {
+      form.setError("root", {
         type: "manual",
         message:
           error instanceof Error
@@ -577,7 +577,9 @@ export function CreateLLMApiKeyForm({
           Save new LLM API key
         </Button>
 
-        <FormMessage />
+        {form.formState.errors.root && (
+          <FormMessage>{form.formState.errors.root.message}</FormMessage>
+        )}
       </form>
     </Form>
   );
