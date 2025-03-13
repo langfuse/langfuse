@@ -312,7 +312,6 @@ export default function ScoresTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value = row.getValue("environment") as string | undefined;
         return value ? (

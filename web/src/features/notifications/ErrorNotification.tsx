@@ -46,7 +46,9 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
           </div>
         </div>
         {description && (
-          <div className={`text-sm leading-tight ${textColor}`}>
+          <div
+            className={`whitespace-pre-line text-sm leading-tight ${textColor}`}
+          >
             {description}
           </div>
         )}

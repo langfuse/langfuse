@@ -479,7 +479,6 @@ export default function TracesTable({
       id: "environment",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: TracesTableRow["environment"] =
           row.getValue("environment");
