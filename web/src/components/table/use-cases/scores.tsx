@@ -35,6 +35,7 @@ import {
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
 import { Badge } from "@/src/components/ui/badge";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import React, { useState } from "react";
@@ -569,6 +570,11 @@ export default function ScoresTable({
               tableName={BatchExportTableName.Scores}
             />
           ) : null,
+          <BatchExportTableButton
+            {...{ projectId, filterState, orderByState }}
+            tableName={BatchExportTableName.Scores}
+            key="batchExport"
+          />,
         ]}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}

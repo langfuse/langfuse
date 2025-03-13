@@ -296,6 +296,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
       },
+      authorization: {
+        url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
+        params: { scope: 'read_user' },
+      },
+      token: `${env.AUTH_GITLAB_URL}/oauth/token`,
+      userinfo: `${env.AUTH_GITLAB_URL}/api/v4/user`,
       checks: env.AUTH_GITLAB_CHECKS,
     }),
   );
