@@ -134,7 +134,7 @@ export const useModelParams = () => {
   };
 };
 
-export function getDefaultAdapterParams(
+function getDefaultAdapterParams(
   adapter: LLMAdapter,
 ): Omit<UIModelParams, "provider" | "model"> {
   switch (adapter) {
