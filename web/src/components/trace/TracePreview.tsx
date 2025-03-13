@@ -154,6 +154,7 @@ export const TracePreview = ({
               {trace.sessionId ? (
                 <Link
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
+                  className="inline-flex"
                 >
                   <Badge>Session: {trace.sessionId}</Badge>
                 </Link>
@@ -161,6 +162,7 @@ export const TracePreview = ({
               {trace.userId ? (
                 <Link
                   href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
+                  className="inline-flex"
                 >
                   <Badge>User ID: {trace.userId}</Badge>
                 </Link>

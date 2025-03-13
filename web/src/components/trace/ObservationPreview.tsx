@@ -437,6 +437,7 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
   return (
     <Link
       href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
+      className="inline-flex"
     >
       <Badge variant="tertiary">
         Prompt: {prompt.data.name}
