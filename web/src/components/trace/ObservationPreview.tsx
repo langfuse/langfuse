@@ -212,7 +212,7 @@ export const ObservationPreview = ({
 
                   {preloadedObservation.environment ? (
                     <Badge variant="tertiary">
-                      Environment: {preloadedObservation.environment}
+                      Env: {preloadedObservation.environment}
                     </Badge>
                   ) : null}
 

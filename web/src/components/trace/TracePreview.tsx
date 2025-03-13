@@ -166,9 +166,7 @@ export const TracePreview = ({
                 </Link>
               ) : null}
               {trace.environment ? (
-                <Badge variant="tertiary">
-                  Environment: {trace.environment}
-                </Badge>
+                <Badge variant="tertiary">Env: {trace.environment}</Badge>
               ) : null}
 
               {viewType === "detailed" && (
