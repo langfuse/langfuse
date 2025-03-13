@@ -211,10 +211,6 @@ export function getDefaultAdapterParams(
         max_tokens: { value: 256, enabled: true },
         top_p: { value: 1, enabled: true },
       };
-    // Atla models have specific parameters:
-    // - temperature: 0 for reproducibility.
-    // - max_tokens: unused -- this allows model to complete its critique and scoring.
-    // - top_p: 1 for deterministic responses.
     case LLMAdapter.Atla:
       return {
         adapter: {
