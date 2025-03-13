@@ -90,6 +90,14 @@ export const TracePreview = ({
     [observations],
   );
 
+  const usageDetails = useMemo(
+    () =>
+      observations
+        .filter((o) => o.type === "GENERATION")
+        .map((o) => o.usageDetails),
+    [observations],
+  );
+
   return (
     <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
@@ -190,17 +198,15 @@ export const TracePreview = ({
                       </Badge>
                     </BreakdownTooltip>
                   )}
-                  <BreakdownTooltip
-                    details={observations
-                      .filter((o) => o.type === "GENERATION")
-                      .map((o) => o.usageDetails)}
-                  >
-                    <AggUsageBadge
-                      observations={observations}
-                      rightIcon={<InfoIcon className="h-3 w-3" />}
-                      variant="tertiary"
-                    />
-                  </BreakdownTooltip>
+                  {usageDetails.length > 0 && (
+                    <BreakdownTooltip details={usageDetails}>
+                      <AggUsageBadge
+                        observations={observations}
+                        rightIcon={<InfoIcon className="h-3 w-3" />}
+                        variant="tertiary"
+                      />
+                    </BreakdownTooltip>
+                  )}
 
                   {!!trace.release && (
                     <Badge variant="tertiary">Release: {trace.release}</Badge>
