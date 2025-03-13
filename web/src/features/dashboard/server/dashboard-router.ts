@@ -31,7 +31,7 @@ import {
   extractFromAndToTimestampsFromFilter,
   logger,
 } from "@langfuse/shared/src/server";
-import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
 
 export const dashboardRouter = createTRPCRouter({
