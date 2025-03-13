@@ -239,13 +239,14 @@ export async function fetchLLMCompletion(
     // TODO: make env variable.
     const atlaBaseURL = "http://localhost:8000/v1/integrations/langfuse";
 
+    // Atla models do not support:
+    // - temperature
+    // - max_tokens
+    // - top_p
+    // - streaming
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
-      temperature: modelParams.temperature,
-      maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
-      streamUsage: false,
       callbacks: finalCallbacks,
       maxRetries,
       configuration: {
