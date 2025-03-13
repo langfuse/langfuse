@@ -98,7 +98,7 @@ export const env = createEnv({
     AUTH_GITLAB_ISSUER: z.string().optional(),
     AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GITLAB_CHECKS: zAuthChecks,
-    AUTH_GITLAB_URL: z.string().url().optional(),
+    AUTH_GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
