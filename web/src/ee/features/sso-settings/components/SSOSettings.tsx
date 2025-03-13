@@ -39,7 +39,7 @@ export const SSOSettings = () => {
       {commonContent}
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Contact Langfuse Team</AlertTitle>
+        <AlertTitle>Contact Langfuse Support</AlertTitle>
         <AlertDescription>
           To set up or change your SSO configuration, please reach out to{" "}
           <a
