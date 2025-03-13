@@ -218,7 +218,7 @@ export const TracePreview = ({
           onValueChange={(value) => setSelectedTab(value)}
         >
           {viewType === "detailed" && (
-            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
+            <TabsBarList className="h-fit min-w-0 max-w-full justify-start overflow-x-auto">
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
