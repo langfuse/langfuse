@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type QueryType } from "./types";
 import { viewDeclarations } from "@/src/features/query/server/dataModel";
+import { type ViewDeclarationType } from "./types";
 
 export class QueryBuilder {
   constructor(private clickhouseClient: ClickhouseClientType) {}
@@ -66,39 +67,20 @@ export class QueryBuilder {
     }
   }
 
-  /**
-   * We want to build a ClickHouse query based on the query provided and the viewDeclaration that was selected.
-   * The final query should always follow this pattern:
-   * ```
-   *   SELECT
-   *     <...dimensions>,
-   *     <...metrics.map(metric => `${metric.aggregation}(${metric.alias})`>
-   *   FROM (
-   *      SELECT
-   *        <baseCte>.project_id,
-   *        <baseCte>.id
-   *        <...dimensions.map(dimension => `any(${dimension.sql}) as ${dimension.alias}`>,
-   *        <...metrics.map(metric => `${metric.sql} as ${metric.alias || metric.sql}`>
-   *      FROM <baseCte>
-   *      (...tableRelations.joinCondition)
-   *      WHERE <...filters>
-   *      GROUP BY <baseCte>.project_id, <baseCte>.id
-   *   )
-   *   GROUP BY <...dimensions>
-   * ```
-   * For the initial setup, we ignore sorting and pagination.
-   */
-  public build(query: QueryType, projectId: string): string {
-    // Find the applicable view
-    if (!(query.view in viewDeclarations)) {
+  private getViewDeclaration(viewName: string): ViewDeclarationType {
+    if (!(viewName in viewDeclarations)) {
       throw new Error(
         `Invalid view. Must be one of ${Object.keys(viewDeclarations)}`,
       );
     }
-    const view = viewDeclarations[query.view];
+    return viewDeclarations[viewName];
+  }
 
-    // Find the dimensions
-    const appliedDimensions = query.dimensions.map((dimension) => {
+  private mapDimensions(
+    dimensions: Array<{ field: string }>,
+    view: ViewDeclarationType,
+  ) {
+    return dimensions.map((dimension) => {
       if (!(dimension.field in view.dimensions)) {
         throw new Error(
           `Invalid dimension. Must be one of ${Object.keys(view.dimensions)}`,
@@ -106,9 +88,13 @@ export class QueryBuilder {
       }
       return view.dimensions[dimension.field];
     });
+  }
 
-    // Find the metrics
-    const appliedMetrics = query.metrics.map((metric) => {
+  private mapMetrics(
+    metrics: Array<{ measure: string; aggregation: string }>,
+    view: ViewDeclarationType,
+  ) {
+    return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
         throw new Error(
           `Invalid metric. Must be one of ${Object.keys(view.measures)}`,
@@ -119,9 +105,13 @@ export class QueryBuilder {
         aggregation: metric.aggregation,
       };
     });
+  }
 
-    // Find the filters
-    const appliedFilters = query.filters.map((filter) => {
+  private mapFilters(
+    filters: Array<{ field: string; operator: string; value: string }>,
+    view: ViewDeclarationType,
+  ) {
+    return filters.map((filter) => {
       if (filter.field in view.dimensions) {
         const dimension = view.dimensions[filter.field];
         return {
@@ -152,7 +142,15 @@ export class QueryBuilder {
         `Invalid filter. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
       );
     });
+  }
 
+  private addStandardFilters(
+    appliedFilters: any[],
+    view: ViewDeclarationType,
+    projectId: string,
+    fromTimestamp: string,
+    toTimestamp: string,
+  ) {
     // Add project_id filter
     appliedFilters.push({
       field: "project_id",
@@ -164,31 +162,31 @@ export class QueryBuilder {
     });
 
     // Add fromTimestamp and toTimestamp filters if they exist
-    if (query.fromTimestamp) {
-      appliedFilters.push({
-        field: view.timeDimension,
-        operator: "gte",
-        table: view.baseCte,
-        value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
-        type: "Date",
-        sql: view.timeDimension,
-      });
-    }
-    if (query.toTimestamp) {
-      appliedFilters.push({
-        field: view.timeDimension,
-        operator: "lte",
-        table: view.baseCte,
-        value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
-        type: "Date",
-        sql: view.timeDimension,
-      });
-    }
+    appliedFilters.push({
+      field: view.timeDimension,
+      operator: "gte",
+      table: view.baseCte,
+      value: convertDateToClickhouseDateTime(new Date(fromTimestamp)),
+      type: "Date",
+      sql: view.timeDimension,
+    });
 
-    // Decide which base tables we're querying.
-    let sqlQuery = `FROM ${view.baseCte}`;
+    appliedFilters.push({
+      field: view.timeDimension,
+      operator: "lte",
+      table: view.baseCte,
+      value: convertDateToClickhouseDateTime(new Date(toTimestamp)),
+      type: "Date",
+      sql: view.timeDimension,
+    });
 
-    // Confirm whether there are any relationTable references
+    return appliedFilters;
+  }
+
+  private collectRelationTables(
+    appliedDimensions: any[],
+    appliedMetrics: any[],
+  ) {
     const relationTables = new Set<string>();
     appliedDimensions.forEach((dimension) => {
       if (dimension.relationTable) {
@@ -200,106 +198,211 @@ export class QueryBuilder {
         relationTables.add(metric.relationTable);
       }
     });
+    return relationTables;
+  }
 
-    // If there are relationTables, we need to join them
-    if (relationTables.size > 0) {
-      const relationJoins = [];
-      for (const relationTableName of relationTables) {
-        if (!(relationTableName in view.tableRelations)) {
-          throw new Error(
-            `Invalid relationTable: ${relationTableName}. Must be one of ${Object.keys(view.tableRelations)}`,
-          );
-        }
-
-        const relation = view.tableRelations[relationTableName];
-        let joinStatement = `LEFT JOIN ${relation.name} ${relation.joinCondition}`;
-
-        // Add relation-specific timestamp filters if applicable
-        appliedFilters.push({
-          field: relation.timeDimension,
-          operator: "gte",
-          table: relation.name,
-          value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
-          type: "Date",
-          sql: relation.timeDimension,
-        });
-        appliedFilters.push({
-          field: relation.timeDimension,
-          operator: "lte",
-          table: relation.name,
-          value: convertDateToClickhouseDateTime(new Date(query.toTimestamp)),
-          type: "Date",
-          sql: relation.timeDimension,
-        });
-
-        relationJoins.push(joinStatement);
+  private buildJoins(
+    relationTables: Set<string>,
+    view: ViewDeclarationType,
+    appliedFilters: any[],
+    query: QueryType,
+  ) {
+    const relationJoins = [];
+    for (const relationTableName of relationTables) {
+      if (!(relationTableName in view.tableRelations)) {
+        throw new Error(
+          `Invalid relationTable: ${relationTableName}. Must be one of ${Object.keys(view.tableRelations)}`,
+        );
       }
 
-      sqlQuery += ` ${relationJoins.join(" ")}`;
+      const relation = view.tableRelations[relationTableName];
+      let joinStatement = `LEFT JOIN ${relation.name} ${relation.joinCondition}`;
+
+      // Add relation-specific timestamp filters if applicable
+      appliedFilters.push({
+        field: relation.timeDimension,
+        operator: "gte",
+        table: relation.name,
+        value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
+        type: "Date",
+        sql: relation.timeDimension,
+      });
+      appliedFilters.push({
+        field: relation.timeDimension,
+        operator: "lte",
+        table: relation.name,
+        value: convertDateToClickhouseDateTime(new Date(query.toTimestamp)),
+        type: "Date",
+        sql: relation.timeDimension,
+      });
+
+      relationJoins.push(joinStatement);
     }
+    return relationJoins;
+  }
 
-    // Create the where condition
-    if (appliedFilters.length > 0) {
-      sqlQuery += ` WHERE ${appliedFilters
-        .map((filter) => {
-          // Add quotes for string values, but not for numbers
-          const valueStr =
-            filter.type === "number" ? filter.value : `'${filter.value}'`;
-          const columnRef = `${filter.table}.${filter.sql}`;
-          // TODO: Prevent SQL injection by using templates here
-          return `${columnRef} ${this.translateFilterOperator(filter.operator)} ${valueStr}`;
-        })
-        .join(" AND\n")}`;
-    }
+  private buildWhereClause(appliedFilters: any[]) {
+    if (appliedFilters.length === 0) return "";
 
-    // Generate the inner SELECT clause dimensions part
-    const innerDimensionsPart =
-      appliedDimensions.length > 0
-        ? `${appliedDimensions.map((dimension) => `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},`
-        : "";
+    return ` WHERE ${appliedFilters
+      .map((filter) => {
+        // Add quotes for string values, but not for numbers
+        const valueStr =
+          filter.type === "number" ? filter.value : `'${filter.value}'`;
+        const columnRef = `${filter.table}.${filter.sql}`;
+        // TODO: Prevent SQL injection by using templates here
+        return `${columnRef} ${this.translateFilterOperator(filter.operator)} ${valueStr}`;
+      })
+      .join(" AND\n")}`;
+  }
 
-    // Generate the inner SELECT clause metrics part
-    const innerMetricsPart =
-      appliedMetrics.length > 0
-        ? `${appliedMetrics.map((metric) => `${metric.sql} as ${metric.alias || metric.sql}`).join(",\n")}`
-        : "count(*) as count";
+  private buildInnerDimensionsPart(appliedDimensions: any[]) {
+    return appliedDimensions.length > 0
+      ? `${appliedDimensions.map((dimension) => `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},`
+      : "";
+  }
 
-    // Now on to the inner SELECT clause
-    sqlQuery = `
+  private buildInnerMetricsPart(appliedMetrics: any[]) {
+    return appliedMetrics.length > 0
+      ? `${appliedMetrics.map((metric) => `${metric.sql} as ${metric.alias || metric.sql}`).join(",\n")}`
+      : "count(*) as count";
+  }
+
+  private buildInnerSelect(
+    view: ViewDeclarationType,
+    innerDimensionsPart: string,
+    innerMetricsPart: string,
+    fromClause: string,
+  ) {
+    return `
       SELECT
         ${view.baseCte}.project_id,
         ${view.baseCte}.id,
         ${innerDimensionsPart}
         ${innerMetricsPart}
-        ${sqlQuery}
+        ${fromClause}
       GROUP BY ${view.baseCte}.project_id, ${view.baseCte}.id`;
+  }
 
-    // Generate the outer SELECT clause dimensions part
-    const outerDimensionsPart =
-      appliedDimensions.length > 0
-        ? `${appliedDimensions.map((dimension) => `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},`
-        : "";
+  private buildOuterDimensionsPart(appliedDimensions: any[]) {
+    return appliedDimensions.length > 0
+      ? `${appliedDimensions.map((dimension) => `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},`
+      : "";
+  }
 
-    // Generate the outer SELECT clause metrics part
-    const outerMetricsPart =
-      appliedMetrics.length > 0
-        ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
-        : "count(*) as count";
+  private buildOuterMetricsPart(appliedMetrics: any[]) {
+    return appliedMetrics.length > 0
+      ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
+      : "count(*) as count";
+  }
 
-    // Generate the GROUP BY clause
-    const groupByClause =
-      appliedDimensions.length > 0
-        ? `GROUP BY ${appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql).join(",\n")}`
-        : "";
+  private buildGroupByClause(appliedDimensions: any[]) {
+    return appliedDimensions.length > 0
+      ? `GROUP BY ${appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql).join(",\n")}`
+      : "";
+  }
 
-    // With this, we can construct the outer select clause
-    sqlQuery = `
+  private buildOuterSelect(
+    outerDimensionsPart: string,
+    outerMetricsPart: string,
+    innerQuery: string,
+    groupByClause: string,
+  ) {
+    return `
       SELECT
         ${outerDimensionsPart}
         ${outerMetricsPart}
-      FROM (${sqlQuery})
+      FROM (${innerQuery})
       ${groupByClause}`;
+  }
 
-    return sqlQuery;
+  /**
+   * We want to build a ClickHouse query based on the query provided and the viewDeclaration that was selected.
+   * The final query should always follow this pattern:
+   * ```
+   *   SELECT
+   *     <...dimensions>,
+   *     <...metrics.map(metric => `${metric.aggregation}(${metric.alias})`>
+   *   FROM (
+   *      SELECT
+   *        <baseCte>.project_id,
+   *        <baseCte>.id
+   *        <...dimensions.map(dimension => `any(${dimension.sql}) as ${dimension.alias}`>,
+   *        <...metrics.map(metric => `${metric.sql} as ${metric.alias || metric.sql}`>
+   *      FROM <baseCte>
+   *      (...tableRelations.joinCondition)
+   *      WHERE <...filters>
+   *      GROUP BY <baseCte>.project_id, <baseCte>.id
+   *   )
+   *   GROUP BY <...dimensions>
+   * ```
+   * For the initial setup, we ignore sorting and pagination.
+   */
+  public build(query: QueryType, projectId: string): string {
+    // Get view declaration
+    const view = this.getViewDeclaration(query.view);
+
+    // Map dimensions, metrics, and filters
+    const appliedDimensions = this.mapDimensions(query.dimensions, view);
+    const appliedMetrics = this.mapMetrics(query.metrics, view);
+    let appliedFilters = this.mapFilters(query.filters, view);
+
+    // Add standard filters (project_id, timestamps)
+    appliedFilters = this.addStandardFilters(
+      appliedFilters,
+      view,
+      projectId,
+      query.fromTimestamp,
+      query.toTimestamp,
+    );
+
+    // Build the FROM clause with necessary JOINs
+    let fromClause = `FROM ${view.baseCte}`;
+
+    // Handle relation tables
+    const relationTables = this.collectRelationTables(
+      appliedDimensions,
+      appliedMetrics,
+    );
+    if (relationTables.size > 0) {
+      const relationJoins = this.buildJoins(
+        relationTables,
+        view,
+        appliedFilters,
+        query,
+      );
+      fromClause += ` ${relationJoins.join(" ")}`;
+    }
+
+    // Build WHERE clause
+    const whereClause = this.buildWhereClause(appliedFilters);
+    fromClause += whereClause;
+
+    // Build inner SELECT parts
+    const innerDimensionsPart =
+      this.buildInnerDimensionsPart(appliedDimensions);
+    const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
+
+    // Build inner SELECT
+    const innerQuery = this.buildInnerSelect(
+      view,
+      innerDimensionsPart,
+      innerMetricsPart,
+      fromClause,
+    );
+
+    // Build outer SELECT parts
+    const outerDimensionsPart =
+      this.buildOuterDimensionsPart(appliedDimensions);
+    const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
+    const groupByClause = this.buildGroupByClause(appliedDimensions);
+
+    // Build final query
+    return this.buildOuterSelect(
+      outerDimensionsPart,
+      outerMetricsPart,
+      innerQuery,
+      groupByClause,
+    );
   }
 }
