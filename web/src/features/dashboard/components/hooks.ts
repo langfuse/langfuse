@@ -1,6 +1,6 @@
 import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { type FilterState } from "@langfuse/shared";
-import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { api } from "@/src/utils/api";
 
 export const getAllModels = (
