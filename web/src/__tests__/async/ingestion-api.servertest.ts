@@ -69,6 +69,21 @@ describe("/api/public/ingestion API Endpoint", () => {
         },
       },
     ],
+    [
+      "emojis in i/o",
+      {
+        id: randomUUID(),
+        type: "trace-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          metadata: { hello: "world" },
+          input: "🪢🚀🌖",
+          output: "👋🌍",
+        },
+      },
+    ],
   ])(
     "should create traces via the ingestion API (%s)",
     async (_name: string, entity: any) => {
@@ -92,6 +107,33 @@ describe("/api/public/ingestion API Endpoint", () => {
       });
     },
   );
+
+  it("should replace bad escape sequences on clickhouse", async () => {
+    const entity = {
+      id: randomUUID(),
+      type: "trace-create",
+      timestamp: new Date().toISOString(),
+      body: {
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        metadata: { hello: "world" },
+        input: "test\\ud8000test",
+        environment: "production",
+      },
+    };
+    const response = await makeAPICall("POST", "/api/public/ingestion", {
+      batch: [entity],
+    });
+
+    expect(response.status).toBe(207);
+    await waitForExpect(async () => {
+      const trace = await getTraceById(entity.body.id, projectId);
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(entity.body.id);
+      expect(trace!.projectId).toBe(projectId);
+      expect(trace!.input).toContain("test");
+    });
+  });
 
   it.each([
     [
