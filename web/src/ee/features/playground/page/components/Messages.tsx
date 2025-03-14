@@ -61,7 +61,7 @@ const SubmitButton = () => {
             <p>Submit ({"\u2318"} + Enter)</p>
           </Button>
         </TooltipTrigger>
-        <TooltipContent className="m- m-6 w-[24rem]">
+        <TooltipContent className="m-6 w-[24rem]">
           <p>
             Atla models are trained to be evaluation models and are not
             recommended for use in the playground.
