@@ -1,5 +1,5 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
   type CategoryCounts,
   type ChartBin,
