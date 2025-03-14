@@ -75,7 +75,7 @@ const RawUsageDetails = z.record(
   z.number().int().nonnegative().nullish(),
 );
 
-const OpenAIUsageSchema = z
+const OpenAICompletionUsageSchema = z
   .object({
     prompt_tokens: z.number().int().nonnegative(),
     completion_tokens: z.number().int().nonnegative(),
@@ -126,8 +126,64 @@ const OpenAIUsageSchema = z
   })
   .pipe(RawUsageDetails);
 
+// The new OpenAI Response API uses a new Usage schema that departs from the Completion API Usage schema
+const OpenAIResponseUsageSchema = z
+  .object({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+    total_tokens: z.number().int().nonnegative(),
+    input_tokens_details: z
+      .record(z.string(), z.number().int().nonnegative())
+      .nullish(),
+    output_tokens_details: z
+      .record(z.string(), z.number().int().nonnegative())
+      .nullish(),
+  })
+  .strict()
+  .transform((v) => {
+    if (!v) return;
+
+    const {
+      input_tokens,
+      output_tokens,
+      total_tokens,
+      input_tokens_details,
+      output_tokens_details,
+    } = v;
+    const result: z.infer<typeof RawUsageDetails> & {
+      input: number;
+      output: number;
+      total: number;
+    } = {
+      input: input_tokens,
+      output: output_tokens,
+      total: total_tokens,
+    };
+
+    if (input_tokens_details) {
+      for (const [key, value] of Object.entries(input_tokens_details)) {
+        result[`input_${key}`] = value;
+        result.input = Math.max(result.input - (value ?? 0), 0);
+      }
+    }
+
+    if (output_tokens_details) {
+      for (const [key, value] of Object.entries(output_tokens_details)) {
+        result[`output_${key}`] = value;
+        result.output = Math.max(result.output - (value ?? 0), 0);
+      }
+    }
+
+    return result;
+  })
+  .pipe(RawUsageDetails);
+
 export const UsageDetails = z
-  .union([OpenAIUsageSchema, RawUsageDetails])
+  .union([
+    OpenAICompletionUsageSchema,
+    OpenAIResponseUsageSchema,
+    RawUsageDetails,
+  ])
   .nullish();
 
 export const EnvironmentName = z
