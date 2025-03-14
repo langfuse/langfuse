@@ -1,14 +1,42 @@
 import { z } from "zod";
 
+export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
+
+export const viewDeclaration = z.object({
+  name: z.string(),
+  baseCte: z.string(),
+  dimensions: z.record(
+    z.object({
+      sql: z.string(),
+      alias: z.string().optional(),
+      type: z.enum(["string", "number", "bool"]),
+      relationTable: z.string().optional(),
+    }),
+  ),
+  measures: z.record(
+    z.object({
+      sql: z.string(),
+      alias: z.string().optional(),
+      type: z.enum(["count", "sum"]),
+      relationTable: z.string().optional(),
+    }),
+  ),
+  tableRelations: z.record(z.string()),
+  timeDimension: z.object({
+    sql: z.string(),
+    type: z.enum(["Date"]),
+  }),
+});
+
 export const stringDateTime = z.string().datetime({ offset: true }).nullish();
 
 export const views = z.enum([
   "traces",
-  "observations",
-  "scores-numeric",
-  "scores-categorical",
-  "sessions",
-  "users",
+  // "observations",
+  // "scores-numeric",
+  // "scores-categorical",
+  // "sessions",
+  // "users",
 ]);
 
 export const dimension = z.object({
@@ -51,6 +79,8 @@ export const filter = z.object({
   ]),
   value: z.string(),
 });
+
+export type QueryType = z.infer<typeof query>;
 
 export const query = z.object({
   view: views,

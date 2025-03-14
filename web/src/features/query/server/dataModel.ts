@@ -1,6 +1,12 @@
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 
-export const traceView = {
+import { z } from "zod";
+import {
+  views,
+  type ViewDeclarationType,
+} from "@/src/features/query/server/types";
+
+export const traceView: ViewDeclarationType = {
   name: "traces",
   dimensions: {
     id: {
@@ -42,35 +48,31 @@ export const traceView = {
   },
   measures: {
     count: {
-      sql: "count",
+      sql: "count(*)",
+      alias: "count",
       type: "count",
-      function: "count",
     },
     observationsCount: {
-      sql: "observations_count",
+      sql: "uniq(observations.id)",
+      alias: "observations_count",
       type: "count",
       relationTable: "observations",
-      relationColumn: "id",
-      function: "uniq",
-
-      name: "Observations Count",
-      label: "Observations Count",
-      sql: "count(observations.id)", // Problem: We need to group by trace id first before we can apply further aggregations
-      relationsTable: "observations", // Check filter builder for this
     },
   },
   tableRelations: {
-    observations: {
-      joinStatement:
-        "LEFT JOIN observations ON traces.id = observations.trace_id",
-    },
+    observations:
+      "LEFT JOIN observations ON traces.id = observations.trace_id AND traces.project_id = observations.project_id",
   },
   timeDimension: {
     sql: "timestamp",
     type: "Date",
   },
-  baseCte: `
-     select *
-     from traces
-  `,
+  baseCte: `traces`,
+};
+
+export const viewDeclarations: Record<
+  z.infer<typeof views>,
+  ViewDeclarationType
+> = {
+  traces: traceView,
 };
