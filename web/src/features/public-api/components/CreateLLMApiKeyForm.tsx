@@ -104,6 +104,11 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
+      case LLMAdapter.Atla:
+        return (
+          customization?.defaultBaseUrlAtla ??
+          "https://api.atla-ai.com/v1/integrations/langfuse"
+        );
       default:
         return "";
     }
@@ -284,43 +289,44 @@ export function CreateLLMApiKeyForm({
         />
 
         {/* baseURL */}
-        {currentAdapter !== LLMAdapter.Bedrock && (
-          <FormField
-            control={form.control}
-            name="baseURL"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>API Base URL</FormLabel>
-                <FormDescription>
-                  Leave blank to use the default base URL for the given LLM
-                  adapter.{" "}
-                  {currentAdapter === LLMAdapter.OpenAI && (
-                    <span>OpenAI default: https://api.openai.com/v1</span>
-                  )}
-                  {currentAdapter === LLMAdapter.Azure && (
-                    <span>
-                      Please add the base URL in the following format (or
-                      compatible API):
-                      https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
-                    </span>
-                  )}
-                  {currentAdapter === LLMAdapter.Anthropic && (
-                    <span>
-                      Anthropic default: https://api.anthropic.com (excluding
-                      /v1/messages)
-                    </span>
-                  )}
-                </FormDescription>
+        {currentAdapter !== LLMAdapter.Bedrock &&
+          currentAdapter !== LLMAdapter.Atla && (
+            <FormField
+              control={form.control}
+              name="baseURL"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>API Base URL</FormLabel>
+                  <FormDescription>
+                    Leave blank to use the default base URL for the given LLM
+                    adapter.{" "}
+                    {currentAdapter === LLMAdapter.OpenAI && (
+                      <span>OpenAI default: https://api.openai.com/v1</span>
+                    )}
+                    {currentAdapter === LLMAdapter.Azure && (
+                      <span>
+                        Please add the base URL in the following format (or
+                        compatible API):
+                        https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                      </span>
+                    )}
+                    {currentAdapter === LLMAdapter.Anthropic && (
+                      <span>
+                        Anthropic default: https://api.anthropic.com (excluding
+                        /v1/messages)
+                      </span>
+                    )}
+                  </FormDescription>
 
-                <FormControl>
-                  <Input {...field} placeholder="default" />
-                </FormControl>
+                  <FormControl>
+                    <Input {...field} placeholder="default" />
+                  </FormControl>
 
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
         {currentAdapter === LLMAdapter.Bedrock ? (
           <>
@@ -403,6 +409,27 @@ export function CreateLLMApiKeyForm({
                   <Input {...field} />
                 </FormControl>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        {currentAdapter === LLMAdapter.Atla && (
+          <FormField
+            control={form.control}
+            name="baseURL"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>API Base URL</FormLabel>
+                <FormDescription>
+                  Atla uses a fixed base URL for Langfuse.
+                </FormDescription>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="https://api.atla.ai/v1/integrations/langfuse"
+                    disabled
+                  />
+                </FormControl>
               </FormItem>
             )}
           />
@@ -493,11 +520,13 @@ export function CreateLLMApiKeyForm({
                   <Switch
                     disabled={
                       currentAdapter === LLMAdapter.Azure ||
-                      currentAdapter === LLMAdapter.Bedrock
+                      currentAdapter === LLMAdapter.Bedrock ||
+                      currentAdapter === LLMAdapter.Atla
                     }
                     checked={
                       currentAdapter === LLMAdapter.Azure ||
-                      currentAdapter === LLMAdapter.Bedrock
+                      currentAdapter === LLMAdapter.Bedrock ||
+                      currentAdapter === LLMAdapter.Atla
                         ? false
                         : field.value
                     }
@@ -552,12 +581,12 @@ export function CreateLLMApiKeyForm({
                   </Button>
                 </span>
               ))}
-
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => append({ value: "" })}
                 className="w-full"
+                disabled={currentAdapter === LLMAdapter.Atla}
               >
                 <PlusIcon
                   className="-ml-0.5 mr-1.5 h-5 w-5"
