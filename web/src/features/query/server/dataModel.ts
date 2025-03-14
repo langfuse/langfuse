@@ -150,7 +150,7 @@ export const observationsView: ViewDeclarationType = {
       type: "count",
     },
     latency: {
-      sql: "date_diff('millisecond', start_time, end_time)",
+      sql: "date_diff('millisecond', any(observations.start_time), any(observations.end_time))",
       alias: "latency",
       type: "number",
     },
