@@ -115,6 +115,7 @@ RUN addgroup --system --gid ${GID} nodejs
 RUN adduser --system --uid ${UID} nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma@6.3.0
+RUN npm install dd-trace
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
     wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
@@ -141,8 +142,9 @@ USER nextjs
 # Default port to 3000
 ENV PORT 3000
 
+ENV DD_PROFILING_ENABLED=true
 
 ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
 # startup command
-CMD ["node", "./web/server.js", "--keepAliveTimeout", "110000"]
+CMD ["node", "--import", "dd-trace/initialize.mjs", "./web/server.js", "--keepAliveTimeout", "110000"]
