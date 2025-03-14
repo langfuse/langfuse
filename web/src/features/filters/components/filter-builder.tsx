@@ -24,6 +24,7 @@ import {
   type ColumnDefinition,
   filterOperators,
   singleFilter,
+  type ConditionalFilterState,
 } from "@langfuse/shared";
 import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -188,16 +189,26 @@ export function InlineFilterState({
   });
 }
 
-export function InlineFilterBuilder({
+/**
+ * @typeParam T - inferred from the `passWipState` prop
+ */
+export function InlineFilterBuilder<T extends boolean = false>({
   columns,
   filterState,
   onChange,
   disabled,
+  passWipState = false as T,
 }: {
   columns: ColumnDefinition[];
-  filterState: FilterState;
-  onChange: Dispatch<SetStateAction<FilterState>>;
+  filterState: FilterState | WipFilterState;
+  onChange: Dispatch<SetStateAction<ConditionalFilterState<T>>>;
   disabled?: boolean;
+  /**
+   * @property {boolean} [passWipState=false]
+   * - If `true`, the component will pass the *unverified* WipFilterState to the parent `onChange`, thus allowing for error reporting to the user and making the developer using the component responsible for validating the filters.
+   * - If `false`, the component will pass the *verified* FilterState to the parent `onChange`, any errors will be _silently (!)_ discarded.
+   */
+  passWipState?: T;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -207,6 +218,13 @@ export function InlineFilterBuilder({
   ) => {
     _setWipFilterState((prev) => {
       const newState = state instanceof Function ? state(prev) : state;
+
+      // If we explicitly want to receive incomplete filters, we don't validate them such that in a parent form there can be error reporting to the user
+      if (passWipState) {
+        onChange(newState as FilterState);
+        return newState;
+      }
+
       const validFilters = newState.filter(
         (f) => singleFilter.safeParse(f).success,
       ) as FilterState;

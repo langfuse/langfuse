@@ -20,6 +20,10 @@ export type WipFilterCondition = AllowStringAsValue<
 >;
 export type WipFilterState = WipFilterCondition[];
 
+export type ConditionalFilterState<T extends boolean = false> = T extends true
+  ? WipFilterState
+  : FilterState;
+
 export type FilterOption = {
   value: string;
   count?: number;
