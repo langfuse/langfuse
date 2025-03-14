@@ -101,7 +101,7 @@ export const query = z
     fromTimestamp: stringDateTime,
     toTimestamp: stringDateTime,
     limit: z.number().int().positive().default(50),
-    page: z.number().int().positive().default(0),
+    page: z.number().int().nonnegative().default(0),
   })
   .refine(
     (query) =>
