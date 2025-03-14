@@ -58,6 +58,12 @@ export const traceView: ViewDeclarationType = {
       type: "count",
       relationTable: "observations",
     },
+    scoresCount: {
+      sql: "uniq(scores.id)",
+      alias: "scores_count",
+      type: "count",
+      relationTable: "scores",
+    },
   },
   tableRelations: {
     observations: {
@@ -66,9 +72,24 @@ export const traceView: ViewDeclarationType = {
         "ON traces.id = observations.trace_id AND traces.project_id = observations.project_id",
       timeDimension: "start_time",
     },
+    scores: {
+      name: "scores",
+      joinCondition:
+        "ON traces.id = scores.trace_id AND traces.project_id = scores.project_id",
+      timeDimension: "timestamp",
+    },
   },
   timeDimension: "timestamp",
   baseCte: `traces`,
+};
+
+export const observationsView: ViewDeclarationType = {
+  name: "observations",
+  dimensions: {},
+  measures: {},
+  tableRelations: {},
+  timeDimension: "start_time",
+  baseCte: `observations`,
 };
 
 export const viewDeclarations: Record<
@@ -76,4 +97,5 @@ export const viewDeclarations: Record<
   ViewDeclarationType
 > = {
   traces: traceView,
+  observations: observationsView,
 };

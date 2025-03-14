@@ -88,7 +88,8 @@ export class QueryBuilder {
           `Invalid dimension. Must be one of ${Object.keys(view.dimensions)}`,
         );
       }
-      return view.dimensions[dimension.field];
+      const dim = view.dimensions[dimension.field];
+      return { ...dim, table: dim.relationTable || view.baseCte };
     });
   }
 
@@ -288,12 +289,15 @@ export class QueryBuilder {
       .join(" AND\n")}`;
   }
 
-  private determineTimeGranularity(fromTimestamp: string, toTimestamp: string): string {
+  private determineTimeGranularity(
+    fromTimestamp: string,
+    toTimestamp: string,
+  ): string {
     const from = new Date(fromTimestamp);
     const to = new Date(toTimestamp);
     const diffMs = to.getTime() - from.getTime();
     const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    
+
     // Choose appropriate granularity based on date range to get ~50 buckets
     if (diffDays < 1) {
       return "minute"; // Less than a day, use minutes
@@ -308,42 +312,62 @@ export class QueryBuilder {
     }
   }
 
-  private getTimeDimensionSql(timeDimension: string, granularity: string): string {
+  private getTimeDimensionSql(
+    table: string,
+    timeDimension: string,
+    granularity: string,
+  ): string {
     switch (granularity) {
       case "minute":
-        return `toStartOfMinute(${timeDimension})`;
+        return `toStartOfMinute(${table}.${timeDimension})`;
       case "hour":
-        return `toStartOfHour(${timeDimension})`;
+        return `toStartOfHour(${table}.${timeDimension})`;
       case "day":
-        return `toDate(${timeDimension})`;
+        return `toDate(${table}.${timeDimension})`;
       case "week":
-        return `toMonday(${timeDimension})`;
+        return `toMonday(${table}.${timeDimension})`;
       case "month":
-        return `toStartOfMonth(${timeDimension})`;
+        return `toStartOfMonth(${table}.${timeDimension})`;
       default:
         return timeDimension;
     }
   }
 
-  private buildInnerDimensionsPart(appliedDimensions: any[], query: QueryType, view: ViewDeclarationType) {
+  private buildInnerDimensionsPart(
+    appliedDimensions: any[],
+    query: QueryType,
+    view: ViewDeclarationType,
+  ) {
     let dimensions = "";
-    
+
     // Add regular dimensions
     if (appliedDimensions.length > 0) {
-      dimensions += `${appliedDimensions.map((dimension) => 
-        `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},`;
+      dimensions += `${appliedDimensions
+        .map(
+          (dimension) =>
+            `any(${dimension.table}.${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
+        )
+        .join(",\n")},`;
     }
-    
+
     // Add time dimension if specified
     if (query.timeDimension) {
-      const granularity = query.timeDimension.granularity === "auto" 
-        ? this.determineTimeGranularity(query.fromTimestamp, query.toTimestamp)
-        : query.timeDimension.granularity;
-      
-      const timeDimensionSql = this.getTimeDimensionSql(view.timeDimension, granularity);
+      const granularity =
+        query.timeDimension.granularity === "auto"
+          ? this.determineTimeGranularity(
+              query.fromTimestamp,
+              query.toTimestamp,
+            )
+          : query.timeDimension.granularity;
+
+      const timeDimensionSql = this.getTimeDimensionSql(
+        view.baseCte,
+        view.timeDimension,
+        granularity,
+      );
       dimensions += `any(${timeDimensionSql}) as time_dimension,`;
     }
-    
+
     return dimensions;
   }
 
@@ -369,20 +393,27 @@ export class QueryBuilder {
       GROUP BY ${view.baseCte}.project_id, ${view.baseCte}.id`;
   }
 
-  private buildOuterDimensionsPart(appliedDimensions: any[], hasTimeDimension: boolean) {
+  private buildOuterDimensionsPart(
+    appliedDimensions: any[],
+    hasTimeDimension: boolean,
+  ) {
     let dimensions = "";
-    
+
     // Add regular dimensions
     if (appliedDimensions.length > 0) {
-      dimensions += `${appliedDimensions.map((dimension) => 
-        `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},`;
+      dimensions += `${appliedDimensions
+        .map(
+          (dimension) =>
+            `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`,
+        )
+        .join(",\n")},`;
     }
-    
+
     // Add time dimension if it exists
     if (hasTimeDimension) {
       dimensions += `time_dimension,`;
     }
-    
+
     return dimensions;
   }
 
@@ -392,22 +423,27 @@ export class QueryBuilder {
       : "count(*) as count";
   }
 
-  private buildGroupByClause(appliedDimensions: any[], hasTimeDimension: boolean) {
+  private buildGroupByClause(
+    appliedDimensions: any[],
+    hasTimeDimension: boolean,
+  ) {
     const dimensions = [];
-    
+
     // Add regular dimensions
     if (appliedDimensions.length > 0) {
-      dimensions.push(...appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql));
+      dimensions.push(
+        ...appliedDimensions.map(
+          (dimension) => dimension.alias ?? dimension.sql,
+        ),
+      );
     }
-    
+
     // Add time dimension if it exists
     if (hasTimeDimension) {
       dimensions.push("time_dimension");
     }
-    
-    return dimensions.length > 0
-      ? `GROUP BY ${dimensions.join(",\n")}`
-      : "";
+
+    return dimensions.length > 0 ? `GROUP BY ${dimensions.join(",\n")}` : "";
   }
 
   private buildOuterSelect(
@@ -492,8 +528,11 @@ export class QueryBuilder {
     fromClause += this.buildWhereClause(appliedFilters, parameters);
 
     // Build inner SELECT parts
-    const innerDimensionsPart =
-      this.buildInnerDimensionsPart(appliedDimensions, query, view);
+    const innerDimensionsPart = this.buildInnerDimensionsPart(
+      appliedDimensions,
+      query,
+      view,
+    );
     const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
     // Build inner SELECT
@@ -505,10 +544,15 @@ export class QueryBuilder {
     );
 
     // Build outer SELECT parts
-    const outerDimensionsPart =
-      this.buildOuterDimensionsPart(appliedDimensions, !!query.timeDimension);
+    const outerDimensionsPart = this.buildOuterDimensionsPart(
+      appliedDimensions,
+      !!query.timeDimension,
+    );
     const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
-    const groupByClause = this.buildGroupByClause(appliedDimensions, !!query.timeDimension);
+    const groupByClause = this.buildGroupByClause(
+      appliedDimensions,
+      !!query.timeDimension,
+    );
 
     // Build final query
     const sql = this.buildOuterSelect(

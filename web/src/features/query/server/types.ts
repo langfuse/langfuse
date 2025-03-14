@@ -35,7 +35,7 @@ export const stringDateTime = z.string().datetime({ offset: true });
 
 export const views = z.enum([
   "traces",
-  // "observations",
+  "observations",
   // "scores-numeric",
   // "scores-categorical",
   // "sessions",
