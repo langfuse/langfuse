@@ -60,12 +60,12 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   }, [props]);
 
   useEffect(() => {
-    if (capturedState && isEntitled) {
+    if (capturedState) {
       setIsAvailable(true);
     } else {
       setIsAvailable(false);
     }
-  }, [capturedState, isEntitled, setIsAvailable]);
+  }, [capturedState, setIsAvailable]);
 
   const handleClick = () => {
     capture(props.analyticsEventName);
@@ -73,6 +73,8 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
     router.push(`/project/${projectId}/playground`);
   };
+
+  if (!isEntitled) return null;
 
   return (
     <Button

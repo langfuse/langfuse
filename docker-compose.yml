@@ -1,7 +1,8 @@
 # Make sure to update the credential placeholders with your own secrets.
 # We mark them with # CHANGEME in the file below.
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
-# All other components should not be exposed to the public internet. You can use security groups, firewalls, or proxies to achieve this.
+# All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
+# External connections from other machines will not be able to reach these services directly.
 services:
   langfuse-worker:
     image: langfuse/langfuse-worker:3
@@ -16,7 +17,7 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - "3030:3030"
+      - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres # CHANGEME
       SALT: "mysalt" # CHANGEME
@@ -57,7 +58,7 @@ services:
     restart: always
     depends_on: *langfuse-depends-on
     ports:
-      - "3000:3000"
+      - 3000:3000
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_URL: http://localhost:3000
@@ -84,8 +85,8 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - 127.0.0.1:8123:8123
+      - 127.0.0.1:9000:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
@@ -103,8 +104,8 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: miniosecret # CHANGEME
     ports:
-      - "9090:9000"
-      - "9091:9001"
+      - 9090:9000
+      - 127.0.0.1:9091:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -117,10 +118,11 @@ services:
   redis:
     image: redis:7
     restart: always
+    # CHANGEME: row below to secure redis password
     command: >
-      --requirepass ${REDIS_AUTH:-myredissecret} # CHANGEME
+      --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
-      - 6379:6379
+      - 127.0.0.1:6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -140,7 +142,7 @@ services:
       POSTGRES_PASSWORD: postgres # CHANGEME
       POSTGRES_DB: postgres
     ports:
-      - 5432:5432
+      - 127.0.0.1:5432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 
