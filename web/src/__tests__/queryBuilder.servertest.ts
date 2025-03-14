@@ -1,6 +1,6 @@
 import { clickhouseClient } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { QueryType } from "@/src/features/query/server/types";
+import { type QueryType } from "@/src/features/query/server/types";
 
 describe("queryBuilder", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

@@ -1,4 +1,4 @@
-import { ClickhouseClientType } from "@langfuse/shared/src/server";
+import { type ClickhouseClientType } from "@langfuse/shared/src/server";
 import { type QueryType } from "./types";
 import { viewDeclarations } from "@/src/features/query/server/dataModel";
 

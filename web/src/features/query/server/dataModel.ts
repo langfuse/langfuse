@@ -1,10 +1,10 @@
-// The data model defines all available dimensions, measures, and the timeDimension for a given view.
-
-import { z } from "zod";
+import { type z } from "zod";
 import {
-  views,
+  type views,
   type ViewDeclarationType,
 } from "@/src/features/query/server/types";
+
+// The data model defines all available dimensions, measures, and the timeDimension for a given view.
 
 export const traceView: ViewDeclarationType = {
   name: "traces",
