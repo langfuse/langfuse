@@ -1,4 +1,7 @@
-import { type ClickhouseClientType } from "@langfuse/shared/src/server";
+import {
+  type ClickhouseClientType,
+  convertDateToClickhouseDateTime,
+} from "@langfuse/shared/src/server";
 import { type QueryType } from "./types";
 import { viewDeclarations } from "@/src/features/query/server/dataModel";
 
@@ -120,25 +123,67 @@ export class QueryBuilder {
     // Find the filters
     const appliedFilters = query.filters.map((filter) => {
       if (filter.field in view.dimensions) {
-        return { ...view.dimensions[filter.field], ...filter };
+        const dimension = view.dimensions[filter.field];
+        return {
+          ...filter,
+          table: view.baseCte,
+          sql: dimension.sql, // Use the SQL expression, not the alias
+          type: dimension.type,
+        };
       }
       if (filter.field in view.measures) {
-        return { ...view.measures[filter.field], ...filter };
+        const measure = view.measures[filter.field];
+        return {
+          ...filter,
+          table: view.baseCte,
+          sql: measure.sql, // Use the SQL expression, not the alias
+          type: measure.type,
+        };
       }
-      if (filter.field === view.timeDimension.sql) {
-        return { ...view.timeDimension, ...filter };
+      if (filter.field === view.timeDimension) {
+        return {
+          ...filter,
+          table: view.baseCte,
+          sql: view.timeDimension,
+          type: "Date",
+        };
       }
       throw new Error(
-        `Invalid filter. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)}`,
+        `Invalid filter. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
       );
     });
+
+    // Add project_id filter
     appliedFilters.push({
       field: "project_id",
       operator: "eq",
+      table: view.baseCte,
       value: projectId,
       type: "string",
       sql: "project_id",
     });
+
+    // Add fromTimestamp and toTimestamp filters if they exist
+    if (query.fromTimestamp) {
+      appliedFilters.push({
+        field: view.timeDimension,
+        operator: "gte",
+        table: view.baseCte,
+        value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
+        type: "Date",
+        sql: view.timeDimension,
+      });
+    }
+    if (query.toTimestamp) {
+      appliedFilters.push({
+        field: view.timeDimension,
+        operator: "lte",
+        table: view.baseCte,
+        value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
+        type: "Date",
+        sql: view.timeDimension,
+      });
+    }
 
     // Decide which base tables we're querying.
     let sqlQuery = `FROM ${view.baseCte}`;
@@ -158,24 +203,53 @@ export class QueryBuilder {
 
     // If there are relationTables, we need to join them
     if (relationTables.size > 0) {
-      const validRelationTables = Object.keys(view.tableRelations).every(
-        (relationTable) => relationTables.has(relationTable),
-      );
-      if (!validRelationTables) {
-        throw new Error(
-          `Invalid relationTable. Must be one of ${Object.keys(view.tableRelations)}`,
-        );
+      const relationJoins = [];
+      for (const relationTableName of relationTables) {
+        if (!(relationTableName in view.tableRelations)) {
+          throw new Error(
+            `Invalid relationTable: ${relationTableName}. Must be one of ${Object.keys(view.tableRelations)}`,
+          );
+        }
+
+        const relation = view.tableRelations[relationTableName];
+        let joinStatement = `LEFT JOIN ${relation.name} ${relation.joinCondition}`;
+
+        // Add relation-specific timestamp filters if applicable
+        appliedFilters.push({
+          field: relation.timeDimension,
+          operator: "gte",
+          table: relation.name,
+          value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
+          type: "Date",
+          sql: relation.timeDimension,
+        });
+        appliedFilters.push({
+          field: relation.timeDimension,
+          operator: "lte",
+          table: relation.name,
+          value: convertDateToClickhouseDateTime(new Date(query.toTimestamp)),
+          type: "Date",
+          sql: relation.timeDimension,
+        });
+
+        relationJoins.push(joinStatement);
       }
-      const tableRelations = Array.from(relationTables).map(
-        (relationTable) => view.tableRelations[relationTable],
-      );
-      sqlQuery += ` ${tableRelations.join(" ")}`;
+
+      sqlQuery += ` ${relationJoins.join(" ")}`;
     }
 
     // Create the where condition
     if (appliedFilters.length > 0) {
-      // TODO: Prevent SQL injection by using templates here
-      sqlQuery += ` WHERE ${appliedFilters.map((filter) => `${filter.sql} ${this.translateFilterOperator(filter.operator)} '${filter.value}'`).join(" AND\n")}`;
+      sqlQuery += ` WHERE ${appliedFilters
+        .map((filter) => {
+          // Add quotes for string values, but not for numbers
+          const valueStr =
+            filter.type === "number" ? filter.value : `'${filter.value}'`;
+          const columnRef = `${filter.table}.${filter.sql}`;
+          // TODO: Prevent SQL injection by using templates here
+          return `${columnRef} ${this.translateFilterOperator(filter.operator)} ${valueStr}`;
+        })
+        .join(" AND\n")}`;
     }
 
     // Generate the inner SELECT clause dimensions part

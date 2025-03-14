@@ -21,14 +21,17 @@ export const viewDeclaration = z.object({
       relationTable: z.string().optional(),
     }),
   ),
-  tableRelations: z.record(z.string()),
-  timeDimension: z.object({
-    sql: z.string(),
-    type: z.enum(["Date"]),
-  }),
+  tableRelations: z.record(
+    z.object({
+      name: z.string(),
+      joinCondition: z.string(),
+      timeDimension: z.string(),
+    }),
+  ),
+  timeDimension: z.string(),
 });
 
-export const stringDateTime = z.string().datetime({ offset: true }).nullish();
+export const stringDateTime = z.string().datetime({ offset: true });
 
 export const views = z.enum([
   "traces",

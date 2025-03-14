@@ -60,13 +60,14 @@ export const traceView: ViewDeclarationType = {
     },
   },
   tableRelations: {
-    observations:
-      "LEFT JOIN observations ON traces.id = observations.trace_id AND traces.project_id = observations.project_id",
+    observations: {
+      name: "observations",
+      joinCondition:
+        "ON traces.id = observations.trace_id AND traces.project_id = observations.project_id",
+      timeDimension: "start_time",
+    },
   },
-  timeDimension: {
-    sql: "timestamp",
-    type: "Date",
-  },
+  timeDimension: "timestamp",
   baseCte: `traces`,
 };
 
