@@ -17,7 +17,7 @@ export const viewDeclaration = z.object({
     z.object({
       sql: z.string(),
       alias: z.string().optional(),
-      type: z.enum(["count", "sum"]),
+      type: z.enum(["count", "sum", "number"]),
       relationTable: z.string().optional(),
     }),
   ),

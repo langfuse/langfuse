@@ -1041,5 +1041,339 @@ describe("queryBuilder", () => {
       });
       expect(embeddings45?.count_count).toBe("1"); // 1 trace at 12:45
     });
+
+    it("should calculate latency for traces correctly", async () => {
+      // Setup
+      const projectId = randomUUID();
+
+      // Create traces with observations that have different start/end times
+      const traces = [];
+      const observations = [];
+
+      // Trace 1: with 2 observations with different latencies
+      const trace1 = createTrace({
+        project_id: projectId,
+        name: "trace-with-fast-latency",
+        environment: "default",
+        timestamp: new Date().getTime(),
+      });
+      traces.push(trace1);
+
+      // First observation - 200ms latency
+      const startTime1 = new Date();
+      const endTime1 = new Date(startTime1.getTime() + 200);
+      observations.push(
+        createObservation({
+          project_id: projectId,
+          trace_id: trace1.id,
+          environment: "default",
+          start_time: startTime1.getTime(),
+          end_time: endTime1.getTime(),
+        }),
+      );
+
+      // Second observation - 300ms latency
+      const startTime2 = new Date(startTime1.getTime() + 50); // Overlapping with first
+      const endTime2 = new Date(startTime2.getTime() + 300);
+      observations.push(
+        createObservation({
+          project_id: projectId,
+          trace_id: trace1.id,
+          environment: "default",
+          start_time: startTime2.getTime(),
+          end_time: endTime2.getTime(),
+        }),
+      );
+
+      // Trace 2: with longer latency observations
+      const trace2 = createTrace({
+        project_id: projectId,
+        name: "trace-with-slow-latency",
+        environment: "default",
+        timestamp: new Date().getTime(),
+      });
+      traces.push(trace2);
+
+      // First observation - 800ms latency
+      const startTime3 = new Date();
+      const endTime3 = new Date(startTime3.getTime() + 800);
+      observations.push(
+        createObservation({
+          project_id: projectId,
+          trace_id: trace2.id,
+          environment: "default",
+          start_time: startTime3.getTime(),
+          end_time: endTime3.getTime(),
+        }),
+      );
+
+      // Second observation - 1500ms latency (this should be the end bound)
+      const startTime4 = new Date(startTime3.getTime() - 100); // Starts before first observation
+      const endTime4 = new Date(startTime4.getTime() + 1500);
+      observations.push(
+        createObservation({
+          project_id: projectId,
+          trace_id: trace2.id,
+          environment: "default",
+          start_time: startTime4.getTime(),
+          end_time: endTime4.getTime(),
+        }),
+      );
+
+      await createTracesCh(traces);
+      await createObservationsCh(observations);
+
+      // Define query to test latency calculation
+      const query: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(
+          new Date().setDate(new Date().getDate() - 1),
+        ).toISOString(),
+        toTimestamp: new Date(
+          new Date().setDate(new Date().getDate() + 1),
+        ).toISOString(),
+        page: 0,
+        limit: 50,
+      };
+
+      // Execute query
+      const queryBuilder = new QueryBuilder(clickhouseClient());
+      const { query: compiledQuery, parameters } = queryBuilder.build(
+        query,
+        projectId,
+      );
+
+      // Verify that our SQL includes the latency calculation
+      expect(compiledQuery).toContain(
+        "date_diff('millisecond', min(observations.start_time), max(observations.end_time))",
+      );
+
+      const result = await (
+        await clickhouseClient().query({
+          query: compiledQuery,
+          query_params: parameters,
+        })
+      ).json();
+
+      // Assert
+      expect(result.data).toHaveLength(2);
+
+      // Get trace results by name
+      const fastLatencyTrace = result.data.find(
+        (row: any) => row.name === "trace-with-fast-latency",
+      );
+      const slowLatencyTrace = result.data.find(
+        (row: any) => row.name === "trace-with-slow-latency",
+      );
+
+      // For the fast latency trace, the latency should be the time from the
+      // earliest observation start to the latest observation end (approximately 350ms)
+      // Since startTime2 is 50ms after startTime1, and endTime2 is
+      // startTime2 + 300ms = startTime1 + 350ms
+      expect(parseInt(fastLatencyTrace.avg_latency)).toBeGreaterThanOrEqual(
+        350,
+      );
+      expect(parseInt(fastLatencyTrace.avg_latency)).toBeLessThan(400); // Allow small margin due to processing time
+
+      // For the slow latency trace, the latency should be the time from the
+      // earliest observation start to the latest observation end (approximately 1600ms)
+      // Since startTime4 is 100ms before startTime3, and endTime4 is
+      // startTime4 + 1500ms = startTime3 - 100ms + 1500ms = startTime3 + 1400ms
+      expect(parseInt(slowLatencyTrace.avg_latency)).toBeGreaterThanOrEqual(
+        1400,
+      );
+      expect(parseInt(slowLatencyTrace.avg_latency)).toBeLessThan(1700); // Allow margin for processing
+    });
+
+    it("should calculate p95 timeToFirstToken for each trace name using observations view", async () => {
+      // Setup
+      const projectId = randomUUID();
+
+      // Create traces with observations that have different start/completion start times
+      const traces = [];
+      const observations = [];
+
+      // Create trace for "gpt-4-turbo" model
+      const traceGpt4 = createTrace({
+        project_id: projectId,
+        name: "gpt-4-completion",
+        environment: "default",
+        timestamp: new Date().getTime(),
+      });
+      traces.push(traceGpt4);
+
+      // Create observations for GPT-4-turbo with different time to first token values
+      // Add 10 observations with time to first token ranging from 500ms to 1400ms
+      for (let i = 0; i < 10; i++) {
+        const startTime = new Date();
+        // Create increasing TTFT values (500ms to 1400ms)
+        const ttft = 500 + i * 100;
+        const completionStartTime = new Date(startTime.getTime() + ttft);
+        const endTime = new Date(completionStartTime.getTime() + 500); // Add another 500ms for generation
+
+        observations.push(
+          createObservation({
+            project_id: projectId,
+            trace_id: traceGpt4.id,
+            type: "generation",
+            name: "gpt-4-turbo",
+            provided_model_name: "gpt-4-turbo",
+            environment: "default",
+            start_time: startTime.getTime(),
+            completion_start_time: completionStartTime.getTime(),
+            end_time: endTime.getTime(),
+          }),
+        );
+      }
+
+      // Create trace for "gpt-3.5-turbo" model
+      const traceGpt35 = createTrace({
+        project_id: projectId,
+        name: "gpt-3.5-completion",
+        environment: "default",
+        timestamp: new Date().getTime(),
+      });
+      traces.push(traceGpt35);
+
+      // Create observations for GPT-3.5-turbo with different time to first token values
+      // Add 10 observations with time to first token ranging from 200ms to 650ms
+      for (let i = 0; i < 10; i++) {
+        const startTime = new Date();
+        // Create increasing TTFT values (200ms to 650ms)
+        const ttft = 200 + i * 50;
+        const completionStartTime = new Date(startTime.getTime() + ttft);
+        const endTime = new Date(completionStartTime.getTime() + 300); // Add another 300ms for generation
+
+        observations.push(
+          createObservation({
+            project_id: projectId,
+            trace_id: traceGpt35.id,
+            type: "generation",
+            name: "gpt-3.5-turbo",
+            provided_model_name: "gpt-3.5-turbo",
+            environment: "default",
+            start_time: startTime.getTime(),
+            completion_start_time: completionStartTime.getTime(),
+            end_time: endTime.getTime(),
+          }),
+        );
+      }
+
+      // Create trace for "claude-3-opus" model
+      const traceClaude = createTrace({
+        project_id: projectId,
+        name: "claude-completion",
+        environment: "default",
+        timestamp: new Date().getTime(),
+      });
+      traces.push(traceClaude);
+
+      // Create observations for Claude with different time to first token values
+      // Add 10 observations with time to first token ranging from 300ms to 1200ms
+      for (let i = 0; i < 10; i++) {
+        const startTime = new Date();
+        // Create increasing TTFT values (300ms to 1200ms)
+        const ttft = 300 + i * 100;
+        const completionStartTime = new Date(startTime.getTime() + ttft);
+        const endTime = new Date(completionStartTime.getTime() + 400); // Add another 400ms for generation
+
+        observations.push(
+          createObservation({
+            project_id: projectId,
+            trace_id: traceClaude.id,
+            type: "generation",
+            name: "claude-3-opus",
+            provided_model_name: "claude-3-opus",
+            environment: "default",
+            start_time: startTime.getTime(),
+            completion_start_time: completionStartTime.getTime(),
+            end_time: endTime.getTime(),
+          }),
+        );
+      }
+
+      await createTracesCh(traces);
+      await createObservationsCh(observations);
+
+      // Define query to test p95 timeToFirstToken calculation for each trace using observations view
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "traceName" }],
+        metrics: [{ measure: "timeToFirstToken", aggregation: "p95" }],
+        filters: [
+          {
+            field: "type",
+            operator: "eq",
+            value: "generation",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: new Date(
+          new Date().setDate(new Date().getDate() - 1),
+        ).toISOString(),
+        toTimestamp: new Date(
+          new Date().setDate(new Date().getDate() + 1),
+        ).toISOString(),
+        page: 0,
+        limit: 50,
+      };
+
+      // Execute query
+      const queryBuilder = new QueryBuilder(clickhouseClient());
+      const { query: compiledQuery, parameters } = queryBuilder.build(
+        query,
+        projectId,
+      );
+
+      const result = await (
+        await clickhouseClient().query({
+          query: compiledQuery,
+          query_params: parameters,
+        })
+      ).json();
+
+      // Assert
+      expect(result.data).toHaveLength(3);
+
+      // Get results for each trace
+      const gpt4Result = result.data.find(
+        (row: any) => row.trace_name === "gpt-4-completion",
+      );
+      const gpt35Result = result.data.find(
+        (row: any) => row.trace_name === "gpt-3.5-completion",
+      );
+      const claudeResult = result.data.find(
+        (row: any) => row.trace_name === "claude-completion",
+      );
+
+      // The p95 should be close to the 95th percentile value we generated
+      // For GPT-4: the 95th percentile of values from 500-1400 would be around 1350ms
+      expect(
+        parseInt(gpt4Result.p95_time_to_first_token),
+      ).toBeGreaterThanOrEqual(1300);
+      expect(parseInt(gpt4Result.p95_time_to_first_token)).toBeLessThanOrEqual(
+        1400,
+      );
+
+      // For GPT-3.5: the 95th percentile of values from 200-650 would be around 625ms
+      expect(
+        parseInt(gpt35Result.p95_time_to_first_token),
+      ).toBeGreaterThanOrEqual(600);
+      expect(parseInt(gpt35Result.p95_time_to_first_token)).toBeLessThanOrEqual(
+        650,
+      );
+
+      // For Claude: the 95th percentile of values from 300-1200 would be around 1150ms
+      expect(
+        parseInt(claudeResult.p95_time_to_first_token),
+      ).toBeGreaterThanOrEqual(1100);
+      expect(
+        parseInt(claudeResult.p95_time_to_first_token),
+      ).toBeLessThanOrEqual(1200);
+    });
   });
 });
