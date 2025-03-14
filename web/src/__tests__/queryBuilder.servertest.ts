@@ -36,6 +36,42 @@ describe("queryBuilder", () => {
         } as QueryType,
       ],
       [
+        "query with auto time dimension for month granularity",
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "count", aggregation: "count" }
+          ],
+          filters: [],
+          timeDimension: {
+            granularity: "auto"
+          },
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-03-01T00:00:00.000Z", // 2 months difference
+          page: 0,
+          limit: 50,
+        } as QueryType,
+      ],
+      [
+        "query with specific time dimension granularity",
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [
+            { measure: "count", aggregation: "count" }
+          ],
+          filters: [],
+          timeDimension: {
+            granularity: "day"
+          },
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-01-10T00:00:00.000Z", // 10 days difference
+          page: 0,
+          limit: 50,
+        } as QueryType,
+      ],
+      [
         "trace query without dimensions",
         {
           view: "traces",
@@ -671,6 +707,280 @@ describe("queryBuilder", () => {
       // Assert
       expect(result.data).toHaveLength(1);
       expect(result.data[0].count).toBe("2"); // default count metric should be used
+    });
+
+    it("should group traces by name and time dimension correctly", async () => {
+      // Setup
+      const projectId = randomUUID();
+      
+      // Create traces with specific timestamps and names
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dayBeforeYesterday = new Date(now);
+      dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
+
+      const traces = [];
+      // Today's traces - two different names
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "chat-completion",
+        environment: "default",
+        timestamp: now.getTime(),
+      }));
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "chat-completion",
+        environment: "default",
+        timestamp: now.getTime(),
+      }));
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "embeddings",
+        environment: "default",
+        timestamp: now.getTime(),
+      }));
+      
+      // Yesterday's traces
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "chat-completion",
+        environment: "default",
+        timestamp: yesterday.getTime(),
+      }));
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "embeddings",
+        environment: "default",
+        timestamp: yesterday.getTime(),
+      }));
+      
+      // Day before yesterday's traces
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "embeddings",
+        environment: "default",
+        timestamp: dayBeforeYesterday.getTime(),
+      }));
+      
+      await createTracesCh(traces);
+
+      // Define query with time dimension and name dimension
+      const query: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: {
+          granularity: "day", // Group by day
+        },
+        fromTimestamp: dayBeforeYesterday.toISOString(),
+        toTimestamp: new Date(now.getTime() + 86400000).toISOString(), // Include tomorrow
+        page: 0,
+        limit: 50,
+      };
+
+      // Execute query
+      const queryBuilder = new QueryBuilder(clickhouseClient());
+      const { query: compiledQuery, parameters } = queryBuilder.build(
+        query,
+        projectId,
+      );
+      const result = await (
+        await clickhouseClient().query({
+          query: compiledQuery,
+          query_params: parameters,
+        })
+      ).json();
+
+      // Assert - should have 5 combinations (chat-today, chat-yesterday, embeddings-today, embeddings-yesterday, embeddings-dayBefore)
+      expect(result.data).toHaveLength(5);
+      
+      // Check chat-completion counts by day
+      const chatCompletionToday = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        const today = new Date(now);
+        return row.name === "chat-completion" && 
+               rowDate.getDate() === today.getDate() && 
+               rowDate.getMonth() === today.getMonth() &&
+               rowDate.getFullYear() === today.getFullYear();
+      });
+      expect(chatCompletionToday?.count_count).toBe("2"); // 2 chat-completion traces today
+
+      const chatCompletionYesterday = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return row.name === "chat-completion" &&
+               rowDate.getDate() === yesterday.getDate() && 
+               rowDate.getMonth() === yesterday.getMonth() &&
+               rowDate.getFullYear() === yesterday.getFullYear();
+      });
+      expect(chatCompletionYesterday?.count_count).toBe("1"); // 1 chat-completion trace yesterday
+
+      // Check embeddings counts by day
+      const embeddingsToday = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        const today = new Date(now);
+        return row.name === "embeddings" &&
+               rowDate.getDate() === today.getDate() && 
+               rowDate.getMonth() === today.getMonth() &&
+               rowDate.getFullYear() === today.getFullYear();
+      });
+      expect(embeddingsToday?.count_count).toBe("1"); // 1 embeddings trace today
+
+      const embeddingsYesterday = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return row.name === "embeddings" &&
+               rowDate.getDate() === yesterday.getDate() && 
+               rowDate.getMonth() === yesterday.getMonth() &&
+               rowDate.getFullYear() === yesterday.getFullYear();
+      });
+      expect(embeddingsYesterday?.count_count).toBe("1"); // 1 embeddings trace yesterday
+
+      const embeddingsDayBefore = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        const dayBefore = new Date(now);
+        dayBefore.setDate(dayBefore.getDate() - 2);
+        return row.name === "embeddings" &&
+               rowDate.getDate() === dayBefore.getDate() && 
+               rowDate.getMonth() === dayBefore.getMonth() &&
+               rowDate.getFullYear() === dayBefore.getFullYear();
+      });
+      expect(embeddingsDayBefore?.count_count).toBe("1"); // 1 embeddings trace day before yesterday
+    });
+
+    it("should use minute granularity with auto time dimension for one-hour timespan", async () => {
+      // Setup
+      const projectId = randomUUID();
+      
+      // Create base timestamp for testing
+      const baseTime = new Date("2023-01-01T12:00:00Z");
+      
+      // Create traces at different minutes within a single hour
+      const traces = [];
+      
+      // Traces at 12:10
+      const time1 = new Date(baseTime);
+      time1.setMinutes(10);
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "chat-completion",
+        environment: "default",
+        timestamp: time1.getTime(),
+      }));
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "chat-completion",
+        environment: "default",
+        timestamp: time1.getTime(),
+      }));
+      
+      // Traces at 12:20
+      const time2 = new Date(baseTime);
+      time2.setMinutes(20);
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "chat-completion",
+        environment: "default",
+        timestamp: time2.getTime(),
+      }));
+      
+      // Traces at 12:30
+      const time3 = new Date(baseTime);
+      time3.setMinutes(30);
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "embeddings",
+        environment: "default",
+        timestamp: time3.getTime(),
+      }));
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "embeddings",
+        environment: "default",
+        timestamp: time3.getTime(),
+      }));
+      
+      // Traces at 12:45
+      const time4 = new Date(baseTime);
+      time4.setMinutes(45);
+      traces.push(createTrace({
+        project_id: projectId,
+        name: "embeddings",
+        environment: "default",
+        timestamp: time4.getTime(),
+      }));
+      
+      await createTracesCh(traces);
+
+      // Define query with auto time dimension - one hour timespan
+      const fromTime = new Date(baseTime);
+      fromTime.setMinutes(0);
+      const toTime = new Date(baseTime);
+      toTime.setMinutes(59);
+      
+      const query: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: {
+          granularity: "auto", // Should automatically pick minute granularity
+        },
+        fromTimestamp: fromTime.toISOString(),
+        toTimestamp: toTime.toISOString(),
+        page: 0,
+        limit: 50,
+      };
+
+      // Execute query
+      const queryBuilder = new QueryBuilder(clickhouseClient());
+      const { query: compiledQuery, parameters } = queryBuilder.build(
+        query,
+        projectId,
+      );
+      
+      // First verify that we're using minute granularity in our SQL
+      expect(compiledQuery).toContain("toStartOfMinute");
+      
+      const result = await (
+        await clickhouseClient().query({
+          query: compiledQuery,
+          query_params: parameters,
+        })
+      ).json();
+
+      // Assert - should have 4 time buckets with different counts
+      expect(result.data).toHaveLength(4);
+      
+      // Check chat-completion counts by minute
+      const chatCompletion10 = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        return row.name === "chat-completion" && rowDate.getMinutes() === 10;
+      });
+      expect(chatCompletion10?.count_count).toBe("2"); // 2 traces at 12:10
+      
+      const chatCompletion20 = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        return row.name === "chat-completion" && rowDate.getMinutes() === 20;
+      });
+      expect(chatCompletion20?.count_count).toBe("1"); // 1 trace at 12:20
+      
+      // Check embeddings counts by minute
+      const embeddings30 = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        return row.name === "embeddings" && rowDate.getMinutes() === 30;
+      });
+      expect(embeddings30?.count_count).toBe("2"); // 2 traces at 12:30
+      
+      const embeddings45 = result.data.find((row: any) => {
+        const rowDate = new Date(row.time_dimension);
+        return row.name === "embeddings" && rowDate.getMinutes() === 45;
+      });
+      expect(embeddings45?.count_count).toBe("1"); // 1 trace at 12:45
     });
   });
 });

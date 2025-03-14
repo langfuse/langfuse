@@ -288,10 +288,63 @@ export class QueryBuilder {
       .join(" AND\n")}`;
   }
 
-  private buildInnerDimensionsPart(appliedDimensions: any[]) {
-    return appliedDimensions.length > 0
-      ? `${appliedDimensions.map((dimension) => `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},`
-      : "";
+  private determineTimeGranularity(fromTimestamp: string, toTimestamp: string): string {
+    const from = new Date(fromTimestamp);
+    const to = new Date(toTimestamp);
+    const diffMs = to.getTime() - from.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    
+    // Choose appropriate granularity based on date range to get ~50 buckets
+    if (diffDays < 1) {
+      return "minute"; // Less than a day, use minutes
+    } else if (diffDays < 3) {
+      return "hour"; // 1-3 days, use hours
+    } else if (diffDays < 60) {
+      return "day"; // 3-60 days, use days
+    } else if (diffDays < 365) {
+      return "week"; // 2-12 months, use weeks
+    } else {
+      return "month"; // Over a year, use months
+    }
+  }
+
+  private getTimeDimensionSql(timeDimension: string, granularity: string): string {
+    switch (granularity) {
+      case "minute":
+        return `toStartOfMinute(${timeDimension})`;
+      case "hour":
+        return `toStartOfHour(${timeDimension})`;
+      case "day":
+        return `toDate(${timeDimension})`;
+      case "week":
+        return `toMonday(${timeDimension})`;
+      case "month":
+        return `toStartOfMonth(${timeDimension})`;
+      default:
+        return timeDimension;
+    }
+  }
+
+  private buildInnerDimensionsPart(appliedDimensions: any[], query: QueryType, view: ViewDeclarationType) {
+    let dimensions = "";
+    
+    // Add regular dimensions
+    if (appliedDimensions.length > 0) {
+      dimensions += `${appliedDimensions.map((dimension) => 
+        `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},`;
+    }
+    
+    // Add time dimension if specified
+    if (query.timeDimension) {
+      const granularity = query.timeDimension.granularity === "auto" 
+        ? this.determineTimeGranularity(query.fromTimestamp, query.toTimestamp)
+        : query.timeDimension.granularity;
+      
+      const timeDimensionSql = this.getTimeDimensionSql(view.timeDimension, granularity);
+      dimensions += `any(${timeDimensionSql}) as time_dimension,`;
+    }
+    
+    return dimensions;
   }
 
   private buildInnerMetricsPart(appliedMetrics: any[]) {
@@ -316,10 +369,21 @@ export class QueryBuilder {
       GROUP BY ${view.baseCte}.project_id, ${view.baseCte}.id`;
   }
 
-  private buildOuterDimensionsPart(appliedDimensions: any[]) {
-    return appliedDimensions.length > 0
-      ? `${appliedDimensions.map((dimension) => `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},`
-      : "";
+  private buildOuterDimensionsPart(appliedDimensions: any[], hasTimeDimension: boolean) {
+    let dimensions = "";
+    
+    // Add regular dimensions
+    if (appliedDimensions.length > 0) {
+      dimensions += `${appliedDimensions.map((dimension) => 
+        `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},`;
+    }
+    
+    // Add time dimension if it exists
+    if (hasTimeDimension) {
+      dimensions += `time_dimension,`;
+    }
+    
+    return dimensions;
   }
 
   private buildOuterMetricsPart(appliedMetrics: any[]) {
@@ -328,9 +392,21 @@ export class QueryBuilder {
       : "count(*) as count";
   }
 
-  private buildGroupByClause(appliedDimensions: any[]) {
-    return appliedDimensions.length > 0
-      ? `GROUP BY ${appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql).join(",\n")}`
+  private buildGroupByClause(appliedDimensions: any[], hasTimeDimension: boolean) {
+    const dimensions = [];
+    
+    // Add regular dimensions
+    if (appliedDimensions.length > 0) {
+      dimensions.push(...appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql));
+    }
+    
+    // Add time dimension if it exists
+    if (hasTimeDimension) {
+      dimensions.push("time_dimension");
+    }
+    
+    return dimensions.length > 0
+      ? `GROUP BY ${dimensions.join(",\n")}`
       : "";
   }
 
@@ -417,7 +493,7 @@ export class QueryBuilder {
 
     // Build inner SELECT parts
     const innerDimensionsPart =
-      this.buildInnerDimensionsPart(appliedDimensions);
+      this.buildInnerDimensionsPart(appliedDimensions, query, view);
     const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
     // Build inner SELECT
@@ -430,9 +506,9 @@ export class QueryBuilder {
 
     // Build outer SELECT parts
     const outerDimensionsPart =
-      this.buildOuterDimensionsPart(appliedDimensions);
+      this.buildOuterDimensionsPart(appliedDimensions, !!query.timeDimension);
     const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
-    const groupByClause = this.buildGroupByClause(appliedDimensions);
+    const groupByClause = this.buildGroupByClause(appliedDimensions, !!query.timeDimension);
 
     // Build final query
     const sql = this.buildOuterSelect(
