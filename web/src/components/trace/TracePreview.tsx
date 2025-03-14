@@ -165,6 +165,9 @@ export const TracePreview = ({
                   <Badge>User ID: {trace.userId}</Badge>
                 </Link>
               ) : null}
+              {trace.environment ? (
+                <Badge variant="tertiary">Env: {trace.environment}</Badge>
+              ) : null}
 
               {viewType === "detailed" && (
                 <>
