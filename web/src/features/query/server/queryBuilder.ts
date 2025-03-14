@@ -1,10 +1,10 @@
+import { type z } from "zod";
 import {
   type ClickhouseClientType,
   convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
-import { type QueryType } from "./types";
+import { type QueryType, type ViewDeclarationType, type views } from "./types";
 import { viewDeclarations } from "@/src/features/query/server/dataModel";
-import { type ViewDeclarationType } from "./types";
 
 export class QueryBuilder {
   constructor(private clickhouseClient: ClickhouseClientType) {}
@@ -67,7 +67,9 @@ export class QueryBuilder {
     }
   }
 
-  private getViewDeclaration(viewName: string): ViewDeclarationType {
+  private getViewDeclaration(
+    viewName: z.infer<typeof views>,
+  ): ViewDeclarationType {
     if (!(viewName in viewDeclarations)) {
       throw new Error(
         `Invalid view. Must be one of ${Object.keys(viewDeclarations)}`,
@@ -241,17 +243,47 @@ export class QueryBuilder {
     return relationJoins;
   }
 
-  private buildWhereClause(appliedFilters: any[]) {
+  private buildWhereClause(
+    appliedFilters: any[],
+    parameters: Record<string, unknown>,
+  ) {
     if (appliedFilters.length === 0) return "";
+
+    // Create a counter for each field to ensure unique parameter names
+    const fieldCounters: Record<string, number> = {};
 
     return ` WHERE ${appliedFilters
       .map((filter) => {
-        // Add quotes for string values, but not for numbers
-        const valueStr =
-          filter.type === "number" ? filter.value : `'${filter.value}'`;
         const columnRef = `${filter.table}.${filter.sql}`;
-        // TODO: Prevent SQL injection by using templates here
-        return `${columnRef} ${this.translateFilterOperator(filter.operator)} ${valueStr}`;
+
+        // Create a deterministic parameter name using the field name and a counter
+        if (!fieldCounters[filter.field]) {
+          fieldCounters[filter.field] = 1;
+        } else {
+          fieldCounters[filter.field]++;
+        }
+
+        const paramName = `filter_${filter.field}_${fieldCounters[filter.field]}`;
+
+        // Set parameter value
+        parameters[paramName] = filter.value;
+
+        // Use parameterized value based on type
+        let paramType: string;
+        switch (filter.type) {
+          case "number":
+            paramType = "Decimal64(5)";
+            break;
+          case "Date":
+            paramType = "DateTime64(3)";
+            break;
+          case "string":
+          default:
+            paramType = "String";
+            break;
+        }
+
+        return `${columnRef} ${this.translateFilterOperator(filter.operator)} {${paramName}: ${paramType}}`;
       })
       .join(" AND\n")}`;
   }
@@ -338,7 +370,13 @@ export class QueryBuilder {
    * ```
    * For the initial setup, we ignore sorting and pagination.
    */
-  public build(query: QueryType, projectId: string): string {
+  public build(
+    query: QueryType,
+    projectId: string,
+  ): { query: string; parameters: Record<string, unknown> } {
+    // Initialize parameters object
+    const parameters: Record<string, unknown> = {};
+
     // Get view declaration
     const view = this.getViewDeclaration(query.view);
 
@@ -374,9 +412,8 @@ export class QueryBuilder {
       fromClause += ` ${relationJoins.join(" ")}`;
     }
 
-    // Build WHERE clause
-    const whereClause = this.buildWhereClause(appliedFilters);
-    fromClause += whereClause;
+    // Build WHERE clause with parameters
+    fromClause += this.buildWhereClause(appliedFilters, parameters);
 
     // Build inner SELECT parts
     const innerDimensionsPart =
@@ -398,11 +435,16 @@ export class QueryBuilder {
     const groupByClause = this.buildGroupByClause(appliedDimensions);
 
     // Build final query
-    return this.buildOuterSelect(
+    const sql = this.buildOuterSelect(
       outerDimensionsPart,
       outerMetricsPart,
       innerQuery,
       groupByClause,
     );
+
+    return {
+      query: sql,
+      parameters,
+    };
   }
 }

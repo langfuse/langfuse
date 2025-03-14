@@ -79,12 +79,16 @@ describe("queryBuilder", () => {
     async (_name, query: QueryType) => {
       // When
       const queryBuilder = new QueryBuilder(clickhouseClient());
-      const compiledQuery = queryBuilder.build(query, projectId);
+      const { query: compiledQuery, parameters } = queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Then
       const result = await (
         await clickhouseClient().query({
           query: compiledQuery,
+          query_params: parameters,
         })
       ).json();
       expect(result).toBeDefined();
