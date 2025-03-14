@@ -173,28 +173,58 @@ export class QueryBuilder {
     }
 
     // Create the where condition
-    if (query.filters.length > 0) {
+    if (appliedFilters.length > 0) {
       // TODO: Prevent SQL injection by using templates here
       sqlQuery += ` WHERE ${appliedFilters.map((filter) => `${filter.sql} ${this.translateFilterOperator(filter.operator)} '${filter.value}'`).join(" AND\n")}`;
     }
+
+    // Generate the inner SELECT clause dimensions part
+    const innerDimensionsPart =
+      appliedDimensions.length > 0
+        ? `${appliedDimensions.map((dimension) => `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},`
+        : "";
+
+    // Generate the inner SELECT clause metrics part
+    const innerMetricsPart =
+      appliedMetrics.length > 0
+        ? `${appliedMetrics.map((metric) => `${metric.sql} as ${metric.alias || metric.sql}`).join(",\n")}`
+        : "count(*) as count";
 
     // Now on to the inner SELECT clause
     sqlQuery = `
       SELECT
         ${view.baseCte}.project_id,
         ${view.baseCte}.id,
-        ${appliedDimensions.map((dimension) => `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`).join(",\n")},
-        ${appliedMetrics.map((metric) => `${metric.sql} as ${metric.alias || metric.sql}`).join(",\n")}
+        ${innerDimensionsPart}
+        ${innerMetricsPart}
         ${sqlQuery}
       GROUP BY ${view.baseCte}.project_id, ${view.baseCte}.id`;
+
+    // Generate the outer SELECT clause dimensions part
+    const outerDimensionsPart =
+      appliedDimensions.length > 0
+        ? `${appliedDimensions.map((dimension) => `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},`
+        : "";
+
+    // Generate the outer SELECT clause metrics part
+    const outerMetricsPart =
+      appliedMetrics.length > 0
+        ? `${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}`
+        : "count(*) as count";
+
+    // Generate the GROUP BY clause
+    const groupByClause =
+      appliedDimensions.length > 0
+        ? `GROUP BY ${appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql).join(",\n")}`
+        : "";
 
     // With this, we can construct the outer select clause
     sqlQuery = `
       SELECT
-        ${appliedDimensions.map((dimension) => `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`).join(",\n")},
-        ${appliedMetrics.map((metric) => `${this.translateAggregation(metric.aggregation)}(${metric.alias || metric.sql}) as ${metric.aggregation}_${metric.alias || metric.sql}`).join(",\n")}
+        ${outerDimensionsPart}
+        ${outerMetricsPart}
       FROM (${sqlQuery})
-      GROUP BY ${appliedDimensions.map((dimension) => dimension.alias ?? dimension.sql).join(",\n")}`;
+      ${groupByClause}`;
 
     return sqlQuery;
   }

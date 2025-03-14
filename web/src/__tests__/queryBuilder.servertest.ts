@@ -27,6 +27,45 @@ describe("queryBuilder", () => {
         limit: 50,
       } as QueryType,
     ],
+    [
+      "trace query without dimensions",
+      {
+        view: "traces",
+        dimensions: [],
+        metrics: [
+          { measure: "count", aggregation: "count" },
+          { measure: "observationsCount", aggregation: "p95" },
+        ],
+        filters: [],
+        timeDimension: null,
+        page: 0,
+        limit: 50,
+      } as QueryType,
+    ],
+    [
+      "trace query without metrics",
+      {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [],
+        filters: [],
+        timeDimension: null,
+        page: 0,
+        limit: 50,
+      } as QueryType,
+    ],
+    [
+      "trace query without filters",
+      {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [],
+        filters: [],
+        timeDimension: null,
+        page: 0,
+        limit: 50,
+      } as QueryType,
+    ],
   ])(
     "should compile query to valid SQL: (%s)",
     async (_name, query: QueryType) => {
