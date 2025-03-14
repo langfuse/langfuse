@@ -253,8 +253,8 @@ const getPlanBasedRateLimitConfig = (
             durationInSec: 86400, // 10 requests per day
           };
         default:
-          const exhaustiveCheckDefault: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckDefault}`);
+          const exhaustiveCheck: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     case "cloud:core":
       switch (resource) {
@@ -289,8 +289,8 @@ const getPlanBasedRateLimitConfig = (
             durationInSec: 86400, // 20 requests per day
           };
         default:
-          const exhaustiveCheckStarter: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckStarter}`);
+          const exhaustiveCheck: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     case "cloud:pro":
     case "cloud:team":
@@ -327,8 +327,8 @@ const getPlanBasedRateLimitConfig = (
             durationInSec: 86400, // 200 requests per day
           };
         default:
-          const exhaustiveCheckPro: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckPro}`);
+          const exhaustiveCheck: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     default:
       const exhaustiveCheck: never = plan;

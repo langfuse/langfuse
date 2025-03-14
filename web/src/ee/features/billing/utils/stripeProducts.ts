@@ -69,8 +69,7 @@ export const stripeProducts: StripeProduct[] = [
     mappedPlan: "cloud:team",
     checkout: {
       title: "Team",
-      description:
-        "Organizational controls and dedicated support for larger teams.",
+      description: "Organizational and security controls for larger teams.",
       price: "$499 / month",
       usagePrice: "$8/100k events (100k included)",
       mainFeatures: [

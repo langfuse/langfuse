@@ -106,6 +106,7 @@ export const entitlementAccess: Record<
       "rbac-project-roles",
       "audit-logs",
       "data-retention",
+      "cloud-multi-tenant-sso",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,
