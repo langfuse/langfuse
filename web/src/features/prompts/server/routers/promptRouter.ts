@@ -938,7 +938,9 @@ export const promptRouter = createTRPCRouter({
         },
       });
 
-      return new PromptService(prisma, redis).buildAndResolvePromptGraph({
+      const promptService = new PromptService(prisma, redis);
+
+      return promptService.buildAndResolvePromptGraph({
         projectId: input.projectId,
         parentPrompt: prompt,
       });
