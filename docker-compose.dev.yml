@@ -10,8 +10,8 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - 127.0.0.1:8123:8123
+      - 127.0.0.1:9000:9000
     depends_on:
       - postgres
 
@@ -24,8 +24,8 @@ services:
       MINIO_ACCESS_KEY: minio
       MINIO_SECRET_KEY: miniosecret
     ports:
-      - "9090:9000"
-      - "9091:9001"
+      - 127.0.0.1:9090:9000
+      - 127.0.0.1:9091:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -41,7 +41,7 @@ services:
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
     ports:
-      - 6379:6379
+      - 127.0.0.1:6379:6379
 
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
@@ -57,7 +57,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=postgres
     ports:
-      - 5432:5432
+      - 127.0.0.1:5432:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 
