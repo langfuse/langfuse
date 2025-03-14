@@ -243,6 +243,7 @@ export async function fetchLLMCompletion(
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
+      streamUsage: false,
       callbacks: finalCallbacks,
       maxRetries,
       configuration: {
