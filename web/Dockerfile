@@ -97,6 +97,8 @@ WORKDIR /app
 
 ARG NEXT_PUBLIC_BUILD_ID
 ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 
 ENV NODE_ENV production
 # Uncomment the following line in case you want to disable telemetry during runtime.
@@ -115,7 +117,12 @@ RUN addgroup --system --gid ${GID} nodejs
 RUN adduser --system --uid ${UID} nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma@6.3.0
-RUN npm install dd-trace
+
+# Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
+        npm install --no-package-lock --no-save dd-trace; \
+    fi
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
     wget -q -O- https://github.com/golang-migrate/migrate/releases/download/v4.18.2/migrate.$MIGRATE_TARGET_ARCH.tar.gz | tar xvz && \
@@ -142,9 +149,11 @@ USER nextjs
 # Default port to 3000
 ENV PORT 3000
 
-ENV DD_PROFILING_ENABLED=true
-
 ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
 
-# startup command
-CMD ["node", "--import", "dd-trace/initialize.mjs", "./web/server.js", "--keepAliveTimeout", "110000"]
+# startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
+CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
+      node --import dd-trace/initialize.mjs ./web/server.js --keepAliveTimeout 110000; \
+    else \
+      node ./web/server.js --keepAliveTimeout 110000; \
+    fi
