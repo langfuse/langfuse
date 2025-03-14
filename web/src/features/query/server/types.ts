@@ -85,20 +85,26 @@ export const filter = z.object({
 
 export type QueryType = z.infer<typeof query>;
 
-export const query = z.object({
-  view: views,
-  dimensions: z.array(dimension),
-  metrics: z.array(metric),
-  filters: z.array(filter),
-  timeDimension: z
-    .object({
-      // TODO: We may want to extend this and allow custom intervals like 3h in the future.
-      // auto tries to bin the data into approximately 50 buckets given the time range
-      granularity: z.enum(["auto", "minute", "hour", "day", "week"]),
-    })
-    .nullable(),
-  fromTimestamp: stringDateTime,
-  toTimestamp: stringDateTime,
-  limit: z.number().int().positive().default(50),
-  page: z.number().int().positive().default(0),
-});
+export const query = z
+  .object({
+    view: views,
+    dimensions: z.array(dimension),
+    metrics: z.array(metric),
+    filters: z.array(filter),
+    timeDimension: z
+      .object({
+        // TODO: We may want to extend this and allow custom intervals like 3h in the future.
+        // auto tries to bin the data into approximately 50 buckets given the time range
+        granularity: z.enum(["auto", "minute", "hour", "day", "week"]),
+      })
+      .nullable(),
+    fromTimestamp: stringDateTime,
+    toTimestamp: stringDateTime,
+    limit: z.number().int().positive().default(50),
+    page: z.number().int().positive().default(0),
+  })
+  .refine(
+    (query) =>
+      // Ensure fromTimestamp is before toTimestamp
+      new Date(query.fromTimestamp) < new Date(query.toTimestamp),
+  );
