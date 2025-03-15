@@ -54,6 +54,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { renderContentWithPromptButtons } from "@/src/features/prompts/components/renderContentWithPromptButtons";
+import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 
 const getPythonCode = (
   name: string,
@@ -536,23 +537,7 @@ export const PromptDetail = () => {
                 ) : (
                   <JSONView json={prompt.prompt} title="Prompt" />
                 )}
-                {extractedVariables.length > 0 && (
-                  <div className="flex flex-col">
-                    <div className="my-1 flex flex-shrink-0 items-center justify-between pl-1 text-sm font-medium">
-                      Variables
-                    </div>
-                    <div className="flex flex-wrap gap-2 rounded-md">
-                      {extractedVariables.map((variable) => (
-                        <div
-                          key={variable}
-                          className="flex flex-col gap-1 rounded-md border p-2 text-sm"
-                        >
-                          {`{{${variable}}}`}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <PromptVariableListPreview variables={extractedVariables} />
               </div>
             </TabsBarContent>
             <TabsBarContent
