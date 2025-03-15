@@ -14,6 +14,8 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   getObservationCountOfProjectsSinceCreationDate,
+  getScoreCountOfProjectsSinceCreationDate,
+  getTraceCountOfProjectsSinceCreationDate,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -420,21 +422,30 @@ export const cloudBillingRouter = createTRPCRouter({
         }
       }
 
-      // Free plan, usage not tracked on Stripe
+      // Free plan, usage not tracked on Stripe, get usage from Clickhouse
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       thirtyDaysAgo.setHours(0, 0, 0, 0);
       const projectIds = organization.projects.map((p) => p.id);
 
-      const countObservations =
-        await getObservationCountOfProjectsSinceCreationDate({
+      const [countTraces, countObservations, countScores] = await Promise.all([
+        getTraceCountOfProjectsSinceCreationDate({
           projectIds,
           start: thirtyDaysAgo,
-        });
+        }),
+        getObservationCountOfProjectsSinceCreationDate({
+          projectIds,
+          start: thirtyDaysAgo,
+        }),
+        getScoreCountOfProjectsSinceCreationDate({
+          projectIds,
+          start: thirtyDaysAgo,
+        }),
+      ]);
 
       return {
-        usageCount: countObservations,
-        usageType: "observations",
+        usageCount: countTraces + countObservations + countScores,
+        usageType: "events",
       };
     }),
 });

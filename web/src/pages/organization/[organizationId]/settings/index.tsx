@@ -9,8 +9,10 @@ import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
+import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
 type OrganizationSettingsPage = {
@@ -23,21 +25,26 @@ type OrganizationSettingsPage = {
 export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const { organization } = useQueryProjectOrOrganization();
   const showBillingSettings = useHasEntitlement("cloud-billing");
+  const plan = usePlan();
+  const isLangfuseCloud = isCloudPlan(plan) ?? false;
 
   if (!organization) return [];
 
   return getOrganizationSettingsPages({
     organization,
     showBillingSettings,
+    isLangfuseCloud,
   });
 }
 
 export const getOrganizationSettingsPages = ({
   organization,
   showBillingSettings,
+  isLangfuseCloud,
 }: {
   organization: { id: string; name: string };
   showBillingSettings: boolean;
+  isLangfuseCloud: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
@@ -88,6 +95,13 @@ export const getOrganizationSettingsPages = ({
     cmdKKeywords: ["payment", "subscription", "plan", "invoice"],
     content: <BillingSettings />,
     show: showBillingSettings,
+  },
+  {
+    title: "SSO",
+    slug: "sso",
+    cmdKKeywords: ["sso", "login", "auth", "okta", "saml", "azure"],
+    content: <SSOSettings />,
+    show: isLangfuseCloud,
   },
   {
     title: "Projects",

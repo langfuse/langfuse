@@ -9,11 +9,34 @@ type StripeProduct = {
     title: string;
     description: string;
     price: string;
+    usagePrice: string;
+    mainFeatures: string[];
   } | null;
 };
 
 // map of planid to plan name
 export const stripeProducts: StripeProduct[] = [
+  {
+    stripeProductId:
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
+        ? "prod_RoBuRrXjIUBIJ8" // test
+        : "prod_RoYirvRQ4Kc6po", // live
+    mappedPlan: "cloud:core",
+    checkout: {
+      title: "Core",
+      description:
+        "Great to get started for most projects with unlimited users and 90 days data access.",
+      price: "$59 / month",
+      usagePrice: "$8/100k events (100k included)",
+      mainFeatures: [
+        "90 days data access",
+        "Unlimited users",
+        "Unlimited evaluators",
+        "Support via Email/Chat",
+      ],
+    },
+  },
   {
     stripeProductId:
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV" ||
@@ -24,8 +47,17 @@ export const stripeProducts: StripeProduct[] = [
     checkout: {
       title: "Pro",
       description:
-        "For serious projects. Includes access to full history, higher usage and access to features.",
-      price: "$59 / month + $10/100k observations",
+        "For projects that scale and need unlimited data access, high rate limits, and Slack support.",
+      price: "$199 / month",
+      usagePrice: "$8/100k events (100k included)",
+      mainFeatures: [
+        "Everything in Core",
+        "Unlimited data access",
+        "Unlimited annotation queues",
+        "High rate limits",
+        "SOC2, ISO27001 reports",
+        "Support via Slack",
+      ],
     },
   },
   {
@@ -37,9 +69,16 @@ export const stripeProducts: StripeProduct[] = [
     mappedPlan: "cloud:team",
     checkout: {
       title: "Team",
-      description:
-        "Dedicated solutions and support for your team. Contact us for additional add-ons listed on the pricing page.",
-      price: "$499 / month + $10/100k observations",
+      description: "Organizational and security controls for larger teams.",
+      price: "$499 / month",
+      usagePrice: "$8/100k events (100k included)",
+      mainFeatures: [
+        "Everything in Pro",
+        "Enterprise SSO (e.g. Okta)",
+        "SSO enforcement",
+        "Fine-grained RBAC",
+        "Data retention management",
+      ],
     },
   },
 ];
