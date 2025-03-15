@@ -4,7 +4,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { MessageCircleMore } from "lucide-react";
+import { MessageCircleMoreIcon } from "lucide-react";
 
 import { type APIScore, type LastUserScore } from "@langfuse/shared";
 
@@ -30,7 +30,7 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
           <Badge
             variant="tertiary"
             key={name}
-            className="flex flex-row gap-1 px-1 font-normal"
+            className="flex items-center gap-1 px-2.5 text-xs font-normal"
           >
             <div className="w-fit max-w-20 truncate" title={name}>
               {name}:
@@ -39,13 +39,13 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
               {scores.map((s, i) => (
                 <span
                   key={i}
-                  className="group/score ml-1 flex items-center gap-0.5 rounded-sm font-medium first:ml-0"
+                  className="group/score ml-1 flex items-center gap-1 rounded-sm first:ml-0"
                 >
                   {s.stringValue ?? s.value?.toFixed(2) ?? ""}
                   {s.comment && (
                     <HoverCard>
-                      <HoverCardTrigger className="mb-1 inline-block cursor-pointer">
-                        <MessageCircleMore size={12} />
+                      <HoverCardTrigger className="inline-block">
+                        <MessageCircleMoreIcon className="mb-[0.0625rem] !size-3" />
                       </HoverCardTrigger>
                       <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
                         <p>{s.comment}</p>
