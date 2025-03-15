@@ -33,6 +33,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
+import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
+import {
+  type QueryType,
+  query as customQuery,
+} from "@/src/features/query/server/types";
+import { clickhouseClient } from "@langfuse/shared/src/server";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -271,6 +277,16 @@ export const dashboardRouter = createTRPCRouter({
       );
       return createHistogramData(data);
     }),
+  executeQuery: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        query: customQuery,
+      }),
+    )
+    .query(async ({ input }) => {
+      return executeQuery(input.projectId, input.query as QueryType);
+    }),
 });
 
 const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
@@ -281,3 +297,42 @@ const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
   });
   return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
 };
+
+/**
+ * Execute a query using the QueryBuilder.
+ *
+ * @param projectId - The project ID
+ * @param query - The query configuration as defined in QueryType
+ * @returns The query result data
+ */
+export async function executeQuery(
+  projectId: string,
+  query: QueryType,
+): Promise<unknown> {
+  try {
+    // Initialize query builder with ClickHouse client
+    const queryBuilder = new QueryBuilder(clickhouseClient());
+
+    // Build the query
+    const { query: compiledQuery, parameters } = queryBuilder.build(
+      query,
+      projectId,
+    );
+
+    // Execute the query
+    const result = await clickhouseClient().query({
+      query: compiledQuery,
+      query_params: parameters,
+    });
+
+    // Return the result
+    return result.json();
+  } catch (error) {
+    logger.error("Error executing query", { error, projectId, query });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to execute query",
+      cause: error,
+    });
+  }
+}
