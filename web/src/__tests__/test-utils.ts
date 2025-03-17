@@ -80,12 +80,15 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   };
   const response = await fetch(finalUrl, options);
 
+  // Clone the response before attempting to parse JSON
+  const clonedResponse = response.clone();
+
   try {
     const responseBody = (await response.json()) as T;
     return { body: responseBody, status: response.status };
   } catch (error) {
-    // Handle JSON parsing errors
-    const responseText = await response.text();
+    // Handle JSON parsing errors using the cloned response
+    const responseText = await clonedResponse.text();
     throw new Error(
       `Failed to parse JSON response: ${error instanceof Error ? error.message : String(error)}. Response status: ${response.status}. Response text: ${responseText}`,
     );
