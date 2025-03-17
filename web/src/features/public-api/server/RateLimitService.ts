@@ -243,7 +243,7 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 10,
+            points: 20,
             durationInSec: 60,
           };
         case "public-api-metrics":
