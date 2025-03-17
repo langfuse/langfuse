@@ -29,6 +29,8 @@ import {
 } from "@/src/components/ui/popover";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
+import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -248,8 +250,10 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={<CreateScoreConfigButton projectId={projectId} />}
+        className="px-0"
       />
-      <Card className="mb-4 flex max-h-[60dvh] flex-col overflow-hidden">
+      <SettingsTableCard>
         <DataTable
           columns={columns}
           data={
@@ -294,7 +298,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           paginationClassName="-mx-2 mb-2"
           isBorderless
         />
-      </Card>
+      </SettingsTableCard>
     </>
   );
 }

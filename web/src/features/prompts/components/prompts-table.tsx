@@ -1,4 +1,3 @@
-import { PlusIcon } from "lucide-react";
 import { useEffect } from "react";
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
@@ -16,12 +15,9 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { promptsTableColsWithOptions } from "@/src/server/api/definitions/promptsTable";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { createColumnHelper } from "@tanstack/react-table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { ActionButton } from "@/src/components/ActionButton";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type PromptTableRow = {
@@ -125,10 +121,7 @@ export function PromptTable() {
   );
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
   const allTags = filterOptionTags.map((t) => t.value);
-  const capture = usePostHogClientCapture();
   const totalCount = prompts.data?.totalCount ?? null;
-
-  const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
 
   useEffect(() => {
     if (prompts.isSuccess) {

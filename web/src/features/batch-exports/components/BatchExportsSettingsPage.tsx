@@ -1,5 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Card } from "@/src/components/ui/card";
 import { BatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -19,7 +20,9 @@ export function BatchExportsSettingsPage(props: { projectId: string }) {
         notification once your export is ready.
       </p>
       {hasAccess ? (
-        <BatchExportsTable projectId={props.projectId} />
+        <Card className="mb-4 flex max-h-[60dvh] flex-col overflow-hidden [&>:first-child>:first-child]:border-t-0">
+          <BatchExportsTable projectId={props.projectId} />
+        </Card>
       ) : (
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>

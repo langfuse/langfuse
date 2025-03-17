@@ -60,7 +60,6 @@ export function TablePeekView<TData>({
 
                   // Update timestamp if it exists in entry.params
                   if (entry.params) {
-                    console.log("entry.params", entry.params);
                     if (entry.params.timestamp)
                       params.set(
                         "timestamp",

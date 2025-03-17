@@ -13,7 +13,6 @@ import {
 } from "@/src/components/ui/sheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Separator } from "@/src/components/ui/separator";
-import { BooleanParam, withDefault } from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
 
 const SidePanelContext = React.createContext<{
@@ -39,7 +38,6 @@ const SidePanel = ({
   );
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useIsMobile();
-  console.log({ isMobile });
 
   const contextValue = React.useMemo(
     () => ({

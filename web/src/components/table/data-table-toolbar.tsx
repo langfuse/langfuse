@@ -24,6 +24,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { cn } from "@/src/utils/tailwind";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -68,6 +69,7 @@ interface DataTableToolbarProps<TData, TValue> {
     onValueChange: (values: string[]) => void;
     options: { value: string }[];
   };
+  className?: string;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -88,6 +90,7 @@ export function DataTableToolbar<TData, TValue>({
   setDateRangeAndOption,
   multiSelect,
   environmentFilter,
+  className,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -95,7 +98,7 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
 
   return (
-    <div className="grid h-fit w-full gap-0 px-2">
+    <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
           <div className="flex max-w-md items-center rounded-md border">

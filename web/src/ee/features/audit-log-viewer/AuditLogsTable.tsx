@@ -12,6 +12,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type RouterOutputs } from "@/src/utils/api";
+import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
 
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
 
@@ -122,31 +123,34 @@ export function AuditLogsTable(props: { projectId: string }) {
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        className="px-0"
       />
-      <DataTable
-        columns={columns}
-        data={
-          auditLogs.isLoading
-            ? { isLoading: true, isError: false }
-            : auditLogs.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: auditLogs.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: auditLogs.data.data,
-                }
-        }
-        pagination={{
-          totalCount: auditLogs.data?.totalCount ?? 0,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        rowHeight={rowHeight}
-      />
+      <SettingsTableCard>
+        <DataTable
+          columns={columns}
+          data={
+            auditLogs.isLoading
+              ? { isLoading: true, isError: false }
+              : auditLogs.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: auditLogs.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: auditLogs.data.data,
+                  }
+          }
+          pagination={{
+            totalCount: auditLogs.data?.totalCount ?? 0,
+            onChange: setPaginationState,
+            state: paginationState,
+          }}
+          rowHeight={rowHeight}
+        />
+      </SettingsTableCard>
     </>
   );
 }

@@ -1,7 +1,6 @@
 import React from "react";
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
 import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
@@ -15,7 +14,7 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
   return (
     <div id="score-configs">
       <Header title="Score Configs" />
-      <p className="mb-4 text-sm">
+      <p className="mb-2 text-sm">
         Score configs define which scores are available for{" "}
         <a
           href="https://langfuse.com/docs/scores/manually"
@@ -28,7 +27,6 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
         in your project. Please note that all score configs are immutable.
       </p>
       <ScoreConfigsTable projectId={projectId} />
-      <CreateScoreConfigButton projectId={projectId} />
     </div>
   );
 }

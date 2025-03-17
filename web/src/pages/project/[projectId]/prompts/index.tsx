@@ -7,6 +7,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { PromptsOnboarding } from "@/src/components/onboarding/PromptsOnboarding";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 
 export default function Prompts() {
   const router = useRouter();
@@ -16,9 +17,22 @@ export default function Prompts() {
     projectId,
     scope: "prompts:CUD",
   });
+  const promptLimit = useEntitlementLimit("prompt-management-count-prompts");
 
   // Check if the project has any prompts
   const { data: hasAnyPrompt, isLoading } = api.prompts.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const { data: count } = api.prompts.count.useQuery(
     { projectId },
     {
       enabled: !!projectId,
@@ -47,8 +61,8 @@ export default function Prompts() {
             hasAccess={hasCUDAccess}
             href={`/project/${projectId}/prompts/new`}
             variant="default"
-            // limit={promptLimit}
-            // limitValue={totalCount ?? 0}
+            limit={promptLimit}
+            limitValue={Number(count?.totalCount ?? 0)}
             onClick={() => {
               capture("prompts:new_form_open");
             }}

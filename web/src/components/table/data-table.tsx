@@ -1,7 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, { useState, useMemo } from "react";
-
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -123,7 +122,6 @@ export function DataTable<TData extends object, TValue>({
   peekView,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [selectedRow, setSelectedRow] = useState<TData | undefined>();
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -142,7 +140,6 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const handleOnRowClick = (row: TData) => {
-    setSelectedRow(row);
     if (peekView) {
       peekView.onOpenChange(true, row);
     }

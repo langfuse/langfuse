@@ -72,11 +72,12 @@ const calculateColumnCounts = <TData, TValue>(
         );
         acc.count += groupCounts.count;
         acc.total += groupCounts.total;
-      } else if (column.enableHiding) {
+      } else {
         acc.total++;
         if (
-          column.accessorKey in columnVisibility &&
-          columnVisibility[column.accessorKey]
+          (column.accessorKey in columnVisibility &&
+            columnVisibility[column.accessorKey]) ||
+          !column.enableHiding
         ) {
           acc.count++;
         }
