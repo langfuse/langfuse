@@ -219,19 +219,19 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     type: "string",
   },
   traceName: {
-    sql: "traces.name",
+    sql: "name",
     alias: "trace_name",
     type: "string",
     relationTable: "traces",
   },
   userId: {
-    sql: "traces.user_id",
+    sql: "user_id",
     alias: "user_id",
     type: "string",
     relationTable: "traces",
   },
   sessionId: {
-    sql: "traces.session_id",
+    sql: "session_id",
     alias: "session_id",
     type: "string",
     relationTable: "traces",
@@ -241,25 +241,25 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     type: "string",
   },
   observationName: {
-    sql: "observations.name",
+    sql: "name",
     alias: "observation_name",
     type: "string",
     relationTable: "observations",
   },
   observationModelName: {
-    sql: "observations.provided_model_name",
+    sql: "provided_model_name",
     alias: "observation_model_name",
     type: "string",
     relationTable: "observations",
   },
   observationPromptName: {
-    sql: "observations.prompt_name",
+    sql: "prompt_name",
     alias: "observation_prompt_name",
     type: "string",
     relationTable: "observations",
   },
   observationPromptVersion: {
-    sql: "observations.prompt_version",
+    sql: "prompt_version",
     alias: "observation_prompt_version",
     type: "string",
     relationTable: "observations",
@@ -270,7 +270,6 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
 };
 
-// TODO: How do we add the custom filter expression that comes with each of these
 export const scoresNumericView: ViewDeclarationType = {
   name: "scores_numeric",
   dimensions: {
@@ -346,8 +345,9 @@ export const scoresCategoricalView: ViewDeclarationType = {
   segments: [
     {
       field: "data_type",
+      // Here, we want to include everything that is not numeric.
       operator: "ne",
-      value: "CATEGORICAL",
+      value: "NUMERIC",
     },
   ],
   timeDimension: "timestamp",
