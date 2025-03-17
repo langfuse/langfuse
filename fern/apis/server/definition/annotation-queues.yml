@@ -1,0 +1,165 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    listQueues:
+      docs: Get all annotation queues
+      method: GET
+      path: /annotation-queues
+      request:
+        name: GetAnnotationQueuesRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedAnnotationQueues
+
+    getQueue:
+      docs: Get an annotation queue by ID
+      method: GET
+      path: /annotation-queues/{queueId}
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      response: AnnotationQueue
+
+    listQueueItems:
+      docs: Get items for a specific annotation queue
+      method: GET
+      path: /annotation-queues/{queueId}/items
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      request:
+        name: GetAnnotationQueueItemsRequest
+        query-parameters:
+          status:
+            type: optional<AnnotationQueueStatus>
+            docs: Filter by status
+          page:
+            type: optional<integer>
+            docs: page number, starts at 1
+          limit:
+            type: optional<integer>
+            docs: limit of items per page
+      response: PaginatedAnnotationQueueItems
+
+    getQueueItem:
+      docs: Get a specific item from an annotation queue
+      method: GET
+      path: /annotation-queues/{queueId}/items/{itemId}
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+        itemId:
+          type: string
+          docs: The unique identifier of the annotation queue item
+      response: AnnotationQueueItem
+
+    createQueueItem:
+      docs: Add an item to an annotation queue
+      method: POST
+      path: /annotation-queues/{queueId}/items
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      request: CreateAnnotationQueueItemRequest
+      response: AnnotationQueueItem
+
+    updateQueueItem:
+      docs: Update an annotation queue item
+      method: PATCH
+      path: /annotation-queues/{queueId}/items/{itemId}
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+        itemId:
+          type: string
+          docs: The unique identifier of the annotation queue item
+      request: UpdateAnnotationQueueItemRequest
+      response: AnnotationQueueItem
+
+    deleteQueueItem:
+      docs: Remove an item from an annotation queue
+      method: DELETE
+      path: /annotation-queues/{queueId}/items/{itemId}
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+        itemId:
+          type: string
+          docs: The unique identifier of the annotation queue item
+      response: DeleteAnnotationQueueItemResponse
+
+types:
+  AnnotationQueueStatus:
+    enum:
+      - PENDING
+      - COMPLETED
+
+  AnnotationQueueObjectType:
+    enum:
+      - TRACE
+      - OBSERVATION
+
+  AnnotationQueue:
+    properties:
+      id: string
+      name: string
+      description: optional<string>
+      scoreConfigIds: list<string>
+      createdAt: datetime
+      updatedAt: datetime
+
+  AnnotationQueueItem:
+    properties:
+      id: string
+      queueId: string
+      objectId: string
+      objectType: AnnotationQueueObjectType
+      status: AnnotationQueueStatus
+      completedAt: optional<datetime>
+      createdAt: datetime
+      updatedAt: datetime
+
+  PaginatedAnnotationQueues:
+    properties:
+      data: list<AnnotationQueue>
+      meta: pagination.MetaResponse
+
+  PaginatedAnnotationQueueItems:
+    properties:
+      data: list<AnnotationQueueItem>
+      meta: pagination.MetaResponse
+
+  CreateAnnotationQueueItemRequest:
+    properties:
+      objectId: string
+      objectType: AnnotationQueueObjectType
+      status:
+        type: optional<AnnotationQueueStatus>
+        docs: Defaults to PENDING for new queue items
+
+  UpdateAnnotationQueueItemRequest:
+    properties:
+      status:
+        type: optional<AnnotationQueueStatus>
+
+  DeleteAnnotationQueueItemResponse:
+    properties:
+      success: boolean
+      message: string

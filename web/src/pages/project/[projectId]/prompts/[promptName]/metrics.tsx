@@ -408,7 +408,7 @@ export default function PromptVersionTable() {
         ),
         tabsComponent: (
           <TabsBar value="metrics">
-            <TabsBarList className="justify-start">
+            <TabsBarList>
               <TabsBarTrigger value="versions" asChild>
                 <Link
                   href={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}`}

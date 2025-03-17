@@ -345,6 +345,34 @@ describe("Ingestion end-to-end tests", () => {
         output_reasoning_tokens: 4,
       },
     },
+    // OpenAI Response API format
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 5,
+        output_tokens: 11,
+        total_tokens: 16,
+        input_tokens_details: {
+          cached_tokens: 2,
+          audio_tokens: 3,
+        },
+        output_tokens_details: {
+          text_tokens: 3,
+          audio_tokens: 4,
+          reasoning_tokens: 4,
+        },
+      },
+      expectedUsageDetails: {
+        input: 0,
+        output: 0,
+        total: 16,
+        input_cached_tokens: 2,
+        input_audio_tokens: 3,
+        output_text_tokens: 3,
+        output_audio_tokens: 4,
+        output_reasoning_tokens: 4,
+      },
+    },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
       testConfig,

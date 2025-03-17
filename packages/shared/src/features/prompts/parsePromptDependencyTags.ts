@@ -22,7 +22,7 @@ export function parsePromptDependencyTags(
 
   const validTags: ParsedPromptDependencyTag[] = [];
 
-  for (const match of matchedTags ?? []) {
+  for (const match of new Set(matchedTags ?? [])) {
     const innerContent = match.replace(/^@@@langfusePrompt:|@@@$/g, "");
     const parts = innerContent.split("|");
     const params: Record<string, string> = {};
