@@ -30,10 +30,8 @@ describe("selfServeDashboards", () => {
   const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 3600000);
 
   // Time ranges for queries - converted to ClickHouse DateTime format (YYYY-MM-DD HH:MM:SS.SSS)
-  const defaultFromTime = convertDateToClickhouseDateTime(threeDaysAgo);
-  const defaultToTime = convertDateToClickhouseDateTime(
-    new Date(now.getTime() + 3600000),
-  ); // 1 hour in future
+  const defaultFromTime = threeDaysAgo.toISOString();
+  const defaultToTime = new Date(now.getTime() + 3600000).toISOString(); // 1 hour in future
 
   // Test data statistics for verification
   const stats = {
