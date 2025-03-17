@@ -45,7 +45,7 @@ const BaseDateRangeDropdown = <T extends string>({
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
       <SelectTrigger className="w-fit font-medium hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-        <span>Past</span>
+        {selectedOption !== "All time" && <span>Past</span>}
         <SelectValue placeholder="Select" />
       </SelectTrigger>
       <SelectContent position="popper" defaultValue={60}>

@@ -34,11 +34,13 @@ import {
 } from "@tanstack/react-table";
 import { useRouter } from "next/router";
 import { TablePeekView } from "@/src/components/table/peek";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
 
 interface PeekViewProps<TData> {
-  onPeekOpenChange: (open: boolean, row?: TData) => void;
+  itemType: LangfuseItemType;
+  onOpenChange: (open: boolean, row?: TData) => void;
   onExpand: (openInNewTab: boolean) => void;
-  render: () => React.ReactNode;
+  render: (row?: TData) => React.ReactNode;
 }
 
 interface DataTableProps<TData, TValue> {
@@ -121,11 +123,11 @@ export function DataTable<TData extends object, TValue>({
   peekView,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [selectedRow, setSelectedRow] = useState<TData | undefined>();
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const peekViewId = router.query.peek as string | undefined;
-  const isPeekViewOpen = peekViewId !== undefined;
 
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
@@ -140,8 +142,9 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const handleOnRowClick = (row: TData) => {
+    setSelectedRow(row);
     if (peekView) {
-      peekView.onPeekOpenChange(true, row);
+      peekView.onOpenChange(true, row);
     }
     onRowClick?.(row);
   };
@@ -356,12 +359,7 @@ export function DataTable<TData extends object, TValue>({
         <div className="grow"></div>
       </div>
       {peekView && peekViewId && (
-        <TablePeekView
-          selectedRowId={peekViewId}
-          onOpenChange={peekView.onPeekOpenChange}
-          onExpand={peekView.onExpand}
-          render={peekView.render}
-        />
+        <TablePeekView selectedRowId={peekViewId} {...peekView} />
       )}
       {pagination !== undefined ? (
         <div

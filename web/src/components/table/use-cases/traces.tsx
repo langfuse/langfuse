@@ -1,7 +1,6 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -76,6 +75,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Trace } from "@/src/components/trace";
 import router from "next/router";
+import TableId from "@/src/components/table/table-id";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -138,7 +138,6 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
-
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -412,14 +411,9 @@ export default function TracesTable({
       isPinned: true,
       cell: ({ row }) => {
         const value: TracesTableRow["id"] = row.getValue("id");
-        const timestamp: TracesTableRow["timestamp"] =
-          row.getValue("timestamp");
 
         return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}?timestamp=${encodeURIComponent(timestamp.toISOString())}`}
-            value={value}
-          />
+          <TableId value={value} />
         ) : undefined;
       },
       enableSorting: true,
@@ -448,6 +442,7 @@ export default function TracesTable({
       accessorKey: "userId",
       header: "User",
       id: "userId",
+      defaultHidden: true,
       size: 150,
       headerTooltip: {
         description: "Add `userId` to traces to track users.",
@@ -456,10 +451,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["userId"] = row.getValue("userId");
         return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-            value={value}
-          />
+          <TableId value={value} />
         ) : undefined;
       },
       enableHiding: true,
@@ -478,10 +470,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
         return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
-            value={value}
-          />
+          <TableId value={value} />
         ) : undefined;
       },
       enableHiding: true,
@@ -995,14 +984,31 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         peekView={{
-          onPeekOpenChange: (open, row) => {
-            // open the peek view and set the url param that corresponds to this row, or remove it and close the peek view
-            setPeekViewId(open ? row?.id : null);
+          itemType: "TRACE",
+          onOpenChange: (open: boolean, row?: TracesTableRow) => {
+            const url = new URL(window.location.href);
+            const params = new URLSearchParams(url.search);
+
+            if (!open || !row) {
+              // Remove peek and timestamp params while keeping others
+              params.delete("peek");
+              params.delete("timestamp");
+              params.delete("observation");
+            } else if (open && row.id && peekViewId !== row.id) {
+              // Update or add peek and timestamp params
+              params.set("peek", row.id);
+              params.set("timestamp", row.timestamp.toISOString());
+              params.delete("observation");
+            } else {
+              return;
+            }
+
+            router.replace({
+              pathname: `/project/${projectId}/traces`,
+              query: params.toString(),
+            });
           },
           onExpand: (openInNewTab: boolean) => {
-            // some router push to get to the detail page
-            // all the relevant params should be in the url
-            // url should have: peek={id} and any other relevant query params
             if (peekViewId) {
               if (openInNewTab) {
                 window.open(
@@ -1010,21 +1016,26 @@ export default function TracesTable({
                   "_blank",
                 );
               } else {
-                router.push(
+                router.replace(
                   `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
                 );
               }
             }
           },
           render: () => {
+            const { peek, timestamp } = router.query;
+
             const trace = api.traces.byIdWithObservationsAndScores.useQuery(
               {
-                traceId: peekViewId as string,
-                // timestamp,
+                traceId: peek as string,
+                timestamp:
+                  typeof timestamp === "string"
+                    ? new Date(timestamp)
+                    : undefined,
                 projectId,
               },
               {
-                enabled: !!peekViewId,
+                enabled: !!peek && !!timestamp,
                 retry(failureCount, error) {
                   if (
                     error.data?.code === "UNAUTHORIZED" ||
