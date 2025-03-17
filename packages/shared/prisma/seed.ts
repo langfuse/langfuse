@@ -727,6 +727,9 @@ function createObjects(
               source: "API",
               projectId,
               dataType: ScoreDataType.NUMERIC,
+              metadata: {
+                user: `user-${i}@langfuse.com`,
+              },
             },
           ]
         : []),
@@ -742,6 +745,9 @@ function createObjects(
               dataType: ScoreDataType.CATEGORICAL,
               stringValue:
                 Math.floor(Math.random() * 2) === 1 ? "Fully" : "Partially",
+              metadata: {
+                user: `user-${i}@langfuse.com`,
+              },
             },
           ]
         : []),
