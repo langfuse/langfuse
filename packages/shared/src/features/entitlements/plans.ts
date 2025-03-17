@@ -1,3 +1,12 @@
+// used on organization.cloudConfig.plan
+export const cloudConfigPlans = [
+  "Hobby",
+  "Core",
+  "Pro",
+  "Team",
+  "Enterprise",
+] as const;
+
 export const planLabels = {
   oss: "OSS",
   "cloud:hobby": "Hobby",
