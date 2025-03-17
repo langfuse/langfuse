@@ -394,7 +394,8 @@ types:
       successes: list<IngestionSuccess>
       errors: list<IngestionError>
 
-  OpenAIUsageSchema:
+  OpenAICompletionUsageSchema:
+    docs: OpenAI Usage schema from (Chat-)Completion APIs
     properties:
       prompt_tokens: integer
       completion_tokens: integer
@@ -402,8 +403,18 @@ types:
       prompt_tokens_details: optional<map<string, integer>>
       completion_tokens_details: optional<map<string, integer>>
 
+  OpenAIResponseUsageSchema:
+    docs: OpenAI Usage schema from Response API
+    properties:
+      input_tokens: integer
+      output_tokens: integer
+      total_tokens: integer
+      input_tokens_details: optional<map<string, integer>>
+      output_tokens_details: optional<map<string, integer>>
+
   UsageDetails:
     discriminated: false
     union:
       - map<string, integer>
-      - OpenAIUsageSchema
+      - OpenAICompletionUsageSchema
+      - OpenAIResponseUsageSchema

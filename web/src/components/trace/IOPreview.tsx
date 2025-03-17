@@ -290,13 +290,11 @@ export const OpenAiMessageView: React.FC<{
             ))}
         </div>
         {additionalInput && (
-          <div className="p-3 pt-1">
-            <JSONView
-              title="Additional Input"
-              json={additionalInput}
-              projectIdForPromptButtons={projectIdForPromptButtons}
-            />
-          </div>
+          <JSONView
+            title="Additional Input"
+            json={additionalInput}
+            projectIdForPromptButtons={projectIdForPromptButtons}
+          />
         )}
         {media && media.length > 0 && (
           <>

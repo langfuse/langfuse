@@ -1,11 +1,11 @@
 import { Badge } from "@/src/components/ui/badge";
 
-export const PromptDescription = ({
-  currentExtractedVariables,
+export const PromptVariableListPreview = ({
+  variables,
 }: {
-  currentExtractedVariables: string[];
+  variables: string[];
 }) => {
-  if (currentExtractedVariables.length === 0) {
+  if (variables.length === 0) {
     return null;
   }
 
@@ -15,7 +15,7 @@ export const PromptDescription = ({
         The following variables are available:
       </p>
       <div className="flex min-h-6 flex-wrap gap-2">
-        {currentExtractedVariables.map((variable) => (
+        {variables.map((variable) => (
           <Badge key={variable} variant="outline">
             {variable}
           </Badge>
