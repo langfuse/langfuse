@@ -148,6 +148,7 @@ export function MultiSelect({
             )}
             <InputCommandGroup>
               {options.map((option) => {
+                if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
                 return (
                   <InputCommandItem
