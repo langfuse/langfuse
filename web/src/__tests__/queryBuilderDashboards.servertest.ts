@@ -10,7 +10,7 @@ import {
   getObservationsCostGroupedByName,
   getScoreAggregate,
 } from "@langfuse/shared/src/server";
-import { FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { type QueryType } from "@/src/features/query/server/types";
 import { executeQuery } from "@/src/features/dashboard/server/dashboard-router";
 import { dashboardColumnDefinitions } from "@langfuse/shared";

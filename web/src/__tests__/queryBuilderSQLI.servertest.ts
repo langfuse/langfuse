@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/server/types";
 import { TRPCError } from "@trpc/server";
