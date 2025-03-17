@@ -3,7 +3,12 @@ import {
   type ClickhouseClientType,
   convertDateToClickhouseDateTime,
 } from "@langfuse/shared/src/server";
-import { type QueryType, type ViewDeclarationType, type views } from "./types";
+import {
+  type QueryType,
+  type ViewDeclarationType,
+  type views,
+  query as queryModel,
+} from "./types";
 import { viewDeclarations } from "@/src/features/query/server/dataModel";
 
 export class QueryBuilder {
@@ -494,6 +499,14 @@ export class QueryBuilder {
     query: QueryType,
     projectId: string,
   ): { query: string; parameters: Record<string, unknown> } {
+    // Run zod validation
+    const parseResult = queryModel.safeParse(query);
+    if (!parseResult.success) {
+      throw new Error(
+        `Invalid query: ${JSON.stringify(parseResult.error.errors)}`,
+      );
+    }
+
     // Initialize parameters object
     const parameters: Record<string, unknown> = {};
 
