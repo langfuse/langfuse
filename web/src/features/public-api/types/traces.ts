@@ -125,10 +125,7 @@ export const PatchTraceV1Body = z
   .strict()
   .refine(
     (data) => Object.keys(data).length > 0,
-    "At least one property (bookmarked, public, or tags) must be provided"
+    "At least one property (bookmarked, public, or tags) must be provided",
   );
 
-export const PatchTraceV1Response = APIExtendedTrace.extend({
-  scores: z.array(APIScoreSchema),
-  observations: z.array(APIObservation),
-}).strict();
+export const PatchTraceV1Response = z.object({ id: z.string() });

@@ -2967,6 +2967,73 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    patch:
+      description: Update a specific trace
+      operationId: trace_update
+      tags:
+        - Trace
+      parameters:
+        - name: traceId
+          in: path
+          description: The unique langfuse identifier of the trace to update
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatchTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bookmarked:
+                  type: boolean
+                  nullable: true
+                  description: Whether the trace is bookmarked
+                public:
+                  type: boolean
+                  nullable: true
+                  description: Whether the trace is publicly accessible
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+                  description: List of tags associated with the trace
   /api/public/traces:
     get:
       description: Get list of traces
@@ -5823,6 +5890,14 @@ components:
       required:
         - data
         - meta
+    PatchTraceResponse:
+      title: PatchTraceResponse
+      type: object
+      properties:
+        id:
+          type: string
+      required:
+        - id
     DeleteTraceResponse:
       title: DeleteTraceResponse
       type: object

@@ -186,20 +186,23 @@ export default withMiddlewares({
     responseSchema: PatchTraceV1Response,
     fn: async ({ query, body, auth }) => {
       const { traceId } = query;
-      
+
       // Get the trace to update
       const trace = await getTraceById(traceId, auth.scope.projectId);
-      
+
       if (!trace) {
         throw new LangfuseNotFoundError(
-          `Trace ${traceId} not found within authorized project`
+          `Trace ${traceId} not found within authorized project`,
         );
       }
 
       // Log audit entries for each updated field
       const updates = [];
-      
-      if (body.bookmarked !== undefined && trace.bookmarked !== body.bookmarked) {
+
+      if (
+        body.bookmarked !== undefined &&
+        trace.bookmarked !== body.bookmarked
+      ) {
         updates.push("bookmarked");
         await auditLog({
           resourceType: "trace",
@@ -212,7 +215,7 @@ export default withMiddlewares({
         });
         trace.bookmarked = body.bookmarked;
       }
-      
+
       if (body.public !== undefined && trace.public !== body.public) {
         updates.push("public");
         await auditLog({
@@ -226,8 +229,11 @@ export default withMiddlewares({
         });
         trace.public = body.public;
       }
-      
-      if (body.tags !== undefined && JSON.stringify(trace.tags) !== JSON.stringify(body.tags)) {
+
+      if (
+        body.tags !== undefined &&
+        JSON.stringify(trace.tags) !== JSON.stringify(body.tags)
+      ) {
         updates.push("tags");
         await auditLog({
           resourceType: "trace",
@@ -246,101 +252,7 @@ export default withMiddlewares({
         await upsertTrace(convertTraceDomainToClickhouse(trace));
       }
 
-      // Now fetch the updated trace with all details to return
-      const [observations, scores] = await Promise.all([
-        getObservationsViewForTrace(
-          traceId,
-          auth.scope.projectId,
-          trace?.timestamp,
-          true,
-        ),
-        getScoresForTraces({
-          projectId: auth.scope.projectId,
-          traceIds: [traceId],
-          timestamp: trace?.timestamp,
-        }),
-      ]);
-
-      const uniqueModels: string[] = Array.from(
-        new Set(
-          observations
-            .map((r) => r.modelId)
-            .filter((r): r is string => Boolean(r)),
-        ),
-      );
-
-      const models =
-        uniqueModels.length > 0
-          ? await prisma.model.findMany({
-              where: {
-                id: {
-                  in: uniqueModels,
-                },
-                OR: [{ projectId: auth.scope.projectId }, { projectId: null }],
-              },
-              include: {
-                Price: true,
-              },
-            })
-          : [];
-
-      const observationsView = observations.map((o) => {
-        const model = models.find((m) => m.id === o.modelId);
-        const inputPrice =
-          model?.Price.find((p) => p.usageType === "input")?.price ??
-          new Decimal(0);
-        const outputPrice =
-          model?.Price.find((p) => p.usageType === "output")?.price ??
-          new Decimal(0);
-        const totalPrice =
-          model?.Price.find((p) => p.usageType === "total")?.price ??
-          new Decimal(0);
-        return {
-          ...o,
-          inputPrice,
-          outputPrice,
-          totalPrice,
-        };
-      });
-
-      const outObservations = observationsView.map(transformDbToApiObservation);
-      const validatedScores = filterAndValidateDbScoreList(
-        scores,
-        traceException,
-      );
-
-      const obsStartTimes = observations
-        .map((o) => o.startTime)
-        .sort((a, b) => a.getTime() - b.getTime());
-      const obsEndTimes = observations
-        .map((o) => o.endTime)
-        .filter((t) => t)
-        .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
-
-      const latencyMs =
-        obsStartTimes.length > 0
-          ? obsEndTimes.length > 0
-            ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
-              obsStartTimes[0]!.getTime()
-            : obsStartTimes.length > 1
-              ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                obsStartTimes[0]!.getTime()
-              : undefined
-          : undefined;
-      
-      return {
-        ...trace,
-        scores: validatedScores,
-        latency: latencyMs !== undefined ? latencyMs / 1000 : 0,
-        observations: outObservations,
-        htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
-        totalCost: observations
-          .reduce(
-            (acc, obs) => acc.add(obs.calculatedTotalCost ?? new Decimal(0)),
-            new Decimal(0),
-          )
-          .toNumber(),
-      };
+      return { id: traceId };
     },
   }),
 });

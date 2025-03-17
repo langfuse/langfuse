@@ -45,7 +45,7 @@ service:
             tags:
               type: optional<list<string>>
               docs: List of tags associated with the trace
-      response: commons.TraceWithFullDetails
+      response: PatchTraceResponse
     list:
       docs: Get list of traces
       method: GET
@@ -104,6 +104,9 @@ types:
     properties:
       data: list<commons.TraceWithDetails>
       meta: pagination.MetaResponse
+  PatchTraceResponse:
+    properties:
+      id: string
   DeleteTraceResponse:
     properties:
       message: string

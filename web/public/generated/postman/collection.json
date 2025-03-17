@@ -2237,6 +2237,46 @@
         },
         {
           "_type": "endpoint",
+          "name": "Update",
+          "request": {
+            "description": "Update a specific trace",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces/:traceId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of the trace to update"
+                }
+              ]
+            },
+            "header": [],
+            "method": "PATCH",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"bookmarked\": true,\n    \"public\": true,\n    \"tags\": [\n        \"example\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
           "name": "List",
           "request": {
             "description": "Get list of traces",
