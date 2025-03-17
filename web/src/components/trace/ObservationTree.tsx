@@ -110,18 +110,19 @@ export const ObservationTree = ({
       {props.minLevel && hiddenObservationsCount > 0 ? (
         <span className="flex items-center gap-1 p-2 py-4">
           <InfoIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="flex flex-row gap-1 text-sm text-muted-foreground">
-            <p>
-              {hiddenObservationsCount} observations below {props.minLevel}{" "}
-              level are hidden.
-            </p>
-            <p
+          <p className="text-sm text-muted-foreground">
+            <span>
+              {hiddenObservationsCount}{" "}
+              {hiddenObservationsCount === 1 ? "observation" : "observations"}{" "}
+              below {props.minLevel} level are hidden.{" "}
+            </span>
+            <span
               className="cursor-pointer underline"
               onClick={() => props.setMinLevel?.(ObservationLevel.DEBUG)}
             >
               Show all
-            </p>
-          </span>
+            </span>
+          </p>
         </span>
       ) : null}
     </div>
