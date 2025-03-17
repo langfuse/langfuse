@@ -22,7 +22,7 @@ export const TableWithMetadataWrapper = ({
 
   return (
     <div
-      className={`grid flex-1 ${isCollapsed ? "grid-cols-[2fr,auto]" : "grid-cols-[2fr,1fr]"} gap-4 overflow-hidden`}
+      className={`grid flex-1 ${isCollapsed ? "grid-cols-[2fr,auto]" : "grid-cols-[2fr,1fr]"} gap-4 overflow-hidden contain-layout`}
     >
       <div className="flex h-full flex-col overflow-hidden">
         {tableComponent}
