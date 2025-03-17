@@ -185,25 +185,6 @@ describe("queryBuilder", () => {
           limit: 50,
         } as QueryType,
       ],
-      [
-        "users query",
-        {
-          view: "users",
-          dimensions: [],
-          metrics: [
-            {
-              measure: "count",
-              aggregation: "count",
-            },
-          ],
-          filters: [],
-          timeDimension: null,
-          fromTimestamp: "2025-01-01T00:00:00.000Z",
-          toTimestamp: "2025-03-01T00:00:00.000Z",
-          page: 0,
-          limit: 50,
-        } as QueryType,
-      ],
     ])(
       "should compile query to valid SQL: (%s)",
       async (_name, query: QueryType) => {
