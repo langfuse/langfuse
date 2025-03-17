@@ -152,6 +152,7 @@ jobs:
         env:
           LANGFUSE_INIT_ORG_ID: "seed-org-id"
           LANGFUSE_INIT_ORG_NAME: "Seed Org"
+          LANGFUSE_INIT_ORG_CLOUD_PLAN: "Team"
           LANGFUSE_INIT_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
           LANGFUSE_INIT_PROJECT_NAME: "Seed Project"
           LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
