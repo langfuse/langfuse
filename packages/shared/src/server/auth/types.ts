@@ -43,4 +43,5 @@ export type ApiAccessScope = {
   orgId: string;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
+  apiKeyId: string;
 };

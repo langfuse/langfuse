@@ -193,6 +193,7 @@ export class ApiAuthService {
               orgId: finalApiKey.orgId,
               plan: plan,
               rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
+              apiKeyId: finalApiKey.id,
             },
           };
         }
@@ -216,6 +217,7 @@ export class ApiAuthService {
               orgId: dbKey.project.organization.id,
               plan: getOrganizationPlanServerSide(cloudConfig),
               rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
+              apiKeyId: dbKey.id,
             },
           };
         }

@@ -1,6 +1,7 @@
 import { StarTraceToggle } from "@/src/components/star-toggle";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -8,7 +9,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { type RouterOutput, type RouterInput } from "@/src/utils/types";
+import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -76,6 +77,10 @@ import { Button } from "@/src/components/ui/button";
 import { Trace } from "@/src/components/trace";
 import router from "next/router";
 import TableId from "@/src/components/table/table-id";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -97,6 +102,7 @@ export type TracesTableRow = {
   release?: string;
   version?: string;
   sessionId?: string;
+  environment?: string;
   // i/o and metadata not set explicitly, but fetched from the server from the cell
   input?: unknown;
   output?: unknown;
@@ -119,8 +125,6 @@ export type TracesTableProps = {
   userId?: string;
   omittedFilter?: string[];
 };
-
-export type TraceFilterInput = Omit<RouterInput["traces"]["all"], "projectId">;
 
 export default function TracesTable({
   projectId,
@@ -171,7 +175,34 @@ export default function TracesTable({
       ]
     : [];
 
-  const filterState = userFilterState.concat(userIdFilter, dateRangeFilter);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment"],
+    selectedEnvironments,
+  );
+
+  const filterState = userFilterState.concat(
+    userIdFilter,
+    dateRangeFilter,
+    environmentFilter,
+  );
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -194,8 +225,12 @@ export default function TracesTable({
     limit: paginationState.pageSize,
     orderBy: orderByState,
   };
-  const traces = api.traces.all.useQuery(tracesAllQueryFilter);
-  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter);
+  const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: environmentFilterOptions.data !== undefined,
+  });
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -437,6 +472,25 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: TracesTableRow["environment"] =
+          row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
+      },
     },
     {
       accessorKey: "userId",
@@ -875,6 +929,7 @@ export default function TracesTable({
             version: trace.version ?? undefined,
             userId: trace.userId ?? "",
             sessionId: trace.sessionId ?? undefined,
+            environment: trace.environment ?? undefined,
             latency: trace.latency === null ? undefined : trace.latency,
             tags: trace.tags,
             usage: {
@@ -950,6 +1005,11 @@ export default function TracesTable({
           setRowSelection: setSelectedRows,
           totalCount,
           ...paginationState,
+        }}
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
         }}
       />
       <DataTable

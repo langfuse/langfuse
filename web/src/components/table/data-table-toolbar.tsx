@@ -23,6 +23,7 @@ import {
   type TableDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -62,6 +63,11 @@ interface DataTableToolbarProps<TData, TValue> {
     date?: TableDateRange,
   ) => void;
   multiSelect?: MultiSelect;
+  environmentFilter?: {
+    values: string[];
+    onValueChange: (values: string[]) => void;
+    options: { value: string }[];
+  };
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -81,6 +87,7 @@ export function DataTableToolbar<TData, TValue>({
   selectedOption,
   setDateRangeAndOption,
   multiSelect,
+  environmentFilter,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -129,6 +136,22 @@ export function DataTableToolbar<TData, TValue>({
             filterState={filterState}
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
+          />
+        )}
+        {environmentFilter && (
+          <MultiSelect
+            title="Environment"
+            label="Env"
+            values={environmentFilter.values}
+            onValueChange={environmentFilter.onValueChange}
+            options={environmentFilter.options}
+            className="my-0 w-auto overflow-hidden"
+          />
+        )}
+        {selectedOption && setDateRangeAndOption && (
+          <TableDateRangeDropdown
+            selectedOption={selectedOption}
+            setDateRangeAndOption={setDateRangeAndOption}
           />
         )}
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">

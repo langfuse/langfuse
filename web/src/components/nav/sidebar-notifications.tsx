@@ -24,11 +24,6 @@ type SidebarNotification = {
 
 const notifications: SidebarNotification[] = [
   {
-    id: "models-redirect",
-    title: "Models page moved",
-    description: "Manage your models in settings from now on",
-  },
-  {
     id: "github-star",
     title: "Star Langfuse",
     description:

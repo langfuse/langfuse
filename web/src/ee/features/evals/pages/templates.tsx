@@ -41,7 +41,7 @@ export default function TemplatesPage() {
         },
         tabsComponent: (
           <TabsBar value="templates">
-            <TabsBarList className="justify-start">
+            <TabsBarList>
               <TabsBarTrigger value="evaluators" asChild>
                 <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
               </TabsBarTrigger>

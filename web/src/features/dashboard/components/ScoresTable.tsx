@@ -13,7 +13,7 @@ import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
-import { type DatabaseRow } from "@/src/server/api/services/queryBuilder";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 const dropValuesForCategoricalScores = (
@@ -40,10 +40,12 @@ export const ScoresTable = ({
   className,
   projectId,
   globalFilterState,
+  isLoading = false,
 }: {
   className: string;
   projectId: string;
   globalFilterState: FilterState;
+  isLoading?: boolean;
 }) => {
   const localFilters = createTracesTimeFilter(
     globalFilterState,
@@ -82,6 +84,7 @@ export const ScoresTable = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -125,6 +128,7 @@ export const ScoresTable = ({
             skipBatch: true,
           },
         },
+        enabled: !isLoading,
       },
     ),
   );
@@ -181,6 +185,7 @@ export const ScoresTable = ({
       className={className}
       title="Scores"
       isLoading={
+        isLoading ||
         metrics.isLoading ||
         zeroValueScores.isLoading ||
         oneValueScores.isLoading
@@ -219,6 +224,7 @@ export const ScoresTable = ({
         ])}
         collapse={{ collapsed: 5, expanded: 20 }}
         isLoading={
+          isLoading ||
           metrics.isLoading ||
           zeroValueScores.isLoading ||
           oneValueScores.isLoading

@@ -10,6 +10,7 @@ export enum BatchActionType {
 }
 
 const ActionIdSchema = z.enum([
+  "score-delete",
   "trace-delete",
   "trace-add-to-annotation-queue",
 ]);

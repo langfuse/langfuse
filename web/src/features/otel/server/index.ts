@@ -145,6 +145,43 @@ const extractInputAndOutput = (
     return { input: eventInput || input, output: eventOutput || output };
   }
 
+  // Logfire uses `prompt` and `all_messages_events` property on spans
+  input = attributes["prompt"];
+  output = attributes["all_messages_events"];
+  if (input || output) {
+    return { input, output };
+  }
+
+  // Logfire uses single `events` array for GenAI events.
+  const eventsArray = attributes["events"];
+  if (typeof eventsArray === "string" || Array.isArray(eventsArray)) {
+    let events = eventsArray as any[];
+    if (typeof eventsArray === "string") {
+      try {
+        events = JSON.parse(eventsArray);
+      } catch (e) {
+        // fallthrough
+        events = [];
+      }
+    }
+
+    // Find the gen_ai.choice event for output
+    const choiceEvent = events.find(
+      (event) => event["event.name"] === "gen_ai.choice",
+    );
+    // All other events are considered input
+    const inputEvents = events.filter(
+      (event) => event["event.name"] !== "gen_ai.choice",
+    );
+
+    if (choiceEvent || inputEvents.length > 0) {
+      return {
+        input: inputEvents.length > 0 ? inputEvents : null,
+        output: choiceEvent || null,
+      };
+    }
+  }
+
   // MLFlow sets mlflow.spanInputs and mlflow.spanOutputs
   input = attributes["mlflow.spanInputs"];
   output = attributes["mlflow.spanOutputs"];
@@ -209,6 +246,21 @@ const extractEnvironment = (
     }
   }
   return "default";
+};
+
+const extractName = (
+  spanName: string,
+  attributes: Record<string, unknown>,
+): string => {
+  const nameKeys = ["logfire.msg"];
+  for (const key of nameKeys) {
+    if (attributes[key]) {
+      return typeof attributes[key] === "string"
+        ? (attributes[key] as string)
+        : JSON.stringify(attributes[key]);
+    }
+  }
+  return spanName;
 };
 
 const extractUserId = (
@@ -354,7 +406,7 @@ export const convertOtelSpanToIngestionEvent = (
         const trace = {
           id: Buffer.from(span.traceId?.data ?? span.traceId).toString("hex"),
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
-          name: span.name,
+          name: extractName(span.name, attributes),
           metadata: {
             attributes,
             resourceAttributes,
@@ -392,7 +444,7 @@ export const convertOtelSpanToIngestionEvent = (
           "hex",
         ),
         parentObservationId,
-        name: span.name,
+        name: extractName(span.name, attributes),
         startTime: convertNanoTimestampToISO(span.startTimeUnixNano),
         endTime: convertNanoTimestampToISO(span.endTimeUnixNano),
 

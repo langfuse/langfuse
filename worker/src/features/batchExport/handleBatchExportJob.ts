@@ -4,6 +4,7 @@ import {
   BatchExportQuerySchema,
   BatchExportQueryType,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
   FilterCondition,
   TimeFilter,
@@ -15,7 +16,7 @@ import {
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
   streamTransformations,
-  BatchExportJobType,
+  type BatchExportJobType,
   FullObservationsWithScores,
   getPublicSessionsFilter,
   getScoresForObservations,
@@ -27,22 +28,26 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
+  type ScoreUiTableRow,
+  getScoresUiTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
-const tableNameToTimeFilterColumn = {
+const tableNameToTimeFilterColumn: Record<BatchExportTableName, string> = {
+  scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
   dataset_run_items: "createdAt",
 };
 
-const tableNameToTimeFilterColumnCh = {
+const tableNameToTimeFilterColumnCh: Record<BatchExportTableName, string> = {
+  scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
-  generations: "startTime",
+  observations: "startTime",
   dataset_run_items: "createdAt",
 };
 
@@ -114,6 +119,41 @@ export const getDatabaseReadStream = async ({
   };
 
   switch (tableName) {
+    case "scores": {
+      return new DatabaseReadStream<unknown>(
+        async (pageSize: number, offset: number) => {
+          const scores = await getScoresUiTable({
+            projectId,
+            filter: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
+            orderBy,
+            limit: pageSize,
+            offset,
+          });
+
+          return scores.map((score: ScoreUiTableRow) => ({
+            id: score.id,
+            traceId: score.traceId,
+            timestamp: score.timestamp,
+            source: score.source,
+            name: score.name,
+            dataType: score.dataType,
+            value: score.value,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId: score.observationId,
+            traceName: score.traceName,
+            userId: score.traceUserId,
+            traceTags: score.traceTags,
+            environment: score.environment,
+          }));
+        },
+        1000,
+        exportLimit,
+      );
+    }
+
     case "sessions":
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
@@ -172,7 +212,7 @@ export const getDatabaseReadStream = async ({
         1000,
         exportLimit,
       );
-    case "generations": {
+    case "observations": {
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(

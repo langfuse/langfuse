@@ -24,7 +24,7 @@ import {
   type ModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import {
   Select,
   SelectContent,
@@ -426,8 +426,8 @@ export const InnerEvalTemplateForm = (props: {
                     />
                   </FormControl>
                   <FormMessage />
-                  <PromptDescription
-                    currentExtractedVariables={extractedVariables ?? []}
+                  <PromptVariableListPreview
+                    variables={extractedVariables ?? []}
                   />
                 </FormItem>
               </>

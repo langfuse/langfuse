@@ -170,7 +170,7 @@ const ObservationTreeTraceNode = (props: {
       onSelect={() => props.setCurrentObservationId(undefined)}
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
-        <div className="flex w-full flex-col items-start gap-2 -space-y-1">
+        <div className="flex w-full flex-col items-start gap-2 -space-y-1 py-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <ItemBadge
               type="TRACE"
