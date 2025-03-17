@@ -67,6 +67,7 @@ interface DataTableProps<TData, TValue> {
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
   peekView?: PeekViewProps<TData>;
+  pinFirstColumn?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -120,6 +121,7 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
   onRowClick,
   peekView,
+  pinFirstColumn = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
@@ -250,6 +252,9 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
+                          pinFirstColumn &&
+                            header.index === 0 &&
+                            "sticky left-0 z-20 border-r bg-background",
                         )}
                         style={{ width }}
                         onClick={(event) => {
@@ -339,6 +344,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 onRowClick={handleOnRowClick}
                 peekViewId={peekViewId}
+                pinFirstColumn={pinFirstColumn}
               />
             ) : (
               <TableBodyComponent
@@ -349,6 +355,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 onRowClick={handleOnRowClick}
                 peekViewId={peekViewId}
+                pinFirstColumn={pinFirstColumn}
               />
             )}
           </Table>
@@ -395,6 +402,7 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
   peekViewId?: string;
+  pinFirstColumn?: boolean;
 }
 
 function TableBodyComponent<TData>({
@@ -405,6 +413,7 @@ function TableBodyComponent<TData>({
   help,
   onRowClick,
   peekViewId,
+  pinFirstColumn = false,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -434,6 +443,9 @@ function TableBodyComponent<TData>({
                 className={cn(
                   "overflow-hidden border-b p-1 text-xs first:pl-2",
                   rowheighttw === "s" && "whitespace-nowrap",
+                  pinFirstColumn &&
+                    cell.column.getIndex() === 0 &&
+                    "sticky left-0 border-r bg-background",
                 )}
                 style={{
                   width: `calc(var(--col-${cell.column.id}-size) * 1px)`,

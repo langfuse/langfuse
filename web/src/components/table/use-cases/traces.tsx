@@ -124,6 +124,7 @@ export type TracesTableProps = {
   projectId: string;
   userId?: string;
   omittedFilter?: string[];
+  pinFirstColumn?: boolean;
 };
 
 export default function TracesTable({
@@ -1040,6 +1041,7 @@ export default function TracesTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        pinFirstColumn
         peekView={{
           itemType: "TRACE",
           onOpenChange: (open: boolean, row?: TracesTableRow) => {
