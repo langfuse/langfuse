@@ -134,14 +134,14 @@ jobs:
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
-      - name: Run + migrate
+      - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      - name: Seed DB
+      - name: Migrate DB
         run: |
           pnpm run db:migrate
           pnpm --filter=shared ch:up
@@ -212,14 +212,14 @@ jobs:
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.blob-provider }}.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
-      - name: Run + migrate
+      - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.blob-provider }}.yml up -d
           sleep 5 # Wait for PostgreSQL to accept connections
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      - name: Seed DB
+      - name: Migrate DB
         run: |
           pnpm run db:migrate
           pnpm --filter=shared ch:up
