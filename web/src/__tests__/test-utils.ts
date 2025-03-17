@@ -79,8 +79,17 @@ export async function makeAPICall<T = IngestionAPIResponse>(
       body !== undefined && { body: JSON.stringify(body) }),
   };
   const response = await fetch(finalUrl, options);
-  const responseBody = (await response.json()) as T;
-  return { body: responseBody, status: response.status };
+
+  try {
+    const responseBody = (await response.json()) as T;
+    return { body: responseBody, status: response.status };
+  } catch (error) {
+    // Handle JSON parsing errors
+    const responseText = await response.text();
+    throw new Error(
+      `Failed to parse JSON response: ${error instanceof Error ? error.message : String(error)}. Response status: ${response.status}. Response text: ${responseText}`,
+    );
+  }
 }
 
 export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
