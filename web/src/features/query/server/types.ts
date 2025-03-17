@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export type ViewDeclarationType = z.infer<typeof viewDeclaration>;
+export type DimensionsDeclarationType = z.infer<
+  typeof viewDeclaration
+>["dimensions"];
 
 export const viewDeclaration = z.object({
   name: z.string(),
@@ -36,10 +39,10 @@ export const stringDateTime = z.string().datetime({ offset: true });
 export const views = z.enum([
   "traces",
   "observations",
-  // "scores-numeric",
-  // "scores-categorical",
-  // "sessions",
-  // "users",
+  "scores-numeric",
+  "scores-categorical",
+  "sessions",
+  "users",
 ]);
 
 export const dimension = z.object({
