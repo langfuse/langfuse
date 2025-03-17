@@ -5,8 +5,30 @@ export type DimensionsDeclarationType = z.infer<
   typeof viewDeclaration
 >["dimensions"];
 
+// TODO: Do we want to type filters here to provide specific operators for strings/arrays/numbers?
+// IMO having one filter type that covers everything could be perfectly fine.
+export const filter = z.object({
+  field: z.string(),
+  operator: z.enum([
+    "eq",
+    "ne",
+    "lt",
+    "lte",
+    "gt",
+    "gte",
+    "in",
+    "not_in",
+    "like",
+    "not_like",
+    "has_any",
+    "has_all",
+  ]),
+  value: z.string(),
+});
+
 export const viewDeclaration = z.object({
   name: z.string(),
+  // This is the basic statement that we query from. Usually, this should be the view_name + FINAL or a more complex subquery.
   baseCte: z.string(),
   dimensions: z.record(
     z.object({
@@ -31,6 +53,8 @@ export const viewDeclaration = z.object({
       timeDimension: z.string(),
     }),
   ),
+  // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
+  segments: z.array(filter),
   timeDimension: z.string(),
 });
 
@@ -63,27 +87,6 @@ export const metric = z.object({
     "p95",
     "p99",
   ]),
-});
-
-// TODO: Do we want to type filters here to provide specific operators for strings/arrays/numbers?
-// IMO having one filter type that covers everything could be perfectly fine.
-export const filter = z.object({
-  field: z.string(),
-  operator: z.enum([
-    "eq",
-    "ne",
-    "lt",
-    "lte",
-    "gt",
-    "gte",
-    "in",
-    "not_in",
-    "like",
-    "not_like",
-    "has_any",
-    "has_all",
-  ]),
-  value: z.string(),
 });
 
 export type QueryType = z.infer<typeof query>;

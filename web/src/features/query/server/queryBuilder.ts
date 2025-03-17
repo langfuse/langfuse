@@ -89,7 +89,7 @@ export class QueryBuilder {
         );
       }
       const dim = view.dimensions[dimension.field];
-      return { ...dim, table: dim.relationTable || view.baseCte };
+      return { ...dim, table: dim.relationTable || view.name };
     });
   }
 
@@ -119,7 +119,7 @@ export class QueryBuilder {
         const dimension = view.dimensions[filter.field];
         return {
           ...filter,
-          table: view.baseCte,
+          table: view.name,
           sql: dimension.sql, // Use the SQL expression, not the alias
           type: dimension.type,
         };
@@ -128,7 +128,7 @@ export class QueryBuilder {
         const measure = view.measures[filter.field];
         return {
           ...filter,
-          table: view.baseCte,
+          table: view.name,
           sql: measure.sql, // Use the SQL expression, not the alias
           type: measure.type,
         };
@@ -136,7 +136,7 @@ export class QueryBuilder {
       if (filter.field === view.timeDimension) {
         return {
           ...filter,
-          table: view.baseCte,
+          table: view.name,
           sql: view.timeDimension,
           type: "Date",
         };
@@ -158,7 +158,7 @@ export class QueryBuilder {
     appliedFilters.push({
       field: "project_id",
       operator: "eq",
-      table: view.baseCte,
+      table: view.name,
       value: projectId,
       type: "string",
       sql: "project_id",
@@ -168,7 +168,7 @@ export class QueryBuilder {
     appliedFilters.push({
       field: view.timeDimension,
       operator: "gte",
-      table: view.baseCte,
+      table: view.name,
       value: convertDateToClickhouseDateTime(new Date(fromTimestamp)),
       type: "Date",
       sql: view.timeDimension,
@@ -177,10 +177,18 @@ export class QueryBuilder {
     appliedFilters.push({
       field: view.timeDimension,
       operator: "lte",
-      table: view.baseCte,
+      table: view.name,
       value: convertDateToClickhouseDateTime(new Date(toTimestamp)),
       type: "Date",
       sql: view.timeDimension,
+    });
+
+    view.segments.forEach((segment) => {
+      appliedFilters.push({
+        ...segment,
+        table: view.name,
+        sql: segment.field,
+      });
     });
 
     return appliedFilters;
@@ -219,7 +227,7 @@ export class QueryBuilder {
       }
 
       const relation = view.tableRelations[relationTableName];
-      let joinStatement = `LEFT JOIN ${relation.name} ${relation.joinCondition}`;
+      let joinStatement = `LEFT JOIN ${relation.name} FINAL ${relation.joinCondition}`;
 
       // Add relation-specific timestamp filters if applicable
       appliedFilters.push({
@@ -361,7 +369,7 @@ export class QueryBuilder {
           : query.timeDimension.granularity;
 
       const timeDimensionSql = this.getTimeDimensionSql(
-        view.baseCte,
+        view.name,
         view.timeDimension,
         granularity,
       );
@@ -385,12 +393,12 @@ export class QueryBuilder {
   ) {
     return `
       SELECT
-        ${view.baseCte}.project_id,
-        ${view.baseCte}.id,
+        ${view.name}.project_id,
+        ${view.name}.id,
         ${innerDimensionsPart}
         ${innerMetricsPart}
         ${fromClause}
-      GROUP BY ${view.baseCte}.project_id, ${view.baseCte}.id`;
+      GROUP BY ${view.name}.project_id, ${view.name}.id`;
   }
 
   private buildOuterDimensionsPart(

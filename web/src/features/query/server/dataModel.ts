@@ -86,8 +86,9 @@ export const traceView: ViewDeclarationType = {
       timeDimension: "timestamp",
     },
   },
+  segments: [],
   timeDimension: "timestamp",
-  baseCte: `traces`,
+  baseCte: `traces FINAL`,
 };
 
 export const observationsView: ViewDeclarationType = {
@@ -191,8 +192,9 @@ export const observationsView: ViewDeclarationType = {
       timeDimension: "timestamp",
     },
   },
+  segments: [],
   timeDimension: "start_time",
-  baseCte: `observations`,
+  baseCte: `observations FINAL`,
 };
 
 const scoreBaseDimensions: DimensionsDeclarationType = {
@@ -270,7 +272,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
 
 // TODO: How do we add the custom filter expression that comes with each of these
 export const scoresNumericView: ViewDeclarationType = {
-  name: "scores-numeric",
+  name: "scores_numeric",
   dimensions: {
     ...scoreBaseDimensions,
   },
@@ -281,7 +283,7 @@ export const scoresNumericView: ViewDeclarationType = {
       type: "count",
     },
     value: {
-      sql: "value",
+      sql: "any(value)",
       alias: "value",
       type: "number",
     },
@@ -300,12 +302,19 @@ export const scoresNumericView: ViewDeclarationType = {
       timeDimension: "start_time",
     },
   },
+  segments: [
+    {
+      field: "data_type",
+      operator: "eq",
+      value: "NUMERIC",
+    },
+  ],
   timeDimension: "timestamp",
-  baseCte: `scores`,
+  baseCte: `scores scores_numeric FINAL`,
 };
 
 export const scoresCategoricalView: ViewDeclarationType = {
-  name: "scores-categorical",
+  name: "scores_categorical",
   dimensions: {
     ...scoreBaseDimensions,
     stringValue: {
@@ -334,18 +343,50 @@ export const scoresCategoricalView: ViewDeclarationType = {
       timeDimension: "start_time",
     },
   },
+  segments: [
+    {
+      field: "data_type",
+      operator: "ne",
+      value: "CATEGORICAL",
+    },
+  ],
   timeDimension: "timestamp",
-  baseCte: `scores`,
+  baseCte: `scores scores_categorical FINAL`,
 };
 
 // TODO: Check how we can do the correct CTE here.
 export const usersView: ViewDeclarationType = {
   name: "users",
-  dimensions: {},
-  measures: {},
+  dimensions: {
+    id: {
+      sql: "id",
+      type: "string",
+    },
+    environment: {
+      sql: "environment",
+      type: "string",
+    },
+  },
+  measures: {
+    count: {
+      sql: "count(*)",
+      alias: "count",
+      type: "count",
+    },
+  },
   tableRelations: {},
-  timeDimension: "timestamp",
-  baseCte: `users`,
+  segments: [],
+  timeDimension: "first_event",
+  baseCte: `(
+    SELECT 
+        project_id,
+        user_id as id,
+        min(timestamp) as first_event,
+        anyLast(environment) as environment,
+        count(*) as trace_count
+    FROM traces FINAL
+    GROUP BY project_id, user_id
+  ) as users`,
 };
 
 export const sessionsView: ViewDeclarationType = {
@@ -353,6 +394,7 @@ export const sessionsView: ViewDeclarationType = {
   dimensions: {},
   measures: {},
   tableRelations: {},
+  segments: [],
   timeDimension: "timestamp",
   baseCte: `sessions`,
 };
