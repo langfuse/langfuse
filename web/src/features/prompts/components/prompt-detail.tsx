@@ -274,7 +274,7 @@ export const PromptDetail = () => {
         ],
         tabsComponent: (
           <TabsBar value="versions">
-            <TabsBarList className="justify-start">
+            <TabsBarList>
               <TabsBarTrigger value="versions">Versions</TabsBarTrigger>
               <TabsBarTrigger value="metrics" asChild>
                 <Link
