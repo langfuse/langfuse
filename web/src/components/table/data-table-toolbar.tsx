@@ -148,12 +148,7 @@ export function DataTableToolbar<TData, TValue>({
             className="my-0 w-auto overflow-hidden"
           />
         )}
-        {selectedOption && setDateRangeAndOption && (
-          <TableDateRangeDropdown
-            selectedOption={selectedOption}
-            setDateRangeAndOption={setDateRangeAndOption}
-          />
-        )}
+
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
