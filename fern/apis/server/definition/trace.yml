@@ -24,6 +24,28 @@ service:
           type: string
           docs: The unique langfuse identifier of the trace to delete
       response: DeleteTraceResponse
+    update:
+      docs: Update a specific trace
+      method: PATCH
+      path: /traces/{traceId}
+      path-parameters:
+        traceId:
+          type: string
+          docs: The unique langfuse identifier of the trace to update
+      request:
+        name: UpdateTraceRequest
+        body:
+          properties:
+            bookmarked:
+              type: optional<boolean>
+              docs: Whether the trace is bookmarked
+            public:
+              type: optional<boolean>
+              docs: Whether the trace is publicly accessible
+            tags:
+              type: optional<list<string>>
+              docs: List of tags associated with the trace
+      response: commons.TraceWithFullDetails
     list:
       docs: Get list of traces
       method: GET
