@@ -157,7 +157,7 @@ export const observationsView: ViewDeclarationType = {
       type: "number",
     },
     totalTokens: {
-      sql: "sum(usage_details)['total']",
+      sql: "sumMap(usage_details)['total']",
       alias: "total_tokens",
       type: "sum",
     },
@@ -212,6 +212,10 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
   source: {
     sql: "source",
+    type: "string",
+  },
+  dataType: {
+    sql: "data_type",
     type: "string",
   },
   traceId: {

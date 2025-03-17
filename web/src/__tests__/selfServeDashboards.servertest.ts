@@ -7,6 +7,8 @@ import {
   getTotalTraces,
   getTracesGroupedByName,
   convertDateToClickhouseDateTime,
+  getObservationsCostGroupedByName,
+  getScoreAggregate,
 } from "@langfuse/shared/src/server";
 import { FilterState } from "@langfuse/shared";
 import { type QueryType } from "@/src/features/query/server/types";
@@ -526,6 +528,328 @@ describe("selfServeDashboards", () => {
         expect(resultRow).toBeDefined();
         expect(resultRow?.count_count).toBe(countFromLegacy);
       });
+    });
+  });
+
+  describe("observations-model-cost query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getObservationsCostGroupedByName(
+        projectId,
+        [], // empty filter
+      );
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "providedModelName" }],
+        metrics: [
+          { measure: "totalCost", aggregation: "sum" },
+          { measure: "totalTokens", aggregation: "sum" },
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        page: 0,
+        limit: 50,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult.data).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.name, item]),
+      );
+
+      // Verify each model's costs and token usage match
+      queryBuilderResult.data.forEach((row: any) => {
+        const modelName = row.provided_model_name;
+        const legacyModelData = legacyResultMap.get(modelName);
+
+        expect(legacyModelData).toBeDefined();
+        expect(row.sum_total_cost).toBe(legacyModelData?.sum_cost_details);
+        expect(row.sum_total_tokens).toBe(legacyModelData?.sum_usage_details);
+      });
+
+      // Verify both result sets have the same number of models
+      expect(legacyResult.length).toBe(queryBuilderResult.data.length);
+    });
+
+    it("should filter observations by environment", async () => {
+      // 1. Define a filter for production environment
+      const prodFilter: FilterState = [
+        {
+          type: "string",
+          operator: "=",
+          column: "environment",
+          value: "production",
+        },
+      ];
+
+      // 2. Get legacy result with filter
+      const legacyResult = await getObservationsCostGroupedByName(
+        projectId,
+        prodFilter,
+      );
+
+      // 3. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "providedModelName" }],
+        metrics: [
+          { measure: "totalCost", aggregation: "sum" },
+          { measure: "totalTokens", aggregation: "sum" },
+        ],
+        filters: [
+          {
+            field: "environment",
+            operator: "eq",
+            value: "production",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        page: 0,
+        limit: 50,
+      };
+
+      // 4. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 5. Verify results
+      // Production models should only include gpt-4-turbo and text-embedding-ada-002
+      const productionModels = ["gpt-4-turbo", "text-embedding-ada-002"];
+
+      // Verify both results have the expected number of rows
+      expect(legacyResult.length).toBe(productionModels.length);
+      expect(queryBuilderResult.data.length).toBe(productionModels.length);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.name, item]),
+      );
+
+      // Verify each production model is present with correct costs
+      queryBuilderResult.data.forEach((row: any) => {
+        const modelName = row.provided_model_name;
+        const legacyModelData = legacyResultMap.get(modelName);
+
+        expect(productionModels).toContain(modelName);
+        expect(legacyModelData).toBeDefined();
+        expect(row.sum_total_cost).toBe(legacyModelData?.sum_cost_details);
+        expect(row.sum_total_tokens).toBe(legacyModelData?.sum_usage_details);
+      });
+    });
+  });
+
+  describe("score-aggregate query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getScoreAggregate(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date("1970-01-02"),
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderNumericQuery: QueryType = {
+        view: "scores-numeric",
+        dimensions: [
+          { field: "name" },
+          { field: "source" },
+          { field: "dataType" },
+        ],
+        metrics: [
+          { measure: "value", aggregation: "avg" },
+          { measure: "count", aggregation: "count" },
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        page: 0,
+        limit: 50,
+      };
+
+      // 3. Get results using the query builder for numeric scores
+      const queryBuilderNumericResult = await executeQuery(
+        projectId,
+        queryBuilderNumericQuery,
+      );
+
+      // 4. Check categorical scores separately (optional, as the test dataset may not include them)
+      const queryCategoricalQuery: QueryType = {
+        view: "scores-categorical",
+        dimensions: [
+          { field: "name" },
+          { field: "source" },
+          { field: "dataType" },
+        ],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        page: 0,
+        limit: 50,
+      };
+
+      // Get results for categorical scores
+      const queryBuilderCatResult = await executeQuery(
+        projectId,
+        queryCategoricalQuery,
+      );
+
+      // 5. Verify both results
+      expect(queryBuilderNumericResult.data).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Check that all numeric scores from legacy query are present in new query
+      // Note: This test assumes numeric scores. If you have categorical scores, you'd need to
+      // handle them separately by checking against queryBuilderCatResult
+      legacyResult.forEach((legacyScore) => {
+        // Only check numeric scores here
+        if (legacyScore.data_type === "numeric") {
+          const matchingRow = queryBuilderNumericResult.data.find(
+            (row: any) =>
+              row.name === legacyScore.name &&
+              row.source === legacyScore.source &&
+              row.data_type === legacyScore.data_type,
+          );
+
+          expect(matchingRow).toBeDefined();
+          // Check count matches
+          expect(Number(matchingRow?.count_count)).toBe(
+            Number(legacyScore.count),
+          );
+          // Check average value is approximately the same
+          expect(Number(matchingRow?.value_avg)).toBeCloseTo(
+            Number(legacyScore.avg_value),
+          );
+        }
+      });
+
+      // If we have categorical scores in our test data, verify those too
+      const categoricalScores = legacyResult.filter(
+        (score) => score.data_type === "categorical",
+      );
+      if (
+        categoricalScores.length > 0 &&
+        queryBuilderCatResult.data.length > 0
+      ) {
+        categoricalScores.forEach((legacyScore) => {
+          const matchingRow = queryBuilderCatResult.data.find(
+            (row: any) =>
+              row.name === legacyScore.name &&
+              row.source === legacyScore.source &&
+              row.data_type === legacyScore.data_type,
+          );
+
+          expect(matchingRow).toBeDefined();
+          // Check count matches
+          expect(Number(matchingRow?.count_count)).toBe(
+            Number(legacyScore.count),
+          );
+        });
+      }
+    });
+
+    it("should filter scores by environment", async () => {
+      // 1. Define a filter for production environment
+      const prodFilter: FilterState = [
+        {
+          type: "string",
+          operator: "=",
+          column: "environment",
+          value: "production",
+        },
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date("1970-01-02"),
+        },
+      ];
+
+      // 2. Get legacy result with filter
+      const legacyResult = await getScoreAggregate(projectId, prodFilter);
+
+      // 3. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "scores-numeric", // We'll just test numeric scores for simplicity
+        dimensions: [
+          { field: "name" },
+          { field: "source" },
+          { field: "dataType" },
+        ],
+        metrics: [
+          { measure: "value", aggregation: "avg" },
+          { measure: "count", aggregation: "count" },
+        ],
+        filters: [
+          {
+            field: "environment",
+            operator: "eq",
+            value: "production",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        page: 0,
+        limit: 50,
+      };
+
+      // 4. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 5. Verify results
+      // Production environment should only include certain scores (based on test data)
+      // We can check if both results have the same number of scores for production
+      expect(queryBuilderResult.data.length).toBe(
+        legacyResult.filter((score) => score.data_type === "numeric").length,
+      );
+
+      // Check that all numeric scores in production environment from legacy query match the new query
+      legacyResult
+        .filter((score) => score.data_type === "numeric")
+        .forEach((legacyScore) => {
+          const matchingRow = queryBuilderResult.data.find(
+            (row: any) =>
+              row.name === legacyScore.name &&
+              row.source === legacyScore.source &&
+              row.data_type === legacyScore.data_type,
+          );
+
+          expect(matchingRow).toBeDefined();
+          // Check count matches
+          expect(Number(matchingRow?.count_count)).toBe(
+            Number(legacyScore.count),
+          );
+          // Check average value is approximately the same
+          expect(Number(matchingRow?.value_avg)).toBeCloseTo(
+            Number(legacyScore.avg_value),
+          );
+        });
     });
   });
 });
