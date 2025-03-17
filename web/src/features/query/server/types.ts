@@ -65,8 +65,8 @@ export const views = z.enum([
   "observations",
   "scores-numeric",
   "scores-categorical",
-  "sessions",
-  "users",
+  // "sessions",
+  // "users",
 ]);
 
 export const dimension = z.object({

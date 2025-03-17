@@ -354,51 +354,6 @@ export const scoresCategoricalView: ViewDeclarationType = {
   baseCte: `scores scores_categorical FINAL`,
 };
 
-// TODO: Check how we can do the correct CTE here.
-export const usersView: ViewDeclarationType = {
-  name: "users",
-  dimensions: {
-    id: {
-      sql: "id",
-      type: "string",
-    },
-    environment: {
-      sql: "environment",
-      type: "string",
-    },
-  },
-  measures: {
-    count: {
-      sql: "count(*)",
-      alias: "count",
-      type: "count",
-    },
-  },
-  tableRelations: {},
-  segments: [],
-  timeDimension: "first_event",
-  baseCte: `(
-    SELECT 
-        project_id,
-        user_id as id,
-        min(timestamp) as first_event,
-        anyLast(environment) as environment,
-        count(*) as trace_count
-    FROM traces FINAL
-    GROUP BY project_id, user_id
-  ) as users`,
-};
-
-export const sessionsView: ViewDeclarationType = {
-  name: "sessions",
-  dimensions: {},
-  measures: {},
-  tableRelations: {},
-  segments: [],
-  timeDimension: "timestamp",
-  baseCte: `sessions`,
-};
-
 export const viewDeclarations: Record<
   z.infer<typeof views>,
   ViewDeclarationType
@@ -407,6 +362,4 @@ export const viewDeclarations: Record<
   observations: observationsView,
   "scores-numeric": scoresNumericView,
   "scores-categorical": scoresCategoricalView,
-  sessions: sessionsView,
-  users: usersView,
 };
