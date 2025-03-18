@@ -295,7 +295,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       />
       <SettingsTableCard>
         <DataTable
-          className="flex max-h-[60dvh] flex-col overflow-hidden"
           columns={columns}
           data={
             models.isLoading

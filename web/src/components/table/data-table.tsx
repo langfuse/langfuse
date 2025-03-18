@@ -144,6 +144,7 @@ export function DataTable<TData extends object, TValue>({
     }
     onRowClick?.(row);
   };
+  const hasRowClickAction = !!onRowClick || !!peekView;
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -339,7 +340,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
-                onRowClick={handleOnRowClick}
+                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 peekViewId={peekViewId}
                 pinFirstColumn={pinFirstColumn}
               />
@@ -350,7 +351,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
-                onRowClick={handleOnRowClick}
+                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 peekViewId={peekViewId}
                 pinFirstColumn={pinFirstColumn}
               />
@@ -435,7 +436,7 @@ function TableBodyComponent<TData>({
             }}
             className={cn(
               "hover:bg-accent",
-              onRowClick ? "cursor-pointer" : undefined,
+              !!onRowClick ? "cursor-pointer" : "cursor-default",
               peekViewId && peekViewId === row.id ? "bg-accent" : undefined,
             )}
           >
