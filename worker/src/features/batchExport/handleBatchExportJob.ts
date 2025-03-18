@@ -501,6 +501,7 @@ export const handleBatchExportJob = async (
     accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
     secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
     endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    externalEndpoint: env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
     region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
     forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
   }).uploadFile({
