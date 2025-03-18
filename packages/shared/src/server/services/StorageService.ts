@@ -56,6 +56,7 @@ export class StorageServiceFactory {
     secretAccessKey: string | undefined;
     bucketName: string;
     endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
   }): StorageService {
@@ -306,12 +307,15 @@ class AzureBlobStorageService implements StorageService {
 class S3StorageService implements StorageService {
   private client: S3Client;
   private bucketName: string;
+  private endpoint: string | undefined;
+  private externalEndpoint: string | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
     bucketName: string;
     endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
   }) {
@@ -337,6 +341,8 @@ class S3StorageService implements StorageService {
       },
     });
     this.bucketName = params.bucketName;
+    this.endpoint = params.endpoint;
+    this.externalEndpoint = params.externalEndpoint;
   }
 
   public async uploadFile({
@@ -425,7 +431,7 @@ class S3StorageService implements StorageService {
     asAttachment: boolean = true,
   ): Promise<string> {
     try {
-      return await getSignedUrl(
+      let url = await getSignedUrl(
         this.client,
         new GetObjectCommand({
           Bucket: this.bucketName,
@@ -436,6 +442,17 @@ class S3StorageService implements StorageService {
         }),
         { expiresIn: ttlSeconds },
       );
+
+      // Replace internal endpoint with external endpoint if configured
+      if (
+        this.externalEndpoint &&
+        this.endpoint &&
+        url.includes(this.endpoint)
+      ) {
+        url = url.replace(this.endpoint, this.externalEndpoint);
+      }
+
+      return url;
     } catch (err) {
       logger.error(`Failed to generate presigned URL for ${fileName}`, err);
       throw Error("Failed to generate signed URL");
@@ -482,7 +499,7 @@ class S3StorageService implements StorageService {
   }): Promise<string> {
     const { path, ttlSeconds, contentType, contentLength, sha256Hash } = params;
 
-    return await getSignedUrl(
+    let url = await getSignedUrl(
       this.client,
       new PutObjectCommand({
         Bucket: this.bucketName,
@@ -497,5 +514,12 @@ class S3StorageService implements StorageService {
         unhoistableHeaders: new Set(["x-amz-checksum-sha256"]),
       },
     );
+
+    // Replace internal endpoint with external endpoint if configured
+    if (this.externalEndpoint && this.endpoint && url.includes(this.endpoint)) {
+      url = url.replace(this.endpoint, this.externalEndpoint);
+    }
+
+    return url;
   }
 }
