@@ -74,7 +74,15 @@ const TagManager = ({
 
   return (
     <Popover onOpenChange={(open) => handlePopoverChange(open)}>
-      <PopoverTrigger className="select-none" asChild>
+      <PopoverTrigger
+        className="select-none"
+        asChild
+        onClick={(e) => {
+          if (isTableCell) {
+            e.stopPropagation();
+          }
+        }}
+      >
         <div
           className={cn(
             "flex gap-x-1 gap-y-1",
@@ -89,7 +97,14 @@ const TagManager = ({
           />
         </div>
       </PopoverTrigger>
-      <PopoverContent className="space-y-2">
+      <PopoverContent
+        className="space-y-2"
+        onClick={(e) => {
+          if (isTableCell) {
+            e.stopPropagation();
+          }
+        }}
+      >
         <Label className="text-base capitalize">{itemName} Tags</Label>
         <Command
           shouldFilter={false} // we do not use cmdk's filter feature as it does not support virtualization for large lists

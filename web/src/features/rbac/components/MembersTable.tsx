@@ -35,6 +35,7 @@ import {
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export type MembersTableRow = {
   user: {
@@ -54,9 +55,11 @@ export type MembersTableRow = {
 export function MembersTable({
   orgId,
   project,
+  showSettingsCard = false,
 }: {
   orgId: string;
   project?: { id: string; name: string };
+  showSettingsCard?: boolean;
 }) {
   const session = useSession();
   const hasOrgViewAccess = useHasOrganizationAccess({
@@ -346,36 +349,71 @@ export function MembersTable({
         actionButtons={
           <CreateProjectMemberButton orgId={orgId} project={project} />
         }
+        className={showSettingsCard ? "px-0" : undefined}
       />
-      <DataTable
-        columns={columns}
-        data={
-          members.isLoading
-            ? { isLoading: true, isError: false }
-            : members.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: members.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: members.data.memberships.map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-      />
+      {showSettingsCard ? (
+        <SettingsTableCard>
+          <DataTable
+            columns={columns}
+            data={
+              members.isLoading
+                ? { isLoading: true, isError: false }
+                : members.isError
+                  ? {
+                      isLoading: false,
+                      isError: true,
+                      error: members.error.message,
+                    }
+                  : {
+                      isLoading: false,
+                      isError: false,
+                      data: members.data.memberships.map((t) =>
+                        convertToTableRow(t),
+                      ),
+                    }
+            }
+            pagination={{
+              totalCount,
+              onChange: setPaginationState,
+              state: paginationState,
+            }}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            columnOrder={columnOrder}
+            onColumnOrderChange={setColumnOrder}
+          />
+        </SettingsTableCard>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={
+            members.isLoading
+              ? { isLoading: true, isError: false }
+              : members.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: members.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: members.data.memberships.map((t) =>
+                      convertToTableRow(t),
+                    ),
+                  }
+          }
+          pagination={{
+            totalCount,
+            onChange: setPaginationState,
+            state: paginationState,
+          }}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
+        />
+      )}
     </>
   );
 }

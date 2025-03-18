@@ -1,20 +1,13 @@
-import {
-  ObservationLevel,
-  type ObservationLevelType,
-  ObservationType,
-} from "@langfuse/shared";
 import { type NestedObservation } from "@/src/utils/types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
+import {
+  type ObservationType,
+  type ObservationLevelType,
+  ObservationLevel,
+} from "@langfuse/shared";
 
 export type TreeItemType = ObservationType | "TRACE";
-
-export const treeItemColors: Map<TreeItemType, string> = new Map([
-  [ObservationType.SPAN, "bg-muted-blue"],
-  [ObservationType.GENERATION, "bg-muted-magenta"],
-  [ObservationType.EVENT, "bg-muted-green"],
-  ["TRACE", "bg-input"],
-]);
 
 export function nestObservations(
   list: ObservationReturnType[],

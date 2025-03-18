@@ -47,6 +47,7 @@ export const EvalTemplateDetail = () => {
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: `${template.data?.name}: ${templateId}`,

@@ -181,6 +181,7 @@ export default function Dashboard() {
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: "Dashboard",
