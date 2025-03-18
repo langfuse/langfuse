@@ -284,44 +284,50 @@ export function CreateLLMApiKeyForm({
         />
 
         {/* baseURL */}
-        {currentAdapter !== LLMAdapter.Bedrock &&
-          currentAdapter !== LLMAdapter.Atla && (
-            <FormField
-              control={form.control}
-              name="baseURL"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>API Base URL</FormLabel>
-                  <FormDescription>
-                    Leave blank to use the default base URL for the given LLM
-                    adapter.{" "}
-                    {currentAdapter === LLMAdapter.OpenAI && (
-                      <span>OpenAI default: https://api.openai.com/v1</span>
-                    )}
-                    {currentAdapter === LLMAdapter.Azure && (
-                      <span>
-                        Please add the base URL in the following format (or
-                        compatible API):
-                        https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
-                      </span>
-                    )}
-                    {currentAdapter === LLMAdapter.Anthropic && (
-                      <span>
-                        Anthropic default: https://api.anthropic.com (excluding
-                        /v1/messages)
-                      </span>
-                    )}
-                  </FormDescription>
+        {currentAdapter !== LLMAdapter.Bedrock && (
+          <FormField
+            control={form.control}
+            name="baseURL"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>API Base URL</FormLabel>
+                <FormDescription>
+                  Leave blank to use the default base URL for the given LLM
+                  adapter.{" "}
+                  {currentAdapter === LLMAdapter.OpenAI && (
+                    <span>OpenAI default: https://api.openai.com/v1</span>
+                  )}
+                  {currentAdapter === LLMAdapter.Azure && (
+                    <span>
+                      Please add the base URL in the following format (or
+                      compatible API):
+                      https://&#123;instanceName&#125;.openai.azure.com/openai/deployments
+                    </span>
+                  )}
+                  {currentAdapter === LLMAdapter.Anthropic && (
+                    <span>
+                      Anthropic default: https://api.anthropic.com (excluding
+                      /v1/messages)
+                    </span>
+                  )}
+                  {currentAdapter === LLMAdapter.Atla && (
+                    <span className="text-dark-yellow">
+                      <br />
+                      Please add the Atla default base URL:
+                      https://api.atla-ai.com/v1/integrations/langfuse
+                    </span>
+                  )}
+                </FormDescription>
 
-                  <FormControl>
-                    <Input {...field} placeholder="default" />
-                  </FormControl>
+                <FormControl>
+                  <Input {...field} placeholder="default" />
+                </FormControl>
 
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {currentAdapter === LLMAdapter.Bedrock ? (
           <>
@@ -404,27 +410,6 @@ export function CreateLLMApiKeyForm({
                   <Input {...field} />
                 </FormControl>
                 <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        {currentAdapter === LLMAdapter.Atla && (
-          <FormField
-            control={form.control}
-            name="baseURL"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>API Base URL</FormLabel>
-                <FormDescription>
-                  Atla uses a fixed base URL for Langfuse.
-                </FormDescription>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="https://api.atla.ai/v1/integrations/langfuse"
-                    disabled
-                  />
-                </FormControl>
               </FormItem>
             )}
           />
