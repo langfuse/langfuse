@@ -10,7 +10,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type Prompt, Prisma, prisma } from "@langfuse/shared/src/db";
+import { type Prompt, Prisma } from "@langfuse/shared/src/db";
 import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { promptsTableCols } from "@/src/server/api/definitions/promptsTable";
 import { optionalPaginationZod, paginationZod } from "@langfuse/shared";
@@ -938,7 +938,9 @@ export const promptRouter = createTRPCRouter({
         },
       });
 
-      return new PromptService(prisma, redis).buildAndResolvePromptGraph({
+      const promptService = new PromptService(ctx.prisma, redis);
+
+      return promptService.buildAndResolvePromptGraph({
         projectId: input.projectId,
         parentPrompt: prompt,
       });
