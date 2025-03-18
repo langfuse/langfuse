@@ -514,8 +514,7 @@ export function CreateLLMApiKeyForm({
                   <Switch
                     disabled={
                       currentAdapter === LLMAdapter.Azure ||
-                      currentAdapter === LLMAdapter.Bedrock ||
-                      currentAdapter === LLMAdapter.Atla
+                      currentAdapter === LLMAdapter.Bedrock
                     }
                     checked={
                       currentAdapter === LLMAdapter.Azure ||
