@@ -261,9 +261,7 @@ export const OpenAiMessageView: React.FC<{
                   (shouldRenderMarkdown ? (
                     <MarkdownJsonView
                       title={message.name ?? message.role}
-                      content={
-                        message.content?.length === 0 ? '""' : message.content
-                      }
+                      content={!message.content ? '""' : message.content}
                       className={cn(!!message.json && "rounded-b-none")}
                       customCodeHeaderClassName={cn(
                         message.role === "assistant" && "bg-secondary",
