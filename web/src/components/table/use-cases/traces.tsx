@@ -1069,14 +1069,18 @@ export default function TracesTable({
           },
           onExpand: (openInNewTab: boolean) => {
             if (peekViewId) {
+              const url = new URL(window.location.href);
+              const params = new URLSearchParams(url.search);
+              const timestamp = params.get("timestamp");
+
               if (openInNewTab) {
                 window.open(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}`,
                   "_blank",
                 );
               } else {
                 router.replace(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}`,
                 );
               }
             }

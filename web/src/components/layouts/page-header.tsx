@@ -62,7 +62,7 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="inline text-lg font-semibold leading-7">
+                  <h2 className="inline text-base font-semibold leading-7">
                     <span className="break-words">
                       {title}
                       {help && (

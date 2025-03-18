@@ -32,15 +32,15 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { useRouter } from "next/router";
-import { TablePeekView } from "@/src/components/table/peek";
-import { type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  TablePeekView,
+  type DataTablePeekViewProps,
+} from "@/src/components/table/peek";
 
-interface PeekViewProps<TData> {
-  itemType: LangfuseItemType;
-  onOpenChange: (open: boolean, row?: TData) => void;
-  onExpand: (openInNewTab: boolean) => void;
-  render: (row?: TData) => React.ReactNode;
-}
+type PeekViewProps<TData> = Omit<
+  DataTablePeekViewProps<TData>,
+  "selectedRowId"
+>;
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -430,7 +430,13 @@ function TableBodyComponent<TData>({
         table.getRowModel().rows.map((row) => (
           <TableRow
             key={row.id}
+            data-row-index={row.index}
             onClick={() => onRowClick?.(row.original)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onRowClick?.(row.original);
+              }
+            }}
             className={cn(
               "hover:bg-accent",
               onRowClick ? "cursor-pointer" : undefined,

@@ -11,15 +11,17 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 
-type DataTablePeekViewProps<TData> = {
-  itemType: LangfuseItemType;
+type PeekViewItemType = Extract<LangfuseItemType, "TRACE">;
+
+export type DataTablePeekViewProps<TData> = {
+  itemType: PeekViewItemType;
   selectedRowId: string | null;
   onOpenChange: (open: boolean, row?: TData) => void;
   onExpand: (openInNewTab: boolean) => void;
   render: () => React.ReactNode;
 };
 
-const mapItemTypeToPageUrl: Partial<Record<LangfuseItemType, string>> = {
+const mapItemTypeToPageUrl: Record<PeekViewItemType, string> = {
   TRACE: "traces",
 } as const;
 
@@ -42,7 +44,12 @@ export function TablePeekView<TData>({
         <SheetHeader className="flex min-h-12 flex-row justify-between rounded-t-xl bg-header px-2">
           <SheetTitle className="!mt-0 ml-2 flex flex-row items-center gap-2">
             <ItemBadge type={itemType} showLabel />
-            <span className="text-sm font-medium">{selectedRowId}</span>
+            <span
+              className="text-sm font-medium focus:outline-none"
+              tabIndex={0}
+            >
+              {selectedRowId}
+            </span>
           </SheetTitle>
           <div className="!mt-0 flex flex-row items-center gap-2">
             {selectedRowId && (
@@ -74,7 +81,7 @@ export function TablePeekView<TData>({
                   // Set the search part of the URL
                   return `${url.pathname}?${params.toString()}`;
                 }}
-                listKey="traces"
+                listKey={pageUrl}
               />
             )}
             <div className="!mt-0 mr-6 flex h-full flex-row items-center border-l">
