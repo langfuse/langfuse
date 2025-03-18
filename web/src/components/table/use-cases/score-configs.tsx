@@ -295,8 +295,6 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           onColumnOrderChange={setColumnOrder}
           rowHeight={rowHeight}
           className="gap-2"
-          paginationClassName="-mx-2 mb-2"
-          isBorderless
         />
       </SettingsTableCard>
     </>

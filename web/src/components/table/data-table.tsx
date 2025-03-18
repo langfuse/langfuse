@@ -62,8 +62,6 @@ interface DataTableProps<TData, TValue> {
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
   className?: string;
-  paginationClassName?: string;
-  isBorderless?: boolean;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
   peekView?: PeekViewProps<TData>;
@@ -117,7 +115,6 @@ export function DataTable<TData extends object, TValue>({
   setOrderBy,
   rowHeight,
   className,
-  paginationClassName,
   shouldRenderGroupHeaders = false,
   onRowClick,
   peekView,
@@ -369,7 +366,6 @@ export function DataTable<TData extends object, TValue>({
         <div
           className={cn(
             "sticky bottom-0 z-10 flex w-full justify-end border-t bg-background py-2 pr-2 font-medium",
-            paginationClassName,
           )}
         >
           <DataTablePagination
