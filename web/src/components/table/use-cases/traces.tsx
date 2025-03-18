@@ -140,6 +140,10 @@ export default function TracesTable({
     "search",
     withDefault(StringParam, null),
   );
+  const [selectedTab, setSelectedTab] = useQueryParam(
+    "display",
+    withDefault(StringParam, "details"),
+  );
   const { selectedOption, dateRange, setDateRangeAndOption } =
     useTableDateRange(projectId);
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -536,7 +540,9 @@ export default function TracesTable({
       cell: ({ row }) => {
         const value: TracesTableRow["latency"] = row.getValue("latency");
         if (!traceMetrics.data) return <Skeleton className="h-3 w-1/2" />;
-        return value !== undefined ? formatIntervalSeconds(value) : undefined;
+        return value !== undefined ? (
+          <span>{formatIntervalSeconds(value)}</span>
+        ) : undefined;
       },
       enableHiding: true,
       enableSorting: true,
@@ -1071,15 +1077,16 @@ export default function TracesTable({
               const url = new URL(window.location.href);
               const params = new URLSearchParams(url.search);
               const timestamp = params.get("timestamp");
+              const display = params.get("display") ?? "preview";
 
               if (openInNewTab) {
                 window.open(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}`,
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
                   "_blank",
                 );
               } else {
                 router.replace(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}`,
+                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}?timestamp=${timestamp}&display=${display}`,
                 );
               }
             }
@@ -1118,6 +1125,8 @@ export default function TracesTable({
                 scores={trace.data.scores}
                 projectId={trace.data.projectId}
                 observations={trace.data.observations}
+                selectedTab={selectedTab}
+                setSelectedTab={setSelectedTab}
               />
             );
           },
