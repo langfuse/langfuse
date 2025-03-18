@@ -44,6 +44,9 @@ export const IOPreview: React.FC<{
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
 
+  console.log("input", input);
+  console.log("output", output);
+
   // parse old completions: { completion: string } -> string
   const outLegacyCompletionSchema = z
     .object({
@@ -241,7 +244,7 @@ export const OpenAiMessageView: React.FC<{
             )
             .map((message, index) => (
               <Fragment key={index}>
-                {(!!message.content || !!message.audio) &&
+                {(message.content != null || !!message.audio) &&
                   (shouldRenderMarkdown ? (
                     <MarkdownJsonView
                       title={message.name ?? message.role}
