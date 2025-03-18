@@ -68,6 +68,8 @@ export type UIModelParams = RecordWithEnabledFlag<
   }
 >;
 
+export type BaselineDisabledModelConfig = RecordWithEnabledFlag<ModelConfig>;
+
 // Generic config
 export type ModelConfig = z.infer<typeof ZodModelConfig>;
 export const ZodModelConfig = z.object({

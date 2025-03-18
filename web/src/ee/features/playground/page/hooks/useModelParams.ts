@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import {
+  type BaselineDisabledModelConfig,
   LLMAdapter,
   supportedModels,
   type UIModelParams,
@@ -115,6 +116,12 @@ export const useModelParams = () => {
     updateModelParamValue,
     setModelParamEnabled,
   };
+};
+
+export const BASELINE_DISABLED_MODEL_CONFIG: BaselineDisabledModelConfig = {
+  temperature: { value: 0, enabled: false },
+  max_tokens: { value: 256, enabled: false },
+  top_p: { value: 1, enabled: false },
 };
 
 function getDefaultAdapterParams(

@@ -35,7 +35,10 @@ import {
 import { TEMPLATES } from "@/src/ee/features/evals/components/templates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
-import { useModelParams } from "@/src/ee/features/playground/page/hooks/useModelParams";
+import {
+  BASELINE_DISABLED_MODEL_CONFIG,
+  useModelParams,
+} from "@/src/ee/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { EvalReferencedEvaluators } from "@/src/ee/features/evals/types";
@@ -212,6 +215,17 @@ export const InnerEvalTemplateForm = (props: {
       const { provider, model, modelParams } =
         props.preFilledFormValues.selectedModel;
 
+      /**
+       * Defaults values to BASELINE_DISABLED_MODEL_CONFIG.
+       *
+       * Ensures that undefined model parameters remain disabled, as parameters
+       * from the API don't include explicit enabled/disabled flags.
+       *
+       * This approach guarantees model parameters stay disabled when updating
+       * template versions.
+       *
+       * Ideally, the enabled state should be persisted directly via the API.
+       */
       const modelConfig = Object.entries(modelParams).reduce(
         (acc, [key, value]) => {
           return {
@@ -219,7 +233,7 @@ export const InnerEvalTemplateForm = (props: {
             [key]: { value, enabled: true },
           };
         },
-        {} as UIModelParams,
+        BASELINE_DISABLED_MODEL_CONFIG as UIModelParams,
       );
 
       setModelParams((prev) => ({
