@@ -121,7 +121,7 @@ RUN npm install -g --no-package-lock --no-save prisma@6.3.0
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-        npm install --no-package-lock --no-save dd-trace; \
+        npm install --no-package-lock --no-save dd-trace@5.36.0; \
     fi
 
 RUN MIGRATE_TARGET_ARCH=$(echo ${TARGETPLATFORM:-linux/amd64} | sed 's/\//-/g') && \
