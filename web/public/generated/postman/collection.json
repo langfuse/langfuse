@@ -2239,7 +2239,7 @@
           "_type": "endpoint",
           "name": "Update",
           "request": {
-            "description": "Update a specific trace",
+            "description": "Update a specific trace. Updates are performed in the background.",
             "url": {
               "raw": "{{baseUrl}}/api/public/traces/:traceId",
               "host": [
@@ -2272,6 +2272,86 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Add Tag",
+          "request": {
+            "description": "Add a single tag to a trace. Tags are added in the background.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces/:traceId/tags",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId",
+                "tags"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of the trace"
+                }
+              ]
+            },
+            "header": [],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tag\": \"example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Remove Tag",
+          "request": {
+            "description": "Remove a single tag from a trace. Tags are removed in the background.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/traces/:traceId/tags/:tagId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "traces",
+                ":traceId",
+                "tags",
+                ":tagId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": "The unique langfuse identifier of the trace"
+                },
+                {
+                  "key": "tagId",
+                  "value": "",
+                  "description": "The tag to remove from the trace"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
           },
           "response": []
         },

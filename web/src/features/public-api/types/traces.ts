@@ -129,3 +129,24 @@ export const PatchTraceV1Body = z
   );
 
 export const PatchTraceV1Response = z.object({ id: z.string() });
+
+// POST /api/public/traces/{traceId}/tags
+export const PostTraceTagsV1Query = z.object({
+  traceId: z.string(),
+});
+
+export const PostTraceTagsV1Body = z
+  .object({
+    tag: z.string(),
+  })
+  .strict();
+
+export const PostTraceTagsV1Response = z.object({ id: z.string() });
+
+// DELETE /api/public/traces/{traceId}/tags/{tagId}
+export const DeleteTraceTagV1Query = z.object({
+  traceId: z.string(),
+  tagId: z.string(),
+});
+
+export const DeleteTraceTagV1Response = z.object({ id: z.string() });

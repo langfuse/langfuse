@@ -2968,7 +2968,7 @@ paths:
       security:
         - BasicAuth: []
     patch:
-      description: Update a specific trace
+      description: Update a specific trace. Updates are performed in the background.
       operationId: trace_update
       tags:
         - Trace
@@ -3034,6 +3034,118 @@ paths:
                     type: string
                   nullable: true
                   description: List of tags associated with the trace
+  /api/public/traces/{traceId}/tags:
+    post:
+      description: Add a single tag to a trace. Tags are added in the background.
+      operationId: trace_addTag
+      tags:
+        - Trace
+      parameters:
+        - name: traceId
+          in: path
+          description: The unique langfuse identifier of the trace
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatchTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag:
+                  type: string
+                  description: The tag to add to the trace
+              required:
+                - tag
+  /api/public/traces/{traceId}/tags/{tagId}:
+    delete:
+      description: Remove a single tag from a trace. Tags are removed in the background.
+      operationId: trace_removeTag
+      tags:
+        - Trace
+      parameters:
+        - name: traceId
+          in: path
+          description: The unique langfuse identifier of the trace
+          required: true
+          schema:
+            type: string
+        - name: tagId
+          in: path
+          description: The tag to remove from the trace
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatchTraceResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/traces:
     get:
       description: Get list of traces

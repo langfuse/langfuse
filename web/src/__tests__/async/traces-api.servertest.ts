@@ -16,9 +16,11 @@ import {
 import {
   DeleteTracesV1Response,
   DeleteTraceV1Response,
+  DeleteTraceTagV1Response,
   GetTracesV1Response,
   GetTraceV1Response,
   PatchTraceV1Response,
+  PostTraceTagsV1Response,
 } from "@/src/features/public-api/types/traces";
 import { randomUUID } from "crypto";
 import { snakeCase } from "lodash";
@@ -515,10 +517,12 @@ describe("/api/public/traces API Endpoint", () => {
           public: true,
           tags: newTags,
         },
+        undefined,
+        202,
       );
 
       // Then
-      expect(updateResponse.status).toBe(200);
+      expect(updateResponse.status).toBe(202);
       expect(updateResponse.body.id).toBe(createdTrace.id);
 
       // Verify through a separate GET request
@@ -552,10 +556,12 @@ describe("/api/public/traces API Endpoint", () => {
         {
           bookmarked: true,
         },
+        undefined,
+        202,
       );
 
       // Then
-      expect(updateResponse.status).toBe(200);
+      expect(updateResponse.status).toBe(202);
       expect(updateResponse.body.id).toBe(createdTrace.id);
 
       // Verify through a separate GET request
@@ -600,6 +606,202 @@ describe("/api/public/traces API Endpoint", () => {
         {
           bookmarked: true,
         },
+      );
+
+      // Then
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/public/traces/{traceId}/tags", () => {
+    it("should add a new tag to a trace", async () => {
+      // Setup
+      const initialTags = ["existing-tag-1", "existing-tag-2"];
+      const createdTrace = createTrace({
+        name: "trace-to-add-tag",
+        project_id: projectId,
+        tags: initialTags,
+      });
+      await createTracesCh([createdTrace]);
+
+      // First verify the initial state
+      const initialTrace = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${createdTrace.id}`,
+      );
+      expect(initialTrace.body.tags).toEqual(initialTags);
+
+      // When - add a new tag
+      const newTag = "new-single-tag";
+      const addTagResponse = await makeZodVerifiedAPICall(
+        PostTraceTagsV1Response,
+        "POST",
+        `/api/public/traces/${createdTrace.id}/tags`,
+        {
+          tag: newTag,
+        },
+        undefined,
+        202,
+      );
+
+      // Then
+      expect(addTagResponse.status).toBe(202); // Expecting 202 Accepted for background processing
+      expect(addTagResponse.body.id).toBe(createdTrace.id);
+
+      // Verify the tag was added
+      const updatedTrace = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${createdTrace.id}`,
+      );
+
+      const expectedTags = [...initialTags, newTag];
+      expect(updatedTrace.body.tags).toEqual(
+        expect.arrayContaining(expectedTags),
+      );
+      expect(updatedTrace.body.tags.length).toBe(expectedTags.length);
+    });
+
+    it("should not add a duplicate tag", async () => {
+      // Setup
+      const initialTags = ["duplicate-tag", "other-tag"];
+      const createdTrace = createTrace({
+        name: "trace-for-duplicate-tag",
+        project_id: projectId,
+        tags: initialTags,
+      });
+      await createTracesCh([createdTrace]);
+
+      // When - try to add a tag that already exists
+      const addTagResponse = await makeZodVerifiedAPICall(
+        PostTraceTagsV1Response,
+        "POST",
+        `/api/public/traces/${createdTrace.id}/tags`,
+        {
+          tag: "duplicate-tag",
+        },
+        undefined,
+        202,
+      );
+
+      // Then
+      expect(addTagResponse.status).toBe(202);
+
+      // Verify the tags remain unchanged
+      const updatedTrace = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${createdTrace.id}`,
+      );
+      expect(updatedTrace.body.tags).toEqual(initialTags);
+      expect(updatedTrace.body.tags.length).toBe(initialTags.length);
+    });
+
+    it("should return a 404 error for non-existent trace", async () => {
+      const nonExistentTraceId = "non-existent-trace-id";
+
+      // When - try to add a tag to a non-existent trace
+      const response = await makeZodVerifiedAPICallSilent(
+        PostTraceTagsV1Response,
+        "POST",
+        `/api/public/traces/${nonExistentTraceId}/tags`,
+        {
+          tag: "tag-for-non-existent-trace",
+        },
+      );
+
+      // Then
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /api/public/traces/{traceId}/tags/{tagId}", () => {
+    it("should remove a tag from a trace", async () => {
+      // Setup
+      const tagToRemove = "tag-to-remove";
+      const initialTags = ["keep-tag-1", tagToRemove, "keep-tag-2"];
+      const createdTrace = createTrace({
+        name: "trace-to-remove-tag",
+        project_id: projectId,
+        tags: initialTags,
+      });
+      await createTracesCh([createdTrace]);
+
+      // First verify the initial state
+      const initialTrace = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${createdTrace.id}`,
+      );
+      expect(initialTrace.body.tags).toEqual(initialTags);
+
+      // When - remove a tag
+      const removeTagResponse = await makeZodVerifiedAPICall(
+        DeleteTraceTagV1Response,
+        "DELETE",
+        `/api/public/traces/${createdTrace.id}/tags/${tagToRemove}`,
+        undefined,
+        undefined,
+        202,
+      );
+
+      // Then
+      expect(removeTagResponse.status).toBe(202); // Expecting 202 Accepted for background processing
+      expect(removeTagResponse.body.id).toBe(createdTrace.id);
+
+      // Verify the tag was removed
+      const updatedTrace = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${createdTrace.id}`,
+      );
+
+      const expectedTags = initialTags.filter((tag) => tag !== tagToRemove);
+      expect(updatedTrace.body.tags).toEqual(expectedTags);
+      expect(updatedTrace.body.tags.length).toBe(expectedTags.length);
+    });
+
+    it("should be a no-op when removing a non-existent tag", async () => {
+      // Setup
+      const initialTags = ["tag-1", "tag-2"];
+      const createdTrace = createTrace({
+        name: "trace-for-non-existent-tag",
+        project_id: projectId,
+        tags: initialTags,
+      });
+      await createTracesCh([createdTrace]);
+
+      // When - try to remove a tag that doesn't exist
+      const removeTagResponse = await makeZodVerifiedAPICall(
+        DeleteTraceTagV1Response,
+        "DELETE",
+        `/api/public/traces/${createdTrace.id}/tags/non-existent-tag`,
+        undefined,
+        undefined,
+        202,
+      );
+
+      // Then
+      expect(removeTagResponse.status).toBe(202);
+
+      // Verify the tags remain unchanged
+      const updatedTrace = await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        `/api/public/traces/${createdTrace.id}`,
+      );
+      expect(updatedTrace.body.tags).toEqual(initialTags);
+    });
+
+    it("should return a 404 error for non-existent trace", async () => {
+      const nonExistentTraceId = "non-existent-trace-id";
+
+      // When - try to remove a tag from a non-existent trace
+      const response = await makeZodVerifiedAPICallSilent(
+        DeleteTraceTagV1Response,
+        "DELETE",
+        `/api/public/traces/${nonExistentTraceId}/tags/some-tag`,
       );
 
       // Then

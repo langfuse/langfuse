@@ -184,6 +184,7 @@ export default withMiddlewares({
     querySchema: PatchTraceV1Query,
     bodySchema: PatchTraceV1Body,
     responseSchema: PatchTraceV1Response,
+    successStatusCode: 202, // Accepted - for background processing
     fn: async ({ query, body, auth }) => {
       const { traceId } = query;
 
