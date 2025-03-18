@@ -29,7 +29,7 @@ import {
 import useLocalStorage from "@/src/components/useLocalStorage";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateScoreConfigButton } from "@/src/features/scores/components/CreateScoreConfigButton";
-import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 type ScoreConfigTableRow = {
   id: string;

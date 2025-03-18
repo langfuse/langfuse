@@ -27,7 +27,7 @@ import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertMo
 import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export type ModelTableRow = {
   modelId: string;

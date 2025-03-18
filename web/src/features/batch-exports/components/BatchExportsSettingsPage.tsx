@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { BatchExportsTable } from "@/src/features/batch-exports/components/BatchExportsTable";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export function BatchExportsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({

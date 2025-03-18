@@ -35,7 +35,7 @@ import {
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export type MembersTableRow = {
   user: {

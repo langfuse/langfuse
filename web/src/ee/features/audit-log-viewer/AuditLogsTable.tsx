@@ -12,7 +12,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type RouterOutputs } from "@/src/utils/api";
-import { SettingsTableCard } from "@/src/pages/project/[projectId]/settings/settings-table-card";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
 

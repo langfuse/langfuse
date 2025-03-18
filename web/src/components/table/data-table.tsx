@@ -139,8 +139,9 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const handleOnRowClick = (row: TData) => {
+    const rowId = "id" in row && typeof row.id === "string" ? row.id : null;
     if (peekView) {
-      peekView.onOpenChange(true, row);
+      peekView.onOpenChange(peekViewId !== rowId, row);
     }
     onRowClick?.(row);
   };
