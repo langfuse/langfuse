@@ -44,9 +44,6 @@ export const IOPreview: React.FC<{
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
 
-  console.log("input", input);
-  console.log("output", output);
-
   // parse old completions: { completion: string } -> string
   const outLegacyCompletionSchema = z
     .object({
