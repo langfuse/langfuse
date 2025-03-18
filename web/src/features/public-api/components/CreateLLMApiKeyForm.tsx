@@ -579,7 +579,6 @@ export function CreateLLMApiKeyForm({
                 variant="ghost"
                 onClick={() => append({ value: "" })}
                 className="w-full"
-                disabled={currentAdapter === LLMAdapter.Atla}
               >
                 <PlusIcon
                   className="-ml-0.5 mr-1.5 h-5 w-5"
