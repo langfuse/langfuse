@@ -206,8 +206,6 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
-    LANGFUSE_UI_DEFAULT_BASE_URL_ATLA: z.string().url().optional(),
-
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
@@ -526,8 +524,6 @@ export const env = createEnv({
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC,
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE:
       process.env.LANGFUSE_UI_DEFAULT_BASE_URL_AZURE,
-    LANGFUSE_UI_DEFAULT_BASE_URL_ATLA:
-      process.env.LANGFUSE_UI_DEFAULT_BASE_URL_ATLA,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
