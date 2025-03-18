@@ -106,6 +106,14 @@ export const query = z
       .nullable(),
     fromTimestamp: stringDateTime,
     toTimestamp: stringDateTime,
+    orderBy: z
+      .array(
+        z.object({
+          field: z.string(),
+          direction: z.enum(["asc", "desc"]),
+        }),
+      )
+      .nullable(),
     limit: z.number().int().positive().default(50),
     page: z.number().int().nonnegative().default(0),
   })

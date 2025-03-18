@@ -464,13 +464,105 @@ export class QueryBuilder {
     outerMetricsPart: string,
     innerQuery: string,
     groupByClause: string,
+    orderByClause: string,
   ) {
     return `
       SELECT
         ${outerDimensionsPart}
         ${outerMetricsPart}
       FROM (${innerQuery})
-      ${groupByClause}`;
+      ${groupByClause}
+      ${orderByClause}`;
+  }
+
+  /**
+   * Validates that the provided orderBy fields exist in the dimensions or metrics
+   * and returns the processed orderBy array with fully qualified field names.
+   */
+  private validateAndProcessOrderBy(
+    orderBy: Array<{ field: string; direction: string }> | null,
+    appliedDimensions: any[],
+    appliedMetrics: any[],
+    hasTimeDimension: boolean,
+  ): Array<{ field: string; direction: string }> {
+    if (!orderBy || orderBy.length === 0) {
+      // Default order: time dimension if available, otherwise first metric, otherwise first dimension
+      if (hasTimeDimension) {
+        return [{ field: "time_dimension", direction: "asc" }];
+      } else if (appliedMetrics.length > 0) {
+        const firstMetric = appliedMetrics[0];
+        return [
+          {
+            field: `${firstMetric.aggregation}_${firstMetric.alias || firstMetric.sql}`,
+            direction: "desc",
+          },
+        ];
+      } else if (appliedDimensions.length > 0) {
+        const firstDimension = appliedDimensions[0];
+        return [
+          {
+            field: firstDimension.alias || firstDimension.sql,
+            direction: "asc",
+          },
+        ];
+      }
+      return [];
+    }
+
+    // Validate that each orderBy field exists in dimensions or metrics
+    return orderBy.map((item) => {
+      // Check if the field is a time dimension
+      if (hasTimeDimension && item.field === "time_dimension") {
+        return item;
+      }
+
+      // Check if the field is a dimension
+      const matchingDimension = appliedDimensions.find(
+        (dim) => dim.alias === item.field || dim.sql === item.field
+      );
+      if (matchingDimension) {
+        return {
+          field: matchingDimension.alias || matchingDimension.sql,
+          direction: item.direction,
+        };
+      }
+
+      // Check if the field is a metric (with aggregation prefix)
+      const metricNamePattern = /^(sum|avg|count|max|min|p50|p75|p90|p95|p99)_(.+)$/;
+      const metricMatch = item.field.match(metricNamePattern);
+      
+      if (metricMatch) {
+        const [, aggregation, measureName] = metricMatch;
+        const matchingMetric = appliedMetrics.find(
+          (metric) =>
+            (metric.alias === measureName || metric.sql === measureName) &&
+            metric.aggregation === aggregation
+        );
+        
+        if (matchingMetric) {
+          return item;
+        }
+      }
+
+      throw new Error(
+        `Invalid orderBy field: ${item.field}. Must be one of the dimension or metric fields.`
+      );
+    });
+  }
+
+  /**
+   * Builds the ORDER BY clause for the query.
+   */
+  private buildOrderByClause(
+    processedOrderBy: Array<{ field: string; direction: string }>
+  ): string {
+    if (processedOrderBy.length === 0) {
+      return "";
+    }
+
+    return `ORDER BY ${processedOrderBy
+      .map((item) => `${item.field} ${item.direction}`)
+      .join(", ")}`;
   }
 
   /**
@@ -492,8 +584,8 @@ export class QueryBuilder {
    *      GROUP BY <baseCte>.project_id, <baseCte>.id
    *   )
    *   GROUP BY <...dimensions>
+   *   ORDER BY <fields with directions>
    * ```
-   * For the initial setup, we ignore sorting and pagination.
    */
   public build(
     query: QueryType,
@@ -575,12 +667,24 @@ export class QueryBuilder {
       !!query.timeDimension,
     );
 
+    // Process and validate orderBy fields
+    const processedOrderBy = this.validateAndProcessOrderBy(
+      query.orderBy,
+      appliedDimensions,
+      appliedMetrics,
+      !!query.timeDimension
+    );
+
+    // Build ORDER BY clause
+    const orderByClause = this.buildOrderByClause(processedOrderBy);
+
     // Build final query
     const sql = this.buildOuterSelect(
       outerDimensionsPart,
       outerMetricsPart,
       innerQuery,
       groupByClause,
+      orderByClause
     );
 
     return {

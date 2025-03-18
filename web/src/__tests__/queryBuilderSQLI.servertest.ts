@@ -80,6 +80,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -107,6 +108,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -140,6 +142,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -166,6 +169,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -194,6 +198,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -220,6 +225,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -246,6 +252,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -277,6 +284,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -304,6 +312,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         },
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -326,6 +335,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: "2023-01-01'); DROP TABLE traces; --",
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -347,6 +357,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -377,6 +388,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: -1, // Potentially problematic negative value
         limit: 999999999, // Excessive limit
       };
@@ -384,6 +396,87 @@ describe("QueryBuilder SQL Injection Tests", () => {
       expect(() =>
         buildQueryWithoutExecuting(maliciousQuery, projectId),
       ).toThrow("Invalid query");
+    });
+  });
+
+  describe("SQL Injection via OrderBy Parameters", () => {
+    it("should prevent injection via orderBy field name", async () => {
+      // Comment: The field names in orderBy should be validated against dimension and metric fields
+      // to prevent SQL injection via field name
+      const maliciousQuery: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: [
+          {
+            field: "name; DROP TABLE traces; --",
+            direction: "asc",
+          },
+        ],
+        page: 0,
+        limit: 50,
+      };
+
+      // Should throw an error for invalid orderBy field
+      expect(() =>
+        buildQueryWithoutExecuting(maliciousQuery, projectId),
+      ).toThrow("Invalid orderBy field");
+    });
+
+    it("should prevent injection via orderBy direction", async () => {
+      // Comment: The direction value should be validated to prevent SQL injection
+      const maliciousQuery: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: [
+          {
+            field: "name",
+            direction: "asc; DROP TABLE traces; --" as any,
+          },
+        ],
+        page: 0,
+        limit: 50,
+      };
+
+      // Should throw an error for invalid direction
+      expect(() =>
+        buildQueryWithoutExecuting(maliciousQuery, projectId),
+      ).toThrow("Invalid query");
+    });
+
+    it("should prevent injection via non-existing metric field in orderBy", async () => {
+      // Comment: The field must exist as a metric with proper aggregation prefix
+      const maliciousQuery: QueryType = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: [
+          {
+            field: "sum_malicious_metric; DROP TABLE traces; --",
+            direction: "asc",
+          },
+        ],
+        page: 0,
+        limit: 50,
+      };
+
+      // Should throw an error for invalid orderBy field
+      expect(() =>
+        buildQueryWithoutExecuting(maliciousQuery, projectId),
+      ).toThrow("Invalid orderBy field");
     });
   });
 
@@ -406,6 +499,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };

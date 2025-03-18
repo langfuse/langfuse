@@ -33,6 +33,7 @@ describe("queryBuilder", () => {
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -49,6 +50,7 @@ describe("queryBuilder", () => {
           },
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z", // 2 months difference
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -65,6 +67,7 @@ describe("queryBuilder", () => {
           },
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-01-10T00:00:00.000Z", // 10 days difference
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -82,6 +85,7 @@ describe("queryBuilder", () => {
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -96,6 +100,7 @@ describe("queryBuilder", () => {
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -110,6 +115,7 @@ describe("queryBuilder", () => {
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -139,6 +145,7 @@ describe("queryBuilder", () => {
           },
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -162,6 +169,7 @@ describe("queryBuilder", () => {
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -181,6 +189,7 @@ describe("queryBuilder", () => {
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
           page: 0,
           limit: 50,
         } as QueryType,
@@ -321,6 +330,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(), // tomorrow
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -369,6 +379,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -432,6 +443,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -479,6 +491,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -555,6 +568,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -623,6 +637,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -697,6 +712,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -724,6 +740,365 @@ describe("queryBuilder", () => {
         expect(row.avg_observations_count).toBe(15); // (10+20)/2 average
         expect(row.max_observations_count).toBe("20"); // max is 20
         expect(row.min_observations_count).toBe("10"); // min is 10
+      });
+
+      it("should order by a dimension field correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-c", environment: "staging" },
+          { name: "trace-a", environment: "production" },
+          { name: "trace-b", environment: "development" },
+        ];
+
+        await setupTracesWithObservations(projectId, tracesData);
+
+        // Define query with orderBy on a dimension
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }, { field: "environment" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: [{ field: "name", direction: "asc" }],
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify ORDER BY clause is present in the query
+        expect(compiledQuery).toContain("ORDER BY name asc");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - results should be ordered by name alphabetically
+        expect(result.data).toHaveLength(3);
+        expect(result.data[0].name).toBe("trace-a");
+        expect(result.data[1].name).toBe("trace-b");
+        expect(result.data[2].name).toBe("trace-c");
+      });
+
+      it("should order by a metric field correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-low", observationCount: 2 },
+          { name: "trace-high", observationCount: 10 },
+          { name: "trace-medium", observationCount: 5 },
+        ];
+
+        await setupTracesWithObservations(projectId, tracesData);
+
+        // Define query with orderBy on a metric
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "observationsCount", aggregation: "sum" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: [{ field: "sum_observations_count", direction: "desc" }],
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify ORDER BY clause is present in the query
+        expect(compiledQuery).toContain("ORDER BY sum_observations_count desc");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - results should be ordered by observation count descending
+        expect(result.data).toHaveLength(3);
+        expect(result.data[0].name).toBe("trace-high"); // 10 observations
+        expect(result.data[1].name).toBe("trace-medium"); // 5 observations
+        expect(result.data[2].name).toBe("trace-low"); // 2 observations
+      });
+
+      it("should order by multiple fields correctly", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-a", environment: "production", observationCount: 5 },
+          { name: "trace-b", environment: "production", observationCount: 2 },
+          { name: "trace-c", environment: "development", observationCount: 7 },
+          { name: "trace-d", environment: "development", observationCount: 3 },
+        ];
+
+        await setupTracesWithObservations(projectId, tracesData);
+
+        // Define query with multiple orderBy fields
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "environment" }, { field: "name" }],
+          metrics: [{ measure: "observationsCount", aggregation: "sum" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: [
+            { field: "environment", direction: "asc" },
+            { field: "sum_observations_count", direction: "desc" },
+          ],
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify ORDER BY clause is present in the query with both fields
+        expect(compiledQuery).toContain(
+          "ORDER BY environment asc, sum_observations_count desc",
+        );
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Assert - results should be ordered by environment (asc) and then by observation count (desc)
+        expect(result.data).toHaveLength(4);
+
+        // Development environment should come first (alphabetically)
+        expect(result.data[0].environment).toBe("development");
+        expect(result.data[1].environment).toBe("development");
+        // Within development, higher observation count first
+        expect(result.data[0].name).toBe("trace-c"); // 7 observations
+        expect(result.data[1].name).toBe("trace-d"); // 3 observations
+
+        // Production environment should come second
+        expect(result.data[2].environment).toBe("production");
+        expect(result.data[3].environment).toBe("production");
+        // Within production, higher observation count first
+        expect(result.data[2].name).toBe("trace-a"); // 5 observations
+        expect(result.data[3].name).toBe("trace-b"); // 2 observations
+      });
+
+      it("should handle default ordering when no orderBy is specified", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        // Create traces with time dimension
+        const traces = [
+          createTrace({
+            project_id: projectId,
+            name: "trace-day2",
+            environment: "default",
+            timestamp: now.getTime(),
+          }),
+          createTrace({
+            project_id: projectId,
+            name: "trace-day1",
+            environment: "default",
+            timestamp: yesterday.getTime(),
+          }),
+        ];
+
+        await createTracesCh(traces);
+
+        // Define query with time dimension but no explicit orderBy
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: {
+            granularity: "day",
+          },
+          fromTimestamp: yesterday.toISOString(),
+          toTimestamp: new Date(now.getTime() + 86400000).toISOString(),
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify ORDER BY clause includes default time dimension ordering
+        expect(compiledQuery).toContain("ORDER BY time_dimension asc");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Results should be ordered by time dimension (ascending)
+        expect(result.data.length).toBeGreaterThan(0);
+
+        // Convert time_dimension strings to Date objects for comparison
+        const dates = result.data.map(
+          (row: any) => new Date(row.time_dimension),
+        );
+
+        // Check that dates are in ascending order
+        for (let i = 1; i < dates.length; i++) {
+          expect(dates[i].getTime()).toBeGreaterThanOrEqual(
+            dates[i - 1].getTime(),
+          );
+        }
+      });
+
+      it("should use first metric for default ordering when no time dimension", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-low", observationCount: 2 },
+          { name: "trace-high", observationCount: 10 },
+          { name: "trace-medium", observationCount: 5 },
+        ];
+
+        await setupTracesWithObservations(projectId, tracesData);
+
+        // Define query with metrics but no explicit orderBy and no time dimension
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "observationsCount", aggregation: "sum" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify ORDER BY clause includes default metric ordering (descending)
+        expect(compiledQuery).toContain("ORDER BY sum_observations_count desc");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Results should be ordered by observation count descending (default for metrics)
+        expect(result.data).toHaveLength(3);
+        expect(result.data[0].name).toBe("trace-high"); // 10 observations
+        expect(result.data[1].name).toBe("trace-medium"); // 5 observations
+        expect(result.data[2].name).toBe("trace-low"); // 2 observations
+      });
+
+      it("should use first dimension for default ordering when no metrics and no time dimension", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-c", environment: "production" },
+          { name: "trace-a", environment: "production" },
+          { name: "trace-b", environment: "production" },
+        ];
+
+        await setupTracesWithObservations(projectId, tracesData);
+
+        // Define query with dimensions but no metrics, no time dimension, and no explicit orderBy
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify ORDER BY clause includes default dimension ordering (ascending)
+        expect(compiledQuery).toContain("ORDER BY name asc");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Results should be ordered by name ascending (default for dimensions)
+        expect(result.data).toHaveLength(3);
+        expect(result.data[0].name).toBe("trace-a");
+        expect(result.data[1].name).toBe("trace-b");
+        expect(result.data[2].name).toBe("trace-c");
       });
 
       it("should filter with the LIKE operator correctly", async () => {
@@ -756,6 +1131,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -804,6 +1180,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -905,6 +1282,7 @@ describe("queryBuilder", () => {
           },
           fromTimestamp: dayBeforeYesterday.toISOString(),
           toTimestamp: new Date(now.getTime() + 86400000).toISOString(), // Include tomorrow
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1119,6 +1497,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1243,6 +1622,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1353,6 +1733,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1508,6 +1889,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1644,6 +2026,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1763,6 +2146,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1926,6 +2310,7 @@ describe("queryBuilder", () => {
           toTimestamp: new Date(
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
+          orderBy: null,
           page: 0,
           limit: 50,
         };

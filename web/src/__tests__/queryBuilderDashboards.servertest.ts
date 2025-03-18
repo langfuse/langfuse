@@ -9,6 +9,7 @@ import {
   convertDateToClickhouseDateTime,
   getObservationsCostGroupedByName,
   getScoreAggregate,
+  groupTracesByTime,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { type QueryType } from "@/src/features/query/server/types";
@@ -233,6 +234,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -287,6 +289,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -387,6 +390,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -424,6 +428,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -492,6 +497,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -549,6 +555,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -617,6 +624,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -681,6 +689,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -704,6 +713,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -810,6 +820,7 @@ describe("selfServeDashboards", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
+        orderBy: null,
         page: 0,
         limit: 50,
       };
@@ -848,6 +859,57 @@ describe("selfServeDashboards", () => {
             Number(legacyScore.avg_value),
           );
         });
+    });
+  });
+
+  describe("traces-timeseries query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await groupTracesByTime(projectId, [
+        {
+          type: "datetime",
+          operator: ">=",
+          column: "timestamp",
+          value: new Date(defaultFromTime),
+        },
+        {
+          type: "datetime",
+          operator: "<=",
+          column: "timestamp",
+          value: new Date(defaultToTime),
+        },
+      ]);
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "traces",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: {
+          granularity: "hour",
+        },
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+        page: 0,
+        limit: 50,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(legacyResult.length).toBe(queryBuilderResult.data.length);
+
+      legacyResult.forEach((result, index) => {
+        const queryBuilderRow = queryBuilderResult.data[index];
+        expect(queryBuilderRow).toBeDefined();
+        expect(Number(queryBuilderRow.count_count)).toBe(result.countTraceId);
+      });
     });
   });
 });
