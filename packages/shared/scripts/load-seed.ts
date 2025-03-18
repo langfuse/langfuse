@@ -27,6 +27,9 @@ const prepareProjectsAndApiKeys = async (
       create: {
         id: orgId,
         name: `Organization for ${projectId}`,
+        cloudConfig: {
+          plan: "Team",
+        },
       },
     });
 

@@ -65,7 +65,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   body?: unknown,
   auth?: string,
 ): Promise<{ body: T; status: number }> {
-  const finalUrl = `http://localhost:3000/${url}`;
+  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {
@@ -79,8 +79,20 @@ export async function makeAPICall<T = IngestionAPIResponse>(
       body !== undefined && { body: JSON.stringify(body) }),
   };
   const response = await fetch(finalUrl, options);
-  const responseBody = (await response.json()) as T;
-  return { body: responseBody, status: response.status };
+
+  // Clone the response before attempting to parse JSON
+  const clonedResponse = response.clone();
+
+  try {
+    const responseBody = (await response.json()) as T;
+    return { body: responseBody, status: response.status };
+  } catch (error) {
+    // Handle JSON parsing errors using the cloned response
+    const responseText = await clonedResponse.text();
+    throw new Error(
+      `Failed to parse JSON response: ${error instanceof Error ? error.message : String(error)}. Response status: ${response.status}. Response headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}. Response text: ${responseText}. Method: ${method}, URL: ${finalUrl}, Request body: ${body ? JSON.stringify(body) : "none"}`,
+    );
+  }
 }
 
 export async function makeZodVerifiedAPICall<T extends z.ZodTypeAny>(
