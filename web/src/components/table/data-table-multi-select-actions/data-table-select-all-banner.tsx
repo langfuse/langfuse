@@ -9,7 +9,7 @@ export function DataTableSelectAllBanner({
   totalCount,
 }: MultiSelect) {
   return (
-    <div className="my-2 flex flex-wrap items-center justify-center gap-2 rounded-sm bg-input p-2 @container">
+    <div className="mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm bg-input p-2 @container">
       {selectAll ? (
         <span className="text-sm">
           All <span className="font-semibold">{totalCount}</span> items are
