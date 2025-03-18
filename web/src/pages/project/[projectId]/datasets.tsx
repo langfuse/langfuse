@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
 import Page from "@/src/components/layouts/page";
+import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { api } from "@/src/utils/api";
 import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
 
@@ -32,6 +33,9 @@ export default function Datasets() {
             "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
           href: "https://langfuse.com/docs/datasets",
         },
+        actionButtonsRight: (
+          <DatasetActionButton projectId={projectId} mode="create" />
+        ),
       }}
       scrollable={showOnboarding}
     >

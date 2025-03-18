@@ -6,6 +6,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 import Page from "@/src/components/layouts/page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
+import { CreateOrEditAnnotationQueueButton } from "@/src/ee/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 
 export default function AnnotationQueues() {
   const router = useRouter();
@@ -43,6 +44,12 @@ export default function AnnotationQueues() {
             "Annotation queues are used to manage scoring workflows for your LLM projects. See docs to learn more.",
           href: "https://langfuse.com/docs/scores/annotation",
         },
+        actionButtonsRight: (
+          <CreateOrEditAnnotationQueueButton
+            projectId={projectId}
+            variant="default"
+          />
+        ),
       }}
       scrollable={showOnboarding}
     >

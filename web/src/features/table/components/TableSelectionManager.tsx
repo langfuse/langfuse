@@ -23,7 +23,7 @@ export function TableSelectionManager<TData>({
     selectActionColumn: {
       id: "select",
       accessorKey: "select",
-      size: 30,
+      size: 35,
       isPinned: true,
       header: ({ table }: { table: Table<TData> }) => (
         <div className="flex h-full items-center">

@@ -47,6 +47,7 @@ export const NewPrompt = () => {
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: initialPrompt

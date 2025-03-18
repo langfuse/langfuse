@@ -161,12 +161,11 @@ export const getProjectSettingsPages = ({
     content: (
       <div>
         <Header title="Project Members" />
-        <div>
-          <MembersTable
-            orgId={organization.id}
-            project={{ id: project.id, name: project.name }}
-          />
-        </div>
+        <MembersTable
+          orgId={organization.id}
+          project={{ id: project.id, name: project.name }}
+          showSettingsCard
+        />
         <div>
           <MembershipInvitesPage
             orgId={organization.id}

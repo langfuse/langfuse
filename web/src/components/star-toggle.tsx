@@ -25,7 +25,10 @@ export function StarToggle({
     <Button
       variant="ghost"
       size={size}
-      onClick={() => void onClick(!value)}
+      onClick={(e) => {
+        e.stopPropagation();
+        void onClick(!value);
+      }}
       disabled={disabled}
       loading={isLoading}
     >
