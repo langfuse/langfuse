@@ -104,11 +104,6 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
-      case LLMAdapter.Atla:
-        return (
-          customization?.defaultBaseUrlAtla ??
-          "https://api.atla-ai.com/v1/integrations/langfuse"
-        );
       default:
         return "";
     }
