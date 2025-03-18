@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
 
@@ -10,13 +9,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { LLMAdapter } from "@langfuse/shared";
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
@@ -40,34 +32,17 @@ export const Messages: React.FC<MessagesContext> = (props) => {
 };
 
 const SubmitButton = () => {
-  const { handleSubmit, isStreaming, modelParams } = usePlaygroundContext();
-  const [isOpen, setIsOpen] = useState(false);
+  const { handleSubmit, isStreaming } = usePlaygroundContext();
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip
-        open={isOpen && modelParams.adapter.value === LLMAdapter.Atla}
-        onOpenChange={setIsOpen}
-      >
-        <TooltipTrigger>
-          <Button
-            className="flex-0 w-full"
-            disabled={modelParams.adapter.value === LLMAdapter.Atla}
-            onClick={() => {
-              handleSubmit().catch((err) => console.error(err));
-            }}
-            loading={isStreaming}
-          >
-            <p>Submit ({"\u2318"} + Enter)</p>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="m-6 w-[24rem]">
-          <p>
-            Atla models are trained to be evaluation models and are not
-            recommended for use in the playground.
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      className="flex-0"
+      onClick={() => {
+        handleSubmit().catch((err) => console.error(err));
+      }}
+      loading={isStreaming}
+    >
+      <p>Submit ({"\u2318"} + Enter)</p>
+    </Button>
   );
 };
