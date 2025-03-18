@@ -98,7 +98,6 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
   const context = React.useContext(SidePanelContext);
 
   // Don't throw if we're in mobile mode (no context)
-  // todo: check this
   if (!context) return null;
 
   const { showPanel, setShowPanel } = context;

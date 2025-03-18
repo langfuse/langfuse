@@ -90,7 +90,7 @@ const TableCell = React.forwardRef<
     ref={ref}
     className={cn(
       "p-4 align-middle [&:has([role=checkbox])]:pr-0",
-      "border-b [:last-child_>_&]:border-b-0", // Or this more specific selector
+      "border-b [:last-child_>_&]:border-b-0",
       className,
     )}
     {...props}

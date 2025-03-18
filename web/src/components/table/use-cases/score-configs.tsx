@@ -1,5 +1,4 @@
 import React from "react";
-import { Card } from "@/src/components/ui/card";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";

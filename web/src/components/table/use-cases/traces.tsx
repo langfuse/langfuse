@@ -494,7 +494,6 @@ export default function TracesTable({
       accessorKey: "userId",
       header: "User",
       id: "userId",
-      defaultHidden: true,
       size: 150,
       headerTooltip: {
         description: "Add `userId` to traces to track users.",
@@ -962,7 +961,7 @@ export default function TracesTable({
         columns={columns}
         filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
         searchConfig={{
-          placeholder: "Search",
+          placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
