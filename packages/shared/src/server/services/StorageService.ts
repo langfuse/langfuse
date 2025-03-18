@@ -57,7 +57,7 @@ export class StorageServiceFactory {
    * @param params.secretAccessKey - Secret access key
    * @param params.bucketName - Bucket name to store files
    * @param params.endpoint - Endpoint - Endpoint to an S3 compatible API (or Azure Blob Storage)
-   * @param params.externalEndpoint - External endpoint to replace the internal endpoint in the signed URL. Only supported for S3.
+   * @param params.externalEndpoint - External endpoint to replace the internal endpoint in the signed URL.
    * @param params.region - Region in which the bucket resides
    * @param params.forcePathStyle - Add bucket name into the path instead of the domain name. Mainly used for MinIO.
    */
@@ -80,22 +80,25 @@ export class StorageServiceFactory {
 class AzureBlobStorageService implements StorageService {
   private client: ContainerClient;
   private container: string;
+  private externalEndpoint: string | undefined;
 
   constructor(params: {
     accessKeyId: string | undefined;
     secretAccessKey: string | undefined;
     bucketName: string;
     endpoint: string | undefined;
+    externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
   }) {
-    const { accessKeyId, secretAccessKey, endpoint } = params;
+    const { accessKeyId, secretAccessKey, endpoint, externalEndpoint } = params;
     if (!accessKeyId || !secretAccessKey || !endpoint) {
       throw new Error(
         `Endpoint, account and account key must be configured to use Azure Blob Storage`,
       );
     }
 
+    this.externalEndpoint = externalEndpoint;
     const sharedKeyCredential = new StorageSharedKeyCredential(
       accessKeyId,
       secretAccessKey,
@@ -269,13 +272,20 @@ class AzureBlobStorageService implements StorageService {
       await this.createContainerIfNotExists();
 
       const blockBlobClient = this.client.getBlockBlobClient(fileName);
-      return blockBlobClient.generateSasUrl({
+      let url = await blockBlobClient.generateSasUrl({
         permissions: BlobSASPermissions.parse("r"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentDisposition: asAttachment
           ? `attachment; filename="${fileName}"`
           : undefined,
       });
+
+      // Replace internal endpoint with external endpoint if configured
+      if (this.externalEndpoint && url.includes(this.client.url)) {
+        url = url.replace(this.client.url, this.externalEndpoint);
+      }
+
+      return url;
     } catch (err) {
       logger.error(
         `Failed to generate presigned URL for Azure Blob Storage ${fileName}`,
@@ -297,11 +307,18 @@ class AzureBlobStorageService implements StorageService {
       await this.createContainerIfNotExists();
 
       const blockBlobClient = this.client.getBlockBlobClient(path);
-      return blockBlobClient.generateSasUrl({
+      let url = await blockBlobClient.generateSasUrl({
         permissions: BlobSASPermissions.parse("w"),
         expiresOn: new Date(Date.now() + ttlSeconds * 1000),
         contentType: contentType,
       });
+
+      // Replace internal endpoint with external endpoint if configured
+      if (this.externalEndpoint && url.includes(this.client.url)) {
+        url = url.replace(this.client.url, this.externalEndpoint);
+      }
+
+      return url;
     } catch (err) {
       logger.error(
         `Failed to generate presigned upload URL for Azure Blob Storage ${path}`,
