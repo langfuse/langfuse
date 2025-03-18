@@ -258,7 +258,6 @@ export const PromptDetail = () => {
 
   return (
     <Page
-      withPadding
       headerProps={{
         title: prompt.name,
         itemType: "PROMPT",
