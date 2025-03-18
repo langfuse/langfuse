@@ -43,7 +43,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
-import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
+import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
@@ -318,9 +318,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </TabsContent>
             </Tabs>
           </FormItem>
-          <PromptDescription
-            currentExtractedVariables={currentExtractedVariables}
-          />
+          <PromptVariableListPreview variables={currentExtractedVariables} />
         </>
 
         {/* Prompt Config field */}

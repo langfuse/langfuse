@@ -4,6 +4,7 @@ import {
   BatchExportQuerySchema,
   BatchExportQueryType,
   BatchExportStatus,
+  BatchExportTableName,
   exportOptions,
   FilterCondition,
   TimeFilter,
@@ -15,7 +16,7 @@ import {
   StorageServiceFactory,
   sendBatchExportSuccessEmail,
   streamTransformations,
-  BatchExportJobType,
+  type BatchExportJobType,
   FullObservationsWithScores,
   getPublicSessionsFilter,
   getScoresForObservations,
@@ -27,13 +28,14 @@ import {
   logger,
   getTracesByIds,
   getSessionsWithMetrics,
+  type ScoreUiTableRow,
   getScoresUiTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { BatchExportSessionsRow, BatchExportTracesRow } from "./types";
 import Decimal from "decimal.js";
 
-const tableNameToTimeFilterColumn = {
+const tableNameToTimeFilterColumn: Record<BatchExportTableName, string> = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
@@ -41,7 +43,7 @@ const tableNameToTimeFilterColumn = {
   dataset_run_items: "createdAt",
 };
 
-const tableNameToTimeFilterColumnCh = {
+const tableNameToTimeFilterColumnCh: Record<BatchExportTableName, string> = {
   scores: "timestamp",
   sessions: "createdAt",
   traces: "timestamp",
@@ -119,14 +121,34 @@ export const getDatabaseReadStream = async ({
   switch (tableName) {
     case "scores": {
       return new DatabaseReadStream<unknown>(
-        async (pageSize: number, offset: number) =>
-          getScoresUiTable({
+        async (pageSize: number, offset: number) => {
+          const scores = await getScoresUiTable({
             projectId,
-            filter: filter ?? [],
+            filter: filter
+              ? [...filter, createdAtCutoffFilter]
+              : [createdAtCutoffFilter],
             orderBy,
             limit: pageSize,
             offset,
-          }),
+          });
+
+          return scores.map((score: ScoreUiTableRow) => ({
+            id: score.id,
+            traceId: score.traceId,
+            timestamp: score.timestamp,
+            source: score.source,
+            name: score.name,
+            dataType: score.dataType,
+            value: score.value,
+            stringValue: score.stringValue,
+            comment: score.comment,
+            observationId: score.observationId,
+            traceName: score.traceName,
+            userId: score.traceUserId,
+            traceTags: score.traceTags,
+            environment: score.environment,
+          }));
+        },
         1000,
         exportLimit,
       );
@@ -479,6 +501,7 @@ export const handleBatchExportJob = async (
     accessKeyId: env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
     secretAccessKey: env.LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY,
     endpoint: env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    externalEndpoint: env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
     region: env.LANGFUSE_S3_BATCH_EXPORT_REGION,
     forcePathStyle: env.LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE === "true",
   }).uploadFile({
