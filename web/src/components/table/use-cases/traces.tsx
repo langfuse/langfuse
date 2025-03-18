@@ -1058,6 +1058,7 @@ export default function TracesTable({
               params.delete("peek");
               params.delete("timestamp");
               params.delete("observation");
+              params.delete("display");
             } else if (open && row.id && peekViewId !== row.id) {
               // Update or add peek and timestamp params
               params.set("peek", row.id);
@@ -1077,7 +1078,7 @@ export default function TracesTable({
               const url = new URL(window.location.href);
               const params = new URLSearchParams(url.search);
               const timestamp = params.get("timestamp");
-              const display = params.get("display") ?? "preview";
+              const display = params.get("display") ?? "details";
 
               if (openInNewTab) {
                 window.open(
