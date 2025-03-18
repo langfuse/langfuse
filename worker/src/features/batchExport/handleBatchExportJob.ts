@@ -142,6 +142,7 @@ export const getDatabaseReadStream = async ({
             value: score.value,
             stringValue: score.stringValue,
             comment: score.comment,
+            metadata: score.metadata,
             observationId: score.observationId,
             traceName: score.traceName,
             userId: score.traceUserId,

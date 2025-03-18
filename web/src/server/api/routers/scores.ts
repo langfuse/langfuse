@@ -125,6 +125,22 @@ export const scoresRouter = createTRPCRouter({
         }),
       };
     }),
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        scoreId: z.string(), // used for matching
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input }) => {
+      const score = await getScoreById(input.projectId, input.scoreId);
+      if (!score) {
+        throw new LangfuseNotFoundError(
+          `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
+        );
+      }
+      return score;
+    }),
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
     .query(async ({ input }) => {
@@ -289,6 +305,7 @@ export const scoresRouter = createTRPCRouter({
         configId: input.configId ?? null,
         name: input.name,
         comment: input.comment ?? null,
+        metadata: input.metadata ?? null,
         authorUserId: ctx.session.user.id,
         source: ScoreSource.ANNOTATION,
         queueId: input.queueId ?? null,
@@ -308,6 +325,7 @@ export const scoresRouter = createTRPCRouter({
         value: input.value !== null ? input.value : undefined,
         source: ScoreSource.ANNOTATION,
         comment: input.comment,
+        metadata: input.metadata ?? undefined,
         author_user_id: ctx.session.user.id,
         config_id: input.configId,
         data_type: input.dataType,
@@ -357,6 +375,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value !== null ? input.value : undefined,
           string_value: input.stringValue,
           comment: input.comment,
+          metadata: input.metadata,
           author_user_id: ctx.session.user.id,
           queue_id: input.queueId,
           source: ScoreSource.ANNOTATION,
@@ -372,6 +391,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value ?? null,
           stringValue: input.stringValue ?? null,
           comment: input.comment ?? null,
+          metadata: input.metadata ?? null,
           authorUserId: ctx.session.user.id,
           queueId: input.queueId ?? null,
         };

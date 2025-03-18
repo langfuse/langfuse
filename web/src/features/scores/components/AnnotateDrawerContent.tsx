@@ -75,6 +75,7 @@ const AnnotationScoreDataSchema = z.object({
   dataType: z.nativeEnum(ScoreDataType),
   configId: z.string().optional(),
   comment: z.string().optional(),
+  metadata: z.record(z.string()),
 });
 
 const AnnotateFormSchema = z.object({
@@ -324,6 +325,7 @@ export function AnnotateDrawerContent({
           scoreId: undefined,
           stringValue: undefined,
           comment: undefined,
+          metadata: undefined,
         });
       }
 
@@ -342,7 +344,16 @@ export function AnnotateDrawerContent({
   const onSettledUpsert = async (data?: APIScore, error?: unknown) => {
     if (!data || error) return;
 
-    const { id, value, stringValue, name, dataType, configId, comment } = data;
+    const {
+      id,
+      value,
+      stringValue,
+      name,
+      dataType,
+      configId,
+      comment,
+      metadata,
+    } = data;
     const updatedScoreIndex = fields.findIndex(
       (field) => field.configId === configId,
     );
@@ -355,6 +366,7 @@ export function AnnotateDrawerContent({
       stringValue: stringValue ?? undefined,
       configId: configId ?? undefined,
       comment: comment ?? undefined,
+      metadata: metadata ?? undefined,
     });
 
     await Promise.all([
@@ -401,6 +413,7 @@ export function AnnotateDrawerContent({
           configId: score.configId,
           stringValue: stringValue ?? score.stringValue,
           comment: score.comment,
+          metadata: score.metadata,
           observationId,
           value,
           queueId,
@@ -430,6 +443,7 @@ export function AnnotateDrawerContent({
             configId: score.configId,
             stringValue: stringValue ?? score.stringValue,
             comment: score.comment,
+            metadata: score.metadata,
             observationId,
             value,
             queueId,
@@ -454,6 +468,7 @@ export function AnnotateDrawerContent({
             configId: score.configId,
             stringValue: stringValue ?? score.stringValue,
             comment: score.comment,
+            metadata: score.metadata,
             observationId,
             value,
             queueId,
@@ -642,7 +657,7 @@ export function AnnotateDrawerContent({
           stringValue: score.stringValue,
           observationId,
           value,
-          comment,
+          metadata: score.metadata,
           queueId,
         });
 
@@ -781,6 +796,7 @@ export function AnnotateDrawerContent({
                               {score.name}
                             </span>
                           )}
+                          {/* TODO: add metadata */}
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button

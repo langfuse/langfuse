@@ -30,6 +30,7 @@ describe("/api/public/scores API Endpoint", () => {
       const traceId = v4();
       const score = {
         id: scoreId,
+        environment: "default",
         project_id: projectId,
         trace_id: traceId,
         name: "Test Score",
