@@ -18,6 +18,7 @@ import {
   useQueryParam,
   useQueryParams,
   withDefault,
+  type UrlUpdateType,
 } from "use-query-params";
 import type Decimal from "decimal.js";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -961,6 +962,85 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
+
+  const TracePeekView = ({
+    peek,
+    timestamp,
+    projectId,
+    selectedTab,
+    setSelectedTab,
+  }: {
+    peek: string;
+    timestamp: string;
+    projectId: string;
+    selectedTab: string;
+    setSelectedTab: (
+      newValue?: string | null,
+      updateType?: UrlUpdateType,
+    ) => void;
+  }) => {
+    const [latestRequestId, setLatestRequestId] = useState<string | null>(null);
+
+    const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+      {
+        traceId: peek,
+        timestamp: new Date(timestamp),
+        projectId,
+      },
+      {
+        enabled: !!peek && !!timestamp,
+        retry(failureCount, error) {
+          if (
+            error.data?.code === "UNAUTHORIZED" ||
+            error.data?.code === "NOT_FOUND"
+          )
+            return false;
+          return failureCount < 3;
+        },
+        trpc: {
+          context: {
+            skipBatch: true,
+            abortOnUnmount: true,
+          },
+        },
+        onSuccess: () => {
+          const requestId = `${peek}-${timestamp}`;
+          if (requestId === latestRequestId || latestRequestId === null) {
+            setLatestRequestId(requestId);
+          }
+        },
+      },
+    );
+
+    useEffect(() => {
+      if (peek && timestamp) {
+        const requestId = `${peek}-${timestamp}`;
+        setLatestRequestId(requestId);
+      }
+    }, [peek, timestamp]);
+
+    const shouldRender =
+      !!peek && !!timestamp && `${peek}-${timestamp}` === latestRequestId;
+
+    if (!shouldRender && trace.isLoading) {
+      return <Skeleton className="h-full w-full" />;
+    }
+
+    return !trace.data ? (
+      <Skeleton className="h-full w-full" />
+    ) : (
+      <Trace
+        key={trace.data.id}
+        trace={trace.data}
+        scores={trace.data.scores}
+        projectId={trace.data.projectId}
+        observations={trace.data.observations}
+        selectedTab={selectedTab}
+        setSelectedTab={setSelectedTab}
+      />
+    );
+  };
+
   return (
     <>
       <DataTableToolbar
@@ -1094,40 +1174,13 @@ export default function TracesTable({
           },
           render: () => {
             const { peek, timestamp } = router.query;
-
-            const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-              {
-                traceId: peek as string,
-                timestamp:
-                  typeof timestamp === "string"
-                    ? new Date(timestamp)
-                    : undefined,
-                projectId,
-              },
-              {
-                enabled: !!peek && !!timestamp,
-                retry(failureCount, error) {
-                  if (
-                    error.data?.code === "UNAUTHORIZED" ||
-                    error.data?.code === "NOT_FOUND"
-                  )
-                    return false;
-                  return failureCount < 3;
-                },
-              },
-            );
-
-            return !trace.data ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
-              <Trace
-                key={trace.data.id}
-                trace={trace.data}
-                scores={trace.data.scores}
-                projectId={trace.data.projectId}
-                observations={trace.data.observations}
+            return (
+              <TracePeekView
+                peek={peek as string}
+                timestamp={timestamp as string}
+                projectId={projectId}
                 selectedTab={selectedTab}
-                setSelectedTab={setSelectedTab}
+                setSelectedTab={(tab) => setSelectedTab(tab)}
               />
             );
           },
