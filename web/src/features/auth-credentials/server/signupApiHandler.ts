@@ -1,8 +1,17 @@
 import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
-import { getSsoAuthProviderIdForDomain } from "@langfuse/ee/sso";
+import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { logger } from "@langfuse/shared/src/server";
+
+export function getSSOBlockedDomains() {
+  return (
+    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",")
+      .map((domain) => domain.trim().toLowerCase())
+      .filter(Boolean) ?? []
+  );
+}
 
 /*
  * Sign-up endpoint (email/password users), creates user in database.
@@ -32,7 +41,7 @@ export async function signupApiHandler(
   // parse and type check the request body with zod
   const validBody = signupSchema.safeParse(req.body);
   if (!validBody.success) {
-    console.log("Signup: Invalid body", validBody.error);
+    logger.warn("Signup: Invalid body", validBody.error);
     res.status(422).json({ message: validBody.error });
     return;
   }
@@ -40,8 +49,7 @@ export async function signupApiHandler(
   const body = validBody.data;
 
   // check if email domain is blocked from email/password sign up via env
-  const blockedDomains =
-    env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT?.split(",") ?? [];
+  const blockedDomains = getSSOBlockedDomains();
   const domain = body.email.split("@")[1]?.toLowerCase();
   if (domain && blockedDomains.includes(domain)) {
     res.status(422).json({
@@ -52,11 +60,12 @@ export async function signupApiHandler(
   }
 
   // EE: check if custom SSO configuration is enabled for this domain
-  const customSsoProvider = await getSsoAuthProviderIdForDomain(domain);
-  if (customSsoProvider) {
+  const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
+  if (multiTenantSsoProvider) {
     res.status(422).json({
       message: "You must sign in via SSO for this domain.",
     });
+    return;
   }
 
   // create the user
@@ -68,15 +77,12 @@ export async function signupApiHandler(
       body.name,
     );
   } catch (error) {
-    if (error instanceof Error) {
-      console.log(
-        "Signup: Error creating user",
-        error.message,
-        body.email.toLowerCase(),
-        body.name,
-      );
-      res.status(422).json({ message: error.message });
-    }
+    const message =
+      "Signup: Error creating user: " +
+      (error instanceof Error ? error.message : JSON.stringify(error));
+    logger.warn(message, body.email.toLowerCase(), body.name);
+    res.status(422).json({ message: message });
+
     return;
   }
 

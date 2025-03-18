@@ -3,7 +3,7 @@ import { SessionPage } from "@/src/components/session";
 
 export default function Trace() {
   const router = useRouter();
-  const sessionId = decodeURIComponent(router.query.sessionId as string);
+  const sessionId = router.query.sessionId as string;
   const projectId = router.query.projectId as string;
 
   return <SessionPage sessionId={sessionId} projectId={projectId} />;

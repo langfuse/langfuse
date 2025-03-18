@@ -1,6 +1,7 @@
 import { runFeedbackCorsMiddleware } from "@/src/features/feedback/server/corsMiddleware";
 import { sendToSlack } from "@/src/features/slack/server/slack-webhook";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { logger } from "@langfuse/shared/src/server";
 
 // Collects feedack from users that do not use the cloud version of the app
 export default async function feedbackApiHandler(
@@ -14,11 +15,11 @@ export default async function feedbackApiHandler(
     if (slackResponse.status === 200) {
       res.status(200).json({ status: "OK" });
     } else {
-      console.error(slackResponse);
+      logger.error(slackResponse);
       res.status(400).json({ status: "Error" });
     }
   } catch (error) {
-    console.error(error);
+    logger.error(error);
     res.status(500).json({ status: "Error" });
   }
 }

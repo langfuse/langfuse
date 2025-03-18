@@ -10,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { InvalidRequestError } from "@langfuse/shared";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -78,13 +79,49 @@ export default withMiddlewares({
         );
       }
       const { tokenizerConfig, ...rest } = body;
-      const model = await prisma.model.create({
-        data: {
-          ...rest,
-          tokenizerConfig: tokenizerConfig ?? undefined,
+
+      const model = await prisma.$transaction(async (tx) => {
+        const createdModel = await tx.model.create({
+          data: {
+            ...rest,
+            tokenizerConfig: tokenizerConfig ?? undefined,
+            projectId: auth.scope.projectId,
+          },
+        });
+
+        const prices = [
+          { usageType: "input", price: body.inputPrice },
+          { usageType: "output", price: body.outputPrice },
+          { usageType: "total", price: body.totalPrice },
+        ];
+
+        await Promise.all(
+          prices
+            .filter(({ price }) => price != null)
+            .map(({ usageType, price }) =>
+              tx.price.create({
+                data: {
+                  modelId: createdModel.id,
+                  usageType,
+                  price: price as number, // type guard checked in array filter
+                },
+              }),
+            ),
+        );
+
+        await auditLog({
+          action: "create",
+          resourceType: "model",
+          resourceId: createdModel.id,
           projectId: auth.scope.projectId,
-        },
+          orgId: auth.scope.orgId,
+          apiKeyId: auth.scope.apiKeyId,
+          after: createdModel,
+        });
+
+        return createdModel;
       });
+
       return prismaToApiModelDefinition(model);
     },
   }),

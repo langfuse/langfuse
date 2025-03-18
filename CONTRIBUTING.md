@@ -53,70 +53,16 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ### Architecture Overview
 
-> [!NOTE]
-> Infrastructure will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
-> `langfuse/langfuse/worker` is under active development and not recommended for production use in Langfuse 2.x.
-
-```mermaid
-flowchart TB
-    subgraph s4["Clients"]
-        subgraph s2["langfuse/langfuse-python"]
-            Python["Python low-level SDK"]
-            Decorator["observe() decorator"] -->|extends| Python
-            OAI["OpenAI drop-in replacement"] -->|extends| Python
-            Llamaindex["LlamaIndex Integration"] -->|extends| Python
-            LCPYTHON["Langchain Python Integration"] -->|extends| Python
-            Langflow -->|uses| LCPYTHON
-            LiteLLM -->|uses| Python
-        end
-        subgraph s3["langfuse/langfuse-js"]
-            JS["JS SDK"]
-            LCJS["Langchain JS Integration"]  -->|extends| JS
-            Flowise -->|uses| LCJS
-        end
-    end
-
-    DB[Postgres Database]
-    Redis[Redis]
-
-    subgraph s1["Application (langfuse/langfuse/web)"]
-        API[Public HTTP API]
-        G[TRPC API]
-        I[NextAuth]
-        H[React Frontend]
-        Prisma[Prisma ORM]
-        H --> G
-        H --> I
-        G --> I
-        G --- Prisma
-        API --- Prisma
-        I --- Prisma
-    end
-
-    subgraph s5["Application (langfuse/langfuse/worker)"]
-        Worker_API[Public HTTP API]
-    end
-
-    API --> Worker_API
-    Worker_API --- DB
-    Worker_API --- Redis
-
-    Prisma --- DB
-    JS --- API
-    Python --- API
-```
+See this [diagram](https://langfuse.com/self-hosting#architecture) for an overview of the architecture.
 
 ### Network Overview
-
-> [!NOTE]
-> This will change in Langfuse version 3.0. More in the [GitHub Discussions](https://github.com/orgs/langfuse/discussions/1902).
 
 ```mermaid
 flowchart LR
    Browser ---|Web UI & TRPC API| App
    Integrations/SDKs ---|Public HTTP API| App
    subgraph i1["Application Network"]
-      App["Langfuse Application (Docker or Serverless)"]
+      App["Langfuse Application"]
    end
    subgraph i2["Database Network"]
       DB["Postgres Database"]
@@ -149,17 +95,19 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 20 as specified in the [.nvmrc](.nvmrc)
+- Pnpm v.9.5.0
 - Docker to run the database locally
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
 **Steps**
 
-1. Fork the repository and clone it locally
-2. Run the development database
+1. Install [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+2. Fork the repository and clone it locally
 
    ```bash
-   pnpm run infra:dev:up
+   git clone https://github.com/langfuse/langfuse.git
+   cd langfuse
    ```
 
 3. Create an env file
@@ -168,40 +116,23 @@ Requirements
     cp .env.dev.example .env
    ```
 
-4. Install dependencies
+4. Run the entire infrastructure in dev mode
 
    ```bash
-   pnpm install
+   pnpm run dx
    ```
 
-5. Run the migrations
+   You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
-   All database migrations and configs are in the `shared` package.
+5. Open the web app in your browser to start using Langfuse:
 
-   ```bash
-   pnpm --filter=shared run db:migrate
+   - [Sign up page, http://localhost:3000](http://localhost:3000)
+   - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
-   # Optional: seed the database
-   # pnpm run db:seed
-   # pnpm run db:seed:examples
-   # pnpm --filter=shared run db:seed:load
-   ```
+6. Log in as a test user:
 
-6. Start the development server
-
-   ```bash
-    pnpm run dev
-   ```
-
-7. Open the web app in the browser:
-
-   http://localhost:3000
-
-8. Log in as a test user (after you ran `db:seed` command):
-
-   Username: demo@langfuse.com
-
-   Password: password
+   - Username: `demo@langfuse.com`
+   - Password: `password`
 
 ## Monorepo quickstart
 
@@ -347,7 +278,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --primary-accent         | Primary accent color used for branding                             | Layout                           |
 | --hover-primary-accent   | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
 | --muted-green            | Muted green for Event label                                        | ObservationTree                  |
-| --muted-orange           | Muted orange for Generation label                                  | ObservationTree                  |
+| --muted-magenta          | Muted magenta for Generation label                                 | ObservationTree                  |
 | --muted-blue             | Muted blue for Span label                                          | ObservationTree                  |
 | --muted-gray             | Muted gray for disabled status badges                              | StatusBadge                      |
 | --accent-light-green     | Light green accent for background of output and assistant messages | IOPreview, Generations, Traces   |
@@ -381,6 +312,20 @@ Example:
 ```bash
 op run --env-file="./.env" -- pnpm --filter=shared run db:deploy
 ```
+
+### Editing default models and prices
+
+You can update the default AI models and prices by adding or updating an entry in `worker/src/constants/default-model-prices.json`.
+
+Please note that
+
+- prices are in USD
+- the list is ordered by ID, so make sure to keep this order and insert new models at the end of the list
+- the `updated_at` field must be updated with the current date in ISO 8601 format. Otherwise, the change will be ignored.
+
+### Transition period until V3 release
+
+Until the V3 release, both the JSON record must be updated **and** a migration must be created to continue supporting self-hosted users. Note that the migration must updated both the `models` as well as the `prices` table accordingly.
 
 ## License
 

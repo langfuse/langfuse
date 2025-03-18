@@ -1,9 +1,10 @@
 import {
   type ObservationView,
   paginationMetaResponseZod,
-  paginationZod,
-  stringDateTime,
+  publicApiPaginationZod,
 } from "@langfuse/shared";
+
+import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 /**
@@ -20,6 +21,7 @@ export const APIObservation = z
     parentObservationId: z.string().nullable(),
     name: z.string().nullable(),
     type: ObservationType,
+    environment: z.string().default("default"),
     startTime: z.coerce.date(),
     endTime: z.coerce.date().nullable(),
     version: z.string().nullable(),
@@ -35,15 +37,21 @@ export const APIObservation = z
     model: z.string().nullable(),
     modelParameters: z.any(),
     completionStartTime: z.coerce.date().nullable(),
+
+    // prompt
     promptId: z.string().nullable(),
+    promptName: z.string().nullable(),
+    promptVersion: z.number().int().positive().nullable(),
 
     // usage
+    usageDetails: z.record(z.string(), z.number().nonnegative()),
+    costDetails: z.record(z.string(), z.number().nonnegative()),
     usage: z.object({
       unit: z.string().nullable(),
       input: z.number(),
       output: z.number(),
       total: z.number(),
-    }),
+    }), // backwards compatibility
     unit: z.string().nullable(), // backwards compatibility
     promptTokens: z.number(), // backwards compatibility
     completionTokens: z.number(), // backwards compatibility
@@ -84,6 +92,8 @@ export const transformDbToApiObservation = (
     observation;
 
   return {
+    usageDetails: {}, // Important: order matters here, in PG there are no usageDetails but in CH there are and will be written by rest
+    costDetails: {}, // Important: order matters here, in PG there are no costDetails but in CH there are and will be written by rest
     ...rest,
     unit,
     promptTokens,
@@ -110,12 +120,14 @@ export const transformDbToApiObservation = (
 
 // GET /observations
 export const GetObservationsV1Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
   traceId: z.string().nullish(),
+  version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
 });

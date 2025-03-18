@@ -1,6 +1,6 @@
 import { Terminal } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { z } from "zod";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
@@ -18,7 +18,8 @@ import {
   type UIModelParams,
   ZodModelConfig,
 } from "@langfuse/shared";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { cn } from "@/src/utils/tailwind";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -28,21 +29,27 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Observation;
+      generation: Omit<Observation, "input" | "output"> & {
+        input: string | undefined;
+        output: string | undefined;
+      };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  fullWidth?: boolean;
+  variant?: "outline" | "secondary";
+  className?: string;
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   props,
 ) => {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
-  const isEeEnabled = useIsEeEnabled();
+  const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const isEntitled = useHasEntitlement("playground");
 
   useEffect(() => {
     if (props.source === "prompt") {
@@ -52,27 +59,44 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     }
   }, [props]);
 
+  useEffect(() => {
+    if (capturedState) {
+      setIsAvailable(true);
+    } else {
+      setIsAvailable(false);
+    }
+  }, [capturedState, setIsAvailable]);
+
   const handleClick = () => {
     capture(props.analyticsEventName);
     setPlaygroundCache(capturedState);
+
+    router.push(`/project/${projectId}/playground`);
   };
 
-  if (!isEeEnabled) return null;
+  if (!isEntitled) return null;
 
   return (
     <Button
-      variant={props.fullWidth ? "secondary" : "outline"}
-      title="Test in LLM playground"
-      size={!props.fullWidth ? "icon" : undefined}
+      variant={props.variant ?? "secondary"}
+      disabled={!isAvailable}
+      title={
+        isAvailable
+          ? "Test in LLM playground"
+          : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a Github issue."
+      }
       onClick={handleClick}
       asChild
+      className={
+        !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+      }
     >
-      <Link href={`/project/${projectId}/playground`}>
-        <Terminal className="h-5 w-5" />
-        {props.fullWidth ? (
-          <span className="ml-2">Test in playground</span>
-        ) : null}
-      </Link>
+      <span>
+        <Terminal className="h-4 w-4" />
+        <span className={cn("hidden md:ml-2 md:inline", props.className)}>
+          Playground
+        </span>
+      </span>
     </Button>
   );
 };
@@ -82,6 +106,16 @@ const ParsedChatMessageListSchema = z.array(
     role: z.nativeEnum(ChatMessageRole),
     content: z.union([
       z.string(),
+      // If system message is cached, the message is an array of objects with a text property
+      z
+        .array(
+          z
+            .object({
+              text: z.string(),
+            })
+            .transform((v) => v.text),
+        )
+        .transform((v) => v.join("")),
       z.any().transform((v) => JSON.stringify(v, null, 2)),
     ]),
   }),
@@ -106,17 +140,35 @@ const parsePrompt = (prompt: Prompt): PlaygroundCache => {
   }
 };
 
-const parseGeneration = (generation: Observation): PlaygroundCache => {
+const parseGeneration = (
+  generation: Omit<Observation, "input" | "output"> & {
+    input: string | undefined;
+    output: string | undefined;
+  },
+): PlaygroundCache => {
   if (generation.type !== "GENERATION") return null;
 
   const modelParams = parseModelParams(generation);
-  const input = generation.input?.valueOf();
+  let input = generation.input?.valueOf();
 
   if (typeof input === "string") {
-    return {
-      messages: [createEmptyMessage(ChatMessageRole.System, input)],
-      modelParams,
-    };
+    try {
+      input = JSON.parse(input);
+
+      if (typeof input === "string") {
+        return {
+          messages: [createEmptyMessage(ChatMessageRole.System, input)],
+          modelParams,
+        };
+      }
+    } catch (err) {
+      return {
+        messages: [
+          createEmptyMessage(ChatMessageRole.System, input?.toString()),
+        ],
+        modelParams,
+      };
+    }
   }
 
   if (typeof input === "object") {
@@ -139,7 +191,7 @@ const parseGeneration = (generation: Observation): PlaygroundCache => {
 };
 
 function parseModelParams(
-  generation: Observation,
+  generation: Omit<Observation, "input" | "output">,
 ):
   | (Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">)
   | undefined {

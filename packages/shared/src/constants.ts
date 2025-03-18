@@ -6,4 +6,5 @@ export enum ModelUsageUnit {
   Seconds = "SECONDS",
   Milliseconds = "MILLISECONDS",
   Images = "IMAGES",
+  Requests = "REQUESTS",
 }

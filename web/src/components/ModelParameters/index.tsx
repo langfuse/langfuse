@@ -3,6 +3,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
@@ -18,6 +19,7 @@ import {
 } from "@langfuse/shared";
 
 import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
+import { FormDescription } from "@/src/components/ui/form";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -29,6 +31,7 @@ export type ModelParamsContext = {
   ) => void;
   setModelParamEnabled?: (key: keyof UIModelParams, enabled: boolean) => void;
   formDisabled?: boolean;
+  modelParamsDescription?: string;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
@@ -38,6 +41,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   updateModelParamValue,
   setModelParamEnabled,
   formDisabled = false,
+  modelParamsDescription,
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -48,7 +52,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
       <p className="font-semibold">Model</p>
       {availableProviders.length === 0 ? (
         <>
-          <p className="text-sm">No LLM API key set in project.</p>
+          <p className="text-xs">No LLM API key set in project. </p>
           <CreateLLMApiKeyDialog />
         </>
       ) : (
@@ -68,7 +72,22 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             value={modelParams.model.value}
             options={availableModels}
             updateModelParam={updateModelParamValue}
+            modelParamsDescription={modelParamsDescription}
           />
+          {modelParams.model.value?.startsWith("o1-") ? (
+            <p className="text-sm text-dark-yellow">
+              For {modelParams.model.value}, the system message and the
+              temperature, max_tokens and top_p setting are not supported while
+              it is in beta.{" "}
+              <a
+                href="https://platform.openai.com/docs/guides/reasoning/beta-limitations"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                More info ↗
+              </a>
+            </p>
+          ) : null}
           <ModelParamsSlider
             title="Temperature"
             modelParamsKey="temperature"
@@ -90,7 +109,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             setModelParamEnabled={setModelParamEnabled}
             value={modelParams.max_tokens.value}
             min={1}
-            max={4096}
+            max={16384}
             step={1}
             tooltip="The maximum number of tokens that can be generated in the chat completion."
             updateModelParam={updateModelParamValue}
@@ -122,6 +141,7 @@ type ModelParamsSelectProps = {
   options: string[];
   updateModelParam: ModelParamsContext["updateModelParamValue"];
   disabled?: boolean;
+  modelParamsDescription?: string;
 };
 const ModelParamsSelect = ({
   title,
@@ -130,6 +150,7 @@ const ModelParamsSelect = ({
   options,
   updateModelParam,
   disabled,
+  modelParamsDescription,
 }: ModelParamsSelectProps) => {
   return (
     <div className="space-y-2">
@@ -160,8 +181,13 @@ const ModelParamsSelect = ({
               {option}
             </SelectItem>
           ))}
+          <SelectSeparator />
+          <CreateLLMApiKeyDialog />
         </SelectContent>
       </Select>
+      {modelParamsDescription ? (
+        <FormDescription>{modelParamsDescription}</FormDescription>
+      ) : undefined}
     </div>
   );
 };

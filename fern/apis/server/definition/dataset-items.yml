@@ -37,8 +37,21 @@ service:
             type: optional<integer>
             docs: limit of items per page
       response: PaginatedDatasetItems
+    delete:
+      docs: Delete a dataset item and all its run items. This action is irreversible.
+      method: DELETE
+      path: /dataset-items/{id}
+      path-parameters:
+        id:
+          type: string
+      response: DeleteDatasetItemResponse
 
 types:
+  DeleteDatasetItemResponse:
+    properties:
+      message:
+        type: string
+        docs: Success message after deletion
   CreateDatasetItemRequest:
     properties:
       datasetName: string
@@ -49,7 +62,7 @@ types:
       sourceObservationId: optional<string>
       id:
         type: optional<string>
-        docs: Dataset items are upserted on their id. Id needs to be globally unique and cannot be reused across datasets.
+        docs: Dataset items are upserted on their id. Id needs to be unique (project-level) and cannot be reused across datasets.
       status:
         type: optional<commons.DatasetStatus>
         docs: Defaults to ACTIVE for newly created items

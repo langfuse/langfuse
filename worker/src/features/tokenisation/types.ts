@@ -58,6 +58,7 @@ export const isTiktokenModel = (model: string): model is TiktokenModel => {
     "gpt-4-vision-preview",
     "gpt-4o",
     "gpt-4o-2024-05-13",
+    // "gpt-4o-2024-08-06", not supported by tiktoken yet, configured to use gpt-4o tokenizer
   ].includes(model);
 };
 const chatModels = [

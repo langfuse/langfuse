@@ -40,7 +40,7 @@ export default function ReferralSource() {
         $survey_response: values.referralSource,
       });
     }
-    void router.push("/?getStarted=1");
+    void router.push("/");
   }
 
   return (

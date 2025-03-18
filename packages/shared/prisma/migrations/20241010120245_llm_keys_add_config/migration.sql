@@ -1,0 +1,1 @@
+ALTER TABLE "llm_api_keys" ADD COLUMN "config" JSONB;

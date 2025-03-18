@@ -1,9 +1,12 @@
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { getColorsForCategories } from "@/src/features/dashboard/utils/getColorsForCategories";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { AreaChart, type CustomTooltipProps, LineChart } from "@tremor/react";
 import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
+import {
+  dashboardDateRangeAggregationSettings,
+  type DashboardDateRangeAggregationOption,
+} from "@/src/utils/date-range-utils";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
@@ -12,7 +15,7 @@ export type TimeSeriesChartDataPoint = {
 
 export function BaseTimeSeriesChart(props: {
   className?: string;
-  agg: DateTimeAggregationOption;
+  agg: DashboardDateRangeAggregationOption;
   data: TimeSeriesChartDataPoint[];
   showLegend?: boolean;
   connectNulls?: boolean;
@@ -41,14 +44,15 @@ export function BaseTimeSeriesChart(props: {
     });
   }
 
-  const convertDate = (date: number, agg: DateTimeAggregationOption) => {
-    const showMinutes: DateTimeAggregationOption[] = [
-      "5 minutes",
-      "30 minutes",
-      "1 hour",
-      "3 hours",
-    ];
-    if (showMinutes.includes(agg)) {
+  const convertDate = (
+    date: number,
+    agg: DashboardDateRangeAggregationOption,
+  ) => {
+    const showMinutes = ["minute", "hour"].includes(
+      dashboardDateRangeAggregationSettings[agg].date_trunc,
+    );
+
+    if (showMinutes) {
       return new Date(date).toLocaleTimeString("en-US", {
         year: "2-digit",
         month: "numeric",

@@ -14,7 +14,7 @@ const NumericData = z.object({
 });
 
 const CategoricalData = z.object({
-  value: z.number().optional().nullish(),
+  value: z.number().nullish(),
   stringValue: z.string(),
   dataType: z.literal("CATEGORICAL"),
 });
@@ -28,10 +28,12 @@ const BooleanData = z.object({
 const CreateAnnotationScoreBase = z.object({
   name: z.string(),
   projectId: z.string(),
+  environment: z.string().default("default"),
   traceId: z.string(),
   configId: z.string().optional(),
   observationId: z.string().optional(),
-  comment: z.string().optional().nullish(),
+  comment: z.string().nullish(),
+  queueId: z.string().nullish(),
 });
 
 const UpdateAnnotationScoreBase = CreateAnnotationScoreBase.extend({
@@ -57,3 +59,15 @@ export const UpdateAnnotationScoreData = z.discriminatedUnion("dataType", [
   UpdateAnnotationScoreBase.merge(CategoricalData),
   UpdateAnnotationScoreBase.merge(BooleanData),
 ]);
+
+// annotation queues
+
+export const CreateQueueData = z.object({
+  name: z.string().min(1).max(35),
+  description: z.string().max(1000).optional(),
+  scoreConfigIds: z.array(z.string()).min(1, {
+    message: "At least 1 score config must be selected",
+  }),
+});
+
+export type CreateQueue = z.infer<typeof CreateQueueData>;

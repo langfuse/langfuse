@@ -1,48 +1,59 @@
 import { test, expect } from "@playwright/test";
 
-test("should see new projects dialog open after clicking new project btn", async ({
-  page,
-}) => {
-  await page.goto("auth/sign-up");
-  await page.fill('input[name="name"]', "demo user");
-  await page.fill('input[name="email"]', randomEmailAddress());
-  await page.fill('input[type="password"]', "password");
-  await page.click('button[data-testid="submit-email-password-sign-up-form"]');
-  await page.waitForTimeout(2000);
-  await page.waitForTimeout(2000);
-  expect(await page.innerHTML("data-testid=create-new-project-title")).toBe(
-    "Create new project",
-  );
-  await page.click('[data-testid="create-project-btn"]');
-  await page.waitForTimeout(2000);
-  await expect(page.locator("data-testid=new-project-form")).toBeVisible();
-});
-
-test("Create a project with provided name", async ({ page }) => {
+test("Sign in, create an organization, create a project", async ({ page }) => {
   test.setTimeout(60000);
 
+  // Sign in
   await page.goto("/auth/sign-in");
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
   await page.waitForTimeout(2000);
-  await page.isVisible('[data-testid="new-project-form"]');
-  await page.click('[data-testid="create-project-btn"]');
-  await page.waitForTimeout(2000);
-  await expect(page.locator("data-testid=new-project-form")).toBeVisible();
-  await page.fill(
-    '[data-testid="new-project-name-input"]',
-    "my e2e demo project",
-  );
-  await page.click('button[type="submit"]');
-  await page.waitForTimeout(2000);
-  expect(page.url()).toContain("/project/");
-  await page.waitForTimeout(2000);
-  expect(await page.getByTestId("project-name").textContent()).toContain(
-    "my e2e demo project",
-  );
-});
+  await expect(page).toHaveURL("/");
 
-// random email address to be used in tests
-const randomEmailAddress = () =>
-  Math.random().toString(36).substring(2, 11) + "@example.com";
+  // Start create org flow
+  await page.isVisible('[data-testid="create-organization-btn"]');
+  await page.click('[data-testid="create-organization-btn"]');
+  await page.waitForTimeout(2000);
+  await expect(page).toHaveURL("/setup");
+
+  // Create an organization
+  await expect(page.locator("data-testid=new-org-form")).toBeVisible();
+  await page.fill('[data-testid="new-org-name-input"]', "e2e test org");
+  await page.click('button[type="submit"]');
+  await page.waitForTimeout(5000);
+  expect(page.url()).toContain("/organization/");
+  expect(page.url()).toContain("/setup?orgstep=invite-members");
+
+  // Parse the organization ID from the URL using a simpler method
+  const url = new URL(page.url());
+  const organizationId = url.pathname.split("/")[2];
+  console.log("organization", organizationId);
+
+  // Skip add new members step
+  await page.isVisible('[data-testid="btn-skip-add-members"]');
+  await page.click('[data-testid="btn-skip-add-members"]');
+  expect(page.url()).toContain(
+    "/organization/" + organizationId + "/setup?orgstep=create-project",
+  );
+
+  // Create project
+  await expect(page.locator("data-testid=new-project-form")).toBeVisible();
+  await page.fill('[data-testid="new-project-name-input"]', "e2e test project");
+  await page.click('button[type="submit"]');
+  await page.waitForTimeout(5000);
+  expect(page.url()).toContain("/project/");
+  expect(page.url()).toContain("/setup");
+
+  const projectUrl = new URL(page.url());
+  const projectId = projectUrl.pathname.split("/")[2];
+
+  // check that the project exists by navigating to its dashboard
+  await page.goto("/project/" + projectId);
+  await page.waitForTimeout(2000);
+  expect(page.url()).toContain("/project/" + projectId);
+  expect(page.url()).not.toContain("/setup");
+
+  const headings = await page.locator("h2").allTextContents();
+  expect(headings).toContain("Dashboard");
+});

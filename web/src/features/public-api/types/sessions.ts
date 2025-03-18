@@ -1,9 +1,10 @@
 import { APITrace } from "@/src/features/public-api/types/traces";
 import {
   paginationMetaResponseZod,
-  paginationZod,
-  stringDateTime,
+  publicApiPaginationZod,
 } from "@langfuse/shared";
+import { stringDateTime } from "@langfuse/shared/src/server";
+
 import { z } from "zod";
 
 /**
@@ -15,6 +16,7 @@ const APISession = z
     id: z.string(),
     createdAt: z.coerce.date(),
     projectId: z.string(),
+    environment: z.string(),
   })
   .strict();
 
@@ -24,9 +26,10 @@ const APISession = z
 
 // GET /sessions
 export const GetSessionsV1Query = z.object({
-  ...paginationZod,
+  ...publicApiPaginationZod,
   fromTimestamp: stringDateTime,
   toTimestamp: stringDateTime,
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 export const GetSessionsV1Response = z
   .object({

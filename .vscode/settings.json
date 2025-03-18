@@ -20,6 +20,7 @@
   "prettier.documentSelectors": [
     "**/*.{cjs,mjs,ts,tsx,astro,md,mdx,json,yaml,yml}"
   ],
+  "prettier.trailingComma": "all",
   "mdx.experimentalLanguageServer": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "docwriter.style": "JSDoc",

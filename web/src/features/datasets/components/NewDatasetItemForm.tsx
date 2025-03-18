@@ -10,22 +10,30 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
-import { JsonEditor } from "@/src/components/json-editor";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+} from "@/src/components/ui/input-command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
 
 const formSchema = z.object({
-  datasetId: z.string().min(1, "Select a dataset"),
+  datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
   input: z.string().refine(
     (value) => {
       if (value === "") return true;
@@ -83,13 +91,14 @@ export const NewDatasetItemForm = (props: {
   datasetId?: string;
   className?: string;
   onFormSuccess?: () => void;
+  blockedDatasetIds?: string[];
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      datasetId: props.datasetId ?? "",
+      datasetIds: props.datasetId ? [props.datasetId] : [],
       input: props.input ? JSON.stringify(props.input, null, 2) : "",
       expectedOutput: props.output ? JSON.stringify(props.output, null, 2) : "",
       metadata: props.metadata ? JSON.stringify(props.metadata, null, 2) : "",
@@ -101,10 +110,11 @@ export const NewDatasetItemForm = (props: {
   });
 
   const utils = api.useUtils();
-  const createDatasetItemMutation = api.datasets.createDatasetItem.useMutation({
-    onSuccess: () => utils.datasets.invalidate(),
-    onError: (error) => setFormError(error.message),
-  });
+  const createManyDatasetItemsMutation =
+    api.datasets.createManyDatasetItems.useMutation({
+      onSuccess: () => utils.datasets.invalidate(),
+      onError: (error) => setFormError(error.message),
+    });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     if (props.traceId) {
@@ -114,12 +124,18 @@ export const NewDatasetItemForm = (props: {
     } else {
       capture("dataset_item:new_form_submit");
     }
-    createDatasetItemMutation
+
+    createManyDatasetItemsMutation
       .mutateAsync({
-        ...values,
         projectId: props.projectId,
-        sourceTraceId: props.traceId,
-        sourceObservationId: props.observationId,
+        items: values.datasetIds.map((datasetId) => ({
+          datasetId,
+          input: values.input,
+          expectedOutput: values.expectedOutput,
+          metadata: values.metadata,
+          sourceTraceId: props.traceId,
+          sourceObservationId: props.observationId,
+        })),
       })
       .then(() => {
         props.onFormSuccess?.();
@@ -135,59 +151,149 @@ export const NewDatasetItemForm = (props: {
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
-        className={cn("flex flex-col gap-6", props.className)}
+        className={cn("flex h-full flex-col gap-6", props.className)}
       >
-        <FormField
-          control={form.control}
-          name="datasetId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dataset</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a dataset" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {datasets.data?.map((dataset) => (
-                    <SelectItem value={dataset.id} key={dataset.id}>
-                      {dataset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex-none">
           <FormField
             control={form.control}
-            name="input"
+            name="datasetIds"
             render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel>Input</FormLabel>
-                <FormControl>
-                  <JsonEditor
-                    defaultValue={field.value}
-                    onChange={field.onChange}
-                  />
-                </FormControl>
+              <FormItem className="flex flex-col">
+                <FormLabel>Datasets</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className={cn(
+                          "w-full justify-between",
+                          !field.value.length && "text-muted-foreground",
+                        )}
+                      >
+                        {field.value.length > 0
+                          ? `${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`
+                          : "Select datasets"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <InputCommand>
+                      <InputCommandInput placeholder="Search datasets..." />
+                      <InputCommandEmpty>No datasets found.</InputCommandEmpty>
+                      <InputCommandGroup>
+                        <ScrollArea className="h-60">
+                          {datasets.data
+                            ?.filter(
+                              (dataset) =>
+                                !props.blockedDatasetIds?.includes(dataset.id),
+                            )
+                            .map((dataset) => (
+                              <InputCommandItem
+                                value={dataset.name}
+                                key={dataset.id}
+                                onSelect={() => {
+                                  const newValue = field.value.includes(
+                                    dataset.id,
+                                  )
+                                    ? field.value.filter(
+                                        (id) => id !== dataset.id,
+                                      )
+                                    : [...field.value, dataset.id];
+                                  field.onChange(newValue);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value.includes(dataset.id)
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                                {dataset.name}
+                              </InputCommandItem>
+                            ))}
+                        </ScrollArea>
+                      </InputCommandGroup>
+                    </InputCommand>
+                  </PopoverContent>
+                </Popover>
+                {field.value.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {field.value.map((datasetId) => {
+                      const dataset = datasets.data?.find(
+                        (d) => d.id === datasetId,
+                      );
+                      return (
+                        <Badge
+                          key={datasetId}
+                          variant="secondary"
+                          className="mb-1 mr-1"
+                        >
+                          {dataset?.name || datasetId}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
                 <FormMessage />
               </FormItem>
             )}
           />
+        </div>
+        <div className="ph-no-capture min-h-0 flex-1 overflow-y-auto">
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="input"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Input</FormLabel>
+                  <FormControl>
+                    <CodeMirrorEditor
+                      mode="json"
+                      value={field.value}
+                      onChange={field.onChange}
+                      minHeight={200}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="expectedOutput"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel>Expected output</FormLabel>
+                  <FormControl>
+                    <CodeMirrorEditor
+                      mode="json"
+                      value={field.value}
+                      onChange={field.onChange}
+                      minHeight={200}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <FormField
             control={form.control}
-            name="expectedOutput"
+            name="metadata"
             render={({ field }) => (
-              <FormItem className="flex flex-col gap-2">
-                <FormLabel>Expected output</FormLabel>
+              <FormItem className="mt-4 flex flex-col gap-2">
+                <FormLabel>Metadata</FormLabel>
                 <FormControl>
-                  <JsonEditor
-                    defaultValue={field.value}
+                  <CodeMirrorEditor
+                    mode="json"
+                    value={field.value}
                     onChange={field.onChange}
+                    minHeight={100}
                   />
                 </FormControl>
                 <FormMessage />
@@ -195,35 +301,22 @@ export const NewDatasetItemForm = (props: {
             )}
           />
         </div>
-        <FormField
-          control={form.control}
-          name="metadata"
-          render={({ field }) => (
-            <FormItem className="flex flex-col gap-2">
-              <FormLabel>Metadata</FormLabel>
-              <FormControl>
-                <JsonEditor
-                  defaultValue={field.value}
-                  onChange={field.onChange}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button
-          type="submit"
-          loading={createDatasetItemMutation.isLoading}
-          className="mt-auto w-full"
-        >
-          Add to dataset
-        </Button>
+        <div className="mt-3 flex-none">
+          <Button
+            type="submit"
+            loading={createManyDatasetItemsMutation.isLoading}
+            className="w-full"
+            disabled={form.watch("datasetIds").length === 0}
+          >
+            Add to dataset{form.watch("datasetIds").length > 1 ? "s" : ""}
+          </Button>
+          {formError ? (
+            <p className="text-red mt-2 text-center">
+              <span className="font-bold">Error:</span> {formError}
+            </p>
+          ) : null}
+        </div>
       </form>
-      {formError ? (
-        <p className="text-red text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
-      ) : null}
     </Form>
   );
 };

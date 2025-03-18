@@ -1,5 +1,4 @@
 import * as React from "react";
-import Header from "@/src/components/layouts/header";
 import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
@@ -12,11 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
-import { Pencil } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Page from "@/src/components/layouts/page";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -46,35 +46,42 @@ export const EvalTemplateDetail = () => {
   );
 
   return (
-    <div className="md:container">
-      <Header
-        title={template.data?.name ?? "Loading..."}
-        actionButtons={
-          template.data && (
-            <>
-              {!isEditing && (
-                <UpdateTemplate
-                  projectId={projectId}
-                  isLoading={template.isLoading}
-                  setIsEditing={setIsEditing}
-                />
-              )}
-              <EvalVersionDropdown
-                disabled={allTemplates.isLoading}
-                options={allTemplates.data?.templates ?? []}
-                defaultOption={template.data ?? undefined}
-                onSelect={(template) => {
-                  router.push(
-                    `/project/${projectId}/evals/templates/${template.id}`,
-                  );
-                }}
+    <Page
+      scrollable
+      headerProps={{
+        title: `${template.data?.name}: ${templateId}`,
+        itemType: "EVAL_TEMPLATE",
+        breadcrumb: [
+          {
+            name: "Eval Templates",
+            href: `/project/${router.query.projectId as string}/evals/templates`,
+          },
+        ],
+        actionButtonsRight: (
+          <>
+            {!isEditing && (
+              <UpdateTemplate
+                projectId={projectId}
+                isLoading={template.isLoading}
+                setIsEditing={setIsEditing}
               />
-            </>
-          )
-        }
-      />
+            )}
+            <EvalVersionDropdown
+              disabled={allTemplates.isLoading}
+              options={allTemplates.data?.templates ?? []}
+              defaultOption={template.data ?? undefined}
+              onSelect={(template) => {
+                router.push(
+                  `/project/${projectId}/evals/templates/${template.id}`,
+                );
+              }}
+            />
+          </>
+        ),
+      }}
+    >
       {allTemplates.isLoading || !allTemplates.data ? (
-        <div>Loading...</div>
+        <div className="p-3">Loading...</div>
       ) : (
         <EvalTemplateForm
           projectId={projectId}
@@ -83,7 +90,7 @@ export const EvalTemplateDetail = () => {
           setIsEditing={setIsEditing}
         />
       )}
-    </div>
+    </Page>
   );
 };
 
@@ -117,7 +124,7 @@ export function EvalVersionDropdown(props: {
         <SelectGroup>
           {props.options?.map((template) => (
             <SelectItem key={template.id} value={template.id}>
-              {template.version} - {template.createdAt.toLocaleDateString()}
+              v{template.version} - {template.createdAt.toLocaleDateString()}
             </SelectItem>
           ))}
         </SelectGroup>
@@ -135,7 +142,10 @@ export function UpdateTemplate({
   isLoading: boolean;
   setIsEditing: (isEditing: boolean) => void;
 }) {
-  const hasAccess = useHasAccess({ projectId, scope: "evalTemplate:create" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:create",
+  });
   const capture = usePostHogClientCapture();
 
   const handlePromptEdit = () => {
@@ -146,12 +156,12 @@ export function UpdateTemplate({
   return (
     <Button
       variant="outline"
-      size="icon"
       onClick={() => handlePromptEdit()}
       disabled={!hasAccess}
       loading={isLoading}
     >
-      <Pencil className="h-5 w-5" />
+      <Plus className="h-4 w-4" />
+      New version
     </Button>
   );
 }

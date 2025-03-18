@@ -4,23 +4,44 @@ import {
   type ReactNode,
   type ReactElement,
   memo,
-  useState,
   isValidElement,
   Children,
   createElement,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import Link from "next/link";
-import DOMPurify from "dompurify";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
-import { Button } from "@/src/components/ui/button";
-import { Check, Copy } from "lucide-react";
-import { BsMarkdown } from "react-icons/bs";
+import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
+import {
+  OpenAIUrlImageUrl,
+  MediaReferenceStringSchema,
+  type OpenAIContentParts,
+  type OpenAIContentSchema,
+  type OpenAIOutputAudioType,
+} from "@/src/components/schemas/ChatMlSchema";
+import { type z } from "zod";
+import { ResizableImage } from "@/src/components/ui/resizable-image";
+import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 
+type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
+type ReactMarkdownNodeChildren = Exclude<
+  ReactMarkdownNode,
+  undefined
+>["children"];
+
+// ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
+// html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(
   ReactMarkdown,
   (prevProps, nextProps) =>
@@ -28,14 +49,14 @@ const MemoizedReactMarkdown: FC<Options> = memo(
     prevProps.className === nextProps.className,
 );
 
-const isChecklist = (children: ReactNode) =>
-  Array.isArray(children) &&
-  children.some((child: any) => child?.props?.className === "task-list-item");
-
 const isTextElement = (child: ReactNode): child is ReactElement =>
   isValidElement(child) &&
   typeof child.type !== "string" &&
   ["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(child.type.name);
+
+const isChecklist = (children: ReactNode) =>
+  Array.isArray(children) &&
+  children.some((child: any) => child?.props?.className === "task-list-item");
 
 const transformListItemChildren = (children: ReactNode) =>
   Children.map(children, (child) =>
@@ -48,84 +69,53 @@ const transformListItemChildren = (children: ReactNode) =>
     ),
   );
 
-export function MarkdownView({
+const isImageNode = (node?: ReactMarkdownNode): boolean =>
+  !!node &&
+  Array.isArray(node.children) &&
+  node.children.some(
+    (child: ReactMarkdownNodeChildren[number]) =>
+      "tagName" in child && child.tagName === "img",
+  );
+
+function MarkdownRenderer({
   markdown,
-  isMarkdown,
-  setIsMarkdown,
-  title,
+  theme,
   className,
   customCodeHeaderClassName,
 }: {
   markdown: string;
-  isMarkdown: boolean;
-  setIsMarkdown: (value: boolean) => void;
-  title?: string;
+  theme?: string;
   className?: string;
   customCodeHeaderClassName?: string;
 }) {
-  const [isCopied, setIsCopied] = useState(false);
-  const { resolvedTheme: theme } = useTheme();
-  const capture = usePostHogClientCapture();
+  // Try to parse markdown content
 
-  const sanitizedMarkdown = DOMPurify.sanitize(markdown);
+  try {
+    const parseMarkdown = () => {
+      const processor = unified()
+        .use(remarkParse)
+        .use(remarkGfm)
+        .use(remarkMath);
+      return processor.parse(markdown);
+    };
+    parseMarkdown();
 
-  const handleCopy = () => {
-    setIsCopied(true);
-    void navigator.clipboard.writeText(markdown);
-    setTimeout(() => setIsCopied(false), 1000);
-  };
-
-  return (
-    <div className={cn("rounded-md border", className)} key={theme}>
-      {title ? (
-        <div
-          className={cn(
-            title === "assistant" || title === "Output"
-              ? "dark:border-accent-dark-green"
-              : "",
-            "flex flex-row items-center justify-between border-b px-3 py-1 text-xs font-medium",
-          )}
-        >
-          {title}
-          <div className="flex items-center gap-1">
-            <Button
-              title={isMarkdown ? "Disable Markdown" : "Enable Markdown"}
-              variant="ghost"
-              size="xs"
-              type="button"
-              onClick={() => {
-                setIsMarkdown(!isMarkdown);
-                capture("trace_detail:io_pretty_format_toggle_group", {
-                  renderMarkdown: isMarkdown,
-                });
-              }}
-              className={cn("hover:bg-border", !isMarkdown && "opacity-50")}
-            >
-              <BsMarkdown className="h-4 w-4" />
-            </Button>
-            <Button
-              title="Copy to clipboard"
-              variant="ghost"
-              size="xs"
-              type="button"
-              onClick={handleCopy}
-              className="hover:bg-border"
-            >
-              {isCopied ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-          </div>
-        </div>
-      ) : undefined}
+    // If parsing succeeds, render with ReactMarkdown
+    return (
       <MemoizedReactMarkdown
-        className={cn("space-y-4 break-words p-3 font-mono text-xs", className)}
+        className={cn(
+          "space-y-2 overflow-x-auto break-words text-sm",
+          className,
+        )}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
-          p({ children }) {
-            return <p className="mb-2 last:mb-0">{children}</p>;
+          p({ children, node }) {
+            if (isImageNode(node)) {
+              return <>{children}</>;
+            }
+            return (
+              <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
+            );
           },
           a({ children, href }) {
             if (href)
@@ -139,16 +129,14 @@ export function MarkdownView({
             if (isChecklist(children))
               return <ul className="list-none">{children}</ul>;
 
-            return <ul className="list-inside list-disc pl-2">{children}</ul>;
+            return <ul className="list-inside list-disc">{children}</ul>;
           },
           ol({ children }) {
-            return (
-              <ol className="list-inside list-decimal pl-2">{children}</ol>
-            );
+            return <ol className="list-inside list-decimal">{children}</ol>;
           },
           li({ children }) {
             return (
-              <li className="mb-1 list-item">
+              <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
                 {transformListItemChildren(children)}
               </li>
             );
@@ -175,18 +163,25 @@ export function MarkdownView({
             return <h6 className="text-xs font-bold">{children}</h6>;
           },
           code({ children, className }) {
-            const match = /language-(\w+)/.exec(className || "");
+            const languageMatch = /language-(\w+)/.exec(className || "");
+            const language = languageMatch ? languageMatch[1] : "";
+            const codeContent = String(children).replace(/\n$/, "");
+            const isMultiLine = codeContent.includes("\n");
 
-            return match ? (
+            return language || isMultiLine ? (
+              // code block
               <CodeBlock
                 key={Math.random()}
-                language={match[1] || ""}
-                value={String(children).replace(/\n$/, "")}
+                language={language}
+                value={codeContent}
                 theme={theme}
                 className={customCodeHeaderClassName}
               />
             ) : (
-              <code>{children}</code>
+              // inline code
+              <code className="rounded border bg-secondary px-0.5">
+                {codeContent}
+              </code>
             );
           },
           blockquote({ children }) {
@@ -196,19 +191,15 @@ export function MarkdownView({
               </blockquote>
             );
           },
-          img({ src }) {
-            return (
-              <Link href={src ?? ""} className="underline" target="_blank">
-                {src ?? ""}
-              </Link>
-            );
+          img({ src, alt }) {
+            return src ? <ResizableImage src={src} alt={alt} /> : null;
           },
           hr() {
             return <hr className="my-4" />;
           },
           table({ children }) {
             return (
-              <div className="overflow-hidden rounded border">
+              <div className="overflow-x-auto rounded border text-xs">
                 <table className="min-w-full divide-y">{children}</table>
               </div>
             );
@@ -234,8 +225,164 @@ export function MarkdownView({
           },
         }}
       >
-        {sanitizedMarkdown}
+        {markdown}
       </MemoizedReactMarkdown>
+    );
+  } catch (error) {
+    // fallback to JSON view if markdown parsing fails
+
+    return (
+      <>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Info className="h-3 w-3" />
+          Markdown parsing failed. Displaying raw JSON.
+        </div>
+        <JSONView json={markdown} className="min-w-0" />
+      </>
+    );
+  }
+}
+const parseOpenAIContentParts = (
+  content: z.infer<typeof OpenAIContentParts> | null,
+): string => {
+  return (content ?? [])
+    .map((item) => {
+      if (item.type === "text") {
+        return item.text;
+      } else if (item.type === "image_url") {
+        return `![image](${item.image_url.url})`;
+      } else if (item.type === "input_audio") {
+        return `![audio](${item.input_audio.data})`;
+      }
+    })
+    .join("\n");
+};
+
+export function MarkdownView({
+  markdown,
+  title,
+  customCodeHeaderClassName,
+  audio,
+  media,
+}: {
+  markdown: string | z.infer<typeof OpenAIContentSchema>;
+  title?: string;
+  customCodeHeaderClassName?: string;
+  audio?: OpenAIOutputAudioType;
+  media?: MediaReturnType[];
+}) {
+  const capture = usePostHogClientCapture();
+  const { resolvedTheme: theme } = useTheme();
+  const { setIsMarkdownEnabled } = useMarkdownContext();
+
+  const handleOnCopy = () => {
+    const rawText =
+      typeof markdown === "string"
+        ? markdown
+        : parseOpenAIContentParts(markdown);
+    void navigator.clipboard.writeText(rawText);
+  };
+
+  const handleOnValueChange = () => {
+    setIsMarkdownEnabled(false);
+    capture("trace_detail:io_pretty_format_toggle_group", {
+      renderMarkdown: false,
+    });
+  };
+
+  return (
+    <div className={cn("overflow-hidden")} key={theme}>
+      {title ? (
+        <MarkdownJsonViewHeader
+          title={title}
+          handleOnValueChange={handleOnValueChange}
+          handleOnCopy={handleOnCopy}
+        />
+      ) : null}
+      <div
+        className={cn(
+          "grid grid-flow-row gap-2 rounded-sm border p-3",
+          title === "assistant" || title === "Output"
+            ? "bg-accent-light-green dark:border-accent-dark-green"
+            : "",
+          title === "system" || title === "Input"
+            ? "bg-primary-foreground"
+            : "",
+        )}
+      >
+        {typeof markdown === "string" ? (
+          // plain string
+          <MarkdownRenderer
+            markdown={markdown}
+            theme={theme}
+            customCodeHeaderClassName={customCodeHeaderClassName}
+          />
+        ) : (
+          // content parts (multi-modal)
+          (markdown ?? []).map((content, index) =>
+            content.type === "text" ? (
+              <MarkdownRenderer
+                key={index}
+                markdown={content.text}
+                theme={theme}
+                customCodeHeaderClassName={customCodeHeaderClassName}
+              />
+            ) : content.type === "image_url" ? (
+              OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
+                <div key={index}>
+                  <ResizableImage src={content.image_url.url.toString()} />
+                </div>
+              ) : MediaReferenceStringSchema.safeParse(content.image_url.url)
+                  .success ? (
+                <LangfuseMediaView
+                  mediaReferenceString={content.image_url.url}
+                />
+              ) : (
+                <div className="grid grid-cols-[auto,1fr] items-center gap-2">
+                  <span title="<Base64 data URI>" className="h-4 w-4">
+                    <ImageOff className="h-4 w-4" />
+                  </span>
+                  <span className="truncate text-sm">
+                    {content.image_url.url.toString()}
+                  </span>
+                </div>
+              )
+            ) : content.type === "input_audio" ? (
+              <LangfuseMediaView
+                mediaReferenceString={content.input_audio.data}
+              />
+            ) : null,
+          )
+        )}
+        {audio ? (
+          <>
+            <MarkdownRenderer
+              markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
+              theme={theme}
+              customCodeHeaderClassName={customCodeHeaderClassName}
+            />
+            <LangfuseMediaView
+              mediaReferenceString={audio.data.referenceString}
+            />
+          </>
+        ) : null}
+      </div>
+      {media && media.length > 0 && (
+        <>
+          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+            Media
+          </div>
+          <div className="flex flex-wrap gap-2 p-4 pt-1">
+            {media.map((m) => (
+              <LangfuseMediaView
+                mediaAPIReturnValue={m}
+                asFileIcon={true}
+                key={m.mediaId}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

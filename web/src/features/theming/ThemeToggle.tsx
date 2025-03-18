@@ -8,7 +8,8 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const capture = usePostHogClientCapture();
   return (
-    <div className="ml-auto flex items-center space-x-1">
+    <div className="flex items-center space-x-1">
+      <span className="mr-2">Theme</span>
       <div title="Light mode">
         <Sun
           className={cn(

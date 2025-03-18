@@ -15,8 +15,7 @@ import {
 import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { useIsEeEnabled } from "@/src/ee/utils/useIsEeEnabled";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -30,11 +29,25 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   props,
 ) => {
   const [isExporting, setIsExporting] = React.useState(false);
-  const createExport = api.batchExport.create.useMutation();
-  const isEeEnabled = useIsEeEnabled();
-  const hasAccess = useHasAccess({
+  const createExport = api.batchExport.create.useMutation({
+    onSettled: () => {
+      setIsExporting(false);
+    },
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Export queued",
+        description: "You will receive an email when the export is ready.",
+        duration: 10000,
+        link: {
+          href: `/project/${props.projectId}/settings/exports`,
+          text: "View exports",
+        },
+      });
+    },
+  });
+  const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
-    scope: "batchExport:create",
+    scope: "batchExports:create",
   });
 
   const handleExport = async (format: BatchExportFileFormat) => {
@@ -49,14 +62,9 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
         orderBy: props.orderByState,
       },
     });
-    setIsExporting(false);
-    showSuccessToast({
-      title: "Export queued",
-      description: "You will receive an email when the export is ready.",
-    });
   };
 
-  if (!isEeEnabled || !hasAccess) return null;
+  if (!hasAccess) return null;
 
   return (
     <DropdownMenu>

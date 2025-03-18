@@ -1,10 +1,13 @@
 import { type DefaultSession, type DefaultUser } from "next-auth";
 import {
   type User as PrismaUser,
-  type Membership as PrismaMembership,
   type Project as PrismaProject,
+  type Organization as PrismaOrganization,
+  type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
+import { type CloudConfigSchema } from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -19,9 +22,8 @@ declare module "next-auth" {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
       disableExpensivePostgresQueries: boolean;
-      defaultTableDateTimeOffset?: number;
-      // Enables features that are only available under an enterprise license when self-hosting Langfuse
-      eeEnabled: boolean;
+      // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
+      selfHostedInstancePlan: Plan | null;
     };
   }
 
@@ -32,13 +34,20 @@ declare module "next-auth" {
     image?: PrismaUser["image"];
     admin?: PrismaUser["admin"];
     emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
-    projects: {
-      id: PrismaProject["id"];
-      name: PrismaProject["name"];
-      role: PrismaMembership["role"];
-      cloudConfig: {
-        defaultLookBackDays: number | null;
-      };
+    canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
+    organizations: {
+      id: PrismaOrganization["id"];
+      name: PrismaOrganization["name"];
+      role: Role;
+      cloudConfig: CloudConfigSchema | undefined;
+      plan: Plan;
+      projects: {
+        id: PrismaProject["id"];
+        name: PrismaProject["name"];
+        deletedAt: PrismaProject["deletedAt"];
+        retentionDays: PrismaProject["retentionDays"];
+        role: Role; // include only projects where user has a role
+      }[];
     }[];
     featureFlags: Flags;
   }

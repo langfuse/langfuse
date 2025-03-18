@@ -44,6 +44,7 @@ function useSessionStorage<T>(
     }
   };
 
+  // Sync state with sessionStorage changes across tabs
   useEffect(() => {
     try {
       sessionStorage.setItem(sessionStorageKey, JSON.stringify(value));

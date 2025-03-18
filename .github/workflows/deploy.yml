@@ -1,0 +1,105 @@
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to be deployed'
+        type: choice
+        options:
+          - all
+          - web
+          - web-ingestion
+          - worker
+        required: true
+      environment:
+        description: 'Environment to deploy to'
+        type: choice
+        options:
+          - staging
+          - prod-eu
+          - prod-us
+        required: true
+
+concurrency:
+  # Support concurrent `push` and `workflow_dispatch`` actions
+  group: deploy-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+name: Deploy to ECS
+jobs:
+  affected-services:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.affected-services.outputs.result }}
+    steps:
+      - name: Get affected services
+        id: affected-services
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === "workflow_dispatch") {
+              if (context.payload.inputs.service === "all") {
+                return `["web", "web-ingestion", "worker"]`
+              }
+              return `["${context.payload.inputs.service}"]`
+            }
+            if (context.eventName === "push") {
+              return `["web", "web-ingestion", "worker"]`
+            }
+            return "[]"
+          result-encoding: string
+      - name: Print services to build
+        uses: actions/github-script@v7
+        env:
+          services: ${{ steps.affected-services.outputs.result }}
+        with:
+          result-encoding: string
+          script: |
+            console.log('Services', `${process.env.services}` ?? 'n/a');
+
+  affected-environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.affected-environments.outputs.result }}
+    steps:
+      - name: Get affected environments
+        id: affected-environments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === "workflow_dispatch") {
+              return `["${context.payload.inputs.environment}"]`
+            }
+            if (context.eventName === "push") {
+              if (context.ref === "refs/heads/main") {
+                return `["staging"]`
+              }
+              if (context.ref === "refs/heads/production") {
+                return `["prod-eu", "prod-us"]`
+              }
+            }
+            return "[]"
+          result-encoding: string
+      - name: Print environments to build
+        uses: actions/github-script@v7
+        env:
+          environments: ${{ steps.affected-environments.outputs.result }}
+        with:
+          result-encoding: string
+          script: |
+            console.log('Environments', `${process.env.environments}` ?? 'n/a');
+
+  ecs-deploy:
+    uses: ./.github/workflows/_deploy_ecs_service.yml
+    needs: [affected-services, affected-environments]
+    secrets: inherit
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.affected-services.outputs.services) }}
+        environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
+    with:
+      service: ${{ matrix.service }}
+      environment: ${{ matrix.environment }}

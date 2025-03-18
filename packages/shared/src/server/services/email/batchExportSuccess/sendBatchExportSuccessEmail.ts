@@ -3,6 +3,7 @@ import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
 
 import { BatchExportSuccessEmailTemplate } from "./BatchExportSuccessEmailTemplate";
+import { logger } from "../../../logger";
 
 type SendBatchExportSuccessParams = {
   env: Partial<
@@ -12,7 +13,6 @@ type SendBatchExportSuccessParams = {
   downloadLink: string;
   userName: string;
   batchExportName: string;
-  expiresInHours: number;
 };
 
 export const sendBatchExportSuccessEmail = async ({
@@ -21,11 +21,9 @@ export const sendBatchExportSuccessEmail = async ({
   downloadLink,
   userName,
   batchExportName,
-  expiresInHours,
 }: SendBatchExportSuccessParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
-    console.error("Missing environment variables for sending email.");
-
+    logger.error("Missing environment variables for sending email.");
     return;
   }
 
@@ -37,7 +35,6 @@ export const sendBatchExportSuccessEmail = async ({
         downloadLink,
         userName,
         batchExportName,
-        expiresInHours,
       })
     );
 
@@ -51,6 +48,6 @@ export const sendBatchExportSuccessEmail = async ({
       html: htmlTemplate,
     });
   } catch (error) {
-    console.error(error);
+    logger.error(error);
   }
 };

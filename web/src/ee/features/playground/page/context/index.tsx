@@ -16,9 +16,9 @@ import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlayg
 import { getFinalModelParams } from "@/src/ee/utils/getFinalModelParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { extractVariables } from "@/src/utils/string";
 import {
   ChatMessageRole,
+  extractVariables,
   type ChatMessageWithId,
   type PromptVariable,
   type UIModelParams,
@@ -26,6 +26,7 @@ import {
 
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
+import { env } from "@/src/env.mjs";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -135,28 +136,33 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useEffect(updatePromptVariables, [messages, updatePromptVariables]);
 
-  const addMessage: PlaygroundContextType["addMessage"] = (role, content) => {
-    const message = createEmptyMessage(role, content);
-    setMessages((prev) => [...prev, message]);
+  const addMessage: PlaygroundContextType["addMessage"] = useCallback(
+    (role, content) => {
+      const message = createEmptyMessage(role, content);
+      setMessages((prev) => [...prev, message]);
 
-    return message;
-  };
+      return message;
+    },
+    [],
+  );
 
-  const updateMessage: PlaygroundContextType["updateMessage"] = (
-    id,
-    key,
-    value,
-  ) => {
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === id ? { ...message, [key]: value } : message,
-      ),
-    );
-  };
+  const updateMessage: PlaygroundContextType["updateMessage"] = useCallback(
+    (id, key, value) => {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === id ? { ...message, [key]: value } : message,
+        ),
+      );
+    },
+    [],
+  );
 
-  const deleteMessage: PlaygroundContextType["deleteMessage"] = (id) => {
-    setMessages((prev) => prev.filter((message) => message.id !== id));
-  };
+  const deleteMessage: PlaygroundContextType["deleteMessage"] = useCallback(
+    (id) => {
+      setMessages((prev) => prev.filter((message) => message.id !== id));
+    },
+    [],
+  );
 
   const handleSubmit: PlaygroundContextType["handleSubmit"] =
     useCallback(async () => {
@@ -215,15 +221,18 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
   useCommandEnter(!isStreaming, handleSubmit);
 
-  const updatePromptVariableValue = (variable: string, value: string) => {
-    setPromptVariables((prev) =>
-      prev.map((v) => (v.name === variable ? { ...v, value } : v)),
-    );
-  };
+  const updatePromptVariableValue = useCallback(
+    (variable: string, value: string) => {
+      setPromptVariables((prev) =>
+        prev.map((v) => (v.name === variable ? { ...v, value } : v)),
+      );
+    },
+    [],
+  );
 
-  const deletePromptVariable = (variable: string) => {
+  const deletePromptVariable = useCallback((variable: string) => {
     setPromptVariables((prev) => prev.filter((v) => v.name !== variable));
-  };
+  }, []);
 
   return (
     <PlaygroundContext.Provider
@@ -234,6 +243,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
 
         messages,
         addMessage,
+        setMessages,
         updateMessage,
         deleteMessage,
 
@@ -270,11 +280,14 @@ async function* getChatCompletionStream(
     messages,
     modelParams: getFinalModelParams(modelParams),
   });
-  const result = await fetch("/api/chatCompletion", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
+  const result = await fetch(
+    `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chatCompletion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    },
+  );
 
   if (!result.ok) {
     const errorData = await result.json();
@@ -318,17 +331,19 @@ function getFinalMessages(
   }
 
   // Dynamically replace variables in the prompt
-  const finalMessages = messages.map((m) => {
-    let content = m.content;
-    for (const variable of promptVariables) {
-      content = content.replace(
-        new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
-        variable.value,
-      );
-    }
+  const finalMessages = messages
+    .filter((m) => m.content.length > 0)
+    .map((m) => {
+      let content = m.content;
+      for (const variable of promptVariables) {
+        content = content.replace(
+          new RegExp(`{{\\s*${variable.name}\\s*}}`, "g"),
+          variable.value,
+        );
+      }
 
-    return { ...m, content };
-  });
+      return { ...m, content };
+    });
   return finalMessages;
 }
 

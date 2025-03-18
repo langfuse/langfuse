@@ -4,7 +4,7 @@ import { DashboardTable } from "@/src/features/dashboard/components/cards/Dashbo
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 
-import { type DatabaseRow } from "@/src/server/api/services/query-builder";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";
@@ -13,9 +13,11 @@ import { Popup } from "@/src/components/layouts/doc-popup";
 export const LatencyTables = ({
   projectId,
   globalFilterState,
+  isLoading = false,
 }: {
   projectId: string;
   globalFilterState: FilterState;
+  isLoading?: boolean;
 }) => {
   const generationsLatencies = api.dashboard.chart.useQuery(
     {
@@ -41,6 +43,7 @@ export const LatencyTables = ({
       orderBy: [
         { column: "duration", agg: "95thPercentile", direction: "DESC" },
       ],
+      queryName: "observation-latencies-aggregated",
     },
     {
       trpc: {
@@ -48,6 +51,7 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -75,6 +79,7 @@ export const LatencyTables = ({
       orderBy: [
         { column: "duration", agg: "95thPercentile", direction: "DESC" },
       ],
+      queryName: "observation-latencies-aggregated",
     },
     {
       trpc: {
@@ -82,6 +87,7 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -101,6 +107,7 @@ export const LatencyTables = ({
       orderBy: [
         { column: "duration", agg: "95thPercentile", direction: "DESC" },
       ],
+      queryName: "traces-latencies-aggregated",
     },
     {
       trpc: {
@@ -108,6 +115,7 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -143,7 +151,7 @@ export const LatencyTables = ({
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Trace latencies"
-        isLoading={tracesLatencies.isLoading}
+        isLoading={isLoading || tracesLatencies.isLoading}
       >
         <DashboardTable
           headers={[
@@ -162,13 +170,14 @@ export const LatencyTables = ({
                 return { ...item, name: item.traceName as string };
               }),
           )}
+          isLoading={isLoading || tracesLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Generation latencies"
-        isLoading={generationsLatencies.isLoading}
+        isLoading={isLoading || generationsLatencies.isLoading}
       >
         <DashboardTable
           headers={[
@@ -181,13 +190,14 @@ export const LatencyTables = ({
             <RightAlignedCell key="99th">99th</RightAlignedCell>,
           ]}
           rows={generateLatencyData(generationsLatencies.data)}
+          isLoading={isLoading || generationsLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Span latencies"
-        isLoading={spansLatencies.isLoading}
+        isLoading={isLoading || spansLatencies.isLoading}
       >
         <DashboardTable
           headers={[
@@ -200,6 +210,7 @@ export const LatencyTables = ({
             <RightAlignedCell key="99th">99th</RightAlignedCell>,
           ]}
           rows={generateLatencyData(spansLatencies.data)}
+          isLoading={isLoading || spansLatencies.isLoading}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>

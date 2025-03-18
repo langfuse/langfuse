@@ -5,6 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
@@ -20,15 +21,17 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type Prisma } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 type RowData = {
   key: {
     id: string;
     name: string;
   };
-  description: string;
-  createdAt: string;
-  lastRunAt?: string;
+  description?: string;
+  createdAt: Date;
+  lastRunAt?: Date;
   countItems: number;
   countRuns: number;
   metadata: Prisma.JsonValue;
@@ -54,7 +57,7 @@ export function DatasetsTable(props: { projectId: string }) {
     if (datasets.isSuccess) {
       setDetailPageList(
         "datasets",
-        datasets.data.datasets.map((t) => t.id),
+        datasets.data.datasets.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,13 +68,14 @@ export function DatasetsTable(props: { projectId: string }) {
       accessorKey: "key",
       header: "Name",
       id: "key",
+      size: 150,
+      isPinned: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
           <TableLink
             path={`/project/${props.projectId}/datasets/${key.id}`}
             value={key.name}
-            truncateAt={50}
           />
         );
       },
@@ -81,36 +85,54 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Description",
       id: "description",
       enableHiding: true,
+      size: 200,
+      cell: ({ row }) => {
+        const description: RowData["description"] = row.getValue("description");
+        return <div className="h-full overflow-y-auto">{description}</div>;
+      },
     },
     {
       accessorKey: "countItems",
       header: "Items",
       id: "countItems",
       enableHiding: true,
+      size: 60,
     },
     {
       accessorKey: "countRuns",
       header: "Runs",
       id: "countRuns",
       enableHiding: true,
+      size: 60,
     },
     {
       accessorKey: "createdAt",
       header: "Created",
       id: "createdAt",
       enableHiding: true,
+      size: 150,
+      cell: ({ row }) => {
+        const value: RowData["createdAt"] = row.getValue("createdAt");
+        return <LocalIsoDate date={value} />;
+      },
     },
     {
       accessorKey: "lastRunAt",
       header: "Last Run",
       id: "lastRunAt",
       enableHiding: true,
+      size: 150,
+      cell: ({ row }) => {
+        const value: RowData["lastRunAt"] = row.getValue("lastRunAt");
+        return value ? <LocalIsoDate date={value} /> : undefined;
+      },
     },
     {
       accessorKey: "metadata",
       header: "Metadata",
       id: "metadata",
       enableHiding: true,
+      size: 300,
       cell: ({ row }) => {
         const metadata: RowData["metadata"] = row.getValue("metadata");
         return !!metadata ? (
@@ -122,6 +144,7 @@ export function DatasetsTable(props: { projectId: string }) {
       id: "actions",
       accessorKey: "actions",
       header: "Actions",
+      size: 70,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
@@ -132,20 +155,28 @@ export function DatasetsTable(props: { projectId: string }) {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent
+              align="end"
+              className="flex flex-col [&>*]:w-full [&>*]:justify-start"
+            >
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DatasetActionButton
-                mode="update"
-                projectId={props.projectId}
-                datasetId={key.id}
-                datasetName={key.name}
-                datasetDescription={row.getValue("description") ?? undefined}
-              />
-              <DatasetActionButton
-                mode="delete"
-                projectId={props.projectId}
-                datasetId={key.id}
-              />
+              <DropdownMenuItem asChild>
+                <DatasetActionButton
+                  mode="update"
+                  projectId={props.projectId}
+                  datasetId={key.id}
+                  datasetName={key.name}
+                  datasetDescription={row.getValue("description") ?? undefined}
+                />
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <DatasetActionButton
+                  mode="delete"
+                  projectId={props.projectId}
+                  datasetId={key.id}
+                  datasetName={key.name}
+                />
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -159,8 +190,8 @@ export function DatasetsTable(props: { projectId: string }) {
     return {
       key: { id: item.id, name: item.name },
       description: item.description ?? "",
-      createdAt: item.createdAt.toLocaleString(),
-      lastRunAt: item.lastRunAt?.toLocaleString() ?? "",
+      createdAt: item.createdAt,
+      lastRunAt: item.lastRunAt ?? undefined,
       countItems: item.countDatasetItems,
       countRuns: item.countDatasetRuns,
       metadata: item.metadata,
@@ -172,12 +203,19 @@ export function DatasetsTable(props: { projectId: string }) {
     columns,
   );
 
+  const [columnOrder, setColumnOrder] = useColumnOrder<RowData>(
+    "datasetsColumnOrder",
+    columns,
+  );
+
   return (
     <>
       <DataTableToolbar
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
         actionButtons={
           <DatasetActionButton projectId={props.projectId} mode="create" />
         }
@@ -202,14 +240,14 @@ export function DatasetsTable(props: { projectId: string }) {
                 }
         }
         pagination={{
-          pageCount: Math.ceil(
-            (datasets.data?.totalDatasets ?? 0) / paginationState.pageSize,
-          ),
+          totalCount: datasets.data?.totalDatasets ?? null,
           onChange: setPaginationState,
           state: paginationState,
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
       />
     </>

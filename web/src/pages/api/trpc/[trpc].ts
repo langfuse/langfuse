@@ -1,8 +1,8 @@
 import { createNextApiHandler } from "@trpc/server/adapters/next";
-
-import { env } from "@/src/env.mjs";
 import { createTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
+import { env } from "@/src/env.mjs";
+import { logger, traceException } from "@langfuse/shared/src/server";
 
 export const config = {
   maxDuration: 240,
@@ -12,15 +12,19 @@ export const config = {
 export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
-  // batching: {
-  //   enabled: false,
-  // },
-  onError:
-    env.NODE_ENV === "development"
-      ? ({ path, error }) => {
-          console.error(
-            `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
-          );
-        }
-      : undefined,
+  onError: ({ path, error }) => {
+    logger.error(
+      `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`,
+      error,
+    );
+    traceException(error);
+    return error;
+  },
+  responseMeta() {
+    return {
+      headers: {
+        "x-build-id": env.NEXT_PUBLIC_BUILD_ID,
+      },
+    };
+  },
 });

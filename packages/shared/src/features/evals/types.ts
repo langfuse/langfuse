@@ -1,11 +1,11 @@
 import z from "zod";
-import { LLMAdapter } from "../..";
 
 export const langfuseObjects = [
   "trace",
   "span",
   "generation",
   "event",
+  "dataset_item",
 ] as const;
 
 // variable mapping stored in the db for eval templates
@@ -17,12 +17,13 @@ export const variableMapping = z
     objectName: z.string().nullish(),
     langfuseObject: z.enum(langfuseObjects),
     selectedColumnId: z.string(),
+    jsonSelector: z.string().nullish(),
   })
   .refine(
     (value) => value.langfuseObject === "trace" || value.objectName !== null,
     {
       message: "objectName is required for langfuseObjects other than trace",
-    }
+    },
   );
 
 export const variableMappingList = z.array(variableMapping);
@@ -32,6 +33,7 @@ export const wipVariableMapping = z.object({
   objectName: z.string().nullish(),
   langfuseObject: z.enum(langfuseObjects),
   selectedColumnId: z.string().nullish(),
+  jsonSelector: z.string().nullish(),
 });
 
 const observationCols = [
@@ -45,7 +47,7 @@ const observationCols = [
   { name: "Output", id: "output", internal: 'o."output"' },
 ];
 
-export const availableEvalVariables = [
+export const availableTraceEvalVariables = [
   {
     id: "trace",
     display: "Trace",
@@ -77,23 +79,36 @@ export const availableEvalVariables = [
   },
 ];
 
-export const evalModelsByAdapter: Record<LLMAdapter, string[]> = {
-  [LLMAdapter.OpenAI]: [
-    "gpt-4o",
-    "gpt-4-turbo-preview",
-    "gpt-3.5-turbo",
-  ] as const,
-  [LLMAdapter.Anthropic]: [] as const,
-  [LLMAdapter.Azure]: [] as const,
-};
+export const availableDatasetEvalVariables = [
+  {
+    id: "dataset_item",
+    display: "Dataset item",
+    availableColumns: [
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+        internal: 'd."metadata"',
+      },
+      { name: "Input", id: "input", internal: 'd."input"' },
+      {
+        name: "Expected output",
+        id: "expected_output",
+        internal: 'd."expected_output"',
+      },
+    ],
+  },
+  ...availableTraceEvalVariables,
+];
 
 export const OutputSchema = z.object({
   reasoning: z.string(),
   score: z.string(),
 });
 
-export enum EvalTargetObject {
-  Trace = "trace",
-}
-
 export const DEFAULT_TRACE_JOB_DELAY = 10_000;
+
+export const JobTimeScopeZod = z.enum(["NEW", "EXISTING"]);
+export type JobTimeScope = z.infer<typeof JobTimeScopeZod>;
+
+export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);

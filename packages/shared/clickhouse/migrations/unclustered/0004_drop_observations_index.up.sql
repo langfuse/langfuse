@@ -1,0 +1,1 @@
+ALTER TABLE observations DROP INDEX IF EXISTS idx_project_id;

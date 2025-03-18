@@ -24,38 +24,65 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
 import { Input } from "@/src/components/ui/input";
-import { ProjectRole } from "@langfuse/shared";
-import { roleAccessRights } from "@/src/features/rbac/constants/roleAccessRights";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
+import { Role } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-
-const availableRoles = [
-  ProjectRole.ADMIN,
-  ProjectRole.MEMBER,
-  ProjectRole.VIEWER,
-] as const;
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import {
+  useHasEntitlement,
+  useEntitlementLimit,
+} from "@/src/features/entitlements/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { ActionButton } from "@/src/components/ActionButton";
 
 const formSchema = z.object({
   email: z.string().trim().email(),
-  role: z.enum(availableRoles),
+  orgRole: z.nativeEnum(Role),
+  projectRole: z.nativeEnum(Role),
 });
 
-export function CreateProjectMemberButton(props: { projectId: string }) {
+export function CreateProjectMemberButton(props: {
+  orgId: string;
+  project?: { id: string; name: string };
+}) {
   const capture = usePostHogClientCapture();
   const [open, setOpen] = useState(false);
-  const hasAccess = useHasAccess({
-    projectId: props.projectId,
-    scope: "members:create",
+  const hasOrgAccess = useHasOrganizationAccess({
+    organizationId: props.orgId,
+    scope: "organizationMembers:CUD",
   });
+  const hasProjectAccess = useHasProjectAccess({
+    projectId: props.project?.id,
+    scope: "projectMembers:CUD",
+  });
+  const orgMemberLimit = useEntitlementLimit("organization-member-count");
+  const orgMemberCount = api.members.allFromOrg.useQuery(
+    {
+      orgId: props.orgId,
+    },
+    {
+      enabled: hasOrgAccess,
+    },
+  ).data?.totalCount;
+  const inviteCount = api.members.allInvitesFromOrg.useQuery(
+    {
+      orgId: props.orgId,
+    },
+    {
+      enabled: hasOrgAccess,
+    },
+  ).data?.totalCount;
+  const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
+  const hasOnlySingleProjectAccess =
+    !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
 
   const utils = api.useUtils();
-  const mutCreateProjectMember = api.projectMembers.create.useMutation({
-    onSuccess: () => utils.projectMembers.invalidate(),
+  const mutCreateProjectMember = api.members.create.useMutation({
+    onSuccess: () => utils.members.invalidate(),
     onError: (error) =>
       form.setError("email", {
         type: "manual",
@@ -67,21 +94,30 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      role: ProjectRole.MEMBER,
+      orgRole: hasOnlySingleProjectAccess ? Role.NONE : Role.MEMBER,
+      projectRole: hasOnlySingleProjectAccess ? Role.MEMBER : Role.NONE,
     },
   });
 
-  if (!hasAccess) return null;
-
   function onSubmit(values: z.infer<typeof formSchema>) {
-    capture("project_settings:send_membership_invitation", {
-      role: values.role,
-    });
+    capture(
+      props.project
+        ? "project_settings:send_membership_invitation"
+        : "organization_settings:send_membership_invitation",
+      {
+        orgRole: values.orgRole,
+        projectRole: values.projectRole,
+      },
+    );
     return mutCreateProjectMember
       .mutateAsync({
-        projectId: props.projectId,
+        orgId: props.orgId,
         email: values.email,
-        role: values.role,
+        orgRole: values.orgRole,
+        //optional
+        projectId: props.project?.id,
+        projectRole:
+          values.projectRole === Role.NONE ? undefined : values.projectRole,
       })
       .then(() => {
         form.reset();
@@ -96,17 +132,25 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button
+          <ActionButton
             variant="secondary"
             loading={mutCreateProjectMember.isLoading}
+            hasAccess={hasOrgAccess || hasOnlySingleProjectAccess}
+            limit={orgMemberLimit}
+            limitValue={(orgMemberCount ?? 0) + (inviteCount ?? 0)}
+            icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
           >
-            <PlusIcon className="-ml-0.5 mr-1.5 h-5 w-5" aria-hidden="true" />
-            Add new member
-          </Button>
+            {hasOnlySingleProjectAccess
+              ? "Add project member"
+              : "Add new member"}
+          </ActionButton>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add new member to project</DialogTitle>
+            <DialogTitle>
+              Add new member to the{" "}
+              {hasOnlySingleProjectAccess ? "project" : "organization"}
+            </DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -127,41 +171,84 @@ export function CreateProjectMemberButton(props: { projectId: string }) {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Role</FormLabel>
-                    <Select
-                      defaultValue={field.value}
-                      onValueChange={(value) =>
-                        field.onChange(value as (typeof availableRoles)[number])
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a verified email to display" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {availableRoles.map((role) => (
-                          <SelectItem value={role} key={role}>
-                            {role}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Rights of role:{" "}
-                      {roleAccessRights[field.value].length
-                        ? roleAccessRights[field.value].join(", ")
-                        : "none"}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!hasOnlySingleProjectAccess && (
+                <FormField
+                  control={form.control}
+                  name="orgRole"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization Role</FormLabel>
+                      <Select
+                        defaultValue={field.value}
+                        onValueChange={(value) =>
+                          field.onChange(
+                            value as (typeof Role)[keyof typeof Role],
+                          )
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an organization role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(Role).map((role) => (
+                            <RoleSelectItem role={role} key={role} />
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {props.project !== undefined && hasProjectRoleEntitlement && (
+                <FormField
+                  control={form.control}
+                  name="projectRole"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Role</FormLabel>
+                      <Select
+                        defaultValue={field.value}
+                        onValueChange={(value) =>
+                          field.onChange(
+                            value as (typeof Role)[keyof typeof Role],
+                          )
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a project role" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(Role)
+                            .filter(
+                              (role) =>
+                                !hasOnlySingleProjectAccess ||
+                                role !== Role.NONE,
+                            )
+                            .map((role) => (
+                              <RoleSelectItem
+                                role={role}
+                                key={role}
+                                isProjectRole
+                              />
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {!hasOnlySingleProjectAccess && (
+                        <FormDescription>
+                          This project role will override the default role for
+                          this current project ({props.project!.name}).
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <Button
                 type="submit"
                 className="w-full"

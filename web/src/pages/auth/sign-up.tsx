@@ -20,7 +20,11 @@ import { useState } from "react";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
-import { SSOButtons, type PageProps } from "@/src/pages/auth/sign-in";
+import {
+  SSOButtons,
+  useHuggingFaceRedirect,
+  type PageProps,
+} from "@/src/pages/auth/sign-in";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Divider } from "@tremor/react";
 import { Turnstile } from "@marsidev/react-turnstile";
@@ -28,7 +32,12 @@ import { Turnstile } from "@marsidev/react-turnstile";
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
-export default function SignIn({ authProviders }: PageProps) {
+export default function SignIn({
+  authProviders,
+  runningOnHuggingFaceSpaces,
+}: PageProps) {
+  useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
+
   const [turnstileToken, setTurnstileToken] = useState<string>();
   // Used to refresh turnstile as the token can only be used once
   const [turnstileCData, setTurnstileCData] = useState<string>(
@@ -48,11 +57,14 @@ export default function SignIn({ authProviders }: PageProps) {
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     try {
       setFormError(null);
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/signup`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        },
+      );
 
       if (!res.ok) {
         const payload = (await res.json()) as { message: string };
@@ -66,8 +78,8 @@ export default function SignIn({ authProviders }: PageProps) {
         callbackUrl:
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
           env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-            ? "/onboarding"
-            : "/?getStarted=1",
+            ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`,
         turnstileToken,
       });
     } catch (err) {
@@ -104,8 +116,9 @@ export default function SignIn({ authProviders }: PageProps) {
           </div>
         ) : null}
 
-        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-12">
-          <CloudRegionSwitch isSignUpPage />
+        <CloudRegionSwitch isSignUpPage />
+
+        <div className="mt-14 bg-background px-6 py-10 shadow sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-10">
           <Form {...form}>
             <form
               className="space-y-6"
@@ -189,16 +202,16 @@ export default function SignIn({ authProviders }: PageProps) {
               </>
             )
           }
+          <p className="mt-10 text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link
+              href="/auth/sign-in"
+              className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
-        <p className="mt-10 text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link
-            href="/auth/sign-in"
-            className="hover:text-hover-primary-accent font-semibold leading-6 text-primary-accent"
-          >
-            Sign in
-          </Link>
-        </p>
         <CloudPrivacyNotice action="creating an account" />
       </div>
     </>

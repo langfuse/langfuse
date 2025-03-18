@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoAccess } from "@/src/features/rbac/utils/checkAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -9,12 +9,18 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoAccess({
+      throwIfNoEntitlement({
+        entitlement: "integration-posthog",
+        sessionUser: ctx.session.user,
+        projectId: input.projectId,
+      });
+      throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "integrations:CRUD",
@@ -48,7 +54,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
     .input(posthogIntegrationFormSchema.extend({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoEntitlement({
+          entitlement: "integration-posthog",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "integrations:CRUD",
@@ -90,7 +101,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoAccess({
+        throwIfNoEntitlement({
+          entitlement: "integration-posthog",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
+        throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
           scope: "integrations:CRUD",

@@ -1,11 +1,14 @@
 import { Button } from "@/src/components/ui/button";
-import { CommandShortcut } from "@/src/components/ui/command";
+import { InputCommandShortcut } from "@/src/components/ui/input-command";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  type ListEntry,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
@@ -13,18 +16,21 @@ import { useEffect } from "react";
 
 export const DetailPageNav = (props: {
   currentId: string;
-  path: (id: string) => string;
+  path: (entry: ListEntry) => string;
   listKey: string;
 }) => {
   const { detailPagelists } = useDetailPageLists();
-  const ids = detailPagelists[props.listKey] ?? [];
+  const entries = detailPagelists[props.listKey] ?? [];
 
   const capture = usePostHogClientCapture();
   const router = useRouter();
-  const currentIndex = ids.findIndex((id) => id === props.currentId);
-  const previousPageId = currentIndex > 0 ? ids[currentIndex - 1] : undefined;
-  const nextPageId =
-    currentIndex < ids.length - 1 ? ids[currentIndex + 1] : undefined;
+  const currentIndex = entries.findIndex(
+    (entry) => entry.id === props.currentId,
+  );
+  const previousPageEntry =
+    currentIndex > 0 ? entries[currentIndex - 1] : undefined;
+  const nextPageEntry =
+    currentIndex < entries.length - 1 ? entries[currentIndex + 1] : undefined;
 
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
@@ -39,42 +45,58 @@ export const DetailPageNav = (props: {
         return;
       }
 
-      if (event.key === "k" && previousPageId) {
-        void router.push(props.path(encodeURIComponent(previousPageId)));
-      } else if (event.key === "j" && nextPageId) {
-        void router.push(props.path(encodeURIComponent(nextPageId)));
+      if (event.key === "k" && previousPageEntry) {
+        void router.push(
+          props.path({
+            id: encodeURIComponent(previousPageEntry.id),
+            params: previousPageEntry.params,
+          }),
+        );
+      } else if (event.key === "j" && nextPageEntry) {
+        void router.push(
+          props.path({
+            id: encodeURIComponent(nextPageEntry.id),
+            params: nextPageEntry.params,
+          }),
+        );
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previousPageId, nextPageId, router, props]);
+  }, [previousPageEntry, nextPageEntry, router, props]);
 
-  if (ids.length > 1)
+  if (entries.length > 1)
     return (
-      <div className="flex flex-row gap-2">
+      <div className="flex flex-row gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="icon"
-              disabled={!previousPageId}
+              className="p-2"
+              disabled={!previousPageEntry}
               onClick={() => {
-                if (previousPageId) {
+                if (previousPageEntry) {
                   capture("navigate_detail_pages:button_click_prev_or_next");
                   void router.push(
-                    props.path(encodeURIComponent(previousPageId)),
+                    props.path({
+                      id: encodeURIComponent(previousPageEntry.id),
+                      params: previousPageEntry.params,
+                    }),
                   );
                 }
               }}
             >
               <ChevronUp className="h-4 w-4" />
+              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
+                K
+              </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               k
-            </CommandShortcut>
+            </InputCommandShortcut>
           </TooltipContent>
         </Tooltip>
 
@@ -82,23 +104,31 @@ export const DetailPageNav = (props: {
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="icon"
-              disabled={!nextPageId}
+              className="p-2"
+              disabled={!nextPageEntry}
               onClick={() => {
-                if (nextPageId) {
+                if (nextPageEntry) {
                   capture("navigate_detail_pages:button_click_prev_or_next");
-                  void router.push(props.path(encodeURIComponent(nextPageId)));
+                  void router.push(
+                    props.path({
+                      id: encodeURIComponent(nextPageEntry.id),
+                      params: nextPageEntry.params,
+                    }),
+                  );
                 }
               }}
             >
               <ChevronDown className="h-4 w-4" />
+              <span className="ml-1 h-4 w-4 rounded-sm bg-primary/80 text-xs text-primary-foreground shadow-sm">
+                J
+              </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <CommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
+            <InputCommandShortcut className="ml-2 rounded-sm bg-muted p-1 px-2">
               j
-            </CommandShortcut>
+            </InputCommandShortcut>
           </TooltipContent>
         </Tooltip>
       </div>

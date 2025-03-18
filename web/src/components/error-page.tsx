@@ -2,9 +2,9 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { captureException } from "@sentry/nextjs";
 import { useEffect } from "react";
 import Link from "next/link";
+import { captureException } from "@sentry/nextjs";
 
 export const ErrorPage = ({
   title = "Error",
@@ -13,10 +13,15 @@ export const ErrorPage = ({
 }: {
   title?: string;
   message: string;
-  additionalButton?: {
-    label: string;
-    href: string;
-  };
+  additionalButton?:
+    | {
+        label: string;
+        href: string;
+      }
+    | {
+        label: string;
+        onClick: () => void;
+      };
 }) => {
   const session = useSession();
   const router = useRouter();
@@ -40,9 +45,15 @@ export const ErrorPage = ({
           </Button>
         ) : null}
         {additionalButton ? (
-          <Button variant="secondary" asChild>
-            <Link href={additionalButton.href}>{additionalButton.label}</Link>
-          </Button>
+          "onClick" in additionalButton ? (
+            <Button variant="secondary" onClick={additionalButton.onClick}>
+              {additionalButton.label}
+            </Button>
+          ) : (
+            <Button variant="secondary" asChild>
+              <Link href={additionalButton.href}>{additionalButton.label}</Link>
+            </Button>
+          )
         ) : null}
       </div>
     </div>

@@ -4,6 +4,6 @@
  * This is an EE feature and will return a 404 response if EE is not available.
  */
 
-import { createNewSsoConfigHandler } from "@langfuse/ee/sso";
+import { createNewSsoConfigHandler } from "@/src/ee/features/multi-tenant-sso/createNewSsoConfigHandler";
 
 export default createNewSsoConfigHandler;

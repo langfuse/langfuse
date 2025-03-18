@@ -1,17 +1,20 @@
-import { type z } from "zod";
-import { Prisma, prisma } from "@langfuse/shared/src/db";
-import { isBooleanDataType } from "@/src/features/manual-scoring/lib/helpers";
 import { v4 } from "uuid";
+import { type z } from "zod";
+
 import { createAuthedAPIRoute } from "@/src/features/public-api/server/createAuthedAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import {
-  PostScoreConfigResponse,
-  GetScoreConfigsResponse,
-  GetScoreConfigsQuery,
-  PostScoreConfigBody,
-  validateDbScoreConfig,
   filterAndValidateDbScoreConfigList,
-} from "@/src/features/public-api/types/score-configs";
+  GetScoreConfigsQuery,
+  GetScoreConfigsResponse,
+  PostScoreConfigBody,
+  PostScoreConfigResponse,
+  validateDbScoreConfig,
+} from "@langfuse/shared";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { traceException } from "@langfuse/shared/src/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const inflateConfigBody = (body: z.infer<typeof PostScoreConfigBody>) => {
   if (isBooleanDataType(body.dataType)) {
@@ -43,6 +46,16 @@ export default withMiddlewares({
         },
       });
 
+      await auditLog({
+        action: "create",
+        resourceType: "scoreConfig",
+        resourceId: config.id,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        after: config,
+      });
+
       return validateDbScoreConfig(config);
     },
   }),
@@ -63,7 +76,10 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      const configs = filterAndValidateDbScoreConfigList(rawConfigs);
+      const configs = filterAndValidateDbScoreConfigList(
+        rawConfigs,
+        traceException,
+      );
 
       const totalItemsRes = await prisma.$queryRaw<{ count: bigint }[]>(
         Prisma.sql`

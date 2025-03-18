@@ -1,16 +1,16 @@
 import Link from "next/link";
 
 import { Label } from "@/src/components/ui/label";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
 import { api } from "@/src/utils/api";
 import { type UIModelParams } from "@langfuse/shared";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
 }) => {
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: p.projectId,
     scope: "llmApiKeys:read",
   });
@@ -47,7 +47,7 @@ export const LLMApiKeyComponent = (p: {
       <Label className="text-xs font-semibold">API key</Label>
       <div>
         {apiKey ? (
-          <Link href={`/project/${p.projectId}/settings#llm-api-keys`}>
+          <Link href={`/project/${p.projectId}/settings/api-keys`}>
             <span className="mr-2 rounded-sm bg-input p-1 text-xs">
               {apiKey.displaySecretKey}
             </span>
@@ -60,7 +60,7 @@ export const LLMApiKeyComponent = (p: {
           {`No LLM API key found for provider ${modelProvider}.`}
 
           <Link
-            href={`/project/${p.projectId}/settings`}
+            href={`/project/${p.projectId}/settings/api-keys`}
             className="flex flex-row"
           >
             Create a new LLM API key here. <ArrowTopRightIcon />

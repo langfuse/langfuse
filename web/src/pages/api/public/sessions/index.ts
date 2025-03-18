@@ -12,13 +12,14 @@ export default withMiddlewares({
     querySchema: GetSessionsV1Query,
     responseSchema: GetSessionsV1Response,
     fn: async ({ query, auth }) => {
-      const { fromTimestamp, toTimestamp, limit, page } = query;
+      const { fromTimestamp, toTimestamp, limit, page, environment } = query;
 
       const sessions = await prisma.traceSession.findMany({
         select: {
           id: true,
           createdAt: true,
           projectId: true,
+          environment: true,
         },
         where: {
           projectId: auth.scope.projectId,
@@ -26,6 +27,11 @@ export default withMiddlewares({
             ...(fromTimestamp && { gte: new Date(fromTimestamp) }),
             ...(toTimestamp && { lt: new Date(toTimestamp) }),
           },
+          environment: environment
+            ? Array.isArray(environment)
+              ? { in: environment }
+              : environment
+            : undefined,
         },
         orderBy: { createdAt: "desc" },
         take: limit,

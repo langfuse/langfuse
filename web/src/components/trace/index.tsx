@@ -1,47 +1,75 @@
-import { type Trace } from "@langfuse/shared";
+import { type ObservationLevelType, type Trace } from "@langfuse/shared";
 import { ObservationTree } from "./ObservationTree";
 import { ObservationPreview } from "./ObservationPreview";
 import { TracePreview } from "./TracePreview";
-
-import Header from "@/src/components/layouts/header";
-import { Badge } from "@/src/components/ui/badge";
-import { TraceAggUsageBadge } from "@/src/components/token-usage-badge";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useRouter } from "next/router";
-import { type ObservationReturnType } from "@/src/server/api/routers/traces";
-import { api } from "@/src/utils/api";
-import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
-import Link from "next/link";
-import { ErrorPage } from "@/src/components/error-page";
-import { TagTraceDetailsPopover } from "@/src/features/tag/components/TagTraceDetailsPopover";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { Toggle } from "@/src/components/ui/toggle";
 import {
-  Award,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  ListTree,
-  Network,
-  Terminal,
-} from "lucide-react";
-import { usdFormatter } from "@/src/utils/numbers";
-import Decimal from "decimal.js";
+  StringParam,
+  type UrlUpdateType,
+  useQueryParam,
+} from "use-query-params";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { api } from "@/src/utils/api";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { Settings2, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useCallback, useState } from "react";
-import { DeleteButton } from "@/src/components/deleteButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { TraceTimelineView } from "@/src/components/trace/TraceTimelineView";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { type APIScore } from "@/src/features/public-api/types/scores";
+import { type APIScore, ObservationLevel } from "@langfuse/shared";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { TraceGraphView } from "@/src/features/trace-graph-view/components/TraceGraphView";
+import { isLanggraphTrace } from "@/src/features/trace-graph-view/utils/isLanggraphTrace";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import { Switch } from "@/src/components/ui/switch";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
+} from "@/src/components/ui/dropdown-menu";
+import { cn } from "@/src/utils/tailwind";
+import useSessionStorage from "@/src/components/useSessionStorage";
+
+const getNestedObservationKeys = (
+  observations: ObservationReturnTypeWithMetadata[],
+): string[] => {
+  const keys: string[] = [];
+
+  const collectKeys = (obs: ObservationReturnTypeWithMetadata[]) => {
+    obs.forEach((observation) => {
+      keys.push(`observation-${observation.id}`);
+    });
+  };
+
+  collectKeys(observations);
+  return keys;
+};
 
 export function Trace(props: {
-  observations: Array<ObservationReturnType>;
-  trace: Trace;
+  observations: Array<ObservationReturnTypeWithMetadata>;
+  trace: Omit<Trace, "input" | "output"> & {
+    input: string | undefined;
+    output: string | undefined;
+  };
   scores: APIScore[];
   projectId: string;
+  viewType?: "detailed" | "focused";
+  isValidObservationId?: boolean;
+  defaultMinObservationLevel?: ObservationLevelType;
+  selectedTab?: string;
+  setSelectedTab?: (
+    newValue?: string | null,
+    updateType?: UrlUpdateType,
+  ) => void;
 }) {
+  const viewType = props.viewType ?? "detailed";
+  const isValidObservationId = props.isValidObservationId ?? true;
   const capture = usePostHogClientCapture();
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
@@ -53,9 +81,56 @@ export function Trace(props: {
     "scoresOnObservationTree",
     true,
   );
-
+  const [
+    colorCodeMetricsOnObservationTree,
+    setColorCodeMetricsOnObservationTree,
+  ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
+  const [showComments, setShowComments] = useLocalStorage("showComments", true);
+  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [collapsedObservations, setCollapsedObservations] = useState<string[]>(
     [],
+  );
+
+  const [minObservationLevel, setMinObservationLevel] =
+    useState<ObservationLevelType>(
+      props.defaultMinObservationLevel ?? ObservationLevel.DEFAULT,
+    );
+
+  const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
+    props.projectId,
+  );
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: props.trace.projectId,
+      objectId: props.trace.id,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false, // prevents refetching loops
+      enabled: isAuthenticatedAndProjectMember,
+    },
   );
 
   const toggleCollapsedObservation = useCallback(
@@ -102,11 +177,324 @@ export function Trace(props: {
   const expandAll = useCallback(() => {
     capture("trace_detail:observation_tree_expand", { type: "all" });
     setCollapsedObservations([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [expandedItems, setExpandedItems] = useSessionStorage<string[]>(
+    `${props.trace.id}-expanded`,
+    [`trace-${props.trace.id}`],
+  );
+
   return (
-    <div className="grid gap-4 md:h-full md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-      <div className="overflow-y-auto md:col-span-3 md:h-full lg:col-span-4 xl:col-span-5">
+    <div
+      className={cn(
+        "flex-1 gap-4 overflow-y-auto md:grid md:h-full md:grid-cols-5",
+        props.selectedTab?.includes("timeline")
+          ? "md:grid-cols-[3fr_2fr] xl:grid-cols-[4fr_2fr]"
+          : "md:grid-cols-[2fr_3fr] xl:grid-cols-[2fr_4fr]",
+      )}
+    >
+      <div className="border-r md:flex md:h-full md:flex-col md:overflow-hidden">
+        <Command className="mt-2 flex h-full flex-col gap-2 overflow-hidden rounded-none border-0">
+          <div className="flex flex-row justify-between px-3 pl-5">
+            {props.selectedTab?.includes("timeline") ? (
+              <div className="flex h-full items-center gap-1">
+                <Button
+                  onClick={() => {
+                    setExpandedItems([
+                      `trace-${props.trace.id}`,
+                      ...getNestedObservationKeys(props.observations),
+                    ]);
+                  }}
+                  size="xs"
+                  variant="ghost"
+                  title="Expand all"
+                  className="px-0 text-muted-foreground"
+                >
+                  <ChevronsUpDown className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={() => setExpandedItems([])}
+                  size="xs"
+                  variant="ghost"
+                  title="Collapse all"
+                  className="px-0 text-muted-foreground"
+                >
+                  <ChevronsDownUp className="h-4 w-4" />
+                </Button>
+                <span className="px-1 py-2 text-sm text-muted-foreground">
+                  Node display
+                </span>
+              </div>
+            ) : (
+              <CommandInput
+                showBorder={false}
+                placeholder="Search (type, title, id)"
+                className="-ml-2 h-9 border-0 focus:ring-0"
+              />
+            )}
+            {viewType === "detailed" && (
+              <div className="flex flex-row items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Settings</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+
+                    {isLanggraphTrace(props.observations) && (
+                      <>
+                        <DropdownMenuItem
+                          asChild
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <span className="mr-2">Show Graph</span>
+                            <Switch
+                              checked={showGraph}
+                              onCheckedChange={(e) => setShowGraph(e)}
+                            />
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Show Comments</span>
+                          <Switch
+                            checked={showComments}
+                            onCheckedChange={(e) => {
+                              setShowComments(e);
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Show Scores</span>
+                          <Switch
+                            checked={scoresOnObservationTree}
+                            onCheckedChange={(e) => {
+                              capture(
+                                "trace_detail:observation_tree_toggle_scores",
+                                {
+                                  show: e,
+                                },
+                              );
+                              setScoresOnObservationTree(e);
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Show Metrics</span>
+                          <Switch
+                            checked={metricsOnObservationTree}
+                            onCheckedChange={(e) => {
+                              capture(
+                                "trace_detail:observation_tree_toggle_metrics",
+                                {
+                                  show: e,
+                                },
+                              );
+                              setMetricsOnObservationTree(e);
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2">Color Code Metrics</span>
+                          <Switch
+                            checked={colorCodeMetricsOnObservationTree}
+                            onCheckedChange={(e) =>
+                              setColorCodeMetricsOnObservationTree(e)
+                            }
+                          />
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span className="flex items-center">
+                          Min Level: {minObservationLevel}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuLabel className="font-semibold">
+                          Minimum Level
+                        </DropdownMenuLabel>
+                        {Object.values(ObservationLevel).map((level) => (
+                          <DropdownMenuItem
+                            key={level}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setMinObservationLevel(level);
+                            }}
+                          >
+                            {level}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Switch
+                  checked={props.selectedTab?.includes("timeline")}
+                  onCheckedChange={(checked) =>
+                    props.setSelectedTab?.(checked ? "timeline" : "preview")
+                  }
+                ></Switch>
+                <span className="text-sm">Timeline</span>
+              </div>
+            )}
+          </div>
+          <div className="h-full overflow-hidden">
+            {props.selectedTab?.includes("timeline") ? (
+              <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                {isLanggraphTrace(props.observations) && showGraph ? (
+                  <div className="flex h-full w-full flex-col overflow-hidden">
+                    <div className="h-1/2 w-full overflow-y-auto">
+                      <TraceTimelineView
+                        key={`timeline-${props.trace.id}`}
+                        trace={props.trace}
+                        scores={props.scores}
+                        observations={props.observations}
+                        projectId={props.trace.projectId}
+                        currentObservationId={currentObservationId ?? null}
+                        setCurrentObservationId={setCurrentObservationId}
+                        expandedItems={expandedItems}
+                        setExpandedItems={setExpandedItems}
+                        showMetrics={metricsOnObservationTree}
+                        showScores={scoresOnObservationTree}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                        minLevel={minObservationLevel}
+                        setMinLevel={setMinObservationLevel}
+                      />
+                    </div>
+                    <div className="h-1/2 w-full overflow-hidden border-t">
+                      <TraceGraphView
+                        key={`graph-timeline-${props.trace.id}`}
+                        trace={props.trace}
+                        scores={props.scores}
+                        observations={props.observations}
+                        projectId={props.trace.projectId}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full w-full overflow-auto">
+                    <TraceTimelineView
+                      key={props.trace.id}
+                      trace={props.trace}
+                      scores={props.scores}
+                      observations={props.observations}
+                      projectId={props.trace.projectId}
+                      currentObservationId={currentObservationId ?? null}
+                      setCurrentObservationId={setCurrentObservationId}
+                      expandedItems={expandedItems}
+                      setExpandedItems={setExpandedItems}
+                      showMetrics={metricsOnObservationTree}
+                      showScores={scoresOnObservationTree}
+                      showComments={showComments}
+                      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                      minLevel={minObservationLevel}
+                      setMinLevel={setMinObservationLevel}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-full w-full flex-1 flex-col overflow-hidden">
+                {isLanggraphTrace(props.observations) && showGraph ? (
+                  <div className="flex h-full w-full flex-col overflow-hidden">
+                    <div className="h-1/2 w-full overflow-y-auto">
+                      <ObservationTree
+                        observations={props.observations}
+                        collapsedObservations={collapsedObservations}
+                        toggleCollapsedObservation={toggleCollapsedObservation}
+                        collapseAll={collapseAll}
+                        expandAll={expandAll}
+                        trace={props.trace}
+                        scores={props.scores}
+                        currentObservationId={currentObservationId ?? undefined}
+                        setCurrentObservationId={setCurrentObservationId}
+                        showMetrics={metricsOnObservationTree}
+                        showScores={scoresOnObservationTree}
+                        showComments={showComments}
+                        colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                        observationCommentCounts={observationCommentCounts.data}
+                        traceCommentCounts={traceCommentCounts.data}
+                        className="flex w-full flex-col px-3"
+                        minLevel={minObservationLevel}
+                        setMinLevel={setMinObservationLevel}
+                      />
+                    </div>
+                    <div className="h-1/2 w-full overflow-hidden border-t">
+                      <TraceGraphView
+                        key={`graph-tree-${props.trace.id}`}
+                        trace={props.trace}
+                        scores={props.scores}
+                        observations={props.observations}
+                        projectId={props.trace.projectId}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full w-full overflow-auto">
+                    <ObservationTree
+                      observations={props.observations}
+                      collapsedObservations={collapsedObservations}
+                      toggleCollapsedObservation={toggleCollapsedObservation}
+                      collapseAll={collapseAll}
+                      expandAll={expandAll}
+                      trace={props.trace}
+                      scores={props.scores}
+                      currentObservationId={currentObservationId ?? undefined}
+                      setCurrentObservationId={setCurrentObservationId}
+                      showMetrics={metricsOnObservationTree}
+                      showScores={scoresOnObservationTree}
+                      showComments={showComments}
+                      colorCodeMetrics={colorCodeMetricsOnObservationTree}
+                      observationCommentCounts={observationCommentCounts.data}
+                      traceCommentCounts={traceCommentCounts.data}
+                      className="flex w-full flex-col px-3"
+                      minLevel={minObservationLevel}
+                      setMinLevel={setMinObservationLevel}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </Command>
+      </div>
+      <div className="overflow-hidden pl-3 md:h-full md:p-0">
         {currentObservationId === undefined ||
         currentObservationId === "" ||
         currentObservationId === null ? (
@@ -114,301 +502,22 @@ export function Trace(props: {
             trace={props.trace}
             observations={props.observations}
             scores={props.scores}
+            commentCounts={traceCommentCounts.data}
+            viewType={viewType}
           />
-        ) : (
+        ) : isValidObservationId ? (
           <ObservationPreview
             observations={props.observations}
             scores={props.scores}
             projectId={props.projectId}
             currentObservationId={currentObservationId}
             traceId={props.trace.id}
+            commentCounts={observationCommentCounts.data}
+            viewType={viewType}
+            isTimeline={props.selectedTab?.includes("timeline")}
           />
-        )}
-      </div>
-      <div className="md:col-span-2 md:flex md:h-full md:flex-col md:overflow-hidden">
-        <div className="mb-2 flex flex-shrink-0 flex-row justify-end gap-2">
-          <Toggle
-            pressed={scoresOnObservationTree}
-            onPressedChange={(e) => {
-              capture("trace_detail:observation_tree_toggle_scores", {
-                show: e,
-              });
-              setScoresOnObservationTree(e);
-            }}
-            size="sm"
-            title="Show scores"
-          >
-            <Award className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            pressed={metricsOnObservationTree}
-            onPressedChange={(e) => {
-              capture("trace_detail:observation_tree_toggle_metrics", {
-                show: e,
-              });
-              setMetricsOnObservationTree(e);
-            }}
-            size="sm"
-            title="Show metrics"
-          >
-            {metricsOnObservationTree ? (
-              <ChevronsDownUp className="h-4 w-4" />
-            ) : (
-              <ChevronsUpDown className="h-4 w-4" />
-            )}
-          </Toggle>
-        </div>
-
-        <ObservationTree
-          observations={props.observations}
-          collapsedObservations={collapsedObservations}
-          toggleCollapsedObservation={toggleCollapsedObservation}
-          collapseAll={collapseAll}
-          expandAll={expandAll}
-          trace={props.trace}
-          scores={props.scores}
-          currentObservationId={currentObservationId ?? undefined}
-          setCurrentObservationId={setCurrentObservationId}
-          showMetrics={metricsOnObservationTree}
-          showScores={scoresOnObservationTree}
-          className="flex w-full flex-col overflow-y-auto"
-        />
+        ) : null}
       </div>
     </div>
   );
 }
-
-export function TracePage({ traceId }: { traceId: string }) {
-  const capture = usePostHogClientCapture();
-  const router = useRouter();
-  const utils = api.useUtils();
-  const trace = api.traces.byId.useQuery(
-    { traceId },
-    {
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
-    },
-  );
-
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId: trace.data?.projectId ?? "",
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      enabled: !!trace.data?.projectId && trace.isSuccess,
-    },
-  );
-
-  const filterOptionTags = traceFilterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
-
-  const totalCost = calculateDisplayTotalCost(trace.data?.observations ?? []);
-
-  const [selectedTab, setSelectedTab] = useQueryParam(
-    "display",
-    withDefault(StringParam, "details"),
-  );
-
-  if (trace.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this trace." />;
-  if (!trace.data) return <div>loading...</div>;
-  return (
-    <div className="flex flex-col overflow-hidden 2xl:container md:h-[calc(100vh-2rem)]">
-      <Header
-        title="Trace Detail"
-        breadcrumb={[
-          {
-            name: "Traces",
-            href: `/project/${router.query.projectId as string}/traces`,
-          },
-          { name: traceId },
-        ]}
-        actionButtons={
-          <>
-            <StarTraceDetailsToggle
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              value={trace.data.bookmarked}
-            />
-            <PublishTraceSwitch
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              isPublic={trace.data.public}
-            />
-            <DetailPageNav
-              currentId={traceId}
-              path={(id) => {
-                const { view, display, projectId } = router.query;
-                const queryParams = new URLSearchParams({
-                  ...(typeof view === "string" ? { view } : {}),
-                  ...(typeof display === "string" ? { display } : {}),
-                });
-                const queryParamString = Boolean(queryParams.size)
-                  ? `?${queryParams.toString()}`
-                  : "";
-                return `/project/${projectId as string}/traces/${id}${queryParamString}`;
-              }}
-              listKey="traces"
-            />
-            <DeleteButton
-              itemId={traceId}
-              projectId={trace.data.projectId}
-              scope="traces:delete"
-              invalidateFunc={() => void utils.traces.all.invalidate()}
-              type="trace"
-              redirectUrl={`/project/${router.query.projectId as string}/traces`}
-            />
-          </>
-        }
-      />
-      <div className="flex flex-wrap gap-2">
-        {trace.data.sessionId ? (
-          <Link
-            href={`/project/${
-              router.query.projectId as string
-            }/sessions/${encodeURIComponent(trace.data.sessionId)}`}
-          >
-            <Badge>Session: {trace.data.sessionId}</Badge>
-          </Link>
-        ) : null}
-        {trace.data.userId ? (
-          <Link
-            href={`/project/${
-              router.query.projectId as string
-            }/users/${encodeURIComponent(trace.data.userId)}`}
-          >
-            <Badge>User ID: {trace.data.userId}</Badge>
-          </Link>
-        ) : null}
-        <TraceAggUsageBadge observations={trace.data.observations} />
-        {totalCost ? (
-          <Badge variant="outline">
-            Total cost: {usdFormatter(totalCost.toNumber())}
-          </Badge>
-        ) : undefined}
-      </div>
-      <div className="mt-4 rounded-lg border bg-card font-semibold text-card-foreground shadow-sm">
-        <div className="flex flex-row items-center gap-3 p-2.5">
-          Tags
-          <TagTraceDetailsPopover
-            tags={trace.data.tags}
-            availableTags={allTags}
-            traceId={trace.data.id}
-            projectId={trace.data.projectId}
-            className="flex-wrap"
-          />
-        </div>
-      </div>
-      <Tabs
-        value={selectedTab}
-        onValueChange={(tab) => {
-          setSelectedTab(tab);
-          capture("trace_detail:display_mode_switch", { view: tab });
-        }}
-        className="mt-2 flex w-full justify-end border-b bg-transparent"
-      >
-        <TabsList className="bg-transparent py-0">
-          <TabsTrigger
-            value="details"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <Network className="mr-1 h-4 w-4"></Network>
-            Tree
-          </TabsTrigger>
-          <TabsTrigger
-            value="timeline"
-            className="h-full rounded-none border-b-4 border-transparent data-[state=active]:border-primary-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-          >
-            <ListTree className="mr-1 h-4 w-4"></ListTree>
-            Timeline
-            <Badge className="pointer-events-none ml-2 px-1.5">Beta</Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-      {selectedTab === "details" && (
-        <div className="mt-5 flex-1 overflow-hidden">
-          <Trace
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            projectId={trace.data.projectId}
-            observations={trace.data.observations}
-          />
-        </div>
-      )}
-      {selectedTab === "timeline" && (
-        <div className="mt-5 flex-1 flex-col space-y-5 overflow-hidden">
-          <Alert>
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>New Trace Timeline (beta)</AlertTitle>
-            <AlertDescription>
-              We value your feedback! Share your thoughts on{" "}
-              <a
-                href="https://github.com/orgs/langfuse/discussions/2195"
-                target="_blank"
-                className="underline"
-                rel="noopener noreferrer"
-              >
-                GitHub discussions
-              </a>
-              .
-            </AlertDescription>
-          </Alert>
-          <TraceTimelineView
-            key={trace.data.id}
-            trace={trace.data}
-            scores={trace.data.scores}
-            observations={trace.data.observations}
-            projectId={trace.data.projectId}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-export const calculateDisplayTotalCost = (
-  observations: ObservationReturnType[],
-) => {
-  return observations.reduce(
-    (prev: Decimal | undefined, curr: ObservationReturnType) => {
-      // if we don't have any calculated costs, we can't do anything
-      if (
-        !curr.calculatedTotalCost &&
-        !curr.calculatedInputCost &&
-        !curr.calculatedOutputCost
-      )
-        return prev;
-
-      // if we have either input or output cost, but not total cost, we can use that
-      if (
-        !curr.calculatedTotalCost &&
-        (curr.calculatedInputCost || curr.calculatedOutputCost)
-      ) {
-        return prev
-          ? prev.plus(
-              curr.calculatedInputCost ??
-                new Decimal(0).plus(
-                  curr.calculatedOutputCost ?? new Decimal(0),
-                ),
-            )
-          : curr.calculatedInputCost ?? curr.calculatedOutputCost ?? undefined;
-      }
-
-      if (!curr.calculatedTotalCost) return prev;
-
-      // if we have total cost, we can use that
-      return prev
-        ? prev.plus(curr.calculatedTotalCost)
-        : curr.calculatedTotalCost;
-    },
-    undefined,
-  );
-};

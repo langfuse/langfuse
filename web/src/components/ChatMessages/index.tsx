@@ -2,11 +2,28 @@ import { PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
-import { ChatMessageRole } from "@langfuse/shared";
+import { ChatMessageRole, SYSTEM_ROLES } from "@langfuse/shared";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
 
 import type { MessagesContext } from "./types";
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { isString } from "@/src/utils/types";
 
 type ChatMessagesProps = MessagesContext;
 export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
@@ -23,17 +40,66 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     prevMessageCount.current = messages.length;
   }, [scrollAreaRef, messages.length]);
 
+  const sensors = useSensors(
+    useSensor(MouseSensor, {}),
+    useSensor(TouchSensor, {}),
+    useSensor(KeyboardSensor, {}),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (active && over && active.id !== over.id) {
+      if (isString(active.id) && isString(over.id)) {
+        const newIndex = messages.findIndex((m) => m.id === over.id);
+        const oldIndex = messages.findIndex((m) => m.id === active.id);
+        if (newIndex < 0 || oldIndex < 0) {
+          return;
+        }
+        // prevent reordering system messages
+        if (SYSTEM_ROLES.includes(messages[newIndex].role)) {
+          return;
+        }
+        const newMessages = arrayMove(messages, oldIndex, newIndex);
+        props.setMessages(newMessages);
+      }
+    }
+  }
+
   return (
-    <div className="h-full overflow-auto scroll-smooth" ref={scrollAreaRef}>
-      <div className="mb-4 flex-1 space-y-4">
-        {props.messages.map((message) => {
-          return (
-            <ChatMessageComponent {...{ message, ...props }} key={message.id} />
-          );
-        })}
-        <AddMessageButton {...props} />
+    <DndContext
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis]}
+      onDragEnd={handleDragEnd}
+      sensors={sensors}
+    >
+      <div className="flex h-full flex-col">
+        <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
+          <div className="mb-4 flex-1 space-y-3">
+            <SortableContext
+              items={props.messages.map((message) => message.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {props.messages.map((message, index) => {
+                return (
+                  <ChatMessageComponent
+                    key={message.id}
+                    message={message}
+                    index={index}
+                    deleteMessage={props.deleteMessage}
+                    updateMessage={props.updateMessage}
+                    availableRoles={props.availableRoles}
+                  />
+                );
+              })}
+            </SortableContext>
+          </div>
+        </div>
+        <div className="py-3">
+          <AddMessageButton {...props} />
+        </div>
       </div>
-    </div>
+    </DndContext>
   );
 };
 
@@ -52,10 +118,10 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
     <Button
       type="button" // prevents submitting a form if this button is inside a form
       variant="outline"
-      className="w-full space-x-2 py-6"
+      className="w-full"
       onClick={() => addMessage(nextMessageRole)}
     >
-      <PlusCircleIcon size={16} />
+      <PlusCircleIcon size={14} className="mr-2" />
       <p>Add message</p>
     </Button>
   );

@@ -12,8 +12,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
-import { useHasAccess } from "@/src/features/rbac/utils/checkAccess";
-import { JsonEditor } from "@/src/components/json-editor";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { CodeMirrorEditor } from "@/src/components/editor";
 import { type RouterOutput } from "@/src/utils/types";
 
 const formSchema = z.object({
@@ -73,31 +73,28 @@ export const EditDatasetItem = ({
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
-  const hasAccess = useHasAccess({
+  const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "datasets:CUD",
   });
   const utils = api.useUtils();
 
   useEffect(() => {
-    form.setValue(
-      "input",
-      datasetItem?.input ? JSON.stringify(datasetItem.input, null, 2) : "",
-    );
-    form.setValue(
-      "expectedOutput",
-      datasetItem?.expectedOutput
-        ? JSON.stringify(datasetItem.expectedOutput, null, 2)
-        : "",
-    );
-    form.setValue(
-      "metadata",
-      datasetItem?.metadata
-        ? JSON.stringify(datasetItem.metadata, null, 2)
-        : "",
-    );
+    if (datasetItem) {
+      form.reset({
+        input: datasetItem.input
+          ? JSON.stringify(datasetItem.input, null, 2)
+          : "",
+        expectedOutput: datasetItem.expectedOutput
+          ? JSON.stringify(datasetItem.expectedOutput, null, 2)
+          : "",
+        metadata: datasetItem.metadata
+          ? JSON.stringify(datasetItem.metadata, null, 2)
+          : "",
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetItem]);
+  }, [datasetItem?.id]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -127,80 +124,20 @@ export const EditDatasetItem = ({
   }
 
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <Form {...form}>
         <form
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-4"
+          className="flex h-full flex-col"
           onChange={() => setHasChanges(true)}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="input"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Input</FormLabel>
-                  <FormControl>
-                    <JsonEditor
-                      defaultValue={field.value}
-                      onChange={(v) => {
-                        setHasChanges(true);
-                        field.onChange(v);
-                      }}
-                      editable={hasAccess}
-                      className="max-h-[600px] overflow-y-auto"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="expectedOutput"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Expected output</FormLabel>
-                  <FormControl>
-                    <JsonEditor
-                      defaultValue={field.value}
-                      onChange={(v) => {
-                        setHasChanges(true);
-                        field.onChange(v);
-                      }}
-                      editable={hasAccess}
-                      className="max-h-[600px] overflow-y-auto"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormField
-            control={form.control}
-            name="metadata"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Metadata</FormLabel>
-                <FormControl>
-                  <JsonEditor
-                    defaultValue={field.value}
-                    onChange={(v) => {
-                      setHasChanges(true);
-                      field.onChange(v);
-                    }}
-                    editable={hasAccess}
-                    className="max-h-[300px] overflow-y-auto"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-4">
+            {formError ? (
+              <p className="text-red text-center">
+                <span className="font-bold">Error:</span> {formError}
+              </p>
+            ) : null}
             <Button
               type="submit"
               loading={updateDatasetItemMutation.isLoading}
@@ -210,13 +147,80 @@ export const EditDatasetItem = ({
               {hasChanges ? "Save changes" : "Saved"}
             </Button>
           </div>
+          <div className="ph-no-capture flex-1 overflow-auto">
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="input"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Input</FormLabel>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          value={field.value}
+                          onChange={(v) => {
+                            setHasChanges(true);
+                            field.onChange(v);
+                          }}
+                          editable={hasAccess}
+                          minHeight={200}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="expectedOutput"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expected output</FormLabel>
+                      <FormControl>
+                        <CodeMirrorEditor
+                          mode="json"
+                          value={field.value}
+                          onChange={(v) => {
+                            setHasChanges(true);
+                            field.onChange(v);
+                          }}
+                          editable={hasAccess}
+                          minHeight={200}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metadata</FormLabel>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        value={field.value}
+                        onChange={(v) => {
+                          setHasChanges(true);
+                          field.onChange(v);
+                        }}
+                        editable={hasAccess}
+                        minHeight={100}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </form>
       </Form>
-      {formError ? (
-        <p className="text-red text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
-      ) : null}
     </div>
   );
 };

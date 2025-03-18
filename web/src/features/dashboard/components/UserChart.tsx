@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { type DateTimeAggregationOption } from "@/src/features/dashboard/lib/timeseries-aggregation";
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -8,14 +7,12 @@ import { BarList } from "@tremor/react";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { NoData } from "@/src/features/dashboard/components/NoData";
 import {
   createTracesTimeFilter,
   totalCostDashboardFormatted,
 } from "@/src/features/dashboard/lib/dashboard-utils";
-
 import { env } from "@/src/env.mjs";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 type BarChartDataPoint = {
   name: string;
@@ -26,11 +23,12 @@ export const UserChart = ({
   className,
   projectId,
   globalFilterState,
+  isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
-  agg: DateTimeAggregationOption;
+  isLoading?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const user = api.dashboard.chart.useQuery(
@@ -62,6 +60,7 @@ export const UserChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
+      queryName: "observations-usage-by-users",
     },
     {
       trpc: {
@@ -69,6 +68,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -85,6 +85,7 @@ export const UserChart = ({
         },
       ],
       orderBy: [{ column: "traceId", agg: "COUNT", direction: "DESC" }],
+      queryName: "traces-grouped-by-user",
     },
     {
       trpc: {
@@ -92,6 +93,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -160,7 +162,7 @@ export const UserChart = ({
     <DashboardCard
       className={className}
       title="User consumption"
-      isLoading={user.isLoading}
+      isLoading={isLoading || user.isLoading}
     >
       <TabComponent
         tabs={data.map((item) => {
@@ -183,12 +185,11 @@ export const UserChart = ({
                     />
                   </>
                 ) : (
-                  <NoData noDataText="No data">
-                    <DocPopup
-                      description="Consumption per user is tracked by passing their ids on traces."
-                      href="https://langfuse.com/docs/tracing-features/users"
-                    />
-                  </NoData>
+                  <NoDataOrLoading
+                    isLoading={isLoading || user.isLoading}
+                    description="Consumption per user is tracked by passing their ids on traces."
+                    href="https://langfuse.com/docs/tracing-features/users"
+                  />
                 )}
               </>
             ),

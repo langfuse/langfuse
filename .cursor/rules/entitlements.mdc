@@ -1,0 +1,7 @@
+---
+description: How to enforce entitlements across full-stack features
+globs: web/**
+alwaysApply: true
+---
+
+Check [README.md](mdc:web/src/features/entitlements/README.md) to learn more about entitlements

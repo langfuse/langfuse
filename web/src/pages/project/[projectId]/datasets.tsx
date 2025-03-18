@@ -1,23 +1,46 @@
-import Header from "@/src/components/layouts/header";
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
-import { FullScreenPage } from "@/src/components/layouts/full-screen-page";
+import Page from "@/src/components/layouts/page";
+import { api } from "@/src/utils/api";
+import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
 
-export default function Traces() {
+export default function Datasets() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
+  // Check if the project has any datasets
+  const { data: hasAnyDataset, isLoading } = api.datasets.hasAny.useQuery(
+    { projectId },
+    {
+      enabled: !!projectId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  const showOnboarding = !isLoading && !hasAnyDataset;
+
   return (
-    <FullScreenPage>
-      <Header
-        title="Datasets"
-        help={{
+    <Page
+      headerProps={{
+        title: "Datasets",
+        help: {
           description:
             "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
           href: "https://langfuse.com/docs/datasets",
-        }}
-      />
-      <DatasetsTable projectId={projectId} />
-    </FullScreenPage>
+        },
+      }}
+      scrollable={showOnboarding}
+    >
+      {/* Show onboarding screen if project has no datasets */}
+      {showOnboarding ? (
+        <DatasetsOnboarding projectId={projectId} />
+      ) : (
+        <DatasetsTable projectId={projectId} />
+      )}
+    </Page>
   );
 }

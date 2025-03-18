@@ -53,6 +53,7 @@ components:
       properties:
         id:
           type: string
+          nullable: true
         traceId:
           type: string
           example: cdef-1234-5678-90ab
@@ -67,15 +68,19 @@ components:
             values must equal either 1 or 0 (true or false)
         observationId:
           type: string
+          nullable: true
         comment:
           type: string
+          nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
+          nullable: true
           description: >-
             When set, must match the score value's type. If not set, will be
             inferred from the score value or config
         configId:
           type: string
+          nullable: true
           description: >-
             Reference a score config on a score. When set, the score name must
             equal the config name and scores must comply with the config's range
@@ -100,6 +105,7 @@ components:
           $ref: '#/components/schemas/ScoreSource'
         observationId:
           type: string
+          nullable: true
         timestamp:
           type: string
           format: date-time
@@ -111,10 +117,13 @@ components:
           format: date-time
         authorUserId:
           type: string
+          nullable: true
         comment:
           type: string
+          nullable: true
         configId:
           type: string
+          nullable: true
           description: >-
             Reference a score config on a score. When set, config and score name
             must be equal and value must comply to optionally defined numerical
@@ -166,6 +175,7 @@ components:
         value:
           type: number
           format: double
+          nullable: true
           description: >-
             Only defined if a config is linked. Represents the numeric category
             mapping of the stringValue

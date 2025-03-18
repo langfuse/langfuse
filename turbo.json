@@ -16,14 +16,11 @@
     "db:reset": {},
     "db:push": {},
     "db:seed": {},
-    "models:migrate": {
-      "dependsOn": ["db:generate"]
-    },
     "db:seed:examples": {},
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["db:generate", "@langfuse/shared#build"]
     },
     "db:generate": {
       "cache": false,
