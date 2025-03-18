@@ -325,24 +325,22 @@ export class QueryBuilder {
     }
   }
 
-  private getTimeDimensionSql(
-    table: string,
-    timeDimension: string,
-    granularity: string,
-  ): string {
+  private getTimeDimensionSql(sql: string, granularity: string): string {
     switch (granularity) {
       case "minute":
-        return `toStartOfMinute(${table}.${timeDimension})`;
+        return `toStartOfMinute(${sql})`;
       case "hour":
-        return `toStartOfHour(${table}.${timeDimension})`;
+        return `toStartOfHour(${sql})`;
       case "day":
-        return `toDate(${table}.${timeDimension})`;
+        return `toDate(${sql})`;
       case "week":
-        return `toMonday(${table}.${timeDimension})`;
+        return `toMonday(${sql})`;
       case "month":
-        return `toStartOfMonth(${table}.${timeDimension})`;
+        return `toStartOfMonth(${sql})`;
       default:
-        return timeDimension;
+        throw new Error(
+          `Invalid time granularity: ${granularity}. Must be one of minute, hour, day, week, month`,
+        );
     }
   }
 
@@ -374,8 +372,7 @@ export class QueryBuilder {
           : query.timeDimension.granularity;
 
       const timeDimensionSql = this.getTimeDimensionSql(
-        view.name,
-        view.timeDimension,
+        `${view.name}.${view.timeDimension}`,
         granularity,
       );
       dimensions += `any(${timeDimensionSql}) as time_dimension,`;
@@ -459,12 +456,73 @@ export class QueryBuilder {
     return dimensions.length > 0 ? `GROUP BY ${dimensions.join(",\n")}` : "";
   }
 
+  /**
+   * Builds a WITH FILL clause for time dimension to ensure continuous time series data.
+   * This fills in gaps in the time series with zero values based on the granularity.
+   * Only applied if timeDimension is used and no ORDER BY is specified.
+   */
+  private buildWithFillClause(
+    timeDimension: {
+      granularity: string;
+    } | null,
+    fromTimestamp: string,
+    toTimestamp: string,
+    orderBy: Array<{ field: string; direction: string }> | null,
+    parameters: Record<string, unknown>,
+  ): string {
+    if (!timeDimension) {
+      return "";
+    }
+
+    if (orderBy && orderBy.length > 0) {
+      return ""; // Skip WITH FILL if ORDER BY is specified
+    }
+
+    // Determine granularity for WITH FILL if timeDimension is used
+    const granularity =
+      timeDimension.granularity === "auto"
+        ? this.determineTimeGranularity(fromTimestamp, toTimestamp)
+        : timeDimension.granularity;
+
+    // Calculate appropriate STEP for WITH FILL based on granularity
+    let step: string;
+    switch (granularity) {
+      case "minute":
+        step = "INTERVAL 1 MINUTE";
+        break;
+      case "hour":
+        step = "INTERVAL 1 HOUR";
+        break;
+      case "day":
+        step = "INTERVAL 1 DAY";
+        break;
+      case "week":
+        step = "INTERVAL 1 WEEK";
+        break;
+      case "month":
+        step = "INTERVAL 1 MONTH";
+        break;
+      default:
+        step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown
+    }
+
+    parameters["fillFromDate"] = convertDateToClickhouseDateTime(
+      new Date(fromTimestamp),
+    );
+    parameters["fillToDate"] = convertDateToClickhouseDateTime(
+      new Date(toTimestamp),
+    );
+
+    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", granularity)} STEP ${step}`;
+  }
+
   private buildOuterSelect(
     outerDimensionsPart: string,
     outerMetricsPart: string,
     innerQuery: string,
     groupByClause: string,
     orderByClause: string,
+    withFillClause: string,
   ) {
     return `
       SELECT
@@ -472,7 +530,8 @@ export class QueryBuilder {
         ${outerMetricsPart}
       FROM (${innerQuery})
       ${groupByClause}
-      ${orderByClause}`;
+      ${orderByClause}
+      ${withFillClause}`;
   }
 
   /**
@@ -518,7 +577,7 @@ export class QueryBuilder {
 
       // Check if the field is a dimension
       const matchingDimension = appliedDimensions.find(
-        (dim) => dim.alias === item.field || dim.sql === item.field
+        (dim) => dim.alias === item.field || dim.sql === item.field,
       );
       if (matchingDimension) {
         return {
@@ -528,24 +587,25 @@ export class QueryBuilder {
       }
 
       // Check if the field is a metric (with aggregation prefix)
-      const metricNamePattern = /^(sum|avg|count|max|min|p50|p75|p90|p95|p99)_(.+)$/;
+      const metricNamePattern =
+        /^(sum|avg|count|max|min|p50|p75|p90|p95|p99)_(.+)$/;
       const metricMatch = item.field.match(metricNamePattern);
-      
+
       if (metricMatch) {
         const [, aggregation, measureName] = metricMatch;
         const matchingMetric = appliedMetrics.find(
           (metric) =>
             (metric.alias === measureName || metric.sql === measureName) &&
-            metric.aggregation === aggregation
+            metric.aggregation === aggregation,
         );
-        
+
         if (matchingMetric) {
           return item;
         }
       }
 
       throw new Error(
-        `Invalid orderBy field: ${item.field}. Must be one of the dimension or metric fields.`
+        `Invalid orderBy field: ${item.field}. Must be one of the dimension or metric fields.`,
       );
     });
   }
@@ -554,7 +614,7 @@ export class QueryBuilder {
    * Builds the ORDER BY clause for the query.
    */
   private buildOrderByClause(
-    processedOrderBy: Array<{ field: string; direction: string }>
+    processedOrderBy: Array<{ field: string; direction: string }>,
   ): string {
     if (processedOrderBy.length === 0) {
       return "";
@@ -672,11 +732,20 @@ export class QueryBuilder {
       query.orderBy,
       appliedDimensions,
       appliedMetrics,
-      !!query.timeDimension
+      !!query.timeDimension,
     );
 
     // Build ORDER BY clause
     const orderByClause = this.buildOrderByClause(processedOrderBy);
+
+    // Build WITH FILL clause for time dimension to fill gaps in timeseries
+    const withFillClause = this.buildWithFillClause(
+      query.timeDimension,
+      query.fromTimestamp,
+      query.toTimestamp,
+      query.orderBy,
+      parameters,
+    );
 
     // Build final query
     const sql = this.buildOuterSelect(
@@ -684,7 +753,8 @@ export class QueryBuilder {
       outerMetricsPart,
       innerQuery,
       groupByClause,
-      orderByClause
+      orderByClause,
+      withFillClause,
     );
 
     return {

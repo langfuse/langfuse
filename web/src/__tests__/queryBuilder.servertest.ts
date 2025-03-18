@@ -767,7 +767,6 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: [{ field: "name", direction: "asc" }],
-          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -821,7 +820,6 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: [{ field: "sum_observations_count", direction: "desc" }],
-          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -879,7 +877,6 @@ describe("queryBuilder", () => {
             { field: "environment", direction: "asc" },
             { field: "sum_observations_count", direction: "desc" },
           ],
-          orderBy: null,
           page: 0,
           limit: 50,
         };
@@ -1201,6 +1198,140 @@ describe("queryBuilder", () => {
         // Assert
         expect(result.data).toHaveLength(1);
         expect(result.data[0].count).toBe("2"); // default count metric should be used
+      });
+
+      it("should fill gaps in time series data with WITH FILL", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const now = new Date();
+
+        // Create traces at specific dates with intentional gaps
+        const day1 = new Date(now);
+        day1.setDate(day1.getDate() - 3);
+        day1.setHours(12, 0, 0, 0);
+
+        const day3 = new Date(now);
+        day3.setDate(day3.getDate() - 1);
+        day3.setHours(12, 0, 0, 0);
+
+        // Skip day2 to create a gap
+
+        const traces = [
+          // Day 1 trace
+          createTrace({
+            project_id: projectId,
+            name: "trace-test",
+            environment: "default",
+            timestamp: day1.getTime(),
+          }),
+          // Day 3 trace
+          createTrace({
+            project_id: projectId,
+            name: "trace-test",
+            environment: "default",
+            timestamp: day3.getTime(),
+          }),
+        ];
+
+        await createTracesCh(traces);
+
+        // Set from timestamp to day before day1 and to timestamp to day after day3
+        const fromDate = new Date(day1);
+        fromDate.setDate(fromDate.getDate() - 1);
+
+        const toDate = new Date(day3);
+        toDate.setDate(toDate.getDate() + 1);
+
+        // Define query with time dimension and daily granularity
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              field: "name",
+              operator: "eq",
+              value: "trace-test",
+            },
+          ],
+          timeDimension: {
+            granularity: "day", // Use day granularity for clear gap visibility
+          },
+          fromTimestamp: fromDate.toISOString(),
+          toTimestamp: toDate.toISOString(),
+          orderBy: null,
+          page: 0,
+          limit: 50,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        // Verify WITH FILL clause is present in the query
+        expect(compiledQuery).toContain("WITH FILL");
+        expect(compiledQuery).toContain("STEP INTERVAL 1 DAY");
+
+        const result = await (
+          await clickhouseClient().query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Expected to have 3 days in the result (including the filled gap)
+        expect(result.data.length).toBeGreaterThanOrEqual(3);
+
+        // Convert time_dimension strings to Date objects for easier testing
+        const resultDates = result.data.map((row: any) => {
+          return {
+            date: new Date(row.time_dimension),
+            count: row.count_count ? parseInt(row.count_count) : 0,
+          };
+        });
+
+        // Find day1 and day3 (where we have actual traces)
+        const day1Row = resultDates.find(
+          (row: any) =>
+            row.date.getDate() === day1.getDate() &&
+            row.date.getMonth() === day1.getMonth(),
+        );
+
+        const day3Row = resultDates.find(
+          (row: any) =>
+            row.date.getDate() === day3.getDate() &&
+            row.date.getMonth() === day3.getMonth(),
+        );
+
+        // Find day2 (gap day that should be filled with zeros)
+        const day2 = new Date(day1);
+        day2.setDate(day2.getDate() + 1);
+
+        const day2Row = resultDates.find(
+          (row: any) =>
+            row.date.getDate() === day2.getDate() &&
+            row.date.getMonth() === day2.getMonth(),
+        );
+
+        // Assert actual data and filled gaps
+        expect(day1Row?.count).toBe(1); // Actual trace for day 1
+        expect(day3Row?.count).toBe(1); // Actual trace for day 3
+        expect(day2Row).toBeDefined(); // Day 2 should exist (filled)
+        expect(day2Row?.count).toBe(0); // Day 2 should be filled with 0
+
+        // Check that all dates form a continuous sequence
+        for (let i = 1; i < resultDates.length; i++) {
+          const prevDate = resultDates[i - 1].date;
+          const currDate = resultDates[i].date;
+
+          // Difference should be approximately 1 day (86400000 ms)
+          const diffMs = currDate.getTime() - prevDate.getTime();
+          expect(diffMs).toBeGreaterThanOrEqual(86000000); // ~1 day with some tolerance
+          expect(diffMs).toBeLessThanOrEqual(86800000); // ~1 day with some tolerance
+        }
       });
 
       it("should group traces by name and time dimension correctly", async () => {
