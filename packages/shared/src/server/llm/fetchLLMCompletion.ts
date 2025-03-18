@@ -1,4 +1,4 @@
-import type { ZodSchema } from "zod";
+import { z, type ZodSchema } from "zod";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -26,6 +26,8 @@ import {
   ChatMessage,
   ChatMessageRole,
   LLMAdapter,
+  LLMJSONSchema,
+  LLMTool,
   ModelParams,
   TraceParams,
 } from "./types";
@@ -37,7 +39,8 @@ type ProcessTracedEvents = () => Promise<void>;
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
-  structuredOutputSchema?: ZodSchema;
+  tools?: LLMTool[];
+  structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
   baseURL?: string;
   apiKey: string;
@@ -59,13 +62,18 @@ export async function fetchLLMCompletion(
 ): Promise<{
   completion: IterableReadableStream<Uint8Array>;
   processTracedEvents: ProcessTracedEvents;
+  isStream: boolean;
 }>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{ completion: string; processTracedEvents: ProcessTracedEvents }>;
+): Promise<{
+  completion: string;
+  processTracedEvents: ProcessTracedEvents;
+  isStream: boolean;
+}>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -75,6 +83,7 @@ export async function fetchLLMCompletion(
 ): Promise<{
   completion: unknown;
   processTracedEvents: ProcessTracedEvents;
+  isStream: boolean;
 }>;
 
 export async function fetchLLMCompletion(
@@ -82,10 +91,12 @@ export async function fetchLLMCompletion(
 ): Promise<{
   completion: string | IterableReadableStream<Uint8Array> | unknown;
   processTracedEvents: ProcessTracedEvents;
+  isStream: boolean;
 }> {
   // the apiKey must never be printed to the console
   const {
     messages,
+    tools,
     modelParams,
     streaming,
     callbacks,
@@ -256,6 +267,7 @@ export async function fetchLLMCompletion(
           .withStructuredOutput(params.structuredOutputSchema)
           .invoke(finalMessages, runConfig),
         processTracedEvents,
+        isStream: false,
       };
     }
 
@@ -301,6 +313,29 @@ export async function fetchLLMCompletion(
           .pipe(new StringOutputParser())
           .invoke(filteredMessages, runConfig),
         processTracedEvents,
+        isStream: true,
+      };
+    }
+
+    if (tools?.length) {
+      const langchainTools = tools.map((tool) => ({
+        type: "function",
+        function: tool,
+      }));
+
+      const result = await chatModel
+        .bindTools(langchainTools)
+        .invoke(finalMessages, runConfig);
+
+      const { content, tool_calls: toolCalls } = result;
+
+      return {
+        completion: {
+          content,
+          toolCalls,
+        },
+        processTracedEvents,
+        isStream: false,
       };
     }
 
@@ -310,6 +345,7 @@ export async function fetchLLMCompletion(
           .pipe(new BytesOutputParser())
           .stream(finalMessages, runConfig),
         processTracedEvents,
+        isStream: true,
       };
     }
 
@@ -318,11 +354,12 @@ export async function fetchLLMCompletion(
         .pipe(new StringOutputParser())
         .invoke(finalMessages, runConfig),
       processTracedEvents,
+      isStream: false,
     };
   } catch (error) {
     if (throwOnError) {
       throw error;
     }
-    return { completion: null, processTracedEvents };
+    return { completion: null, processTracedEvents, isStream: false };
   }
 }

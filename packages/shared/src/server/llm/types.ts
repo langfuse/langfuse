@@ -203,3 +203,13 @@ export type TraceParams = {
   tokenCountDelegate: TokenCountDelegate;
   authCheck: AuthHeaderValidVerificationResult;
 };
+
+export const LLMJSONSchema = z.record(z.string(), z.unknown());
+export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
+
+export const LLMToolSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  parameters: LLMJSONSchema,
+});
+export type LLMTool = z.infer<typeof LLMToolSchema>;
