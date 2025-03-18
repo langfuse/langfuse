@@ -9,7 +9,7 @@ import { cn } from "@/src/utils/tailwind";
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => (
+>(({ className, onClick, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
@@ -18,6 +18,7 @@ const Checkbox = React.forwardRef<
     )}
     onClick={(e) => {
       e.stopPropagation();
+      onClick?.(e);
     }}
     {...props}
   >
