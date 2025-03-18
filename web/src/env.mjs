@@ -278,6 +278,7 @@ export const env = createEnv({
 
     LANGFUSE_INIT_ORG_ID: z.string().optional(),
     LANGFUSE_INIT_ORG_NAME: z.string().optional(),
+    LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
     LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(7).optional(),
@@ -553,6 +554,7 @@ export const env = createEnv({
     // provisioning
     LANGFUSE_INIT_ORG_ID: process.env.LANGFUSE_INIT_ORG_ID,
     LANGFUSE_INIT_ORG_NAME: process.env.LANGFUSE_INIT_ORG_NAME,
+    LANGFUSE_INIT_ORG_CLOUD_PLAN: process.env.LANGFUSE_INIT_ORG_CLOUD_PLAN,
     LANGFUSE_INIT_PROJECT_ID: process.env.LANGFUSE_INIT_PROJECT_ID,
     LANGFUSE_INIT_PROJECT_NAME: process.env.LANGFUSE_INIT_PROJECT_NAME,
     LANGFUSE_INIT_PROJECT_RETENTION:
