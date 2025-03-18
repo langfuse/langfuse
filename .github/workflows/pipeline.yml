@@ -40,7 +40,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -97,7 +97,7 @@ jobs:
     name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: ["20.18.3"]
         postgres-version: [12, 15]
     steps:
       - name: Set Swap Space
@@ -173,7 +173,7 @@ jobs:
     name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: ["20.18.3"]
         postgres-version: [12, 15]
         blob-provider: ["", "-azure"]
     steps:
@@ -248,7 +248,7 @@ jobs:
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.blob-provider }})
     strategy:
       matrix:
-        node-version: [20]
+        node-version: ["20.18.3"]
         postgres-version: [12, 15]
         blob-provider: ["", "-azure"]
     steps:
@@ -320,7 +320,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
@@ -370,7 +370,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -457,7 +457,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@v4
