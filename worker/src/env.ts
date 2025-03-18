@@ -22,6 +22,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
   LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
