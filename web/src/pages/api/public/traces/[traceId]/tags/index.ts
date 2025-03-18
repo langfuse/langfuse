@@ -11,7 +11,6 @@ import {
   convertTraceDomainToClickhouse,
   upsertTrace,
 } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
