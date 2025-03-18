@@ -40,7 +40,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -320,7 +320,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
@@ -370,7 +370,7 @@ jobs:
           version: 9.5.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: install dependencies
@@ -457,7 +457,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20.18.3"
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Checkout
         uses: actions/checkout@v4
