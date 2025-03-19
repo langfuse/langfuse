@@ -1068,10 +1068,14 @@ export default function TracesTable({
               return;
             }
 
-            router.replace({
-              pathname: `/project/${projectId}/traces`,
-              query: params.toString(),
-            });
+            router.replace(
+              {
+                pathname: `/project/${projectId}/traces`,
+                query: params.toString(),
+              },
+              undefined,
+              { shallow: true },
+            );
           },
           onExpand: (openInNewTab: boolean) => {
             if (peekViewId) {

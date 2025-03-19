@@ -48,15 +48,21 @@ export function TableSelectionManager<TData>({
         </div>
       ),
       cell: ({ row }: { row: Row<TData> }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => {
-            row.toggleSelected(!!value);
-            if (!value) setSelectAll(false);
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
           }}
-          aria-label="Select row"
-          className="opacity-60"
-        />
+        >
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => {
+              row.toggleSelected(!!value);
+              if (!value) setSelectAll(false);
+            }}
+            aria-label="Select row"
+            className="opacity-60"
+          />
+        </div>
       ),
     },
   };

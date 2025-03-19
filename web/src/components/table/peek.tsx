@@ -36,8 +36,26 @@ export function TablePeekView<TData>({
   const pageUrl = mapItemTypeToPageUrl[itemType];
 
   return (
-    <Sheet open={!!selectedRowId} onOpenChange={onOpenChange} modal={false}>
+    <Sheet
+      open={!!selectedRowId}
+      onOpenChange={(open) => {
+        // Ignore close events from checkbox or button clicks to ensure integrity of table row actions
+        if (
+          !open &&
+          (document.activeElement?.closest('[role="checkbox"]') ||
+            document.activeElement?.closest("button"))
+        ) {
+          return;
+        }
+        onOpenChange(open);
+      }}
+      modal={false}
+    >
       <SheetContent
+        onPointerDownOutside={(e) => {
+          // Prevent the default behavior of closing when clicking outside when we set modal={false}
+          e.preventDefault();
+        }}
         side="right"
         className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden rounded-l-xl p-0"
       >
