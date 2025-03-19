@@ -195,11 +195,15 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
+export const PROMPT_EXPERIMENT_ENVIRONMENT =
+  "langfuse-prompt-experiment" as const;
+export type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
+
 export type TraceParams = {
   traceName: string;
   traceId: string;
   projectId: string;
-  tags: string[];
+  environment: PromptExperimentEnvironment;
   tokenCountDelegate: TokenCountDelegate;
   authCheck: AuthHeaderValidVerificationResult;
 };
