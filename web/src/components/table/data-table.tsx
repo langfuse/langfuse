@@ -37,9 +37,10 @@ import { type LangfuseItemType } from "@/src/components/ItemBadge";
 
 interface PeekViewProps<TData> {
   itemType: LangfuseItemType;
-  onOpenChange: (open: boolean, row?: TData) => void;
+  selectedId?: string;
+  onClose: () => void;
   onExpand: (openInNewTab: boolean) => void;
-  render: (row?: TData) => React.ReactNode;
+  children: React.ReactNode;
 }
 
 interface DataTableProps<TData, TValue> {
@@ -143,7 +144,7 @@ export function DataTable<TData extends object, TValue>({
 
   const handleOnRowClick = (row: TData) => {
     if (peekView) {
-      peekView.onOpenChange(true, row);
+      peekView.onClose();
     }
     onRowClick?.(row);
   };
@@ -362,9 +363,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
         <div className="grow"></div>
       </div>
-      {peekView && peekViewId && (
-        <TablePeekView selectedRowId={peekViewId} {...peekView} />
-      )}
+      {peekView && <TablePeekView {...peekView} />}
       {pagination !== undefined ? (
         <div
           className={cn(

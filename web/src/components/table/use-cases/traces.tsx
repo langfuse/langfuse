@@ -81,6 +81,28 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import {
+  usePeekViewState,
+  usePeekViewData,
+} from "@/src/features/peek-view/hooks/usePeekViewState";
+import { usePeekViewNavigation } from "@/src/features/peek-view/hooks/usePeekViewNavigation";
+
+export const PeakViewTraceDetail = ({ projectId }: { projectId: string }) => {
+  const { peekId, timestamp } = usePeekViewState(projectId);
+  const trace = usePeekViewData(projectId, peekId || "", timestamp);
+
+  return !peekId || !timestamp || !trace.data ? (
+    <Skeleton className="h-full w-full" />
+  ) : (
+    <Trace
+      key={trace.data.id}
+      trace={trace.data}
+      scores={trace.data.scores}
+      projectId={trace.data.projectId}
+      observations={trace.data.observations}
+    />
+  );
+};
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -956,6 +978,16 @@ export default function TracesTable({
         }) ?? [])
       : [];
   }, [traces, traceRowData, scoreKeysAndProps]);
+
+  const { peekId, timestamp, setPeekView } = usePeekViewState(projectId);
+  const { expandView } = usePeekViewNavigation("TRACE");
+
+  const expandPeekView = (openInNewTab: boolean) => {
+    if (peekId) {
+      expandView(peekId, openInNewTab);
+    }
+  };
+
   return (
     <>
       <DataTableToolbar
@@ -1042,82 +1074,19 @@ export default function TracesTable({
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
         pinFirstColumn
+        onRowClick={(row: TracesTableRow) => {
+          if (peekId === row.id) {
+            setPeekView(undefined);
+          } else {
+            setPeekView(row.id, row.timestamp);
+          }
+        }}
         peekView={{
           itemType: "TRACE",
-          onOpenChange: (open: boolean, row?: TracesTableRow) => {
-            const url = new URL(window.location.href);
-            const params = new URLSearchParams(url.search);
-
-            if (!open || !row) {
-              // Remove peek and timestamp params while keeping others
-              params.delete("peek");
-              params.delete("timestamp");
-              params.delete("observation");
-            } else if (open && row.id && peekViewId !== row.id) {
-              // Update or add peek and timestamp params
-              params.set("peek", row.id);
-              params.set("timestamp", row.timestamp.toISOString());
-              params.delete("observation");
-            } else {
-              return;
-            }
-
-            router.replace({
-              pathname: `/project/${projectId}/traces`,
-              query: params.toString(),
-            });
-          },
-          onExpand: (openInNewTab: boolean) => {
-            if (peekViewId) {
-              if (openInNewTab) {
-                window.open(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
-                  "_blank",
-                );
-              } else {
-                router.replace(
-                  `/project/${projectId}/traces/${encodeURIComponent(peekViewId)}`,
-                );
-              }
-            }
-          },
-          render: () => {
-            const { peek, timestamp } = router.query;
-
-            const trace = api.traces.byIdWithObservationsAndScores.useQuery(
-              {
-                traceId: peek as string,
-                timestamp:
-                  typeof timestamp === "string"
-                    ? new Date(timestamp)
-                    : undefined,
-                projectId,
-              },
-              {
-                enabled: !!peek && !!timestamp,
-                retry(failureCount, error) {
-                  if (
-                    error.data?.code === "UNAUTHORIZED" ||
-                    error.data?.code === "NOT_FOUND"
-                  )
-                    return false;
-                  return failureCount < 3;
-                },
-              },
-            );
-
-            return !trace.data ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
-              <Trace
-                key={trace.data.id}
-                trace={trace.data}
-                scores={trace.data.scores}
-                projectId={trace.data.projectId}
-                observations={trace.data.observations}
-              />
-            );
-          },
+          selectedId: peekId,
+          onClose: () => setPeekView(undefined),
+          onExpand: expandPeekView,
+          children: <PeakViewTraceDetail projectId={projectId} />,
         }}
       />
     </>

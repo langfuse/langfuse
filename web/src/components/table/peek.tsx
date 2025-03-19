@@ -1,108 +1,69 @@
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/src/components/ui/sheet";
-import { Expand, ExternalLink } from "lucide-react";
-import { Separator } from "@/src/components/ui/separator";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { cn } from "@/src/utils/tailwind";
+import { ExternalLink, X } from "lucide-react";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useRouter } from "next/router";
+import { usePeekViewNavigation } from "@/src/features/peek-view/hooks/usePeekViewNavigation";
 
-type DataTablePeekViewProps<TData> = {
+interface TablePeekViewProps {
   itemType: LangfuseItemType;
-  selectedRowId: string | null;
-  onOpenChange: (open: boolean, row?: TData) => void;
+  selectedId?: string;
+  onClose: () => void;
   onExpand: (openInNewTab: boolean) => void;
-  render: () => React.ReactNode;
-};
+  children: React.ReactNode;
+}
 
-const mapItemTypeToPageUrl: Partial<Record<LangfuseItemType, string>> = {
-  TRACE: "traces",
-} as const;
-
-export function TablePeekView<TData>({
+export function TablePeekView({
   itemType,
-  selectedRowId,
-  onOpenChange,
+  selectedId,
+  onClose,
   onExpand,
-  render,
-}: DataTablePeekViewProps<TData>) {
-  const router = useRouter();
-  const pageUrl = mapItemTypeToPageUrl[itemType];
+  children,
+}: TablePeekViewProps) {
+  const { getNavigationPath, pageUrl } = usePeekViewNavigation(itemType);
+
+  if (!selectedId) return null;
 
   return (
-    <Sheet open={!!selectedRowId} onOpenChange={onOpenChange} modal={false}>
-      <SheetContent
-        side="right"
-        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden rounded-l-xl p-0"
-      >
-        <SheetHeader className="flex min-h-12 flex-row justify-between rounded-t-xl bg-header px-2">
-          <SheetTitle className="!mt-0 ml-2 flex flex-row items-center gap-2">
-            <ItemBadge type={itemType} showLabel />
-            <span className="text-sm font-medium">{selectedRowId}</span>
-          </SheetTitle>
-          <div className="!mt-0 flex flex-row items-center gap-2">
-            {selectedRowId && (
-              <DetailPageNav
-                currentId={selectedRowId}
-                path={(entry) => {
-                  const { projectId } = router.query;
-                  const url = new URL(window.location.href);
-
-                  // Update the path part
-                  url.pathname = `/project/${projectId as string}/${pageUrl}`;
-
-                  // Keep all existing query params
-                  const params = new URLSearchParams(url.search);
-
-                  // Update timestamp if it exists in entry.params
-                  if (entry.params) {
-                    if (entry.params.timestamp)
-                      params.set(
-                        "timestamp",
-                        encodeURIComponent(entry.params.timestamp),
-                      );
-                    params.delete("observation");
-                  }
-
-                  // Update peek param to the new id
-                  params.set("peek", entry.id);
-
-                  // Set the search part of the URL
-                  return `${url.pathname}?${params.toString()}`;
-                }}
-                listKey="traces"
-              />
-            )}
-            <div className="!mt-0 mr-6 flex h-full flex-row items-center border-l">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                title="Open in current tab"
-                className="ml-2"
-                onClick={() => onExpand(false)}
-              >
-                <Expand className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                title="Open in new tab"
-                onClick={() => onExpand(true)}
-              >
-                <ExternalLink className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </SheetHeader>
-        <Separator />
-        <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto">{render()}</div>
+    <div className="sticky right-0 top-0 flex h-full w-[600px] flex-col border-l bg-background">
+      <div className="flex h-12 items-center justify-between border-b bg-header p-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Details</span>
         </div>
-      </SheetContent>
-    </Sheet>
+        <div className="flex items-center gap-2">
+          {selectedId && pageUrl && (
+            <DetailPageNav
+              currentId={selectedId}
+              path={getNavigationPath}
+              listKey="traces"
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onExpand(true)}
+            title="Open in new tab"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onClose()}
+            title="Close details"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto p-4",
+          itemType === "TRACE" && "bg-background-subtle",
+        )}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
