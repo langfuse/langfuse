@@ -47,6 +47,7 @@ export const AnnotationQueuesItem = ({
 
   return (
     <Page
+      withPadding
       headerProps={{
         title: `${queue.data?.name}: ${itemId}`,
         itemType: "QUEUE_ITEM",

@@ -18,6 +18,7 @@ export default function NewTemplatesPage() {
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: "Create eval template",

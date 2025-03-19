@@ -14,7 +14,7 @@ const Page = ({
   children,
   headerProps,
   scrollable = false,
-  withPadding = true,
+  withPadding = false,
 }: PageContainerProps) => {
   return (
     <div

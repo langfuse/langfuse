@@ -20,7 +20,6 @@ import {
   isTableDataRangeOptionAvailable,
   isDashboardDateRangeOptionAvailable,
 } from "@/src/utils/date-range-utils";
-import { Clock } from "lucide-react";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useMemo } from "react";
 import {
@@ -45,8 +44,8 @@ const BaseDateRangeDropdown = <T extends string>({
 }: BaseDateRangeDropdownProps<T>) => {
   return (
     <Select value={selectedOption} onValueChange={onSelectionChange}>
-      <SelectTrigger className="w-[130px] hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
-        <Clock className="h-4 w-4" />
+      <SelectTrigger className="w-fit font-medium hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0">
+        {selectedOption !== "All time" && <span>Past</span>}
         <SelectValue placeholder="Select" />
       </SelectTrigger>
       <SelectContent position="popper" defaultValue={60}>
