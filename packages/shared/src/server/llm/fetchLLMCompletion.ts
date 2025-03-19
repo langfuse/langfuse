@@ -251,7 +251,7 @@ export async function fetchLLMCompletion(
         baseURL: baseURL,
         defaultHeaders: extraHeaders,
       },
-      timeout: 1000 * 60 * 2, // 2 minutes timeout
+      timeout: 1000 * 60, // 1 minute timeout
     });
   } else {
     // eslint-disable-next-line no-unused-vars
