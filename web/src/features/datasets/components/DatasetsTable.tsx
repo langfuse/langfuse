@@ -216,9 +216,6 @@ export function DatasetsTable(props: { projectId: string }) {
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
-        actionButtons={
-          <DatasetActionButton projectId={props.projectId} mode="create" />
-        }
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
       />

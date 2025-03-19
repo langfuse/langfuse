@@ -113,7 +113,7 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
             className={props.className}
             disabled={!hasAccess}
             onClick={() => capture("datasets:new_form_open")}
-            variant={props.variant || "secondary"}
+            variant={props.variant || "default"}
           >
             {hasAccess ? (
               <PlusIcon className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />

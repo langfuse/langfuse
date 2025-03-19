@@ -121,6 +121,30 @@ export const promptRouter = createTRPCRouter({
           promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
       };
     }),
+  count: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+        generatePromptQuery(
+          Prisma.sql` count(*) AS "totalCount"`,
+          input.projectId,
+          Prisma.empty,
+          Prisma.empty,
+          1, // limit
+          0, // page
+        ),
+      );
+
+      return {
+        totalCount: count[0].totalCount,
+      };
+    }),
   metrics: protectedProjectProcedure
     .input(
       z.object({

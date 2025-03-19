@@ -192,6 +192,7 @@ export const SessionPage: React.FC<{
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: sessionId,

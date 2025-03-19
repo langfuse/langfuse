@@ -4,15 +4,23 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { CloudConfigSchema } from "@langfuse/shared";
 
 // Create Organization
 if (env.LANGFUSE_INIT_ORG_ID) {
+  const cloudConfig = env.LANGFUSE_INIT_ORG_CLOUD_PLAN
+    ? CloudConfigSchema.parse({
+        plan: env.LANGFUSE_INIT_ORG_CLOUD_PLAN,
+      })
+    : undefined;
+
   const org = await prisma.organization.upsert({
     where: { id: env.LANGFUSE_INIT_ORG_ID },
     update: {},
     create: {
       id: env.LANGFUSE_INIT_ORG_ID,
       name: env.LANGFUSE_INIT_ORG_NAME ?? "Provisioned Org",
+      cloudConfig,
     },
   });
 

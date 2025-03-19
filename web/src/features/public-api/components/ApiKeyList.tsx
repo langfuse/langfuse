@@ -60,7 +60,7 @@ export function ApiKeyList(props: { projectId: string }) {
   return (
     <div>
       <Header title="API Keys" />
-      <Card className="mb-4">
+      <Card className="mb-4 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
