@@ -39,8 +39,7 @@ export function TablePeekView<TData>({
     <Sheet
       open={!!selectedRowId}
       onOpenChange={(open) => {
-        // Ignore close events from checkbox or button clicks
-        console.log("role", document.activeElement);
+        // Ignore close events from checkbox or button clicks to ensure integrity of table row actions
         if (
           !open &&
           (document.activeElement?.closest('[role="checkbox"]') ||
