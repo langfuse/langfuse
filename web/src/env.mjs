@@ -208,6 +208,7 @@ export const env = createEnv({
     LANGFUSE_UI_DEFAULT_BASE_URL_OPENAI: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_ANTHROPIC: z.string().url().optional(),
     LANGFUSE_UI_DEFAULT_BASE_URL_AZURE: z.string().url().optional(),
+
     // EE License
     LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
     ADMIN_API_KEY: z.string().optional(),
