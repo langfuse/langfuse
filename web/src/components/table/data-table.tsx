@@ -139,9 +139,18 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const handleOnRowClick = (row: TData) => {
-    const rowId = "id" in row && typeof row.id === "string" ? row.id : null;
     if (peekView) {
-      peekView.onOpenChange(peekViewId !== rowId, row);
+      const rowId =
+        "id" in row && typeof row.id === "string" ? row.id : undefined;
+
+      // If clicking the same row that's already open, close it
+      if (rowId === peekViewId) {
+        peekView.onOpenChange(false);
+      }
+      // If clicking a different row, update without closing first
+      else {
+        peekView.onOpenChange(true, row);
+      }
     }
     onRowClick?.(row);
   };
