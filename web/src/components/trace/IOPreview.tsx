@@ -2,7 +2,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Fragment } from "react";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
@@ -226,26 +226,42 @@ export const OpenAiMessageView: React.FC<{
     collapseLongHistory && messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
 
+  const shouldRenderContent = (message: ChatMlMessageSchema) => {
+    return message.content != null || !!message.audio;
+  };
+
+  const shouldRenderJson = (message: ChatMlMessageSchema) => {
+    return !!message.json;
+  };
+
+  const messagesToRender = useMemo(
+    () =>
+      messages.filter(
+        (message) => shouldRenderContent(message) || shouldRenderJson(message),
+      ),
+    [messages],
+  );
+
   return (
     <div className="ph-no-capture flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
-          {messages
+          {messagesToRender
             .filter(
               (_, i) =>
                 // show all if not collapsed or null; show first and last n if collapsed
                 !isCollapsed ||
                 i == 0 ||
-                i > messages.length - COLLAPSE_THRESHOLD,
+                i > messagesToRender.length - COLLAPSE_THRESHOLD,
             )
             .map((message, index) => (
               <Fragment key={index}>
-                {(!!message.content || !!message.audio) &&
+                {shouldRenderContent(message) &&
                   (shouldRenderMarkdown ? (
                     <MarkdownJsonView
                       title={message.name ?? message.role}
-                      content={message.content}
+                      content={message.content || '""'}
                       className={cn(!!message.json && "rounded-b-none")}
                       customCodeHeaderClassName={cn(
                         message.role === "assistant" && "bg-secondary",
@@ -261,7 +277,7 @@ export const OpenAiMessageView: React.FC<{
                       className={cn(!!message.json && "rounded-b-none")}
                     />
                   ))}
-                {!!message.json && (
+                {shouldRenderJson(message) && (
                   <JSONView
                     title={
                       message.content
@@ -282,7 +298,7 @@ export const OpenAiMessageView: React.FC<{
                     onClick={() => setCollapsed((v) => !v)}
                   >
                     {isCollapsed
-                      ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
+                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
                       : "Hide history"}
                   </Button>
                 ) : null}
