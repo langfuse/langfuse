@@ -1,7 +1,6 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, { useState, useMemo } from "react";
-
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -32,6 +31,16 @@ import {
   type RowSelectionState,
   type VisibilityState,
 } from "@tanstack/react-table";
+import { useRouter } from "next/router";
+import {
+  TablePeekView,
+  type DataTablePeekViewProps,
+} from "@/src/components/table/peek";
+
+type PeekViewProps<TData> = Omit<
+  DataTablePeekViewProps<TData>,
+  "selectedRowId"
+>;
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -53,10 +62,10 @@ interface DataTableProps<TData, TValue> {
   help?: { description: string; href: string };
   rowHeight?: RowHeight;
   className?: string;
-  paginationClassName?: string;
-  isBorderless?: boolean;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData) => void;
+  peekView?: PeekViewProps<TData>;
+  pinFirstColumn?: boolean;
 }
 
 export interface AsyncTableData<T> {
@@ -106,14 +115,16 @@ export function DataTable<TData extends object, TValue>({
   setOrderBy,
   rowHeight,
   className,
-  paginationClassName,
-  isBorderless = false,
   shouldRenderGroupHeaders = false,
   onRowClick,
+  peekView,
+  pinFirstColumn = false,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight);
   const capture = usePostHogClientCapture();
+  const router = useRouter();
+  const peekViewId = router.query.peek as string | undefined;
 
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
@@ -126,6 +137,24 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
+
+  const handleOnRowClick = (row: TData) => {
+    if (peekView) {
+      const rowId =
+        "id" in row && typeof row.id === "string" ? row.id : undefined;
+
+      // If clicking the same row that's already open, close it
+      if (rowId === peekViewId) {
+        peekView.onOpenChange(false);
+      }
+      // If clicking a different row, update without closing first
+      else {
+        peekView.onOpenChange(true, row);
+      }
+    }
+    onRowClick?.(row);
+  };
+  const hasRowClickAction = !!onRowClick || !!peekView;
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -200,15 +229,12 @@ export function DataTable<TData extends object, TValue>({
     <>
       <div
         className={cn(
-          "flex w-full max-w-full flex-1 flex-col gap-1 overflow-auto",
+          "flex w-full max-w-full flex-1 flex-col overflow-auto",
           className,
         )}
       >
         <div
-          className={cn(
-            "relative w-full overflow-auto",
-            isBorderless ? "" : "rounded-md border",
-          )}
+          className={cn("relative w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
           <Table>
@@ -234,6 +260,9 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
+                          pinFirstColumn &&
+                            header.index === 0 &&
+                            "sticky left-0 z-20 border-r bg-background",
                         )}
                         style={{ width }}
                         onClick={(event) => {
@@ -321,7 +350,9 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
-                onRowClick={onRowClick}
+                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                peekViewId={peekViewId}
+                pinFirstColumn={pinFirstColumn}
               />
             ) : (
               <TableBodyComponent
@@ -330,18 +361,22 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
-                onRowClick={onRowClick}
+                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                peekViewId={peekViewId}
+                pinFirstColumn={pinFirstColumn}
               />
             )}
           </Table>
         </div>
         <div className="grow"></div>
       </div>
+      {peekView && peekViewId && (
+        <TablePeekView selectedRowId={peekViewId} {...peekView} />
+      )}
       {pagination !== undefined ? (
         <div
           className={cn(
-            "sticky bottom-0 z-10 flex w-full justify-end bg-background font-medium",
-            paginationClassName,
+            "sticky bottom-0 z-10 flex w-full justify-end border-t bg-background py-2 pr-2 font-medium",
           )}
         >
           <DataTablePagination
@@ -373,6 +408,8 @@ interface TableBodyComponentProps<TData> {
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
   onRowClick?: (row: TData) => void;
+  peekViewId?: string;
+  pinFirstColumn?: boolean;
 }
 
 function TableBodyComponent<TData>({
@@ -382,6 +419,8 @@ function TableBodyComponent<TData>({
   data,
   help,
   onRowClick,
+  peekViewId,
+  pinFirstColumn = false,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -398,10 +437,18 @@ function TableBodyComponent<TData>({
         table.getRowModel().rows.map((row) => (
           <TableRow
             key={row.id}
+            data-row-index={row.index}
             onClick={() => onRowClick?.(row.original)}
-            className={
-              onRowClick ? "cursor-pointer hover:bg-accent" : undefined
-            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onRowClick?.(row.original);
+              }
+            }}
+            className={cn(
+              "hover:bg-accent",
+              !!onRowClick ? "cursor-pointer" : "cursor-default",
+              peekViewId && peekViewId === row.id ? "bg-accent" : undefined,
+            )}
           >
             {row.getVisibleCells().map((cell) => (
               <TableCell
@@ -409,6 +456,9 @@ function TableBodyComponent<TData>({
                 className={cn(
                   "overflow-hidden border-b p-1 text-xs first:pl-2",
                   rowheighttw === "s" && "whitespace-nowrap",
+                  pinFirstColumn &&
+                    cell.column.getIndex() === 0 &&
+                    "sticky left-0 border-r bg-background",
                 )}
                 style={{
                   width: `calc(var(--col-${cell.column.id}-size) * 1px)`,

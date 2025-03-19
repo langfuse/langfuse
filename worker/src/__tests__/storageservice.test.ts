@@ -8,7 +8,9 @@ import {
 
 describe("StorageService", () => {
   let storageService: StorageService;
+  let storageServiceWithExternalEndpoint: StorageService;
   const baseUrl = `${env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT}/${env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET}`;
+  const externalEndpoint = "https://external-endpoint.example.com";
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
@@ -16,6 +18,16 @@ describe("StorageService", () => {
       secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
       bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
+      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+    });
+
+    storageServiceWithExternalEndpoint = StorageServiceFactory.getInstance({
+      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
+      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
+      bucketName: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+      externalEndpoint,
       region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
     });
@@ -86,5 +98,128 @@ describe("StorageService", () => {
     const files = await storageService.listFiles("");
     const fileNames = files.map((f) => f.file);
     expect(fileNames).not.toContain(fileName1);
+  });
+
+  test("getSignedUrl should return URL with internal endpoint when no external endpoint is configured", async () => {
+    // Setup
+    const fileName = `${randomUUID()}.txt`;
+    const fileType = "text/plain";
+    const data = "Hello, world!";
+    const expiresInSeconds = 3600;
+
+    // Upload a file
+    await storageService.uploadFile({
+      fileName,
+      fileType,
+      data,
+      expiresInSeconds,
+    });
+
+    // When
+    const signedUrl = await storageService.getSignedUrl(
+      fileName,
+      expiresInSeconds,
+    );
+
+    // Then
+    expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    expect(signedUrl).not.toContain("external-endpoint.example.com");
+  });
+
+  test("getSignedUrl should return URL with external endpoint when configured", async () => {
+    // Setup
+    const fileName = `${randomUUID()}.txt`;
+    const fileType = "text/plain";
+    const data = "Hello, world!";
+    const expiresInSeconds = 3600;
+
+    // Upload a file
+    await storageServiceWithExternalEndpoint.uploadFile({
+      fileName,
+      fileType,
+      data,
+      expiresInSeconds,
+    });
+
+    // When
+    const signedUrl = await storageServiceWithExternalEndpoint.getSignedUrl(
+      fileName,
+      expiresInSeconds,
+    );
+
+    // Then
+    expect(signedUrl).toContain("external-endpoint.example.com");
+    expect(signedUrl).not.toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+  });
+
+  test("getSignedUploadUrl should return URL with internal endpoint when no external endpoint is configured", async () => {
+    // Setup
+    const path = `${randomUUID()}.txt`;
+    const ttlSeconds = 3600;
+    const sha256Hash = "dummy-hash";
+    const contentType = "text/plain";
+    const contentLength = 100;
+
+    // When
+    const signedUrl = await storageService.getSignedUploadUrl({
+      path,
+      ttlSeconds,
+      sha256Hash,
+      contentType,
+      contentLength,
+    });
+
+    // Then
+    expect(signedUrl).toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+    expect(signedUrl).not.toContain("external-endpoint.example.com");
+  });
+
+  test("getSignedUploadUrl should return URL with external endpoint when configured", async () => {
+    // Setup
+    const path = `${randomUUID()}.txt`;
+    const ttlSeconds = 3600;
+    const sha256Hash = "dummy-hash";
+    const contentType = "text/plain";
+    const contentLength = 100;
+
+    // When
+    const signedUrl =
+      await storageServiceWithExternalEndpoint.getSignedUploadUrl({
+        path,
+        ttlSeconds,
+        sha256Hash,
+        contentType,
+        contentLength,
+      });
+
+    // Then
+    expect(signedUrl).toContain("external-endpoint.example.com");
+    expect(signedUrl).not.toContain(env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT);
+  });
+
+  test("uploadFile should return signed URL with external endpoint when configured", async () => {
+    // Setup
+    const fileName = `${randomUUID()}.txt`;
+    const fileType = "text/plain";
+    const data = "Hello, external world!";
+    const expiresInSeconds = 3600;
+
+    // When
+    const result = await storageServiceWithExternalEndpoint.uploadFile({
+      fileName,
+      fileType,
+      data,
+      expiresInSeconds,
+    });
+
+    // Then
+    expect(result.signedUrl).toContain("external-endpoint.example.com");
+    expect(result.signedUrl).not.toContain(
+      env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
+    );
+
+    // Verify the file was uploaded correctly
+    const file = await storageService.download(fileName);
+    expect(file).toBe(data);
   });
 });

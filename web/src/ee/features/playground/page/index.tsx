@@ -11,6 +11,7 @@ export default function PlaygroundPage() {
   return (
     <PlaygroundProvider>
       <Page
+        withPadding
         headerProps={{
           title: "Playground",
           help: {

@@ -1,6 +1,16 @@
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuPortal,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+} from "@/src/components/ui/dropdown-menu";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Rows3 } from "lucide-react";
 import {
   MdDensityLarge,
   MdDensityMedium,
@@ -39,30 +49,34 @@ export const DataTableRowHeightSwitch = ({
 }) => {
   const capture = usePostHogClientCapture();
   return (
-    <Tabs
-      //defaultValue={height}
-      value={rowHeight}
-      onValueChange={(e) => {
-        capture("table:row_height_switch_select", {
-          rowHeight: e,
-        });
-        setRowHeight(e as any);
-      }}
-      key="height"
-    >
-      <TabsList className="gap-1 border bg-transparent px-2">
-        {heightOptions.map(({ id, label, icon }) => (
-          <TabsTrigger
-            key={id}
-            value={id}
-            className="px-2 shadow-none data-[state=active]:bg-input data-[state=active]:ring-border"
-          >
-            <span role="img" aria-label={`${label} size`}>
-              {icon}
-            </span>
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        <Button variant="outline" size="icon" title="Row height">
+          <Rows3 className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent>
+          <DropdownMenuLabel>Row height</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {heightOptions.map(({ id, label }) => (
+            <DropdownMenuCheckboxItem
+              key={id}
+              checked={rowHeight === id}
+              onClick={(e) => {
+                // Prevent closing the dropdown menu to allow the user to adjust their selection
+                e.preventDefault();
+                capture("table:row_height_switch_select", {
+                  rowHeight: id,
+                });
+                setRowHeight(id);
+              }}
+            >
+              {label}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
   );
 };

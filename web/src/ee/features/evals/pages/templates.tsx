@@ -57,7 +57,7 @@ export default function TemplatesPage() {
             disabled={!hasWriteAccess}
             onClick={() => capture("eval_templates:new_form_open")}
             asChild
-            variant="outline"
+            variant="default"
           >
             <Link
               href={
