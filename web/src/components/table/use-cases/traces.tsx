@@ -81,6 +81,7 @@ import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/use-environment-filter";
+import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
 
 export type TracesTableRow = {
   bookmarked: boolean;
@@ -270,26 +271,8 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId,
-      timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
+
+  const traceFilterOptions = useTraceFilterOptions({ projectId });
 
   const transformFilterOptions = (
     traceFilterOptions: TraceOptions | undefined,
@@ -858,7 +841,7 @@ export default function TracesTable({
       cell: ({ row }) => {
         const tags: TracesTableRow["tags"] = row.getValue("tags");
         const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions.data?.tags ?? [];
+        const filterOptionTags = traceFilterOptions?.tags ?? [];
         const allTags = filterOptionTags.map((t) => t.value);
         return (
           <TagTracePopover
@@ -965,7 +948,7 @@ export default function TracesTable({
     <>
       <DataTableToolbar
         columns={columns}
-        filterColumnDefinition={transformFilterOptions(traceFilterOptions.data)}
+        filterColumnDefinition={transformFilterOptions(traceFilterOptions)}
         searchConfig={{
           placeholder: "Search (by id, name, trace name, user id)",
           updateQuery: setSearchQuery,

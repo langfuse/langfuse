@@ -68,6 +68,7 @@ import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-fo
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
 
 export const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -351,42 +352,9 @@ export const InnerEvalConfigForm = (props: {
     },
   });
 
-  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId: props.projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-  const environmentFilterOptionsResponse =
-    api.projects.environmentFilterOptions.useQuery(
-      { projectId: props.projectId },
-      {
-        trpc: { context: { skipBatch: true } },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
-    );
-
-  const traceFilterOptions = useMemo(() => {
-    if (
-      !traceFilterOptionsResponse.data ||
-      !environmentFilterOptionsResponse.data
-    )
-      return undefined;
-
-    return {
-      ...traceFilterOptionsResponse.data,
-      environment: environmentFilterOptionsResponse.data?.map((e) => ({
-        value: e.environment,
-      })),
-    };
-  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
+  const traceFilterOptions = useTraceFilterOptions({
+    projectId: props.projectId,
+  });
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     {
