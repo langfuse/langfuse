@@ -39,11 +39,11 @@ export function TablePeekView<TData>({
     <Sheet
       open={!!selectedRowId}
       onOpenChange={(open) => {
-        // Ignore close events from checkbox or button clicks to ensure integrity of table row actions
+        // Ignore close events from checkbox or bookmark star toggle clicks to ensure integrity of table row actions
         if (
           !open &&
           (document.activeElement?.closest('[role="checkbox"]') ||
-            document.activeElement?.closest("button"))
+            document.activeElement?.closest('[aria-label="bookmark"]'))
         ) {
           return;
         }
