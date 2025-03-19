@@ -104,6 +104,8 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
+      case LLMAdapter.Atla:
+        return "https://api.atla-ai.com/v1/integrations/langfuse";
       default:
         return "";
     }
@@ -313,7 +315,7 @@ export function CreateLLMApiKeyForm({
                   {currentAdapter === LLMAdapter.Atla && (
                     <span className="text-dark-yellow">
                       <br />
-                      Please add the Atla default base URL:
+                      Please use the Atla default base URL:
                       https://api.atla-ai.com/v1/integrations/langfuse
                     </span>
                   )}
@@ -504,8 +506,7 @@ export function CreateLLMApiKeyForm({
                     }
                     checked={
                       currentAdapter === LLMAdapter.Azure ||
-                      currentAdapter === LLMAdapter.Bedrock ||
-                      currentAdapter === LLMAdapter.Atla
+                      currentAdapter === LLMAdapter.Bedrock
                         ? false
                         : field.value
                     }
