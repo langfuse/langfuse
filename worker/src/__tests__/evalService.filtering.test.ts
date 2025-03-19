@@ -13,13 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import Decimal from "decimal.js";
-import {
-  afterAll,
-  test as baseTest,
-  beforeAll,
-  describe,
-  expect,
-} from "vitest";
+import { afterAll, test as baseTest, beforeAll, describe } from "vitest";
 import { z } from "zod";
 import { createEvalJobs } from "../ee/evaluation/evalService";
 import { OpenAIServer } from "./network";
@@ -40,7 +34,6 @@ beforeAll(async () => {
   await pruneDatabase();
   openAIServer.respondWithDefault();
 });
-// afterEach(openAIServer.reset);
 afterAll(openAIServer.teardown);
 
 type EvalJobEventPartial = Omit<
@@ -179,8 +172,9 @@ const test = baseTest.extend<{
   },
 });
 
-describe("test eval filtering", () => {
+describe.concurrent("test eval filtering", () => {
   test("creates eval job only for matching environment", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -217,6 +211,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching name", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -253,6 +248,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching ID", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -282,6 +278,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching timestamp range", async ({
+    expect,
     upsertTwoTraces,
     configureJob,
     createTwoEvalJobs,
@@ -343,6 +340,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching user ID", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -379,6 +377,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching session ID", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -415,6 +414,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching metadata", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -452,6 +452,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching version", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -488,6 +489,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching release", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -524,6 +526,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching level", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -580,6 +583,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for matching tags", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
@@ -616,6 +620,7 @@ describe("test eval filtering", () => {
   }, 10_000);
 
   test("creates eval job only for starred traces", async ({
+    expect,
     upsertTwoTraces,
     configureDefaultJobWithSingleFilter,
     createTwoEvalJobs,
