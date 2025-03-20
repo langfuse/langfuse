@@ -1,9 +1,9 @@
 import { env } from "../../env";
-
-import { logger } from "@azure/storage-blob";
 import { Model, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { recordIncrement } from "../instrumentation";
+import { logger } from "../logger";
+import { redis } from "../redis/redis";
 
 export type ModelMatchProps = {
   projectId: string;
