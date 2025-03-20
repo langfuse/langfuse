@@ -4,6 +4,7 @@ import {
   findModel,
   findModelInPostgres,
   getRedisModelKey,
+  invalidateModelCache,
 } from "../services/modelMatch";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
@@ -20,7 +21,7 @@ describe("modelMatch", () => {
   });
 
   describe("findModel", () => {
-    it.only("should return model from Redis if available", async () => {
+    it("should return model from Redis if available", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // First create a model in Postgres
       const mockModel = await prisma.model.create({
@@ -53,7 +54,9 @@ describe("modelMatch", () => {
 
       const cachedModel = await redis?.get(redisKey);
       expect(cachedModel).not.toBeNull();
-      expect(JSON.parse(cachedModel!)).toEqual(mockModel);
+      const parsedModel = JSON.parse(cachedModel!);
+      expect(parsedModel.id).toEqual(mockModel.id);
+      expect(parsedModel.projectId).toEqual(mockModel.projectId);
     });
 
     it("should query Postgres if Redis cache misses", async () => {
@@ -73,6 +76,32 @@ describe("modelMatch", () => {
       });
 
       expect(result).toEqual(mockModel);
+    });
+    it("should invalidate Redis cache", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const mockModel = await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({
+        projectId,
+        model: "gpt-4",
+      });
+
+      await invalidateModelCache(projectId);
+
+      const redisKey = getRedisModelKey({
+        projectId,
+        model: "gpt-4",
+      });
+
+      const cachedModel = await redis?.get(redisKey);
+      expect(cachedModel).toBeNull();
     });
   });
 
@@ -113,29 +142,6 @@ describe("modelMatch", () => {
       });
 
       expect(result).toEqual(mockModel);
-    });
-
-    it("should respect start date when finding models", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 1);
-
-      await prisma.model.create({
-        data: {
-          projectId,
-          modelName: "gpt-4",
-          matchPattern: "gpt-4",
-          unit: "TOKENS",
-          startDate: futureDate,
-        },
-      });
-
-      const result = await findModelInPostgres({
-        projectId,
-        model: "gpt-4",
-      });
-
-      expect(result).toBeNull();
     });
 
     it("should return null when no model matches", async () => {

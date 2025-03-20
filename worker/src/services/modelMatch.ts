@@ -1,7 +1,8 @@
 import { Model, Prisma } from "@prisma/client";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "../env";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -18,20 +19,37 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
   // try to find model in Postgres
   const postgresModel = await findModelInPostgres(p);
 
-  if (postgresModel) {
+  if (postgresModel && env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
     await addModelToRedis(p, postgresModel);
   }
 
   return postgresModel;
 }
 
-const getModelFromRedis = async (p: ModelMatchProps) => {
+const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
+    return null;
+  }
+
   try {
-    const redisApiKey = getRedisModelKey(p);
-    const redisModel = await redis?.get(redisApiKey);
+    const key = getRedisModelKey(p);
+    const redisModel = await redis?.getex(
+      key,
+      "EX",
+      env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+    );
     if (redisModel) {
-      return JSON.parse(redisModel);
+      recordIncrement("langfuse.model-match.cache_hit", 1);
+      const model = JSON.parse(redisModel);
+      return {
+        ...model,
+        createdAt: new Date(model.createdAt),
+        updatedAt: new Date(model.updatedAt),
+        startDate: model.startDate ? new Date(model.startDate) : null,
+      };
     }
+    recordIncrement("langfuse.model-match.cache_miss", 1);
+    return null;
   } catch (error) {
     logger.error(
       `Error getting model for ${JSON.stringify(p)} from Redis: ${error}`,
@@ -93,6 +111,14 @@ const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
   }
 };
 
+export const invalidateModelCache = async (projectId: string) => {
+  const keys = await redis?.keys(`model:${projectId}:*`);
+  if (keys) {
+    await redis?.del(keys);
+  }
+  logger.info(`Invalidated model cache for project ${projectId}`);
+};
+
 export const getRedisModelKey = (p: ModelMatchProps) => {
-  return `model-match:${p.projectId}:${JSON.stringify(p)}`;
+  return `model:${p.projectId}:${JSON.stringify(p)}`;
 };
