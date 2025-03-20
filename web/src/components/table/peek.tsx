@@ -102,7 +102,7 @@ export function TablePeekView<TData>({
                 listKey={pageUrl}
               />
             )}
-            <div className="!mt-0 mr-6 flex h-full flex-row items-center border-l">
+            <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
               <Button
                 variant="ghost"
                 size="icon-xs"
