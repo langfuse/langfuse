@@ -320,6 +320,19 @@ export const env = createEnv({
     NEXT_PUBLIC_CRISP_WEBSITE_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+    // Datadog RUM configuration
+    NEXT_PUBLIC_DATADOG_APPLICATION_ID: z.string().optional(),
+    NEXT_PUBLIC_DATADOG_CLIENT_TOKEN: z.string().optional(),
+    NEXT_PUBLIC_DATADOG_SITE: z
+      .enum([
+        "datadoghq.com",
+        "us3.datadoghq.com",
+        "us5.datadoghq.com",
+        "datadoghq.eu",
+        "ddog-gov.com",
+        "ap1.datadoghq.com",
+      ])
+      .optional(),
   },
 
   /**
@@ -574,6 +587,12 @@ export const env = createEnv({
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    // Datadog RUM configuration
+    NEXT_PUBLIC_DATADOG_APPLICATION_ID:
+      process.env.NEXT_PUBLIC_DATADOG_APPLICATION_ID,
+    NEXT_PUBLIC_DATADOG_CLIENT_TOKEN:
+      process.env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
+    NEXT_PUBLIC_DATADOG_SITE: process.env.NEXT_PUBLIC_DATADOG_SITE,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

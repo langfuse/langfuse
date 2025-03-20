@@ -35,6 +35,8 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import DatadogInit from "@/src/features/datadog/datadog-init";
+import { datadogRum } from "@datadog/browser-rum";
 
 const setProjectInPosthog = () => {
   // project
@@ -97,37 +99,40 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <QueryParamProvider adapter={NextAdapterPages}>
-      <TooltipProvider>
-        <CommandMenuProvider>
-          <PostHogProvider client={posthog}>
-            <SessionProvider
-              session={session}
-              refetchOnWindowFocus={true}
-              refetchInterval={5 * 60} // 5 minutes
-              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
-            >
-              <DetailPageListsProvider>
-                <MarkdownContextProvider>
-                  <ThemeProvider
-                    attribute="class"
-                    enableSystem
-                    disableTransitionOnChange
-                  >
-                    <Layout>
-                      <Component {...pageProps} />
-                      <UserTracking />
-                    </Layout>
-                    <BetterStackUptimeStatusMessage />
-                  </ThemeProvider>{" "}
-                </MarkdownContextProvider>
-                <CrispWidget />
-              </DetailPageListsProvider>
-            </SessionProvider>
-          </PostHogProvider>
-        </CommandMenuProvider>
-      </TooltipProvider>
-    </QueryParamProvider>
+    <>
+      <DatadogInit />
+      <QueryParamProvider adapter={NextAdapterPages}>
+        <TooltipProvider>
+          <CommandMenuProvider>
+            <PostHogProvider client={posthog}>
+              <SessionProvider
+                session={session}
+                refetchOnWindowFocus={true}
+                refetchInterval={5 * 60} // 5 minutes
+                basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+              >
+                <DetailPageListsProvider>
+                  <MarkdownContextProvider>
+                    <ThemeProvider
+                      attribute="class"
+                      enableSystem
+                      disableTransitionOnChange
+                    >
+                      <Layout>
+                        <Component {...pageProps} />
+                        <UserTracking />
+                      </Layout>
+                      <BetterStackUptimeStatusMessage />
+                    </ThemeProvider>{" "}
+                  </MarkdownContextProvider>
+                  <CrispWidget />
+                </DetailPageListsProvider>
+              </SessionProvider>
+            </PostHogProvider>
+          </CommandMenuProvider>
+        </TooltipProvider>
+      </QueryParamProvider>
+    </>
   );
 };
 
@@ -170,6 +175,15 @@ function UserTracking() {
           domain: emailDomain,
         });
 
+      // Datadog RUM
+      datadogRum.setUser({
+        id: sessionUser.id ?? undefined,
+        email: sessionUser.email ?? undefined,
+        name: sessionUser.name ?? undefined,
+        featureFlags: sessionUser.featureFlags ?? undefined,
+        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      });
+
       // Sentry
       setUser({
         email: sessionUser.email ?? undefined,
@@ -198,6 +212,8 @@ function UserTracking() {
         posthog.reset();
         posthog.resetGroups();
       }
+
+      datadogRum.clearUser();
       // Sentry
       setUser(null);
     }
