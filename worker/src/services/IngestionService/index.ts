@@ -3,6 +3,7 @@ import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
 import {
+  convertJsonSchemaToRecord,
   LangfuseNotFoundError,
   Model,
   Price,
@@ -43,11 +44,7 @@ import {
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
-import {
-  convertJsonSchemaToRecord,
-  convertRecordValuesToString,
-  overwriteObject,
-} from "./utils";
+import { convertRecordValuesToString, overwriteObject } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
 
@@ -188,7 +185,9 @@ export class IngestionService {
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,
-            metadata: {}, // TODO
+            metadata: scoreEvent.body.metadata
+              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+              : {},
             string_value: validatedScore.stringValue,
             created_at: Date.now(),
             updated_at: Date.now(),

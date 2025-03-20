@@ -27,7 +27,7 @@ import {
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
-  parseMetadataDomainToCHRecord,
+  convertJsonSchemaToRecord,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -327,7 +327,7 @@ export const scoresRouter = createTRPCRouter({
         source: ScoreSource.ANNOTATION,
         comment: input.comment,
         // FIXME: unsure if metadata is properly parsed into key value pairs before uploading to CH @maxdeichmann, hence I wrote this helper function to parse the metadata into key value pairs, please check if this is correct
-        metadata: parseMetadataDomainToCHRecord(input.metadata),
+        metadata: convertJsonSchemaToRecord(input.metadata ?? {}),
         author_user_id: ctx.session.user.id,
         config_id: input.configId,
         data_type: input.dataType,
@@ -377,8 +377,7 @@ export const scoresRouter = createTRPCRouter({
           value: input.value !== null ? input.value : undefined,
           string_value: input.stringValue,
           comment: input.comment,
-          // FIXME: unsure if metadata is properly parsed into key value pairs before uploading to CH @maxdeichmann, hence I wrote this helper function to parse the metadata into key value pairs, please check if this is correct
-          metadata: parseMetadataDomainToCHRecord(input.metadata),
+          metadata: convertJsonSchemaToRecord(input.metadata ?? {}),
           author_user_id: ctx.session.user.id,
           queue_id: input.queueId,
           source: ScoreSource.ANNOTATION,

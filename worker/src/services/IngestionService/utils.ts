@@ -1,27 +1,4 @@
-import { JsonNested } from "@langfuse/shared";
 import { mergeWith, merge } from "lodash";
-
-// Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
-// It's easier to pretend here and let JavaScript do its magic.
-export const convertJsonSchemaToRecord = (
-  jsonSchema: JsonNested,
-): Record<string, string> => {
-  const record: Record<string, string> = {};
-
-  // if it's a literal, return the value with "metadata" prefix
-  if (typeof jsonSchema === "string" || typeof jsonSchema === "number") {
-    record["metadata"] = jsonSchema.toString();
-    return record;
-  }
-
-  // if it's an array, add the stringified array with "metadata" prefix
-  if (Array.isArray(jsonSchema)) {
-    record["metadata"] = JSON.stringify(jsonSchema);
-    return record;
-  }
-
-  return jsonSchema as Record<string, string>;
-};
 
 export const convertRecordValuesToString = (
   record: Record<string, unknown>,
