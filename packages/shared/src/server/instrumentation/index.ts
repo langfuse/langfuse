@@ -163,13 +163,13 @@ const cloudWatchClient = new CloudWatchClient();
 let lastFlushTime = 0;
 let metricCache: Record<string, number> = {};
 
-// Caches metrics and flushes them once per minute
+// Caches metrics and flushes them on schedule
 const sendCloudWatchMetric = (key: string, value: number | undefined) => {
   // Store the latest value for each metric key
   metricCache[key] = value ?? 0;
 
   const currentTime = Date.now();
-  const flushInterval = 60 * 1000; // 1 minute
+  const flushInterval = 30 * 1000; // 30 seconds
 
   // Check if it's time to flush the metrics
   if (currentTime - lastFlushTime >= flushInterval) {
