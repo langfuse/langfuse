@@ -27,6 +27,7 @@ import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -347,6 +348,7 @@ export const getScoresUiCount = async (props: {
 }) => {
   const rows = await getScoresUiGeneric<{ count: string }>({
     select: "count",
+    includeMetadata: false,
     tags: { kind: "count" },
     ...props,
   });
@@ -354,19 +356,45 @@ export const getScoresUiCount = async (props: {
   return Number(rows[0].count);
 };
 
-export type ScoreUiTableRow = Omit<Score, "metadata"> & {
+export type ScoreUiTableRowWithMetadata = Score & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
 };
 
-export const getScoresUiTable = async (props: {
+export type ScoreUiTableRowWithoutMetadata = Omit<
+  ScoreUiTableRowWithMetadata,
+  "metadata"
+>;
+
+// eslint-disable-next-line no-unused-vars -- this is a function overload
+export async function getScoresUiTable(props: {
   projectId: string;
   filter: FilterState;
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-}): Promise<ScoreUiTableRow[]> => {
+  includeMetadata: true;
+}): Promise<ScoreUiTableRowWithMetadata[]>;
+// eslint-disable-next-line no-unused-vars -- this is a function overload
+export async function getScoresUiTable(props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+  includeMetadata?: false;
+}): Promise<ScoreUiTableRowWithoutMetadata[]>;
+export async function getScoresUiTable(props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy: OrderByState;
+  limit?: number;
+  offset?: number;
+  includeMetadata?: boolean;
+}): Promise<ScoreUiTableRowWithMetadata[] | ScoreUiTableRowWithoutMetadata[]> {
+  const { includeMetadata = false, ...rest } = props;
+
   const rows = await getScoresUiGeneric<{
     id: string;
     project_id: string;
@@ -378,6 +406,7 @@ export const getScoresUiTable = async (props: {
     source: string;
     data_type: string;
     comment: string | null;
+    metadata: Record<string, string> | undefined;
     trace_id: string;
     observation_id: string | null;
     author_user_id: string | null;
@@ -394,34 +423,44 @@ export const getScoresUiTable = async (props: {
   }>({
     select: "rows",
     tags: { kind: "analytic" },
-    ...props,
+    includeMetadata,
+    ...rest,
   });
 
-  return rows.map((row) => ({
-    projectId: row.project_id,
-    environment: row.environment,
-    authorUserId: row.author_user_id,
-    traceId: row.trace_id,
-    observationId: row.observation_id,
-    traceUserId: row.user_id,
-    traceName: row.trace_name,
-    traceTags: row.trace_tags,
-    configId: row.config_id,
-    queueId: row.queue_id,
-    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
-    updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
-    stringValue: row.string_value,
-    comment: row.comment,
-    dataType: row.data_type as ScoreDataType,
-    source: row.source as ScoreSourceType,
-    name: row.name,
-    value: row.value,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-    id: row.id,
-  }));
-};
+  return rows.map((row) => {
+    const baseRow = {
+      projectId: row.project_id,
+      environment: row.environment,
+      authorUserId: row.author_user_id,
+      traceId: row.trace_id,
+      observationId: row.observation_id,
+      traceUserId: row.user_id,
+      traceName: row.trace_name,
+      traceTags: row.trace_tags,
+      configId: row.config_id,
+      queueId: row.queue_id,
+      createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
+      updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
+      stringValue: row.string_value,
+      comment: row.comment,
+      dataType: row.data_type as ScoreDataType,
+      source: row.source as ScoreSourceType,
+      name: row.name,
+      value: row.value,
+      timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+      id: row.id,
+    };
 
-export const getScoresUiGeneric = async <T>(props: {
+    return includeMetadata
+      ? {
+          ...baseRow,
+          metadata: parseMetadataCHRecordToDomain(row.metadata ?? {}),
+        }
+      : { ...baseRow, metadata: undefined };
+  }) as ScoreUiTableRowWithMetadata[] | ScoreUiTableRowWithoutMetadata[];
+}
+
+const getScoresUiGeneric = async <T>(props: {
   select: "count" | "rows";
   projectId: string;
   filter: FilterState;
@@ -429,8 +468,9 @@ export const getScoresUiGeneric = async <T>(props: {
   limit?: number;
   offset?: number;
   tags?: Record<string, string>;
+  includeMetadata: boolean;
 }): Promise<T[]> => {
-  const { projectId, filter, orderBy, limit, offset } = props;
+  const { projectId, filter, orderBy, limit, offset, includeMetadata } = props;
 
   const select =
     props.select === "count"
@@ -446,6 +486,7 @@ export const getScoresUiGeneric = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
+        ${includeMetadata ? "s.metadata," : ""}
         s.trace_id,
         s.observation_id,
         s.author_user_id,
