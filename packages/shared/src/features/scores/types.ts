@@ -1,6 +1,5 @@
-import { ScoreDataType } from "@prisma/client";
+import { Prisma, ScoreDataType } from "@prisma/client";
 import { ScoreSourceType } from "../../server";
-
 export type CategoricalAggregate = {
   type: "CATEGORICAL";
   values: string[];
@@ -26,6 +25,8 @@ export type ScoreSimplified = {
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
+  // FIXME: unsure if this is the optimal type here
+  metadata?: Prisma.JsonValue | null;
   stringValue?: string | null;
 };
 
