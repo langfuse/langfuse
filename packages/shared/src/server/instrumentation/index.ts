@@ -160,33 +160,47 @@ export const addUserToSpan = (
 export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
 
 const cloudWatchClient = new CloudWatchClient();
-const cloudWatchLastSubmitted: Record<string, number> = {};
-const sendCloudWatchMetric = (key: string, value: number | undefined) => {
-  const currentTime = Date.now();
-  const interval = 30 * 1000;
+let lastFlushTime = 0;
+let metricCache: Record<string, number> = {};
 
-  // Check if the function has been executed in the last 30s for this key
-  if (
-    !cloudWatchLastSubmitted[key] ||
-    currentTime - cloudWatchLastSubmitted[key] >= interval
-  ) {
-    cloudWatchLastSubmitted[key] = currentTime;
-    cloudWatchClient
-      .send(
-        new PutMetricDataCommand({
-          Namespace: "Langfuse",
-          MetricData: [
-            {
-              MetricName: key,
-              Value: value ?? 0,
-            },
-          ],
-        }),
-      )
-      .catch((error) => {
-        logger.warn("Failed to send metric to CloudWatch", error);
-      });
+// Caches metrics and flushes them on schedule
+const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
+  // Store the latest value for each metric key. If replace is false (e.g. for increments) we add the value to the existing value.
+  metricCache[key] = replace ? value : (metricCache[key] || 0) + value;
+
+  const currentTime = Date.now();
+  const flushInterval = 30 * 1000; // 30 seconds
+
+  // Check if it's time to flush the metrics
+  if (currentTime - lastFlushTime >= flushInterval) {
+    flushMetricsToCloudWatch();
   }
+};
+
+// Flush all cached metrics in a single API call
+const flushMetricsToCloudWatch = () => {
+  if (Object.keys(metricCache).length === 0) return;
+
+  lastFlushTime = Date.now();
+
+  const metricData = Object.entries(metricCache).map(([key, value]) => ({
+    MetricName: key,
+    Value: value,
+  }));
+
+  // Clear the cache after preparing the metrics
+  metricCache = {};
+
+  cloudWatchClient
+    .send(
+      new PutMetricDataCommand({
+        Namespace: "Langfuse",
+        MetricData: metricData,
+      }),
+    )
+    .catch((error) => {
+      logger.warn("Failed to send metrics to CloudWatch", error);
+    });
 };
 
 export const recordGauge = (
@@ -199,7 +213,7 @@ export const recordGauge = (
     | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value);
+    sendCloudWatchMetric(stat, value ?? 0, true);
   }
   dd.dogstatsd.gauge(stat, value, tags);
 };
@@ -210,7 +224,7 @@ export const recordIncrement = (
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value);
+    sendCloudWatchMetric(stat, value ?? 1, false);
   }
   dd.dogstatsd.increment(stat, value, tags);
 };
@@ -220,9 +234,6 @@ export const recordHistogram = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
-  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value);
-  }
   dd.dogstatsd.histogram(stat, value, tags);
 };
 
