@@ -99,40 +99,38 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <>
+    <QueryParamProvider adapter={NextAdapterPages}>
       <DatadogInit />
-      <QueryParamProvider adapter={NextAdapterPages}>
-        <TooltipProvider>
-          <CommandMenuProvider>
-            <PostHogProvider client={posthog}>
-              <SessionProvider
-                session={session}
-                refetchOnWindowFocus={true}
-                refetchInterval={5 * 60} // 5 minutes
-                basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
-              >
-                <DetailPageListsProvider>
-                  <MarkdownContextProvider>
-                    <ThemeProvider
-                      attribute="class"
-                      enableSystem
-                      disableTransitionOnChange
-                    >
-                      <Layout>
-                        <Component {...pageProps} />
-                        <UserTracking />
-                      </Layout>
-                      <BetterStackUptimeStatusMessage />
-                    </ThemeProvider>{" "}
-                  </MarkdownContextProvider>
-                  <CrispWidget />
-                </DetailPageListsProvider>
-              </SessionProvider>
-            </PostHogProvider>
-          </CommandMenuProvider>
-        </TooltipProvider>
-      </QueryParamProvider>
-    </>
+      <TooltipProvider>
+        <CommandMenuProvider>
+          <PostHogProvider client={posthog}>
+            <SessionProvider
+              session={session}
+              refetchOnWindowFocus={true}
+              refetchInterval={5 * 60} // 5 minutes
+              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+            >
+              <DetailPageListsProvider>
+                <MarkdownContextProvider>
+                  <ThemeProvider
+                    attribute="class"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <Layout>
+                      <Component {...pageProps} />
+                      <UserTracking />
+                    </Layout>
+                    <BetterStackUptimeStatusMessage />
+                  </ThemeProvider>{" "}
+                </MarkdownContextProvider>
+                <CrispWidget />
+              </DetailPageListsProvider>
+            </SessionProvider>
+          </PostHogProvider>
+        </CommandMenuProvider>
+      </TooltipProvider>
+    </QueryParamProvider>
   );
 };
 
