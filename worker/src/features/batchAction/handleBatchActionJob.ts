@@ -13,7 +13,7 @@ import {
   BatchExportTableName,
   FilterCondition,
 } from "@langfuse/shared";
-import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
+import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
