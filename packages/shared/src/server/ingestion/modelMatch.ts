@@ -104,7 +104,12 @@ export async function findModelInPostgres(
 const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
   try {
     const redisApiKey = getRedisModelKey(p);
-    await redis?.set(redisApiKey, JSON.stringify(model));
+    await redis?.set(
+      redisApiKey,
+      JSON.stringify(model),
+      "EX",
+      env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+    );
   } catch (error) {
     logger.error(
       `Error adding model for ${JSON.stringify(p)} to Redis: ${error}`,
@@ -114,18 +119,20 @@ const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
 
 export const invalidateModelCache = async (projectId: string) => {
   const keys = await redis?.keys(`model:${projectId}:*`);
-  if (keys && keys.length > 0) {
-    await redis?.del(keys);
-  }
+  await deleteKeys(keys ?? []);
   logger.info(`Invalidated model cache for project ${projectId}`);
 };
 
 export const invalidateAllCachedModels = async () => {
   const keys = await redis?.keys("model:*");
+  await deleteKeys(keys ?? []);
+  logger.info(`Invalidated all cached models`);
+};
+
+const deleteKeys = async (keys: string[]) => {
   if (keys && keys.length > 0) {
     await redis?.del(keys);
   }
-  logger.info(`Invalidated all cached models`);
 };
 
 export const getRedisModelKey = (p: ModelMatchProps) => {
