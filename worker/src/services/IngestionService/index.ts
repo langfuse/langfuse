@@ -38,6 +38,7 @@ import {
   TraceUpsertQueue,
   QueueJobs,
   recordIncrement,
+  findModel,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -49,7 +50,6 @@ import {
 } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
-import { findModel } from "../../../../packages/shared/src/server/ingestion/modelMatch";
 
 type InsertRecord =
   | TraceRecordInsertType
