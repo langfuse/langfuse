@@ -1,7 +1,7 @@
 import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
 import { Score, ScoreSourceType } from "./types";
-import { parseMetadataCHRecordToDomain } from "../utils/metadata_converters";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export type ScoreAggregation = {
   id: string;

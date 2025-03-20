@@ -4,7 +4,7 @@ import { TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseJsonPrioritised } from "../../utils/json";
 import { Trace } from "./types";
-import { parseMetadataCHRecordToDomain } from "../utils/metadata_converters";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export const convertTraceDomainToClickhouse = (
   trace: Trace,
