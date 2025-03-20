@@ -130,6 +130,7 @@ export const GetObservationsV1Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
+  traceTags: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 export const GetObservationsV1Response = z
   .object({
