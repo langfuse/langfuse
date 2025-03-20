@@ -9,6 +9,7 @@ import {
   ObservationType,
   ObservationLevelType,
 } from "./types";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_converters";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
@@ -62,14 +63,7 @@ export const convertObservation = (
       ? parseClickhouseUTCDateTimeFormat(record.end_time)
       : null,
     name: record.name ?? null,
-    metadata:
-      record.metadata &&
-      Object.fromEntries(
-        Object.entries(record.metadata ?? {}).map(([key, val]) => [
-          key,
-          val && parseJsonPrioritised(val),
-        ]),
-      ),
+    metadata: parseMetadataCHRecordToDomain(record.metadata) ?? null,
     level: record.level as ObservationLevelType,
     statusMessage: record.status_message ?? null,
     version: record.version ?? null,
