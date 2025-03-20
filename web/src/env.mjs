@@ -334,6 +334,18 @@ export const env = createEnv({
       ])
       .optional(),
     NEXT_PUBLIC_DATADOG_ENVIRONMENT: z.string().optional(),
+    NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE: z.coerce
+      .number()
+      .int()
+      .gte(0)
+      .lte(100)
+      .default(100),
+    NEXT_PUBLIC_DATADOG_SESSION_REPLAY_SAMPLE_RATE: z.coerce
+      .number()
+      .int()
+      .gte(0)
+      .lte(100)
+      .default(100),
   },
 
   /**
@@ -596,6 +608,10 @@ export const env = createEnv({
     NEXT_PUBLIC_DATADOG_SITE: process.env.NEXT_PUBLIC_DATADOG_SITE,
     NEXT_PUBLIC_DATADOG_ENVIRONMENT:
       process.env.NEXT_PUBLIC_DATADOG_ENVIRONMENT,
+    NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE:
+      process.env.NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE,
+    NEXT_PUBLIC_DATADOG_SESSION_REPLAY_SAMPLE_RATE:
+      process.env.NEXT_PUBLIC_DATADOG_SESSION_REPLAY_SAMPLE_RATE,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

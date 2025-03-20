@@ -1,20 +1,22 @@
 import { env } from "@/src/env.mjs";
 import { datadogRum } from "@datadog/browser-rum";
 import { getLangfuseUrl } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 // Initialize Datadog RUM
 if (
   env.NEXT_PUBLIC_DATADOG_APPLICATION_ID &&
   env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN
 ) {
+  logger.info("Initializing Datadog RUM");
   datadogRum.init({
     applicationId: env.NEXT_PUBLIC_DATADOG_APPLICATION_ID,
     clientToken: env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
     site: env.NEXT_PUBLIC_DATADOG_SITE || "datadoghq.com",
     service: "web-frontend",
     env: env.NEXT_PUBLIC_DATADOG_ENVIRONMENT,
-    sessionSampleRate: 10,
-    sessionReplaySampleRate: 1,
+    sessionSampleRate: env.NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE,
+    sessionReplaySampleRate: env.NEXT_PUBLIC_DATADOG_SESSION_REPLAY_SAMPLE_RATE,
     defaultPrivacyLevel: "mask-user-input",
     trackUserInteractions: true,
     trackResources: true,
