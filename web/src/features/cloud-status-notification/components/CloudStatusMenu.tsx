@@ -7,8 +7,11 @@ import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 export function CloudStatusMenu() {
   const { data, isLoading } = api.cloudStatus.getStatus.useQuery(undefined, {
     refetchOnMount: false,
-    // Refresh status data every 5 minutes
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    // Refresh status data every 5 minutes, keep response cached for 5 minutes
     refetchInterval: 5 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     enabled: !!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
   });
 
