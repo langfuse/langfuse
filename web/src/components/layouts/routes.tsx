@@ -24,6 +24,7 @@ import { SupportMenuDropdown } from "@/src/components/nav/support-menu-dropdown"
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 
 export type Route = {
   title: string;
@@ -150,6 +151,12 @@ export const ROUTES: Route[] = [
     entitlements: ["cloud-billing"],
     organizationRbacScope: "langfuseCloudBilling:CRUD",
     show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    title: "Cloud Status",
+    bottom: true,
+    pathname: "",
+    menuNode: <CloudStatusMenu />,
   },
   {
     title: "Settings",

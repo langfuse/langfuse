@@ -237,6 +237,22 @@ export async function fetchLLMCompletion(
       maxRetries,
       apiKey,
     });
+  } else if (modelParams.adapter === LLMAdapter.Atla) {
+    // Atla models do not support:
+    // - temperature
+    // - max_tokens
+    // - top_p
+    chatModel = new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: modelParams.model,
+      callbacks: finalCallbacks,
+      maxRetries,
+      configuration: {
+        baseURL: baseURL,
+        defaultHeaders: extraHeaders,
+      },
+      timeout: 1000 * 60, // 1 minute timeout
+    });
   } else {
     // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;

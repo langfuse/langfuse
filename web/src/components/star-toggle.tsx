@@ -31,6 +31,7 @@ export function StarToggle({
       }}
       disabled={disabled}
       loading={isLoading}
+      aria-label="bookmark"
     >
       <StarIcon
         className="h-4 w-4"

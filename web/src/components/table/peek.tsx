@@ -39,11 +39,11 @@ export function TablePeekView<TData>({
     <Sheet
       open={!!selectedRowId}
       onOpenChange={(open) => {
-        // Ignore close events from checkbox or button clicks to ensure integrity of table row actions
+        // Ignore close events from checkbox or bookmark star toggle clicks to ensure integrity of table row actions
         if (
           !open &&
           (document.activeElement?.closest('[role="checkbox"]') ||
-            document.activeElement?.closest("button"))
+            document.activeElement?.closest('[aria-label="bookmark"]'))
         ) {
           return;
         }
@@ -102,7 +102,7 @@ export function TablePeekView<TData>({
                 listKey={pageUrl}
               />
             )}
-            <div className="!mt-0 mr-6 flex h-full flex-row items-center border-l">
+            <div className="!mt-0 mr-8 flex h-full flex-row items-center gap-1 border-l">
               <Button
                 variant="ghost"
                 size="icon-xs"
