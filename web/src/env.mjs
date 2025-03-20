@@ -333,7 +333,7 @@ export const env = createEnv({
         "ddog-gov.com",
         "ap1.datadoghq.com",
       ])
-      .optional(),
+      .default("datadoghq.com"),
     NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE: z.coerce
       .number()
       .int()

@@ -11,7 +11,7 @@ if (
   datadogRum.init({
     applicationId: env.NEXT_PUBLIC_DATADOG_APPLICATION_ID,
     clientToken: env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
-    site: env.NEXT_PUBLIC_DATADOG_SITE || "datadoghq.com",
+    site: env.NEXT_PUBLIC_DATADOG_SITE,
     service: "web-frontend",
     env: env.NEXT_PUBLIC_DATADOG_ENVIRONMENT,
     sessionSampleRate: env.NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE,
