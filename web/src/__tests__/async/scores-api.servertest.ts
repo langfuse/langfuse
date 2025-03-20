@@ -30,6 +30,7 @@ describe("/api/public/scores API Endpoint", () => {
       const traceId = v4();
       const score = {
         id: scoreId,
+        environment: "default",
         project_id: projectId,
         trace_id: traceId,
         name: "Test Score",
@@ -38,6 +39,7 @@ describe("/api/public/scores API Endpoint", () => {
         value: 100.5,
         source: "API",
         comment: "comment",
+        metadata: { "test-key": "test-value" },
         data_type: "NUMERIC" as const,
         created_at: Date.now(),
         updated_at: Date.now(),
