@@ -4,12 +4,7 @@ import { render } from "@react-email/render";
 
 import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
 import { logger } from "../../../logger";
-
-const langfuseUrls = {
-  US: "https://us.cloud.langfuse.com",
-  EU: "https://cloud.langfuse.com",
-  STAGING: "https://staging.langfuse.com",
-};
+import { getLangfuseUrl } from "../../../..";
 
 type SendMembershipInvitationParams = {
   env: Partial<
@@ -36,7 +31,7 @@ export const sendMembershipInvitationEmail = async ({
 }: SendMembershipInvitationParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
-      "Missing environment variables for sending membership invitation email."
+      "Missing environment variables for sending membership invitation email.",
     );
     return;
   }
@@ -45,13 +40,13 @@ export const sendMembershipInvitationEmail = async ({
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-      ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
+      ? getLangfuseUrl(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
       : env.NEXTAUTH_URL;
 
   const authUrl = getAuthURL();
   if (!authUrl) {
     logger.error(
-      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable."
+      "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable.",
     );
     return;
   }
@@ -68,7 +63,7 @@ export const sendMembershipInvitationEmail = async ({
         inviteLink: authUrl,
         emailFromAddress: env.EMAIL_FROM_ADDRESS,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-      })
+      }),
     );
 
     await mailer.sendMail({

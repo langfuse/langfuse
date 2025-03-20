@@ -35,6 +35,8 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import DatadogInit from "@/src/features/datadog/datadog-init";
+import { datadogRum } from "@datadog/browser-rum";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -84,6 +86,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   return (
     <QueryParamProvider adapter={NextAdapterPages}>
+      <DatadogInit />
       <TooltipProvider>
         <CommandMenuProvider>
           <PostHogProvider client={posthog}>
@@ -156,6 +159,15 @@ function UserTracking() {
           LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
 
+      // Datadog RUM
+      datadogRum.setUser({
+        id: sessionUser.id ?? undefined,
+        email: sessionUser.email ?? undefined,
+        name: sessionUser.name ?? undefined,
+        featureFlags: sessionUser.featureFlags ?? undefined,
+        langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+      });
+
       // Sentry
       setUser({
         email: sessionUser.email ?? undefined,
@@ -184,6 +196,8 @@ function UserTracking() {
         posthog.reset();
         posthog.resetGroups();
       }
+
+      datadogRum.clearUser();
       // Sentry
       setUser(null);
     }
