@@ -32,6 +32,8 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
+  LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(60 * 60),
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
@@ -50,10 +52,7 @@ const EnvSchema = z.object({
   ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_S3_CONCURRENT_WRITES: z.coerce
-    .number()
-    .positive()
-    .default(50),
+  LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string({
     required_error: "Langfuse requires a bucket name for S3 Event Uploads.",
   }),
@@ -75,9 +74,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
-  LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default('email'),
-  LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default('name'),
-  LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default('sub'),
+  LANGFUSE_CUSTOM_SSO_EMAIL_CLAIM: z.string().default("email"),
+  LANGFUSE_CUSTOM_SSO_NAME_CLAIM: z.string().default("name"),
+  LANGFUSE_CUSTOM_SSO_SUB_CLAIM: z.string().default("sub"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

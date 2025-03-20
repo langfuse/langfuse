@@ -49,7 +49,7 @@ import {
 } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
-import { findModel } from "../modelMatch";
+import { findModel } from "../../../../packages/shared/src/server/ingestion/modelMatch";
 
 type InsertRecord =
   | TraceRecordInsertType

@@ -184,9 +184,6 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
-  LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(60 * 60),
-
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])

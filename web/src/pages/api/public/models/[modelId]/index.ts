@@ -10,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { invalidateModelCache } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -73,6 +74,9 @@ export default withMiddlewares({
         apiKeyId: auth.scope.apiKeyId,
         before: model,
       });
+
+      await invalidateModelCache(auth.scope.projectId);
+
       return {
         message: "Model successfully deleted" as const,
       };

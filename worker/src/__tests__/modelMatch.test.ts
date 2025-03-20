@@ -5,7 +5,7 @@ import {
   findModelInPostgres,
   getRedisModelKey,
   invalidateModelCache,
-} from "../services/modelMatch";
+} from "../../../packages/shared/src/server/ingestion/modelMatch";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 import { Observation } from "@langfuse/shared/src/server";

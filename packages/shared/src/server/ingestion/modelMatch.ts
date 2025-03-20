@@ -1,8 +1,9 @@
+import { env } from "../../env";
+
+import { logger } from "@azure/storage-blob";
 import { Model, Prisma } from "@prisma/client";
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
-import { redis } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../env";
+import { prisma } from "../../db";
+import { recordIncrement } from "../instrumentation";
 
 export type ModelMatchProps = {
   projectId: string;
