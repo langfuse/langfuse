@@ -688,7 +688,6 @@ const ScoresMetadataCell = ({
       refetchOnMount: false, // prevents refetching loops
     },
   );
-  console.log("score.metadata", score.data?.metadata);
   return (
     <IOTableCell
       isLoading={score.isLoading}
