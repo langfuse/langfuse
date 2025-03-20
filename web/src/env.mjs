@@ -333,6 +333,7 @@ export const env = createEnv({
         "ap1.datadoghq.com",
       ])
       .optional(),
+    NEXT_PUBLIC_DATADOG_ENVIRONMENT: z.string().optional(),
   },
 
   /**
@@ -593,6 +594,8 @@ export const env = createEnv({
     NEXT_PUBLIC_DATADOG_CLIENT_TOKEN:
       process.env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
     NEXT_PUBLIC_DATADOG_SITE: process.env.NEXT_PUBLIC_DATADOG_SITE,
+    NEXT_PUBLIC_DATADOG_ENVIRONMENT:
+      process.env.NEXT_PUBLIC_DATADOG_ENVIRONMENT,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

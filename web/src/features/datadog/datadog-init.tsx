@@ -12,7 +12,7 @@ if (
     clientToken: env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
     site: env.NEXT_PUBLIC_DATADOG_SITE || "datadoghq.com",
     service: "web-frontend",
-    env: process.env.NODE_ENV,
+    env: env.NEXT_PUBLIC_DD_ENVIRONMENT,
     sessionSampleRate: 10,
     sessionReplaySampleRate: 1,
     defaultPrivacyLevel: "mask-user-input",
