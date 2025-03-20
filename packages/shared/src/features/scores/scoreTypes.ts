@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
 import { Score } from "../../server";
 import {
+  jsonSchema,
   NonEmptyString,
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -50,6 +51,7 @@ const ScoreBase = z.object({
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   traceId: z.string(),
   observationId: z.string().nullish(),
   configId: z.string().nullish(),
@@ -64,6 +66,7 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   environment: z.string().default("default"),
 });
 
