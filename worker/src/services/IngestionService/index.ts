@@ -188,6 +188,7 @@ export class IngestionService {
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,
+            metadata: {}, // TODO
             string_value: validatedScore.stringValue,
             created_at: Date.now(),
             updated_at: Date.now(),
