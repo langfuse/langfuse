@@ -161,7 +161,7 @@ export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
 
 const cloudWatchClient = new CloudWatchClient();
 let lastFlushTime = 0;
-const metricCache: Record<string, number> = {};
+let metricCache: Record<string, number> = {};
 
 // Caches metrics and flushes them once per minute
 const sendCloudWatchMetric = (key: string, value: number | undefined) => {
@@ -189,7 +189,7 @@ const flushMetricsToCloudWatch = () => {
   }));
 
   // Clear the cache after preparing the metrics
-  Object.keys(metricCache).forEach((key) => delete metricCache[key]);
+  metricCache = {};
 
   cloudWatchClient
     .send(
