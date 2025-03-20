@@ -87,6 +87,7 @@ export default function EvalLogTable({
       header: "Score Metadata",
       id: "scoreMetadata",
       enableHiding: true,
+      // TODO: this metadata could alternatively be loaded in the same way as the score metadata on the scores table -> per cell fetch
       cell: (row) => {
         const value = row.getValue();
         return value !== undefined ? (
@@ -182,7 +183,7 @@ export default function EvalLogTable({
       scoreName: jobConfig.score?.name ?? undefined,
       scoreValue: jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
-      // FIX: do we need to load here? Also check on domain type
+      // TODO: this metadata could alternatively be loaded in the same way as the score metadata on the scores table -> per cell fetch
       scoreMetadata: jobConfig.score?.metadata ?? undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,

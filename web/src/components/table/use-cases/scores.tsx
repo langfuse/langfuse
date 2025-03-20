@@ -409,7 +409,7 @@ export default function ScoresTable({
       size: 400,
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
-        // TODO: docs
+        // TODO: docs for metadata on scores
         href: "https://langfuse.com/docs/tracing-features/metadata",
       },
       cell: ({ row }) => {
@@ -563,8 +563,6 @@ export default function ScoresTable({
         name: score.authorUserName ?? undefined,
       },
       comment: score.comment ?? undefined,
-      // FIX: either this or load by row, but not both
-      metadata: score.metadata ?? undefined,
       observationId: score.observationId ?? undefined,
       traceId: score.traceId,
       traceName: score.traceName ?? undefined,

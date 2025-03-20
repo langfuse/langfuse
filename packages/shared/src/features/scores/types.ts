@@ -25,7 +25,7 @@ export type ScoreSimplified = {
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
-  // FIXME: unsure if this is the optimal type here
+  // TODO: unsure if this is the optimal type here
   metadata?: Prisma.JsonValue | null;
   stringValue?: string | null;
 };

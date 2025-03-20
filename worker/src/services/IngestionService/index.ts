@@ -3,7 +3,6 @@ import { v4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
 import {
-  convertJsonSchemaToRecord,
   LangfuseNotFoundError,
   Model,
   Price,
@@ -44,7 +43,11 @@ import {
 
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
-import { convertRecordValuesToString, overwriteObject } from "./utils";
+import {
+  convertJsonSchemaToRecord,
+  convertRecordValuesToString,
+  overwriteObject,
+} from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
 

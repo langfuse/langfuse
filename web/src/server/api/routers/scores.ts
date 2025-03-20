@@ -27,7 +27,6 @@ import {
   BatchActionQuerySchema,
   BatchActionType,
   BatchExportTableName,
-  convertJsonSchemaToRecord,
 } from "@langfuse/shared";
 import {
   getScoresGroupedByNameSourceType,
@@ -60,7 +59,7 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
-type AllScoresReturnType = Score & {
+type AllScoresReturnType = Omit<Score, "metadata"> & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
@@ -306,7 +305,7 @@ export const scoresRouter = createTRPCRouter({
         configId: input.configId ?? null,
         name: input.name,
         comment: input.comment ?? null,
-        metadata: input.metadata ?? null,
+        metadata: {},
         authorUserId: ctx.session.user.id,
         source: ScoreSource.ANNOTATION,
         queueId: input.queueId ?? null,
@@ -326,8 +325,6 @@ export const scoresRouter = createTRPCRouter({
         value: input.value !== null ? input.value : undefined,
         source: ScoreSource.ANNOTATION,
         comment: input.comment,
-        // FIXME: unsure if metadata is properly parsed into key value pairs before uploading to CH @maxdeichmann, hence I wrote this helper function to parse the metadata into key value pairs, please check if this is correct
-        metadata: convertJsonSchemaToRecord(input.metadata ?? {}),
         author_user_id: ctx.session.user.id,
         config_id: input.configId,
         data_type: input.dataType,
@@ -377,7 +374,6 @@ export const scoresRouter = createTRPCRouter({
           value: input.value !== null ? input.value : undefined,
           string_value: input.stringValue,
           comment: input.comment,
-          metadata: convertJsonSchemaToRecord(input.metadata ?? {}),
           author_user_id: ctx.session.user.id,
           queue_id: input.queueId,
           source: ScoreSource.ANNOTATION,
@@ -393,7 +389,6 @@ export const scoresRouter = createTRPCRouter({
           value: input.value ?? null,
           stringValue: input.stringValue ?? null,
           comment: input.comment ?? null,
-          metadata: input.metadata ?? null,
           authorUserId: ctx.session.user.id,
           queueId: input.queueId ?? null,
         };

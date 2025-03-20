@@ -1,6 +1,5 @@
 import z from "zod";
 import { type ScoreDataType } from "../../db";
-import { jsonSchema } from "../../utils/zod";
 
 const NUMERIC: ScoreDataType = "NUMERIC";
 const CATEGORICAL: ScoreDataType = "CATEGORICAL";
@@ -34,7 +33,6 @@ const CreateAnnotationScoreBase = z.object({
   configId: z.string().optional(),
   observationId: z.string().optional(),
   comment: z.string().nullish(),
-  metadata: jsonSchema.nullish(),
   queueId: z.string().nullish(),
 });
 
