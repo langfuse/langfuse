@@ -84,6 +84,7 @@ export const createScore = (score: Partial<ScoreRecordInsertType>) => {
     value: 100.5,
     source: "API",
     comment: "comment",
+    metadata: { "test-key": "test-value" },
     data_type: "NUMERIC" as const,
     created_at: Date.now(),
     updated_at: Date.now(),
