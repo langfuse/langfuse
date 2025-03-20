@@ -50,7 +50,7 @@ export const DataTableRowHeightSwitch = ({
   const capture = usePostHogClientCapture();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" title="Row height">
           <Rows3 className="h-4 w-4" />
         </Button>
