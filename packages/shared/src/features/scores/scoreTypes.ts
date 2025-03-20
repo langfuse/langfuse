@@ -166,6 +166,7 @@ export const ScorePropsAgainstConfig = z.union([
  */
 export const filterAndValidateDbScoreList = (
   scores: Score[],
+  // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void,
 ): APIScore[] =>
   scores.reduce((acc, ts) => {
@@ -275,6 +276,7 @@ export const GetScoresResponse = z.object({
 
 export const legacyFilterAndValidateV1GetScoreList = (
   scores: unknown[],
+  // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
   scores.reduce(
