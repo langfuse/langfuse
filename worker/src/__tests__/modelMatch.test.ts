@@ -1,14 +1,13 @@
-import { Model } from "@prisma/client";
 import { expect, describe, it, beforeEach, afterEach } from "vitest";
+import { prisma } from "@langfuse/shared/src/db";
 import {
+  createOrgProjectAndApiKey,
   findModel,
   findModelInPostgres,
   getRedisModelKey,
   invalidateModelCache,
-} from "../../../packages/shared/src/server/ingestion/modelMatch";
-import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
-import { Observation } from "@langfuse/shared/src/server";
+  redis,
+} from "@langfuse/shared/src/server";
 
 describe("modelMatch", () => {
   beforeEach(async () => {
