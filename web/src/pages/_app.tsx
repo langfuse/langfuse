@@ -225,8 +225,8 @@ function UserTracking() {
         posthog.group("project", project.id, {
           id: project.id,
           name: project.name,
-          organizationId: organization.id,
-          plan: organization.plan,
+          organizationId: organization?.id,
+          plan: organization?.plan,
           LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
       }
