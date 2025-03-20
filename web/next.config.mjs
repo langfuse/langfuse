@@ -17,7 +17,7 @@ const ddUrl = env.NEXT_PUBLIC_DATADOG_SITE
 
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io wss://*.crisp.chat https://*.crisp.chat ${ddUrl};
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://uptime.betterstack.com;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://client.crisp.chat https://settings.crisp.chat https://challenges.cloudflare.com https://*.sentry.io https://static.cloudflareinsights.com https://*.stripe.com https://uptime.betterstack.com https://www.datadoghq-browser-agent.com;
   style-src 'self' 'unsafe-inline' https://client.crisp.chat https://uptime.betterstack.com;
   img-src 'self' https: blob: data: http://localhost:* https://client.crisp.chat https://image.crisp.chat https://storage.crisp.chat;
   font-src 'self' https://client.crisp.chat;
