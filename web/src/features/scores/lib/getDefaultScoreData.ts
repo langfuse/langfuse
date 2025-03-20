@@ -23,27 +23,15 @@ export const getDefaultScoreData = ({
           ? s.observationId === observationId
           : s.observationId === null),
     )
-    .map(
-      ({
-        id,
-        name,
-        value,
-        dataType,
-        stringValue,
-        configId,
-        comment,
-        metadata,
-      }) => ({
-        scoreId: id,
-        name,
-        value,
-        dataType,
-        stringValue: stringValue ?? undefined,
-        configId: configId ?? undefined,
-        comment: comment ?? undefined,
-        metadata: metadata ?? undefined,
-      }),
-    );
+    .map(({ id, name, value, dataType, stringValue, configId, comment }) => ({
+      scoreId: id,
+      name,
+      value,
+      dataType,
+      stringValue: stringValue ?? undefined,
+      configId: configId ?? undefined,
+      comment: comment ?? undefined,
+    }));
 
   const populatedScoresConfigIds = new Set(
     populatedScores.map((s) => s.configId),
@@ -63,7 +51,6 @@ export const getDefaultScoreData = ({
       stringValue: undefined,
       configId: id,
       comment: undefined,
-      metadata: undefined,
     }));
 
   return [...populatedScores, ...emptyScores];

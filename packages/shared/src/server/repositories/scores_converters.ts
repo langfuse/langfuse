@@ -24,7 +24,6 @@ export const convertToScore = (row: ScoreRecordReadType): Score => {
     value: row.value ?? null,
     source: row.source as ScoreSourceType,
     comment: row.comment ?? null,
-    metadata: row.metadata ?? null,
     authorUserId: row.author_user_id ?? null,
     configId: row.config_id ?? null,
     dataType: row.data_type as ScoreDataType,

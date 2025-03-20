@@ -16,7 +16,6 @@ export type JobExecutionRow = {
   scoreName?: string;
   scoreValue?: number;
   scoreComment?: string;
-  scoreMetadata?: Record<string, string>;
   startTime?: string;
   endTime?: string;
   traceId?: string;
@@ -170,10 +169,6 @@ export default function EvalLogTable({
       scoreName: jobConfig.score?.name ?? undefined,
       scoreValue: jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
-      // FIX: do we need to load here? Also check on domain type
-      scoreMetadata: jobConfig.score?.metadata as
-        | Record<string, string>
-        | undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,

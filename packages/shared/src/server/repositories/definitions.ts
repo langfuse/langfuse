@@ -1,5 +1,4 @@
 import z from "zod";
-import { jsonSchema } from "../../utils/zod";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -133,7 +132,6 @@ export const scoreRecordBaseSchema = z.object({
   value: z.number().nullish(),
   source: z.string(),
   comment: z.string().nullish(),
-  metadata: z.record(z.string()),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
@@ -352,7 +350,6 @@ export const convertPostgresScoreToInsert = (
     value: score.value,
     source: score.source,
     comment: score.comment,
-    metadata: score.metadata,
     author_user_id: score.author_user_id,
     config_id: score.config_id,
     data_type: score.data_type,

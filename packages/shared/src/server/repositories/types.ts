@@ -36,7 +36,7 @@ export type Observation = {
   startTime: Date;
   endTime: Date | null;
   name: string | null;
-  metadata: Record<string, Prisma.JsonValue> | null;
+  metadata: Prisma.JsonValue | null;
   parentObservationId: string | null;
   level: ObservationLevelType;
   statusMessage: string | null;
@@ -72,7 +72,7 @@ export type ObservationView = {
   endTime: Date | null;
   environment: string;
   name: string | null;
-  metadata: Record<string, string> | null;
+  metadata: Prisma.JsonValue | null;
   parentObservationId: string | null;
   level: ObservationLevelType;
   statusMessage: string | null;
@@ -112,7 +112,6 @@ export type Score = {
   source: ScoreSourceType;
   authorUserId: string | null;
   comment: string | null;
-  metadata: Record<string, string> | null;
   traceId: string;
   observationId: string | null;
   configId: string | null;
@@ -129,7 +128,7 @@ export type Trace = {
   name: string | null;
   userId: string | null;
   environment: string;
-  metadata: Record<string, string> | null;
+  metadata: Prisma.JsonValue | null;
   release: string | null;
   version: string | null;
   projectId: string;

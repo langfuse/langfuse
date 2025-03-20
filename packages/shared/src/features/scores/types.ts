@@ -26,7 +26,6 @@ export type ScoreSimplified = {
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
-  metadata?: Record<string, string> | null;
   stringValue?: string | null;
 };
 

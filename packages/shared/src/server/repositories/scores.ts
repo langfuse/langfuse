@@ -378,7 +378,6 @@ export const getScoresUiTable = async (props: {
     source: string;
     data_type: string;
     comment: string | null;
-    metadata: Record<string, string> | null;
     trace_id: string;
     observation_id: string | null;
     author_user_id: string | null;
@@ -413,7 +412,6 @@ export const getScoresUiTable = async (props: {
     updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
     stringValue: row.string_value,
     comment: row.comment,
-    metadata: row.metadata,
     dataType: row.data_type as ScoreDataType,
     source: row.source as ScoreSourceType,
     name: row.name,
@@ -448,7 +446,6 @@ export const getScoresUiGeneric = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
-        s.metadata,
         s.trace_id,
         s.observation_id,
         s.author_user_id,

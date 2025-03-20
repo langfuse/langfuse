@@ -188,14 +188,12 @@ export class IngestionService {
             data_type: validatedScore.dataType,
             observation_id: validatedScore.observationId,
             comment: validatedScore.comment,
-            // FIX: write converter or change domain type to Record<string, string>
-            metadata: validatedScore.metadata as Record<string, string>,
             string_value: validatedScore.stringValue,
             created_at: Date.now(),
             updated_at: Date.now(),
             event_ts: new Date(scoreEvent.timestamp).getTime(),
             is_deleted: 0,
-          } satisfies ScoreRecordInsertType;
+          };
         }),
       ),
     ]);
