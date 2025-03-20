@@ -5,14 +5,15 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
+import { DATADOG_SITE } from "./src/features/datadog/datadog-init";
 
 /**
  * CSP headers
  * img-src https to allow loading images from SSO providers
  */
 
-const ddUrl = env.NEXT_PUBLIC_DATADOG_SITE
-  ? `https://browser-intake-${env.NEXT_PUBLIC_DATADOG_SITE}`
+const ddUrl = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  ? `https://browser-intake-${DATADOG_SITE}`
   : "";
 
 const cspHeader = `

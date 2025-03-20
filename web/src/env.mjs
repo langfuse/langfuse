@@ -324,16 +324,6 @@ export const env = createEnv({
     NEXT_PUBLIC_DATADOG_ENVIRONMENT: z.string().optional(),
     NEXT_PUBLIC_DATADOG_APPLICATION_ID: z.string().optional(),
     NEXT_PUBLIC_DATADOG_CLIENT_TOKEN: z.string().optional(),
-    NEXT_PUBLIC_DATADOG_SITE: z
-      .enum([
-        "datadoghq.com",
-        "us3.datadoghq.com",
-        "us5.datadoghq.com",
-        "datadoghq.eu",
-        "ddog-gov.com",
-        "ap1.datadoghq.com",
-      ])
-      .default("datadoghq.com"),
     NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE: z.coerce
       .number()
       .int()
@@ -605,7 +595,6 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_DATADOG_APPLICATION_ID,
     NEXT_PUBLIC_DATADOG_CLIENT_TOKEN:
       process.env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
-    NEXT_PUBLIC_DATADOG_SITE: process.env.NEXT_PUBLIC_DATADOG_SITE,
     NEXT_PUBLIC_DATADOG_ENVIRONMENT:
       process.env.NEXT_PUBLIC_DATADOG_ENVIRONMENT,
     NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE:

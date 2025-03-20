@@ -2,6 +2,16 @@ import { env } from "@/src/env.mjs";
 import { datadogRum } from "@datadog/browser-rum";
 import { getLangfuseUrl } from "@langfuse/shared";
 
+export const DATADOG_SITE = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  ? env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "US"
+    ? "datadoghq.com"
+    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "EU"
+      ? "datadoghq.eu"
+      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "STAGING"
+        ? "datadoghq.eu"
+        : "datadoghq.com"
+  : "datadoghq.com";
+
 // Initialize Datadog RUM
 if (
   env.NEXT_PUBLIC_DATADOG_APPLICATION_ID &&
@@ -11,7 +21,7 @@ if (
   datadogRum.init({
     applicationId: env.NEXT_PUBLIC_DATADOG_APPLICATION_ID,
     clientToken: env.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN,
-    site: env.NEXT_PUBLIC_DATADOG_SITE,
+    site: DATADOG_SITE,
     service: "web-frontend",
     env: env.NEXT_PUBLIC_DATADOG_ENVIRONMENT,
     sessionSampleRate: env.NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE,
