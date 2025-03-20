@@ -6,7 +6,6 @@ import {
   createObservationsCh,
   getTotalTraces,
   getTracesGroupedByName,
-  convertDateToClickhouseDateTime,
   getObservationsCostGroupedByName,
   getScoreAggregate,
   groupTracesByTime,
@@ -235,8 +234,6 @@ describe("selfServeDashboards", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 3. Get result using the query builder
@@ -281,17 +278,16 @@ describe("selfServeDashboards", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
             value: "production",
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
       const prodQueryBuilderResult = await executeQuery(
         projectId,
@@ -328,9 +324,10 @@ describe("selfServeDashboards", () => {
         ...prodQueryBuilderQuery,
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
             value: "development",
+            type: "string",
           },
         ],
       };
@@ -377,22 +374,22 @@ describe("selfServeDashboards", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
             value: "production",
+            type: "string",
           },
           {
-            field: "timestamp",
-            operator: "gte",
-            value: convertDateToClickhouseDateTime(oneHourAgo),
+            column: "timestamp",
+            operator: ">=",
+            value: new Date(oneHourAgo),
+            type: "datetime",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
       const queryBuilderResult = await executeQuery(
         projectId,
@@ -429,8 +426,6 @@ describe("selfServeDashboards", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 3. Get result using the query builder
@@ -489,17 +484,16 @@ describe("selfServeDashboards", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
             value: "production",
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 4. Get result using the query builder
@@ -556,8 +550,6 @@ describe("selfServeDashboards", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 3. Get result using the query builder
@@ -616,17 +608,16 @@ describe("selfServeDashboards", () => {
         ],
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
             value: "production",
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 4. Get result using the query builder
@@ -690,8 +681,6 @@ describe("selfServeDashboards", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 3. Get results using the query builder for numeric scores
@@ -714,8 +703,6 @@ describe("selfServeDashboards", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Get results for categorical scores
@@ -812,17 +799,16 @@ describe("selfServeDashboards", () => {
         ],
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
             value: "production",
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 4. Get result using the query builder
@@ -892,8 +878,6 @@ describe("selfServeDashboards", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // 3. Get result using the query builder

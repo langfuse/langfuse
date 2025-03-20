@@ -1,8 +1,5 @@
 import { type z } from "zod";
-import {
-  type ClickhouseClientType,
-  convertDateToClickhouseDateTime,
-} from "@langfuse/shared/src/server";
+import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
 import {
   type QueryType,
   type ViewDeclarationType,
@@ -10,10 +7,12 @@ import {
   query as queryModel,
 } from "../types";
 import { viewDeclarations } from "@/src/features/query/dataModel";
+import {
+  FilterList,
+  createFilterFromFilterState,
+} from "@langfuse/shared/src/server";
 
 export class QueryBuilder {
-  constructor(private clickhouseClient: ClickhouseClientType) {}
-
   private translateAggregation(aggregation: string): string {
     switch (aggregation) {
       case "sum":
@@ -38,37 +37,6 @@ export class QueryBuilder {
         return "quantile(0.99)";
       default:
         throw new Error(`Invalid aggregation: ${aggregation}`);
-    }
-  }
-
-  private translateFilterOperator(operator: string): string {
-    switch (operator) {
-      case "eq":
-        return "=";
-      case "ne":
-        return "!=";
-      case "lt":
-        return "<";
-      case "lte":
-        return "<=";
-      case "gt":
-        return ">";
-      case "gte":
-        return ">=";
-      case "in":
-        return "IN";
-      case "not_in":
-        return "NOT IN";
-      case "like":
-        return "LIKE";
-      case "not_like":
-        return "NOT LIKE";
-      case "has_any":
-        return "HAS ANY";
-      case "has_all":
-        return "HAS ALL";
-      default:
-        throw new Error(`Invalid filter operator: ${operator}`);
     }
   }
 
@@ -116,87 +84,134 @@ export class QueryBuilder {
   }
 
   private mapFilters(
-    filters: Array<{ field: string; operator: string; value: string }>,
+    filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
   ) {
-    return filters.map((filter) => {
-      if (filter.field in view.dimensions) {
-        const dimension = view.dimensions[filter.field];
-        return {
-          ...filter,
-          table: view.name,
-          sql: dimension.sql, // Use the SQL expression, not the alias
-          type: dimension.type,
-        };
+    // Transform our filters to match the column mapping format expected by createFilterFromFilterState
+    const columnMappings = filters.map((filter) => {
+      let clickhouseSelect: string;
+      let clickhouseTableName: string = view.name;
+      let type: string;
+
+      if (filter.column in view.dimensions) {
+        const dimension = view.dimensions[filter.column];
+        clickhouseSelect = dimension.sql;
+        type = dimension.type;
+      } else if (filter.column in view.measures) {
+        const measure = view.measures[filter.column];
+        clickhouseSelect = measure.sql;
+        type = measure.type;
+      } else if (filter.column === view.timeDimension) {
+        clickhouseSelect = view.timeDimension;
+        type = "datetime";
+      } else {
+        throw new Error(
+          `Invalid filter column. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
+        );
       }
-      if (filter.field in view.measures) {
-        const measure = view.measures[filter.field];
-        return {
-          ...filter,
-          table: view.name,
-          sql: measure.sql, // Use the SQL expression, not the alias
-          type: measure.type,
-        };
-      }
-      if (filter.field === view.timeDimension) {
-        return {
-          ...filter,
-          table: view.name,
-          sql: view.timeDimension,
-          type: "Date",
-        };
-      }
-      throw new Error(
-        `Invalid filter. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
-      );
+
+      return {
+        uiTableName: filter.column,
+        uiTableId: filter.column,
+        clickhouseTableName,
+        clickhouseSelect,
+        queryPrefix: view.name,
+        type,
+      };
     });
+
+    // Use the createFilterFromFilterState function to create proper Clickhouse filters
+    return createFilterFromFilterState(filters, columnMappings);
   }
 
   private addStandardFilters(
-    appliedFilters: any[],
+    filterList: FilterList,
     view: ViewDeclarationType,
     projectId: string,
     fromTimestamp: string,
     toTimestamp: string,
   ) {
-    // Add project_id filter
-    appliedFilters.push({
-      field: "project_id",
-      operator: "eq",
-      table: view.name,
-      value: projectId,
+    // Create column mappings for standard filters
+    const projectIdMapping = {
+      uiTableName: "project_id",
+      uiTableId: "project_id",
+      clickhouseTableName: view.name,
+      clickhouseSelect: "project_id",
+      queryPrefix: view.name,
       type: "string",
-      sql: "project_id",
-    });
+    };
 
-    // Add fromTimestamp and toTimestamp filters if they exist
-    appliedFilters.push({
-      field: view.timeDimension,
-      operator: "gte",
-      table: view.name,
-      value: convertDateToClickhouseDateTime(new Date(fromTimestamp)),
-      type: "Date",
-      sql: view.timeDimension,
-    });
+    const timeDimensionMapping = {
+      uiTableName: view.timeDimension,
+      uiTableId: view.timeDimension,
+      clickhouseTableName: view.name,
+      clickhouseSelect: view.timeDimension,
+      queryPrefix: view.name,
+      type: "datetime",
+    };
 
-    appliedFilters.push({
-      field: view.timeDimension,
-      operator: "lte",
-      table: view.name,
-      value: convertDateToClickhouseDateTime(new Date(toTimestamp)),
-      type: "Date",
-      sql: view.timeDimension,
-    });
+    // Add project_id filter
+    const projectIdFilter = createFilterFromFilterState(
+      [
+        {
+          column: "project_id",
+          operator: "=",
+          value: projectId,
+          type: "string",
+        },
+      ],
+      [projectIdMapping],
+    );
 
-    view.segments.forEach((segment) => {
-      appliedFilters.push({
-        ...segment,
-        table: view.name,
-        sql: segment.field,
-      });
-    });
+    // Add fromTimestamp filter
+    const fromFilter = createFilterFromFilterState(
+      [
+        {
+          column: view.timeDimension,
+          operator: ">=",
+          value: new Date(fromTimestamp),
+          type: "datetime",
+        },
+      ],
+      [timeDimensionMapping],
+    );
 
-    return appliedFilters;
+    // Add toTimestamp filter
+    const toFilter = createFilterFromFilterState(
+      [
+        {
+          column: view.timeDimension,
+          operator: "<=",
+          value: new Date(toTimestamp),
+          type: "datetime",
+        },
+      ],
+      [timeDimensionMapping],
+    );
+
+    // Add all filters to the filter list
+    filterList.push(...projectIdFilter, ...fromFilter, ...toFilter);
+
+    // Add segment filters if any
+    if (view.segments.length > 0) {
+      // Create column mappings for segment filters
+      const segmentsMappings = view.segments.map((segment) => ({
+        uiTableName: segment.column,
+        uiTableId: segment.column,
+        clickhouseTableName: view.name,
+        clickhouseSelect: segment.column,
+        queryPrefix: view.name,
+        type: segment.type,
+      }));
+
+      const segmentFilters = createFilterFromFilterState(
+        view.segments,
+        segmentsMappings,
+      );
+      filterList.push(...segmentFilters);
+    }
+
+    return filterList;
   }
 
   private collectRelationTables(
@@ -220,7 +235,7 @@ export class QueryBuilder {
   private buildJoins(
     relationTables: Set<string>,
     view: ViewDeclarationType,
-    appliedFilters: any[],
+    filterList: FilterList,
     query: QueryType,
   ) {
     const relationJoins = [];
@@ -234,23 +249,43 @@ export class QueryBuilder {
       const relation = view.tableRelations[relationTableName];
       let joinStatement = `LEFT JOIN ${relation.name} FINAL ${relation.joinCondition}`;
 
-      // Add relation-specific timestamp filters if applicable
-      appliedFilters.push({
-        field: relation.timeDimension,
-        operator: "gte",
-        table: relation.name,
-        value: convertDateToClickhouseDateTime(new Date(query.fromTimestamp)),
-        type: "Date",
-        sql: relation.timeDimension,
-      });
-      appliedFilters.push({
-        field: relation.timeDimension,
-        operator: "lte",
-        table: relation.name,
-        value: convertDateToClickhouseDateTime(new Date(query.toTimestamp)),
-        type: "Date",
-        sql: relation.timeDimension,
-      });
+      // Create time dimension mapping for the relation table
+      const relationTimeDimensionMapping = {
+        uiTableName: relation.timeDimension,
+        uiTableId: relation.timeDimension,
+        clickhouseTableName: relation.name,
+        clickhouseSelect: relation.timeDimension,
+        queryPrefix: relation.name,
+        type: "datetime",
+      };
+
+      // Add relation-specific timestamp filters
+      const fromFilter = createFilterFromFilterState(
+        [
+          {
+            column: relation.timeDimension,
+            operator: ">=",
+            value: new Date(query.fromTimestamp),
+            type: "datetime",
+          },
+        ],
+        [relationTimeDimensionMapping],
+      );
+
+      const toFilter = createFilterFromFilterState(
+        [
+          {
+            column: relation.timeDimension,
+            operator: "<=",
+            value: new Date(query.toTimestamp),
+            type: "datetime",
+          },
+        ],
+        [relationTimeDimensionMapping],
+      );
+
+      // Add filters to the filter list
+      filterList.push(...fromFilter, ...toFilter);
 
       relationJoins.push(joinStatement);
     }
@@ -258,48 +293,19 @@ export class QueryBuilder {
   }
 
   private buildWhereClause(
-    appliedFilters: any[],
+    filterList: FilterList,
     parameters: Record<string, unknown>,
   ) {
-    if (appliedFilters.length === 0) return "";
+    if (filterList.length() === 0) return "";
 
-    // Create a counter for each field to ensure unique parameter names
-    const fieldCounters: Record<string, number> = {};
+    // Use the FilterList's apply method to get the query and parameters
+    const { query, params } = filterList.apply();
 
-    return ` WHERE ${appliedFilters
-      .map((filter) => {
-        const columnRef = `${filter.table}.${filter.sql}`;
+    // Add all parameters to the main parameters object
+    Object.assign(parameters, params);
 
-        // Create a deterministic parameter name using the field name and a counter
-        if (!fieldCounters[filter.field]) {
-          fieldCounters[filter.field] = 1;
-        } else {
-          fieldCounters[filter.field]++;
-        }
-
-        const paramName = `filter_${filter.field}_${fieldCounters[filter.field]}`;
-
-        // Set parameter value
-        parameters[paramName] = filter.value;
-
-        // Use parameterized value based on type
-        let paramType: string;
-        switch (filter.type) {
-          case "number":
-            paramType = "Decimal64(5)";
-            break;
-          case "Date":
-            paramType = "DateTime64(3)";
-            break;
-          case "string":
-          default:
-            paramType = "String";
-            break;
-        }
-
-        return `${columnRef} ${this.translateFilterOperator(filter.operator)} {${paramName}: ${paramType}}`;
-      })
-      .join(" AND\n")}`;
+    // Return the WHERE clause with the query
+    return ` WHERE ${query}`;
   }
 
   private determineTimeGranularity(
@@ -665,14 +671,16 @@ export class QueryBuilder {
     // Get view declaration
     const view = this.getViewDeclaration(query.view);
 
-    // Map dimensions, metrics, and filters
+    // Map dimensions and metrics
     const appliedDimensions = this.mapDimensions(query.dimensions, view);
     const appliedMetrics = this.mapMetrics(query.metrics, view);
-    let appliedFilters = this.mapFilters(query.filters, view);
+
+    // Create a new FilterList with the mapped filters
+    let filterList = new FilterList(this.mapFilters(query.filters, view));
 
     // Add standard filters (project_id, timestamps)
-    appliedFilters = this.addStandardFilters(
-      appliedFilters,
+    filterList = this.addStandardFilters(
+      filterList,
       view,
       projectId,
       query.fromTimestamp,
@@ -691,14 +699,14 @@ export class QueryBuilder {
       const relationJoins = this.buildJoins(
         relationTables,
         view,
-        appliedFilters,
+        filterList,
         query,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }
 
     // Build WHERE clause with parameters
-    fromClause += this.buildWhereClause(appliedFilters, parameters);
+    fromClause += this.buildWhereClause(filterList, parameters);
 
     // Build inner SELECT parts
     const innerDimensionsPart = this.buildInnerDimensionsPart(

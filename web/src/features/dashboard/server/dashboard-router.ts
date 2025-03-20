@@ -311,7 +311,7 @@ export async function executeQuery(
 ): Promise<unknown> {
   try {
     // Initialize query builder with ClickHouse client
-    const queryBuilder = new QueryBuilder(clickhouseClient());
+    const queryBuilder = new QueryBuilder();
 
     // Build the query
     const { query: compiledQuery, parameters } = queryBuilder.build(

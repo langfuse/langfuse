@@ -307,9 +307,10 @@ export const scoresNumericView: ViewDeclarationType = {
   },
   segments: [
     {
-      field: "data_type",
-      operator: "eq",
+      column: "data_type",
+      operator: "=",
       value: "NUMERIC",
+      type: "string",
     },
   ],
   timeDimension: "timestamp",
@@ -348,10 +349,11 @@ export const scoresCategoricalView: ViewDeclarationType = {
   },
   segments: [
     {
-      field: "data_type",
+      column: "data_type",
       // Here, we want to include everything that is not numeric.
-      operator: "ne",
+      operator: "does not contain",
       value: "NUMERIC",
+      type: "string",
     },
   ],
   timeDimension: "timestamp",

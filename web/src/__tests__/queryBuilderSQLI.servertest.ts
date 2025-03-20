@@ -56,8 +56,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error rather than allow the injection
@@ -81,8 +79,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid dimension
@@ -100,17 +96,16 @@ describe("QueryBuilder SQL Injection Tests", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "name",
-            operator: "eq",
+            column: "name",
+            operator: "=",
             value: "chat'; DROP TABLE traces; --", // SQL injection in value
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should build a valid query using parameterized queries for safety
@@ -118,8 +113,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
 
       // Ensure the value is parameterized and not directly included in the SQL
       expect(result.query).not.toContain("chat'; DROP TABLE traces; --");
-      expect(result.parameters).toHaveProperty(
-        "filter_name_1",
+      expect(Object.values(result.parameters)).toContain(
         "chat'; DROP TABLE traces; --",
       );
     });
@@ -143,8 +137,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid metric
@@ -170,8 +162,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid aggregation
@@ -190,17 +180,16 @@ describe("QueryBuilder SQL Injection Tests", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment); DROP TABLE traces; --",
-            operator: "eq",
+            column: "environment); DROP TABLE traces; --",
+            operator: "=",
             value: "production",
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid filter field
@@ -217,17 +206,16 @@ describe("QueryBuilder SQL Injection Tests", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment",
-            operator: "eq; DROP TABLE traces; --" as any,
+            column: "environment",
+            operator: "=; DROP TABLE traces; --" as any,
             value: "production",
+            type: "string",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid operator
@@ -244,8 +232,9 @@ describe("QueryBuilder SQL Injection Tests", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment",
-            operator: "eq",
+            column: "environment",
+            operator: "=",
+            type: "string",
             value: "production'; DROP TABLE traces; --",
           },
         ],
@@ -253,8 +242,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should build a valid query with parameterization
@@ -262,8 +249,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
 
       // Check for parameterization
       expect(result.query).not.toContain("production'; DROP TABLE traces; --");
-      expect(result.parameters).toHaveProperty(
-        "filter_environment_1",
+      expect(Object.values(result.parameters)).toContain(
         "production'; DROP TABLE traces; --",
       );
     });
@@ -276,17 +262,16 @@ describe("QueryBuilder SQL Injection Tests", () => {
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [
           {
-            field: "environment",
-            operator: "in",
-            value: "production,development'); DROP TABLE traces; --",
+            column: "environment",
+            operator: "any of",
+            value: ["production", "development'); DROP TABLE traces; --"],
+            type: "stringOptions",
           },
         ],
         timeDimension: null,
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Should parameterize the values
@@ -295,7 +280,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
       expect(result.query).not.toContain(
         "production,development'); DROP TABLE traces; --",
       );
-      expect(result.parameters).toHaveProperty("filter_environment_1");
     });
   });
 
@@ -313,8 +297,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
       // Should throw an error for invalid granularity
       expect(() =>
@@ -336,8 +318,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: "2023-01-01'); DROP TABLE traces; --",
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
       // Should throw an error for invalid timestamp format
       expect(() =>
@@ -358,8 +338,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       const maliciousProjectId = "fake-id'; DROP TABLE traces; --";
@@ -369,33 +347,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
 
       // Check for parameterization
       expect(result.query).not.toContain(maliciousProjectId);
-      expect(result.parameters).toHaveProperty(
-        "filter_project_id_1",
-        maliciousProjectId,
-      );
-    });
-  });
-
-  describe("SQL Injection via Pagination Parameters", () => {
-    it("should validate page and limit parameters", async () => {
-      // Comment: Page and limit parameters can be used for SQL injection
-      // if directly concatenated into LIMIT/OFFSET clauses
-      const maliciousQuery: QueryType = {
-        view: "traces",
-        dimensions: [],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [],
-        timeDimension: null,
-        fromTimestamp: defaultFromTime,
-        toTimestamp: defaultToTime,
-        orderBy: null,
-        page: -1, // Potentially problematic negative value
-        limit: 999999999, // Excessive limit
-      };
-
-      expect(() =>
-        buildQueryWithoutExecuting(maliciousQuery, projectId),
-      ).toThrow("Invalid query");
+      expect(Object.values(result.parameters)).toContain(maliciousProjectId);
     });
   });
 
@@ -417,8 +369,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
             direction: "asc",
           },
         ],
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid orderBy field
@@ -443,8 +393,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
             direction: "asc; DROP TABLE traces; --" as any,
           },
         ],
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid direction
@@ -469,8 +417,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
             direction: "asc",
           },
         ],
-        page: 0,
-        limit: 50,
       };
 
       // Should throw an error for invalid orderBy field
@@ -500,8 +446,6 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-        page: 0,
-        limit: 50,
       };
 
       // Expect the executeQuery function to throw a TRPC error

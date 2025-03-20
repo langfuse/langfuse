@@ -25,17 +25,16 @@ describe("queryBuilder", () => {
           ],
           filters: [
             {
-              field: "name",
-              operator: "eq",
+              column: "name",
+              operator: "=",
               value: "qa",
+              type: "string",
             },
           ],
           timeDimension: null,
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -51,8 +50,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z", // 2 months difference
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -68,8 +65,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-01-10T00:00:00.000Z", // 10 days difference
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -86,8 +81,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -101,8 +94,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -116,8 +107,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -146,8 +135,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -170,8 +157,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
       [
@@ -190,8 +175,6 @@ describe("queryBuilder", () => {
           fromTimestamp: "2025-01-01T00:00:00.000Z",
           toTimestamp: "2025-03-01T00:00:00.000Z",
           orderBy: null,
-          page: 0,
-          limit: 50,
         } as QueryType,
       ],
     ])(
@@ -200,7 +183,7 @@ describe("queryBuilder", () => {
         const projectId = randomUUID();
 
         // When
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -331,12 +314,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(), // tomorrow
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -380,12 +361,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -431,9 +410,10 @@ describe("queryBuilder", () => {
           metrics: [{ measure: "count", aggregation: "count" }],
           filters: [
             {
-              field: "name",
-              operator: "eq",
+              column: "name",
+              operator: "=",
               value: "qa-bot",
+              type: "string",
             },
           ],
           timeDimension: null,
@@ -444,12 +424,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -492,12 +470,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -569,12 +545,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -638,12 +612,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -713,12 +685,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -767,12 +737,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: [{ field: "name", direction: "asc" }],
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -820,12 +788,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: [{ field: "sum_observations_count", direction: "desc" }],
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -877,12 +843,10 @@ describe("queryBuilder", () => {
             { field: "environment", direction: "asc" },
             { field: "sum_observations_count", direction: "desc" },
           ],
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -955,12 +919,10 @@ describe("queryBuilder", () => {
           fromTimestamp: yesterday.toISOString(),
           toTimestamp: new Date(now.getTime() + 86400000).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1017,12 +979,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1070,12 +1030,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1116,9 +1074,10 @@ describe("queryBuilder", () => {
           metrics: [{ measure: "count", aggregation: "count" }],
           filters: [
             {
-              field: "name",
-              operator: "like",
-              value: "prefix-%",
+              column: "name",
+              operator: "starts with",
+              value: "prefix-",
+              type: "string",
             },
           ],
           timeDimension: null,
@@ -1129,12 +1088,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1178,12 +1135,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1249,9 +1204,10 @@ describe("queryBuilder", () => {
           metrics: [{ measure: "count", aggregation: "count" }],
           filters: [
             {
-              field: "name",
-              operator: "eq",
+              column: "name",
+              operator: "=",
               value: "trace-test",
+              type: "string",
             },
           ],
           timeDimension: {
@@ -1260,12 +1216,10 @@ describe("queryBuilder", () => {
           fromTimestamp: fromDate.toISOString(),
           toTimestamp: toDate.toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1414,12 +1368,10 @@ describe("queryBuilder", () => {
           fromTimestamp: dayBeforeYesterday.toISOString(),
           toTimestamp: new Date(now.getTime() + 86400000).toISOString(), // Include tomorrow
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1629,22 +1581,18 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
         );
 
         // Verify SQL includes segment filter for NUMERIC types
-        expect(compiledQuery).toContain(
-          "data_type = {filter_data_type_1: String}",
-        );
-        expect(parameters.filter_data_type_1).toBe("NUMERIC");
+        expect(compiledQuery).toContain("data_type = {");
+        expect(Object.values(parameters)).toContain("NUMERIC");
 
         const result = await (
           await clickhouseClient().query({
@@ -1741,9 +1689,10 @@ describe("queryBuilder", () => {
           ],
           filters: [
             {
-              field: "source",
-              operator: "eq",
+              column: "source",
+              operator: "=",
               value: "human",
+              type: "string",
             },
           ],
           timeDimension: null,
@@ -1754,12 +1703,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -1865,12 +1812,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -2021,12 +1966,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -2034,9 +1977,10 @@ describe("queryBuilder", () => {
 
         // Verify SQL includes segment filter for non-NUMERIC types
         expect(compiledQuery).toContain(
-          "data_type != {filter_data_type_1: String}",
+          "position(scores_categorical.data_type, {",
         );
-        expect(parameters.filter_data_type_1).toBe("NUMERIC");
+        expect(compiledQuery).toContain(": String}) = 0");
+        expect(Object.values(parameters)).toContain("NUMERIC");
 
         const result = await (
           await clickhouseClient().query({
@@ -2145,9 +2089,10 @@ describe("queryBuilder", () => {
           metrics: [{ measure: "count", aggregation: "count" }],
           filters: [
             {
-              field: "source",
-              operator: "eq",
+              column: "source",
+              operator: "=",
               value: "auto",
+              type: "string",
             },
           ],
           timeDimension: null,
@@ -2158,12 +2103,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -2265,9 +2208,10 @@ describe("queryBuilder", () => {
           metrics: [{ measure: "count", aggregation: "count" }],
           filters: [
             {
-              field: "stringValue",
-              operator: "eq",
+              column: "stringValue",
+              operator: "=",
               value: "true",
+              type: "string",
             },
           ],
           timeDimension: null,
@@ -2278,12 +2222,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,
@@ -2429,9 +2371,10 @@ describe("queryBuilder", () => {
           metrics: [{ measure: "timeToFirstToken", aggregation: "p95" }],
           filters: [
             {
-              field: "type",
-              operator: "eq",
+              column: "type",
+              operator: "=",
               value: "generation",
+              type: "string",
             },
           ],
           timeDimension: null,
@@ -2442,12 +2385,10 @@ describe("queryBuilder", () => {
             new Date().setDate(new Date().getDate() + 1),
           ).toISOString(),
           orderBy: null,
-          page: 0,
-          limit: 50,
         };
 
         // Execute query
-        const queryBuilder = new QueryBuilder(clickhouseClient());
+        const queryBuilder = new QueryBuilder();
         const { query: compiledQuery, parameters } = queryBuilder.build(
           query,
           projectId,

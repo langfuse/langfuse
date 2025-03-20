@@ -22,38 +22,31 @@ export const TracesBarListChart = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Convert FilterState to QueryType filters
-  const filters = globalFilterState.map((f) => {
-    if (f.type === "datetime") {
-      return {
-        field: "timestamp",
-        operator:
-          f.operator === ">="
-            ? "gte"
-            : f.operator === "<="
-              ? "lte"
-              : f.operator === ">"
-                ? "gt"
-                : f.operator === "<"
-                  ? "lt"
-                  : f.operator === "="
-                    ? "eq"
-                    : "neq",
-        value: f.value.toISOString(),
-      };
+  // Extract datetime filters to use for fromTimestamp and toTimestamp
+  // and collect the remaining filters.
+  // Initialize a 1d window.
+  let fromTimestamp = new Date(
+    new Date().getTime() - 24 * 60 * 60 * 1000,
+  ).toISOString();
+  let toTimestamp = new Date().toISOString();
+  const filters: FilterState = [];
+
+  // Process each filter
+  globalFilterState.forEach((filter) => {
+    if (
+      filter.type === "datetime" &&
+      (filter.column === "timestamp" || filter.column === "startTime")
+    ) {
+      // Extract timestamp filters
+      if (filter.operator === ">=" || filter.operator === ">") {
+        fromTimestamp = filter.value.toISOString();
+      } else if (filter.operator === "<=" || filter.operator === "<") {
+        toTimestamp = filter.value.toISOString();
+      }
+    } else {
+      // Keep all other filters
+      filters.push(filter);
     }
-    return {
-      field: f.column,
-      operator:
-        f.operator === "="
-          ? "eq"
-          : f.operator === "!="
-            ? "neq"
-            : f.operator === "LIKE"
-              ? "contains"
-              : "eq",
-      value: f.value,
-    };
   });
 
   // Total traces query using executeQuery
@@ -63,11 +56,9 @@ export const TracesBarListChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters,
     timeDimension: null,
-    fromTimestamp: null,
-    toTimestamp: null,
+    fromTimestamp,
+    toTimestamp,
     orderBy: null,
-    page: 0,
-    limit: 50,
   };
 
   const totalTraces = api.dashboard.executeQuery.useQuery(
@@ -92,11 +83,9 @@ export const TracesBarListChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters,
     timeDimension: null,
-    fromTimestamp: null,
-    toTimestamp: null,
-    orderBy: [{ field: "count_count", direction: "desc" }],
-    page: 0,
-    limit: 50,
+    fromTimestamp,
+    toTimestamp,
+    orderBy: null,
   };
 
   const traces = api.dashboard.executeQuery.useQuery(
