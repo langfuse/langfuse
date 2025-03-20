@@ -114,10 +114,18 @@ const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
 
 export const invalidateModelCache = async (projectId: string) => {
   const keys = await redis?.keys(`model:${projectId}:*`);
-  if (keys) {
+  if (keys && keys.length > 0) {
     await redis?.del(keys);
   }
   logger.info(`Invalidated model cache for project ${projectId}`);
+};
+
+export const invalidateAllCachedModels = async () => {
+  const keys = await redis?.keys("model:*");
+  if (keys && keys.length > 0) {
+    await redis?.del(keys);
+  }
+  logger.info(`Invalidated all cached models`);
 };
 
 export const getRedisModelKey = (p: ModelMatchProps) => {

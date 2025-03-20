@@ -5,6 +5,7 @@ import {
   findModel,
   findModelInPostgres,
   getRedisModelKey,
+  invalidateAllCachedModels,
   invalidateModelCache,
   redis,
 } from "@langfuse/shared/src/server";
@@ -101,6 +102,58 @@ describe("modelMatch", () => {
 
       const cachedModel = await redis?.get(redisKey);
       expect(cachedModel).toBeNull();
+    });
+
+    it("should invalidate all cached models for a project if no existing models", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await invalidateModelCache(projectId);
+
+      const keys = await redis?.keys("model:*");
+      expect(keys).toEqual([]);
+    });
+
+    it("should invalidate all cached models", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const mockModel = await prisma.model.create({
+        data: {
+          projectId,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({
+        projectId,
+        model: "gpt-4",
+      });
+
+      const { projectId: projectId2 } = await createOrgProjectAndApiKey();
+      const mockModel2 = await prisma.model.create({
+        data: {
+          projectId: projectId2,
+          modelName: "gpt-4",
+          matchPattern: "gpt-4",
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({
+        projectId: projectId2,
+        model: "gpt-4",
+      });
+
+      await invalidateAllCachedModels();
+
+      const keys = await redis?.keys("model:*");
+      expect(keys).toEqual([]);
+    });
+
+    it("should invalidate all caches if no existing models", async () => {
+      await invalidateAllCachedModels();
+
+      const keys = await redis?.keys("model:*");
+      expect(keys).toEqual([]);
     });
   });
 
