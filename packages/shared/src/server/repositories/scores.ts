@@ -27,6 +27,7 @@ import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -378,6 +379,8 @@ export const getScoresUiTable = async (props: {
     source: string;
     data_type: string;
     comment: string | null;
+    // TODO: check this
+    metadata: Record<string, string>;
     trace_id: string;
     observation_id: string | null;
     author_user_id: string | null;
@@ -412,6 +415,8 @@ export const getScoresUiTable = async (props: {
     updatedAt: parseClickhouseUTCDateTimeFormat(row.updated_at),
     stringValue: row.string_value,
     comment: row.comment,
+    // TODO: check this
+    metadata: parseMetadataCHRecordToDomain(row.metadata) ?? {},
     dataType: row.data_type as ScoreDataType,
     source: row.source as ScoreSourceType,
     name: row.name,
@@ -446,6 +451,7 @@ export const getScoresUiGeneric = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
+        s.metadata,
         s.trace_id,
         s.observation_id,
         s.author_user_id,
