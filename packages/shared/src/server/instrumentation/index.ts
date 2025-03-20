@@ -164,9 +164,9 @@ let lastFlushTime = 0;
 let metricCache: Record<string, number> = {};
 
 // Caches metrics and flushes them on schedule
-const sendCloudWatchMetric = (key: string, value: number | undefined) => {
-  // Store the latest value for each metric key
-  metricCache[key] = value ?? 0;
+const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
+  // Store the latest value for each metric key. If replace is false (e.g. for increments) we add the value to the existing value.
+  metricCache[key] = replace ? value : (metricCache[key] || 0) + value;
 
   const currentTime = Date.now();
   const flushInterval = 30 * 1000; // 30 seconds
@@ -213,7 +213,7 @@ export const recordGauge = (
     | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value);
+    sendCloudWatchMetric(stat, value ?? 0, true);
   }
   dd.dogstatsd.gauge(stat, value, tags);
 };
@@ -224,7 +224,7 @@ export const recordIncrement = (
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
   if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value);
+    sendCloudWatchMetric(stat, value ?? 1, false);
   }
   dd.dogstatsd.increment(stat, value, tags);
 };
@@ -234,9 +234,6 @@ export const recordHistogram = (
   value?: number | undefined,
   tags?: { [tag: string]: string | number } | undefined,
 ) => {
-  if (env.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING === "true") {
-    sendCloudWatchMetric(stat, value);
-  }
   dd.dogstatsd.histogram(stat, value, tags);
 };
 
