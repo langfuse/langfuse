@@ -243,10 +243,8 @@ describe("selfServeDashboards", () => {
       );
 
       // 4. Assert that both results match
-      expect(queryBuilderResult.data).toHaveLength(1);
-      expect(Number(queryBuilderResult.data[0].count_count)).toBe(
-        stats.totalTraces,
-      );
+      expect(queryBuilderResult).toHaveLength(1);
+      expect(Number(queryBuilderResult[0].count_count)).toBe(stats.totalTraces);
       expect(Number(legacyResult?.[0]?.countTraceId)).toBe(stats.totalTraces);
     });
 
@@ -295,8 +293,8 @@ describe("selfServeDashboards", () => {
       );
 
       // 3. Assert that both results match and only count production traces
-      expect(prodQueryBuilderResult.data).toHaveLength(1);
-      expect(Number(prodQueryBuilderResult.data[0].count_count)).toBe(
+      expect(prodQueryBuilderResult).toHaveLength(1);
+      expect(Number(prodQueryBuilderResult[0].count_count)).toBe(
         stats.productionTraces,
       );
       expect(Number(prodLegacyResult?.[0]?.countTraceId)).toBe(
@@ -337,8 +335,8 @@ describe("selfServeDashboards", () => {
       );
 
       // 5. Assert development environment results
-      expect(devQueryBuilderResult.data).toHaveLength(1);
-      expect(Number(devQueryBuilderResult.data[0].count_count)).toBe(
+      expect(devQueryBuilderResult).toHaveLength(1);
+      expect(Number(devQueryBuilderResult[0].count_count)).toBe(
         stats.developmentTraces,
       );
       expect(Number(devLegacyResult?.[0]?.countTraceId)).toBe(
@@ -397,8 +395,8 @@ describe("selfServeDashboards", () => {
       );
 
       // 3. Assert that both results match and only count recent production traces
-      expect(queryBuilderResult.data).toHaveLength(1);
-      expect(Number(queryBuilderResult.data[0].count_count)).toBe(
+      expect(queryBuilderResult).toHaveLength(1);
+      expect(Number(queryBuilderResult[0].count_count)).toBe(
         stats.recentProductionTraces,
       );
       expect(legacyResult?.[0]?.countTraceId).toBe(
@@ -442,7 +440,7 @@ describe("selfServeDashboards", () => {
       // Verify results match the expected trace counts by name
       Object.keys(stats.traceCounts).forEach((traceName) => {
         const countFromLegacy = legacyResultMap.get(traceName);
-        const resultRow = queryBuilderResult.data.find(
+        const resultRow = queryBuilderResult.find(
           (row: any) => row.name === traceName,
         );
 
@@ -454,7 +452,7 @@ describe("selfServeDashboards", () => {
 
       // Verify both result sets have the same number of rows
       expect(legacyResult.length).toBe(Object.keys(stats.traceCounts).length);
-      expect(queryBuilderResult.data.length).toBe(
+      expect(queryBuilderResult.length).toBe(
         Object.keys(stats.traceCounts).length,
       );
     });
@@ -508,7 +506,7 @@ describe("selfServeDashboards", () => {
 
       // Verify both results have the expected number of rows
       expect(legacyResult.length).toBe(productionTraceNames.length);
-      expect(queryBuilderResult.data.length).toBe(productionTraceNames.length);
+      expect(queryBuilderResult.length).toBe(productionTraceNames.length);
 
       // Create easy-to-use maps for comparison
       const legacyResultMap = new Map(
@@ -518,7 +516,7 @@ describe("selfServeDashboards", () => {
       // Check each production trace name is present with correct count
       productionTraceNames.forEach((traceName) => {
         const countFromLegacy = legacyResultMap.get(traceName);
-        const resultRow = queryBuilderResult.data.find(
+        const resultRow = queryBuilderResult.find(
           (row: any) => row.name === traceName,
         );
 
@@ -559,7 +557,7 @@ describe("selfServeDashboards", () => {
       );
 
       // 4. Verify both results
-      expect(queryBuilderResult.data).toBeDefined();
+      expect(queryBuilderResult).toBeDefined();
       expect(legacyResult).toBeDefined();
 
       // Create maps for easier comparison
@@ -568,7 +566,7 @@ describe("selfServeDashboards", () => {
       );
 
       // Verify each model's costs and token usage match
-      queryBuilderResult.data.forEach((row: any) => {
+      queryBuilderResult.forEach((row: any) => {
         const modelName = row.provided_model_name;
         const legacyModelData = legacyResultMap.get(modelName);
 
@@ -578,7 +576,7 @@ describe("selfServeDashboards", () => {
       });
 
       // Verify both result sets have the same number of models
-      expect(legacyResult.length).toBe(queryBuilderResult.data.length);
+      expect(legacyResult.length).toBe(queryBuilderResult.length);
     });
 
     it("should filter observations by environment", async () => {
@@ -632,7 +630,7 @@ describe("selfServeDashboards", () => {
 
       // Verify both results have the expected number of rows
       expect(legacyResult.length).toBe(productionModels.length);
-      expect(queryBuilderResult.data.length).toBe(productionModels.length);
+      expect(queryBuilderResult.length).toBe(productionModels.length);
 
       // Create maps for easier comparison
       const legacyResultMap = new Map(
@@ -640,7 +638,7 @@ describe("selfServeDashboards", () => {
       );
 
       // Verify each production model is present with correct costs
-      queryBuilderResult.data.forEach((row: any) => {
+      queryBuilderResult.forEach((row: any) => {
         const modelName = row.provided_model_name;
         const legacyModelData = legacyResultMap.get(modelName);
 
@@ -712,7 +710,7 @@ describe("selfServeDashboards", () => {
       );
 
       // 5. Verify both results
-      expect(queryBuilderNumericResult.data).toBeDefined();
+      expect(queryBuilderNumericResult).toBeDefined();
       expect(legacyResult).toBeDefined();
 
       // Check that all numeric scores from legacy query are present in new query
@@ -721,7 +719,7 @@ describe("selfServeDashboards", () => {
       legacyResult.forEach((legacyScore) => {
         // Only check numeric scores here
         if (legacyScore.data_type === "numeric") {
-          const matchingRow = queryBuilderNumericResult.data.find(
+          const matchingRow = queryBuilderNumericResult.find(
             (row: any) =>
               row.name === legacyScore.name &&
               row.source === legacyScore.source &&
@@ -744,12 +742,9 @@ describe("selfServeDashboards", () => {
       const categoricalScores = legacyResult.filter(
         (score) => score.data_type === "categorical",
       );
-      if (
-        categoricalScores.length > 0 &&
-        queryBuilderCatResult.data.length > 0
-      ) {
+      if (categoricalScores.length > 0 && queryBuilderCatResult.length > 0) {
         categoricalScores.forEach((legacyScore) => {
-          const matchingRow = queryBuilderCatResult.data.find(
+          const matchingRow = queryBuilderCatResult.find(
             (row: any) =>
               row.name === legacyScore.name &&
               row.source === legacyScore.source &&
@@ -820,7 +815,7 @@ describe("selfServeDashboards", () => {
       // 5. Verify results
       // Production environment should only include certain scores (based on test data)
       // We can check if both results have the same number of scores for production
-      expect(queryBuilderResult.data.length).toBe(
+      expect(queryBuilderResult.length).toBe(
         legacyResult.filter((score) => score.data_type === "numeric").length,
       );
 
@@ -828,7 +823,7 @@ describe("selfServeDashboards", () => {
       legacyResult
         .filter((score) => score.data_type === "numeric")
         .forEach((legacyScore) => {
-          const matchingRow = queryBuilderResult.data.find(
+          const matchingRow = queryBuilderResult.find(
             (row: any) =>
               row.name === legacyScore.name &&
               row.source === legacyScore.source &&
@@ -890,14 +885,14 @@ describe("selfServeDashboards", () => {
       // Both results should be between 70 and 80 rows
       expect(legacyResult.length).toBeGreaterThanOrEqual(70);
       expect(legacyResult.length).toBeLessThanOrEqual(80);
-      expect(queryBuilderResult.data.length).toBeGreaterThanOrEqual(70);
-      expect(queryBuilderResult.data.length).toBeLessThanOrEqual(80);
+      expect(queryBuilderResult.length).toBeGreaterThanOrEqual(70);
+      expect(queryBuilderResult.length).toBeLessThanOrEqual(80);
 
       // Compare the non-zero results to each other. The legacy setup should have more empty records in the future
       // so the indexing should match up.
       legacyResult.forEach((result, index) => {
         if (result.countTraceId > 0) {
-          const queryBuilderRow = queryBuilderResult.data[index];
+          const queryBuilderRow = queryBuilderResult[index];
           expect(queryBuilderRow).toBeDefined();
           expect(Number(queryBuilderRow.count_count)).toBe(result.countTraceId);
         }
