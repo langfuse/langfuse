@@ -69,6 +69,11 @@ interface DataTableToolbarProps<TData, TValue> {
     onValueChange: (values: string[]) => void;
     options: { value: string }[];
   };
+  traceTagsFilter?: {
+    values: string[];
+    onValueChange: (values: string[]) => void;
+    options: { value: string }[];
+  };
   className?: string;
 }
 
@@ -90,6 +95,7 @@ export function DataTableToolbar<TData, TValue>({
   setDateRangeAndOption,
   multiSelect,
   environmentFilter,
+  traceTagsFilter,
   className,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
@@ -148,6 +154,16 @@ export function DataTableToolbar<TData, TValue>({
             values={environmentFilter.values}
             onValueChange={environmentFilter.onValueChange}
             options={environmentFilter.options}
+            className="my-0 w-auto overflow-hidden"
+          />
+        )}
+        {traceTagsFilter && (
+          <MultiSelect
+            title="Trace Tags"
+            label="Tags"
+            values={traceTagsFilter.values}
+            onValueChange={traceTagsFilter.onValueChange}
+            options={traceTagsFilter.options}
             className="my-0 w-auto overflow-hidden"
           />
         )}
