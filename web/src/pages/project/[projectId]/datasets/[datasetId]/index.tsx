@@ -146,7 +146,7 @@ export default function Dataset() {
             </TabsBarList>
           </TabsBar>
         ),
-        actionButtonsRight: [
+        actionButtonsRight: (
           <>
             <Dialog
               open={isCreateExperimentDialogOpen}
@@ -278,8 +278,8 @@ export default function Dataset() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>,
-        ],
+          </>
+        ),
       }}
     >
       <DatasetRunsTable
