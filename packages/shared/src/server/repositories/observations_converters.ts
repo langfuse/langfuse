@@ -9,7 +9,7 @@ import {
   ObservationType,
   ObservationLevelType,
 } from "./types";
-import { parseMetadataCHRecordToDomain } from "../utils/metadata_converters";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export const convertObservationToView = (
   record: ObservationRecordReadType,
