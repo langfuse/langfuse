@@ -321,6 +321,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
     // Datadog RUM configuration
+    NEXT_PUBLIC_DATADOG_ENVIRONMENT: z.string().optional(),
     NEXT_PUBLIC_DATADOG_APPLICATION_ID: z.string().optional(),
     NEXT_PUBLIC_DATADOG_CLIENT_TOKEN: z.string().optional(),
     NEXT_PUBLIC_DATADOG_SITE: z
@@ -333,7 +334,6 @@ export const env = createEnv({
         "ap1.datadoghq.com",
       ])
       .optional(),
-    NEXT_PUBLIC_DATADOG_ENVIRONMENT: z.string().optional(),
     NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE: z.coerce
       .number()
       .int()
