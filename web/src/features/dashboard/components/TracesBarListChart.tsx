@@ -104,14 +104,13 @@ export const TracesBarListChart = ({
   );
 
   // Transform the data to match the expected format for the BarList
-  const transformedTraces = traces.data?.data
-    ? traces.data.data.map((item: any) => {
-        return {
-          name: item.name ? (item.name as string) : "Unknown",
-          value: Number(item.count_count),
-        };
-      })
-    : [];
+  const transformedTraces =
+    traces.data?.map((item: any) => {
+      return {
+        name: item.name ? (item.name as string) : "Unknown",
+        value: Number(item.count_count),
+      };
+    }) ?? [];
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 };
 
@@ -129,8 +128,8 @@ export const TracesBarListChart = ({
       <>
         <TotalMetric
           metric={compactNumberFormatter(
-            totalTraces.data?.data?.[0]?.count_count
-              ? Number(totalTraces.data.data[0].count_count)
+            totalTraces.data?.[0]?.count_count
+              ? Number(totalTraces.data[0].count_count)
               : 0,
           )}
           description={"Total traces tracked"}

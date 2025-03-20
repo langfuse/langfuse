@@ -308,7 +308,7 @@ const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
 export async function executeQuery(
   projectId: string,
   query: QueryType,
-): Promise<unknown> {
+): Promise<Array<Record<string, unknown>>> {
   try {
     // Initialize query builder with ClickHouse client
     const queryBuilder = new QueryBuilder();
@@ -326,7 +326,7 @@ export async function executeQuery(
     });
 
     // Return the result
-    return result.json();
+    return (await result.json<Record<string, unknown>>()).data;
   } catch (error) {
     logger.error("Error executing query", { error, projectId, query });
     throw new TRPCError({
