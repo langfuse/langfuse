@@ -16,7 +16,6 @@ import {
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   eventTypes,
-  findModel,
   IngestionEventType,
   instrumentAsync,
   logger,
@@ -50,6 +49,7 @@ import {
 } from "./utils";
 import { randomUUID } from "crypto";
 import { env } from "../../env";
+import { findModel } from "../modelMatch";
 
 type InsertRecord =
   | TraceRecordInsertType
@@ -607,10 +607,8 @@ export class IngestionService {
   > {
     const { projectId, observationRecord } = params;
     const internalModel = await findModel({
-      event: {
-        projectId,
-        model: observationRecord.provided_model_name ?? undefined,
-      },
+      projectId,
+      model: observationRecord.provided_model_name ?? undefined,
     });
 
     logger.debug(
