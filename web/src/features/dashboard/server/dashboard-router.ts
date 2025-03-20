@@ -15,7 +15,7 @@ import {
   getTracesGroupedByName,
   getObservationsCostGroupedByName,
   getScoreAggregate,
-  getObservationUsageByTime,
+  getObservationUsageByTime as getObservationTotalCostByModelByTime,
   groupTracesByTime,
   getDistinctModels,
   getScoresAggregateOverTime,
@@ -30,6 +30,7 @@ import {
   getObservationsStatusTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
+  getObservationTotalCostByTypeByTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -47,7 +48,7 @@ export const dashboardRouter = createTRPCRouter({
             "observations-model-cost",
             "score-aggregate",
             "traces-timeseries",
-            "observations-usage-timeseries",
+            "observations-total-cost-by-model-timeseries",
             "distinct-models",
             "scores-aggregate-timeseries",
             "observations-usage-by-users",
@@ -125,21 +126,32 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rows as DatabaseRow[];
-        case "observations-usage-timeseries":
+        case "observations-total-cost-by-model-timeseries":
           const dateTruncObs = extractTimeSeries(input.groupBy);
           if (!dateTruncObs) {
             return [];
           }
-          const rowsObs = await getObservationUsageByTime(
+          const rowsObs = await getObservationTotalCostByModelByTime(
             input.projectId,
             input.filter ?? [],
           );
 
           return rowsObs.map((row) => ({
             startTime: row.start_time,
-            units: row.units,
             cost: row.cost,
             model: row.provided_model_name,
+          })) as DatabaseRow[];
+
+        case "observations-total-cost-by-type-timeseries":
+          const rowsObsType = await getObservationTotalCostByTypeByTime(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          return rowsObsType.map((row) => ({
+            startTime: row.start_time,
+            cost: row.cost,
+            type: row.type,
           })) as DatabaseRow[];
 
         case "distinct-models":

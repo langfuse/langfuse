@@ -51,7 +51,7 @@ export const ModelUsageChart = ({
     handleSelectAll,
   } = useModelSelection(projectId, globalFilterState);
 
-  const queryResult = api.dashboard.chart.useQuery(
+  const totalCostTimeSeriesQuery = api.dashboard.chart.useQuery(
     {
       projectId,
       from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
@@ -86,7 +86,7 @@ export const ModelUsageChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
-      queryName: "observations-usage-timeseries",
+      queryName: "observations-total-cost-by-model-timeseries",
     },
     {
       enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
@@ -98,86 +98,68 @@ export const ModelUsageChart = ({
     },
   );
 
-  const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
-
-  const usageTypeMap = prepareUsageDataForTimeseriesChart(
-    selectedModels,
-    typedData,
+  const costByTypeTimeSeriesQuery = api.dashboard.chart.useQuery(
+    {
+      projectId,
+      from: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION // Langfuse Cloud has already completed the cost backfill job, thus cost can be pulled directly from obs. table
+        ? "traces_observations"
+        : "traces_observationsview",
+      select: [
+        { column: "totalTokens", agg: "SUM" },
+        { column: "calculatedTotalCost", agg: "SUM" },
+        { column: "model" },
+      ],
+      filter: [
+        ...globalFilterState,
+        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+        {
+          type: "stringOptions",
+          column: "model",
+          operator: "any of",
+          value: selectedModels,
+        } as const,
+      ],
+      groupBy: [
+        {
+          type: "datetime",1
+          column: "startTime",
+          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
+        },
+        {
+          type: "string",
+          column: "model",
+        },
+      ],
+      orderBy: [
+        { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
+      ],
+      queryName: "observations-total-cost-by-type-timeseries",
+    },
+    {
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
   );
 
-  const usageData = Array.from(usageTypeMap.get("total")?.values() ?? []);
-
-  const currentModels = [
-    ...new Set(usageData.map((row) => row.model).filter(Boolean)),
-  ];
-
-  const unitsByType =
-    usageData && allModels.length > 0
+  const totalCostTimeSeries =
+    totalCostTimeSeriesQuery.data && selectedModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(usageData, "startTime", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "usageType" }],
-              valueColumn: "units",
-            },
-          ]),
-          Array.from(usageTypeMap.keys()),
-        )
-      : [];
-
-  const unitsByModel =
-    usageData && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(usageData, "startTime", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "model" }],
-              valueColumn: "units",
-            },
-          ]),
-          currentModels,
-        )
-      : [];
-
-  const costByType =
-    usageData && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(usageData, "startTime", [
-            {
-              uniqueIdentifierColumns: [{ accessor: "usageType" }],
-              valueColumn: "cost",
-            },
-          ]),
-          Array.from(usageTypeMap.keys()),
-        )
-      : [];
-
-  const costByModel =
-    usageData && allModels.length > 0
-      ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(usageData, "startTime", [
+          extractTimeSeriesData(totalCostTimeSeriesQuery.data, "startTime", [
             {
               uniqueIdentifierColumns: [{ accessor: "model" }],
               valueColumn: "cost",
             },
           ]),
-          currentModels,
+          selectedModels,
         )
       : [];
 
-  const totalCost = usageData?.reduce(
-    (acc, curr) =>
-      acc +
-      (curr.usageType === "total" && !isNaN(curr.cost as number)
-        ? (curr.cost as number)
-        : 0),
-    0,
-  );
-
-  const totalTokens = usageData?.reduce(
-    (acc, curr) =>
-      acc +
-      (curr.usageType === "total" && !isNaN(curr.units as number)
-        ? (curr.units as number)
-        : 0),
+  const totalCost = totalCostTimeSeriesQuery.data?.reduce(
+    (acc, curr) => acc + (curr.cost as number),
     0,
   );
 
@@ -190,34 +172,34 @@ export const ModelUsageChart = ({
   const data = [
     {
       tabTitle: "Cost by model",
-      data: costByModel,
+      data: totalCostTimeSeries,
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
       formatter: oneValueUsdFormatter,
     },
-    {
-      tabTitle: "Cost by type",
-      data: costByType,
-      totalMetric: totalCostDashboardFormatted(totalCost),
-      metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
-    },
-    {
-      tabTitle: "Units by model",
-      data: unitsByModel,
-      totalMetric: totalTokens
-        ? compactNumberFormatter(totalTokens)
-        : compactNumberFormatter(0),
-      metricDescription: `Units`,
-    },
-    {
-      tabTitle: "Units by type",
-      data: unitsByType,
-      totalMetric: totalTokens
-        ? compactNumberFormatter(totalTokens)
-        : compactNumberFormatter(0),
-      metricDescription: `Units`,
-    },
+    // {
+    //   tabTitle: "Cost by type",
+    //   data: costByType,
+    //   totalMetric: totalCostDashboardFormatted(totalCost),
+    //   metricDescription: `Cost`,
+    //   formatter: oneValueUsdFormatter,
+    // },
+    // {
+    //   tabTitle: "Units by model",
+    //   data: unitsByModel,
+    //   totalMetric: totalTokens
+    //     ? compactNumberFormatter(totalTokens)
+    //     : compactNumberFormatter(0),
+    //   metricDescription: `Units`,
+    // },
+    // {
+    //   tabTitle: "Units by type",
+    //   data: unitsByType,
+    //   totalMetric: totalTokens
+    //     ? compactNumberFormatter(totalTokens)
+    //     : compactNumberFormatter(0),
+    //   metricDescription: `Units`,
+    // },
   ];
 
   return (
@@ -225,7 +207,8 @@ export const ModelUsageChart = ({
       className={className}
       title="Model Usage"
       isLoading={
-        isLoading || (queryResult.isLoading && selectedModels.length > 0)
+        isLoading ||
+        (totalCostTimeSeriesQuery.isLoading && selectedModels.length > 0)
       }
       headerRight={
         <div className="flex items-center justify-end">
@@ -275,10 +258,12 @@ export const ModelUsageChart = ({
   );
 };
 
-export function prepareUsageDataForTimeseriesChart(
-  selectedModels: string[],
+export const createUsageTypeMap = (
+  usageTypes: string[],
+  uniqueDates: number[],
+  uniqueModels: string[],
   typedData: ModelUsageReturnType[],
-) {
+) => {
   const usageTypeMap = new Map<
     string,
     {
@@ -290,17 +275,7 @@ export function prepareUsageDataForTimeseriesChart(
     }[]
   >();
 
-  const allUsageUnits = [
-    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
-  ];
-
-  const uniqueDates = [
-    ...new Set(typedData.flatMap((r) => new Date(r.startTime).getTime())),
-  ];
-
-  const uniqueModels = [...new Set(selectedModels)];
-
-  allUsageUnits.forEach((uu) => {
+  usageTypes.forEach((uu) => {
     const unitEntries: {
       startTime: string;
       units: number;
@@ -333,4 +308,4 @@ export function prepareUsageDataForTimeseriesChart(
   });
 
   return usageTypeMap;
-}
+};
