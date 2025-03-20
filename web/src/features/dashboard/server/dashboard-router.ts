@@ -37,7 +37,7 @@ import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import {
   type QueryType,
   query as customQuery,
-} from "@/src/features/query/server/types";
+} from "@/src/features/query/types";
 import { clickhouseClient } from "@langfuse/shared/src/server";
 
 export const dashboardRouter = createTRPCRouter({

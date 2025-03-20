@@ -12,7 +12,7 @@ import {
   groupTracesByTime,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
-import { type QueryType } from "@/src/features/query/server/types";
+import { type QueryType } from "@/src/features/query/types";
 import { executeQuery } from "@/src/features/dashboard/server/dashboard-router";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
 

@@ -7,6 +7,7 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { type QueryType } from "@/src/features/query/types";
 
 export const TracesBarListChart = ({
   className,
@@ -20,17 +21,59 @@ export const TracesBarListChart = ({
   isLoading?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const timeFilter = globalFilterState.map((f) =>
-    f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-  );
 
-  const totalTraces = api.dashboard.chart.useQuery(
+  // Convert FilterState to QueryType filters
+  const filters = globalFilterState.map((f) => {
+    if (f.type === "datetime") {
+      return {
+        field: "timestamp",
+        operator:
+          f.operator === ">="
+            ? "gte"
+            : f.operator === "<="
+              ? "lte"
+              : f.operator === ">"
+                ? "gt"
+                : f.operator === "<"
+                  ? "lt"
+                  : f.operator === "="
+                    ? "eq"
+                    : "neq",
+        value: f.value.toISOString(),
+      };
+    }
+    return {
+      field: f.column,
+      operator:
+        f.operator === "="
+          ? "eq"
+          : f.operator === "!="
+            ? "neq"
+            : f.operator === "LIKE"
+              ? "contains"
+              : "eq",
+      value: f.value,
+    };
+  });
+
+  // Total traces query using executeQuery
+  const totalTracesQuery: QueryType = {
+    view: "traces",
+    dimensions: [],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters,
+    timeDimension: null,
+    fromTimestamp: null,
+    toTimestamp: null,
+    orderBy: null,
+    page: 0,
+    limit: 50,
+  };
+
+  const totalTraces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }],
-      filter: timeFilter,
-      queryName: "traces-total",
+      query: totalTracesQuery,
     },
     {
       trpc: {
@@ -42,15 +85,24 @@ export const TracesBarListChart = ({
     },
   );
 
-  const traces = api.dashboard.chart.useQuery(
+  // Traces grouped by name query using executeQuery
+  const tracesQuery: QueryType = {
+    view: "traces",
+    dimensions: [{ field: "name" }],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters,
+    timeDimension: null,
+    fromTimestamp: null,
+    toTimestamp: null,
+    orderBy: [{ field: "count_count", direction: "desc" }],
+    page: 0,
+    limit: 50,
+  };
+
+  const traces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }, { column: "traceName" }],
-      filter: timeFilter,
-      groupBy: [{ column: "traceName", type: "string" }],
-      orderBy: [{ column: "traceId", direction: "DESC", agg: "COUNT" }],
-      queryName: "traces-grouped-by-name",
+      query: tracesQuery,
     },
     {
       trpc: {
@@ -62,11 +114,12 @@ export const TracesBarListChart = ({
     },
   );
 
-  const transformedTraces = traces.data
-    ? traces.data.map((item) => {
+  // Transform the data to match the expected format for the BarList
+  const transformedTraces = traces.data?.data
+    ? traces.data.data.map((item: any) => {
         return {
-          name: item.traceName ? (item.traceName as string) : "Unknown",
-          value: item.countTraceId as number,
+          name: item.name ? (item.name as string) : "Unknown",
+          value: Number(item.count_count),
         };
       })
     : [];
@@ -87,7 +140,9 @@ export const TracesBarListChart = ({
       <>
         <TotalMetric
           metric={compactNumberFormatter(
-            totalTraces.data?.[0]?.countTraceId as number,
+            totalTraces.data?.data?.[0]?.count_count
+              ? Number(totalTraces.data.data[0].count_count)
+              : 0,
           )}
           description={"Total traces tracked"}
         />

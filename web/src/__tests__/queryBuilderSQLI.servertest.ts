@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType } from "@/src/features/query/server/types";
+import { type QueryType } from "@/src/features/query/types";
 import { TRPCError } from "@trpc/server";
 import { executeQuery } from "@/src/features/dashboard/server/dashboard-router";
 

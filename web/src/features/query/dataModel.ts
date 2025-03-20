@@ -3,7 +3,7 @@ import {
   type views,
   type ViewDeclarationType,
   type DimensionsDeclarationType,
-} from "@/src/features/query/server/types";
+} from "@/src/features/query/types";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 

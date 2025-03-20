@@ -8,8 +8,8 @@ import {
   type ViewDeclarationType,
   type views,
   query as queryModel,
-} from "./types";
-import { viewDeclarations } from "@/src/features/query/server/dataModel";
+} from "../types";
+import { viewDeclarations } from "@/src/features/query/dataModel";
 
 export class QueryBuilder {
   constructor(private clickhouseClient: ClickhouseClientType) {}
