@@ -1,3 +1,7 @@
+import {
+  extractTimeSeriesData,
+  fillMissingValuesAndTransform,
+} from "@/src/features/dashboard/components/hooks";
 import { prepareUsageDataForTimeseriesChart } from "@/src/features/dashboard/components/ModelUsageChart";
 import { orderByTimeSeries } from "@langfuse/shared/src/server";
 
@@ -90,37 +94,87 @@ describe("orderByTimeSeries", () => {
   });
 
   describe("aggregate time series for model cost and usage", () => {
-    it("should aggregate time series for model cost and usage", async () => {
+    it.only("should aggregate time series for model cost and usage", async () => {
       const metricHistory = prepareUsageDataForTimeseriesChart(
-        ["gpt-4o-mini", "text-embedding-ada-002"],
+        ["claude-3-5-sonnet-20241022", "gpt-4o", "gpt-4o-mini"],
         [
           {
-            startTime: "2025-02-10T13:30:00.000Z",
+            startTime: "2025-03-19T17:00:00.000Z",
             units: {
-              input: 422,
-              output: 61,
-              total: 483,
+              input: 1099851,
+              input_audio: 0,
+              input_cache_read: 99584,
+              output: 155855,
+              output_audio: 0,
+              output_reasoning: 0,
+              total: 1355290,
             },
             cost: {
-              input: 0.0000633,
-              output: 0.0000366,
-              total: 0.0000999,
+              input: 2.7496275,
+              input_cache_read: 0.12448,
+              output: 1.55855,
+              total: 4.432657499912,
+            },
+            model: "gpt-4o",
+          },
+          {
+            startTime: "2025-03-19T17:00:00.000Z",
+            units: {
+              input: 490056,
+              input_audio: 0,
+              input_cache_read: 0,
+              output: 89104,
+              output_audio: 0,
+              output_reasoning: 0,
+              total: 579160,
+            },
+            cost: {
+              input: 0.0735084,
+              input_cache_read: 0,
+              output: 0.0534624,
+              total: 0.126970799902,
             },
             model: "gpt-4o-mini",
           },
           {
-            startTime: "2025-02-10T13:30:00.000Z",
+            startTime: "2025-03-19T17:00:00.000Z",
             units: {
-              input: 6,
-              total: 6,
+              input: 1356464,
+              input_cache_creation: 0,
+              input_cache_read: 0,
+              output: 319454,
+              total: 1675918,
             },
             cost: {
-              total: 6e-7,
+              input: 4.069392,
+              input_cache_creation: 0,
+              input_cache_read: 0,
+              output: 4.79181,
+              total: 8.861201999873,
             },
-            model: "text-embedding-ada-002",
+            model: "claude-3-5-sonnet-20241022",
           },
         ],
       );
+
+      console.log(metricHistory);
+
+      const usageData = Array.from(metricHistory.get("total")?.values() ?? []);
+
+      const unitsByModel = fillMissingValuesAndTransform(
+        extractTimeSeriesData(usageData, "startTime", [
+          {
+            uniqueIdentifierColumns: [
+              { accessor: "model" },
+              { accessor: "total" },
+            ],
+            valueColumn: "cost",
+          },
+        ]),
+        ["claude-3-5-sonnet-20241022", "gpt-4o", "gpt-4o-mini"],
+      );
+
+      console.log(JSON.stringify(unitsByModel, null, 2));
 
       expect(metricHistory.get("total")).toEqual([
         {

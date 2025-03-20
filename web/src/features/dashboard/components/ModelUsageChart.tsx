@@ -105,7 +105,7 @@ export const ModelUsageChart = ({
     typedData,
   );
 
-  const usageData = Array.from(usageTypeMap.values()).flat();
+  const usageData = Array.from(usageTypeMap.get("total")?.values() ?? []);
 
   const currentModels = [
     ...new Set(usageData.map((row) => row.model).filter(Boolean)),
