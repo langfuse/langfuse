@@ -27,6 +27,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { ModelMatchProps } from "./modelMatch";
 
 let s3StorageServiceClient: StorageService;
 
@@ -44,10 +45,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-export type TokenCountDelegate = (p: {
-  model: Model;
-  text: unknown;
-}) => number | undefined;
+export type TokenCountDelegate = (p: ModelMatchProps) => number | undefined;
 
 /**
  * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between

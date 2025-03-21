@@ -4,8 +4,6 @@ import { prisma } from "../../db";
 import { recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
-import z from "zod";
-import { jsonSchema } from "../../utils/zod";
 import Decimal from "decimal.js";
 
 export type ModelMatchProps = {
