@@ -1,7 +1,7 @@
 import { env } from "../../env";
 import { Model, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
-import { recordIncrement } from "../instrumentation";
+import { instrumentAsync, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
 import Decimal from "decimal.js";
@@ -12,26 +12,47 @@ export type ModelMatchProps = {
 };
 
 export async function findModel(p: ModelMatchProps): Promise<Model | null> {
-  logger.debug(`Finding model for ${JSON.stringify(p)}`);
-  const redisModel = await getModelFromRedis(p);
-  if (redisModel) {
-    logger.debug(
-      `Found model name ${redisModel?.modelName} (id: ${redisModel?.id}) for project ${p.projectId} and model ${p.model}`,
-    );
-    return redisModel;
-  }
+  return instrumentAsync(
+    {
+      name: "model-match",
+      traceScope: "model-match",
+    },
+    async (span) => {
+      logger.debug(`Finding model for ${JSON.stringify(p)}`);
+      const redisModel = await getModelFromRedis(p);
+      if (redisModel) {
+        span.setAttribute("matched_model_id", redisModel.id);
+        span.setAttribute("model_match_source", "redis");
 
-  // try to find model in Postgres
-  const postgresModel = await findModelInPostgres(p);
+        logger.debug(
+          `Found model name ${redisModel?.modelName} (id: ${redisModel?.id}) for project ${p.projectId} and model ${p.model}`,
+        );
+        return redisModel;
+      }
 
-  if (postgresModel && env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
-    await addModelToRedis(p, postgresModel);
-  }
+      // try to find model in Postgres
+      const postgresModel = await findModelInPostgres(p);
 
-  logger.debug(
-    `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
+      if (postgresModel && env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+        await addModelToRedis(p, postgresModel);
+
+        span.setAttribute("matched_model_id", postgresModel.id);
+        span.setAttribute("model_match_source", "postgres");
+        span.setAttribute("model_cache_set", "true");
+      } else if (postgresModel) {
+        span.setAttribute("matched_model_id", postgresModel.id);
+        span.setAttribute("model_match_source", "postgres");
+        span.setAttribute("model_cache_set", "false");
+      } else {
+        span.setAttribute("model_matched", "false");
+      }
+
+      logger.debug(
+        `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
+      );
+      return postgresModel;
+    },
   );
-  return postgresModel;
 }
 
 const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
