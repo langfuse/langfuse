@@ -203,6 +203,13 @@ const extractInputAndOutput = (
     return { input, output };
   }
 
+  // Pydantic uses input and output
+  input = attributes["input"];
+  output = attributes["output"];
+  if (input || output) {
+    return { input, output };
+  }
+
   // TraceLoop uses attributes property
   const inputAttributes = Object.keys(attributes).filter((key) =>
     key.startsWith("gen_ai.prompt"),
@@ -296,6 +303,14 @@ const extractModelParameters = (
   if (attributes["llm.invocation_parameters"]) {
     try {
       return JSON.parse(attributes["llm.invocation_parameters"] as string);
+    } catch (e) {
+      // fallthrough
+    }
+  }
+
+  if (attributes["model_config"]) {
+    try {
+      return JSON.parse(attributes["model_config"] as string);
     } catch (e) {
       // fallthrough
     }
