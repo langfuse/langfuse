@@ -5,8 +5,16 @@
 await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
-import { DATADOG_SITE } from "./src/features/datadog/datadog-init";
 
+export const DATADOG_SITE = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  ? env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "US"
+    ? "datadoghq.com"
+    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "EU"
+      ? "datadoghq.eu"
+      : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION == "STAGING"
+        ? "datadoghq.eu"
+        : "datadoghq.com"
+  : "datadoghq.com";
 /**
  * CSP headers
  * img-src https to allow loading images from SSO providers
