@@ -2,7 +2,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { logger, QueueName, getQueue } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
 
 /* 
 This API route is used by Langfuse Cloud to retry failed bullmq jobs.
