@@ -1,3 +1,4 @@
+import React from "react";
 import { Lock, AlertCircle, Sparkle } from "lucide-react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
@@ -28,19 +29,25 @@ interface ActionButtonProps extends ButtonProps {
   href?: string;
 }
 
-export function ActionButton({
-  loading = false,
-  hasAccess = true,
-  hasEntitlement = true,
-  limitValue,
-  limit = false,
-  disabled = false,
-  children,
-  icon,
-  className,
-  href,
-  ...buttonProps
-}: ActionButtonProps) {
+export const ActionButton = React.forwardRef<
+  HTMLButtonElement,
+  ActionButtonProps
+>(function ActionButton(
+  {
+    loading = false,
+    hasAccess = true,
+    hasEntitlement = true,
+    limitValue,
+    limit = false,
+    disabled = false,
+    children,
+    icon,
+    className,
+    href,
+    ...buttonProps
+  },
+  ref,
+) {
   const hasReachedLimit =
     typeof limit === "number" &&
     limitValue !== undefined &&
@@ -65,6 +72,7 @@ export function ActionButton({
 
   const btnContent = (
     <ButtonContent
+      ref={ref}
       icon={icon}
       isDisabled={isDisabled}
       loading={loading}
@@ -95,31 +103,37 @@ export function ActionButton({
   }
 
   return btnContent;
-}
+});
 
-function ButtonContent({
-  icon,
-  isDisabled,
-  loading,
-  hasAccess,
-  hasEntitlement,
-  hasReachedLimit,
-  className,
-  buttonProps,
-  children,
-  href,
-}: {
-  icon?: React.ReactNode;
-  isDisabled: boolean;
-  loading: boolean;
-  hasAccess: boolean;
-  hasEntitlement: boolean;
-  hasReachedLimit: boolean;
-  className?: string;
-  buttonProps: Omit<ButtonProps, "disabled" | "loading" | "className">;
-  children: React.ReactNode;
-  href?: string;
-}) {
+const ButtonContent = React.forwardRef<
+  HTMLButtonElement,
+  {
+    icon?: React.ReactNode;
+    isDisabled: boolean;
+    loading: boolean;
+    hasAccess: boolean;
+    hasEntitlement: boolean;
+    hasReachedLimit: boolean;
+    className?: string;
+    buttonProps: Omit<ButtonProps, "disabled" | "loading" | "className">;
+    children: React.ReactNode;
+    href?: string;
+  }
+>(function ButtonContent(
+  {
+    icon,
+    isDisabled,
+    loading,
+    hasAccess,
+    hasEntitlement,
+    hasReachedLimit,
+    className,
+    buttonProps,
+    children,
+    href,
+  },
+  ref,
+) {
   const content = (
     <>
       {!hasAccess ? (
@@ -139,6 +153,7 @@ function ButtonContent({
 
   return (
     <Button
+      ref={ref}
       disabled={isDisabled}
       loading={loading}
       className={className}
@@ -148,4 +163,4 @@ function ButtonContent({
       {renderLink ? <Link href={href}>{content}</Link> : content}
     </Button>
   );
-}
+});
