@@ -47,15 +47,16 @@ const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
       env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
     );
     if (redisModel) {
-      recordIncrement("langfuse.model-match.cache_hit", 1);
+      recordIncrement("langfuse.model_match.cache_hit", 1);
       const model = redisModelToPrismaModel(redisModel);
       return model;
     }
-    recordIncrement("langfuse.model-match.cache_miss", 1);
+    recordIncrement("langfuse.model_match.cache_miss", 1);
     return null;
   } catch (error) {
     logger.error(
-      `Error getting model for ${JSON.stringify(p)} from Redis: ${error}`,
+      `Error getting model for ${JSON.stringify(p)} from Redis`,
+      error,
     );
     return null;
   }
@@ -113,27 +114,7 @@ const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
       env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
     );
   } catch (error) {
-    logger.error(
-      `Error adding model for ${JSON.stringify(p)} to Redis: ${error}`,
-    );
-  }
-};
-
-export const invalidateModelCache = async (projectId: string) => {
-  const keys = await redis?.keys(`${getModelMatchKeyPrefix()}:${projectId}:*`);
-  await deleteKeys(keys ?? []);
-  logger.info(`Invalidated model cache for project ${projectId}`);
-};
-
-export const invalidateAllCachedModels = async () => {
-  const keys = await redis?.keys(`${getModelMatchKeyPrefix()}:*`);
-  await deleteKeys(keys ?? []);
-  logger.info(`Invalidated all cached models`);
-};
-
-const deleteKeys = async (keys: string[]) => {
-  if (keys && keys.length > 0) {
-    await redis?.del(keys);
+    logger.error(`Error adding model for ${JSON.stringify(p)} to Redis`, error);
   }
 };
 

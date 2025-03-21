@@ -14,10 +14,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
-import {
-  invalidateModelCache,
-  queryClickhouse,
-} from "@langfuse/shared/src/server";
+import { queryClickhouse } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const ModelAllOptions = z.object({
@@ -308,8 +305,6 @@ export const modelRouter = createTRPCRouter({
           after: upsertedModel,
         });
 
-        await invalidateModelCache(projectId);
-
         return upsertedModel;
       });
     }),
@@ -341,8 +336,6 @@ export const modelRouter = createTRPCRouter({
         action: "delete",
         before: deletedModel,
       });
-
-      await invalidateModelCache(input.projectId);
 
       return deletedModel;
     }),

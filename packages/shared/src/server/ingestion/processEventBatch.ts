@@ -27,7 +27,6 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
-import { ModelMatchProps } from "./modelMatch";
 
 let s3StorageServiceClient: StorageService;
 

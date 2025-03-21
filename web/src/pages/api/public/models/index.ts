@@ -11,7 +11,6 @@ import {
 import { InvalidRequestError } from "@langfuse/shared";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { invalidateModelCache } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -119,8 +118,6 @@ export default withMiddlewares({
           apiKeyId: auth.scope.apiKeyId,
           after: createdModel,
         });
-
-        await invalidateModelCache(auth.scope.projectId);
 
         return createdModel;
       });
