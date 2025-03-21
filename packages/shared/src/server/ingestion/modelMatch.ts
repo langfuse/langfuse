@@ -179,14 +179,14 @@ const getModelMatchKeyPrefix = () => {
 };
 
 export const redisModelToPrismaModel = (redisModel: string): Model => {
-  const parsed = JSON.parse(redisModel);
+  const parsed: Model = JSON.parse(redisModel);
   return {
     ...parsed,
     createdAt: new Date(parsed.createdAt),
     updatedAt: new Date(parsed.updatedAt),
-    inputPrice: new Decimal(parsed.inputPrice),
-    outputPrice: new Decimal(parsed.outputPrice),
-    totalPrice: new Decimal(parsed.totalPrice),
+    inputPrice: parsed.inputPrice ? new Decimal(parsed.inputPrice) : null,
+    outputPrice: parsed.outputPrice ? new Decimal(parsed.outputPrice) : null,
+    totalPrice: parsed.totalPrice ? new Decimal(parsed.totalPrice) : null,
     startDate: parsed.startDate ? new Date(parsed.startDate) : null,
   };
 };
