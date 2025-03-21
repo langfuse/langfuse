@@ -642,7 +642,6 @@ export function AnnotateDrawerContent({
           stringValue: score.stringValue,
           observationId,
           value,
-          comment,
           queueId,
         });
 

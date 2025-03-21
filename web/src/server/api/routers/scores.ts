@@ -59,7 +59,7 @@ const ScoreFilterOptions = z.object({
 const ScoreAllOptions = ScoreFilterOptions.extend({
   ...paginationZod,
 });
-type AllScoresReturnType = Score & {
+type AllScoresReturnType = Omit<Score, "metadata"> & {
   traceName: string | null;
   traceUserId: string | null;
   traceTags: Array<string> | null;
@@ -124,6 +124,22 @@ export const scoresRouter = createTRPCRouter({
           };
         }),
       };
+    }),
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        scoreId: z.string(), // used for matching
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input }) => {
+      const score = await getScoreById(input.projectId, input.scoreId);
+      if (!score) {
+        throw new LangfuseNotFoundError(
+          `No score with id ${input.scoreId} in project ${input.projectId} in Clickhouse`,
+        );
+      }
+      return score;
     }),
   countAll: protectedProjectProcedure
     .input(ScoreAllOptions)
@@ -289,6 +305,7 @@ export const scoresRouter = createTRPCRouter({
         configId: input.configId ?? null,
         name: input.name,
         comment: input.comment ?? null,
+        metadata: {},
         authorUserId: ctx.session.user.id,
         source: ScoreSource.ANNOTATION,
         queueId: input.queueId ?? null,

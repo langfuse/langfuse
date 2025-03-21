@@ -8,6 +8,7 @@ import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type RouterOutputs, api } from "@/src/utils/api";
+import { type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 
@@ -16,6 +17,7 @@ export type JobExecutionRow = {
   scoreName?: string;
   scoreValue?: number;
   scoreComment?: string;
+  scoreMetadata?: Prisma.JsonValue;
   startTime?: string;
   endTime?: string;
   traceId?: string;
@@ -79,6 +81,18 @@ export default function EvalLogTable({
           return undefined;
         }
         return value % 1 === 0 ? value : value.toFixed(4);
+      },
+    }),
+    columnHelper.accessor("scoreMetadata", {
+      header: "Score Metadata",
+      id: "scoreMetadata",
+      enableHiding: true,
+      // TODO: this metadata could alternatively be loaded in the same way as the score metadata on the scores table -> per cell fetch
+      cell: (row) => {
+        const value = row.getValue();
+        return value !== undefined ? (
+          <IOTableCell data={value} singleLine={rowHeight === "s"} />
+        ) : undefined;
       },
     }),
     columnHelper.accessor("scoreComment", {
@@ -169,6 +183,8 @@ export default function EvalLogTable({
       scoreName: jobConfig.score?.name ?? undefined,
       scoreValue: jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
+      // TODO: this metadata could alternatively be loaded in the same way as the score metadata on the scores table -> per cell fetch
+      scoreMetadata: jobConfig.score?.metadata ?? undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
