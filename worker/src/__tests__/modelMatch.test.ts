@@ -67,6 +67,33 @@ describe("modelMatch", () => {
 
       expect(result).toEqual(mockModel);
     });
+
+    it("should cache not found models in Redis", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const nonExistentModel = "nonexistent-model";
+
+      // First lookup should check Postgres and cache the not-found result
+      const result1 = await findModel({
+        projectId,
+        model: nonExistentModel,
+      });
+      expect(result1).toBeNull();
+
+      // Second lookup should use the cached not-found result
+      const result2 = await findModel({
+        projectId,
+        model: nonExistentModel,
+      });
+      expect(result2).toBeNull();
+
+      // Verify the not-found token exists in Redis
+      const redisKey = getRedisModelKey({
+        projectId,
+        model: nonExistentModel,
+      });
+      const cachedValue = await redis?.get(redisKey);
+      expect(cachedValue).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
+    });
   });
 
   describe("findModelInPostgres", () => {

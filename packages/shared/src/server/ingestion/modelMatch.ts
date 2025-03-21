@@ -21,12 +21,17 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
       logger.debug(`Finding model for ${JSON.stringify(p)}`);
       const redisModel = await getModelFromRedis(p);
       if (redisModel) {
-        span.setAttribute("matched_model_id", redisModel.id);
         span.setAttribute("model_match_source", "redis");
 
-        logger.debug(
-          `Found model name ${redisModel?.modelName} (id: ${redisModel?.id}) for project ${p.projectId} and model ${p.model}`,
-        );
+        if (redisModel === NOT_FOUND_TOKEN) {
+          return null;
+        } else {
+          logger.debug(
+            `Found model name ${redisModel?.modelName} (id: ${redisModel?.id}) for project ${p.projectId} and model ${p.model}`,
+          );
+          span.setAttribute("matched_model_id", redisModel.id);
+        }
+
         return redisModel;
       }
 
@@ -45,6 +50,11 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
         span.setAttribute("model_cache_set", "false");
       } else {
         span.setAttribute("model_match_source", "none");
+
+        if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+          await addModelNotFoundTokenToRedis(p);
+          span.setAttribute("model_cache_set", "true");
+        }
       }
 
       logger.debug(
@@ -55,7 +65,9 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
   );
 }
 
-const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
+const getModelFromRedis = async (
+  p: ModelMatchProps,
+): Promise<Model | typeof NOT_FOUND_TOKEN | null> => {
   if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
     return null;
   }
@@ -65,6 +77,9 @@ const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
     const redisModel = await redis?.get(key);
     if (redisModel) {
       recordIncrement("langfuse.model_match.cache_hit", 1);
+      if (redisModel === NOT_FOUND_TOKEN) {
+        return null;
+      }
       const model = redisModelToPrismaModel(redisModel);
       return model;
     }
@@ -120,6 +135,18 @@ export async function findModelInPostgres(
 
   return foundModels[0] ?? null;
 }
+
+const NOT_FOUND_TOKEN = "LANGFUSE_MODEL_MATCH_NOT_FOUND" as const;
+
+const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
+  const key = getRedisModelKey(p);
+  await redis?.set(
+    key,
+    NOT_FOUND_TOKEN,
+    "EX",
+    env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+  );
+};
 
 const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
   try {
