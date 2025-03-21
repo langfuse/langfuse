@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";
-import { invalidateAllCachedModels, logger } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 
 const DefaultModelPriceSchema = z.object({
   id: z.string(),
@@ -205,8 +205,6 @@ export const upsertDefaultModelPrices = async (force = false) => {
       await Promise.all(promises);
       logger.debug(`Completed batch ${i + 1} of ${numBatches}`);
     }
-
-    await invalidateAllCachedModels();
 
     logger.info(
       `Finished upserting default model prices in ${Date.now() - startTime}ms`,
