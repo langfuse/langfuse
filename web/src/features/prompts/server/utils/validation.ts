@@ -25,7 +25,8 @@ export const PromptLabelSchema = z
 export const PromptNameSchema = z
   .string()
   .min(1)
-  .regex(/^[^|]*$/, "Name cannot contain '|' character");
+  .regex(/^[^|]*$/, "Name cannot contain '|' character")
+  .transform((s) => s.trim());
 
 const BaseCreateTextPromptSchema = z.object({
   name: PromptNameSchema,
