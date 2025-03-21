@@ -4,7 +4,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { MessageCircleMoreIcon } from "lucide-react";
+import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
 
 import { type APIScore, type LastUserScore } from "@langfuse/shared";
 
@@ -49,6 +49,17 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
                       </HoverCardTrigger>
                       <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
                         <p>{s.comment}</p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                  {/* TODO: metadata could instead be null if empty */}
+                  {!!s.metadata && Object.keys(s.metadata).length > 0 && (
+                    <HoverCard>
+                      <HoverCardTrigger className="inline-block">
+                        <BracesIcon className="mb-[0.0625rem] !size-3" />
+                      </HoverCardTrigger>
+                      <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
+                        <p>{JSON.stringify(s.metadata, null, 2)}</p>
                       </HoverCardContent>
                     </HoverCard>
                   )}
