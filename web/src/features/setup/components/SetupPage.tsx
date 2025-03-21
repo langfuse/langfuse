@@ -28,7 +28,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type RouterOutput } from "@/src/utils/types";
 import { Check } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
 // Multi-step setup process
