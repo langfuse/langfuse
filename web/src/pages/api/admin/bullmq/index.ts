@@ -28,17 +28,6 @@ const ManageBullBody = z.discriminatedUnion("action", [
     queueNames: z.array(z.string()),
     bullStatus: BullStatus,
   }),
-  z.object({
-    action: z.literal("backup"),
-    queueName: z.string(),
-    bullStatus: BullStatus,
-    numberOfEvents: z.number(),
-  }),
-  z.object({
-    action: z.literal("restore"),
-    queueName: z.string(),
-    numberOfEvents: z.number(),
-  }),
 ]);
 
 export default async function handler(
@@ -176,21 +165,6 @@ export default async function handler(
       return res.status(200).json({ message: "Retried all jobs" });
     }
 
-    if (req.method === "POST" && body.data.action === "backup") {
-      await backUpEvents(
-        body.data.queueName as QueueName,
-        body.data.numberOfEvents,
-        body.data.bullStatus,
-      );
-    }
-
-    if (req.method === "POST" && body.data.action === "restore") {
-      await restoreEvents(
-        body.data.queueName as QueueName,
-        body.data.numberOfEvents,
-      );
-    }
-
     // return not implemented error
     res.status(404).json({ error: "Action does not exist" });
   } catch (e) {
@@ -198,69 +172,3 @@ export default async function handler(
     res.status(500).json({ error: e });
   }
 }
-
-const backUpEvents = async (
-  queueName: QueueName,
-  numberOfEvents: number,
-  bullStatus: z.infer<typeof BullStatus>,
-) => {
-  const queue = getQueue(queueName);
-  let processedEvents = 0;
-  const batchSize = 1000;
-
-  while (processedEvents < numberOfEvents) {
-    const remainingEvents = numberOfEvents - processedEvents;
-    const currentBatchSize = Math.min(batchSize, remainingEvents);
-
-    const events = await queue?.getJobs(
-      [bullStatus],
-      0,
-      currentBatchSize,
-      true,
-    );
-
-    if (!events || events.length === 0) {
-      break;
-    }
-
-    await prisma.queueBackUp.createMany({
-      data: events.map((event) => ({
-        queueName,
-        content: event,
-        projectId: event.data.projectId ?? undefined,
-        createdAt: new Date(),
-      })),
-    });
-
-    // remove events from the queue but might throw in case if the job is already processing
-    await Promise.all(
-      events.map(async (event) => {
-        try {
-          await event.remove();
-        } catch (error) {
-          logger.error(`Failed to remove event ${event.id}:`, error);
-        }
-      }),
-    );
-
-    processedEvents += events.length;
-  }
-};
-
-const restoreEvents = async (queueName: QueueName, numberOfEvents: number) => {
-  const queue = getQueue(queueName);
-
-  const queueBackUp = await prisma.queueBackUp.findMany({
-    where: {
-      queueName,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: numberOfEvents,
-  });
-
-  await queue?.addBulk(
-    queueBackUp.map((event) => ({ name: queueName, data: event.content })),
-  );
-};
