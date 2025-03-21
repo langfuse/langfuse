@@ -110,3 +110,43 @@ export const DeleteTracesV1Response = z
     message: z.string(),
   })
   .strict();
+
+// PATCH /api/public/traces/{traceId}
+export const PatchTraceV1Query = z.object({
+  traceId: z.string(),
+});
+
+export const PatchTraceV1Body = z
+  .object({
+    bookmarked: z.boolean().optional(),
+    public: z.boolean().optional(),
+    tags: z.array(z.string()).optional(),
+  })
+  .strict()
+  .refine(
+    (data) => Object.keys(data).length > 0,
+    "At least one property (bookmarked, public, or tags) must be provided",
+  );
+
+export const PatchTraceV1Response = z.object({ id: z.string() });
+
+// POST /api/public/traces/{traceId}/tags
+export const PostTraceTagsV1Query = z.object({
+  traceId: z.string(),
+});
+
+export const PostTraceTagsV1Body = z
+  .object({
+    tag: z.string(),
+  })
+  .strict();
+
+export const PostTraceTagsV1Response = z.object({ id: z.string() });
+
+// DELETE /api/public/traces/{traceId}/tags/{tagId}
+export const DeleteTraceTagV1Query = z.object({
+  traceId: z.string(),
+  tagId: z.string(),
+});
+
+export const DeleteTraceTagV1Response = z.object({ id: z.string() });
