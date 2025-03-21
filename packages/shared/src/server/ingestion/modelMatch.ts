@@ -102,9 +102,9 @@ export async function findModelInPostgres(
 
 const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
   try {
-    const redisApiKey = getRedisModelKey(p);
+    const key = getRedisModelKey(p);
     await redis?.set(
-      redisApiKey,
+      key,
       JSON.stringify(model),
       "EX",
       env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,

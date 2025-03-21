@@ -33,7 +33,7 @@ const EnvSchema = z.object({
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("false"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(60 * 60),
   LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
-  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(60),
+  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(30),
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
