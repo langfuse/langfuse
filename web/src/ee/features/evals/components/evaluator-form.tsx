@@ -68,6 +68,7 @@ import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-fo
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { useTraceFilterOptions } from "@/src/features/filters/hooks/useTraceFilterOptions";
 
 export const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -351,22 +352,9 @@ export const InnerEvalConfigForm = (props: {
     },
   });
 
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId: props.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
+  const traceFilterOptions = useTraceFilterOptions({
+    projectId: props.projectId,
+  });
 
   const datasets = api.datasets.allDatasetMeta.useQuery(
     {
@@ -684,7 +672,7 @@ export const InnerEvalConfigForm = (props: {
                       <FormControl>
                         <InlineFilterBuilder
                           columns={tracesTableColsWithOptions(
-                            traceFilterOptions.data,
+                            traceFilterOptions,
                             evalTraceTableCols,
                           )}
                           filterState={field.value ?? []}
@@ -1059,7 +1047,7 @@ export const TimeScopeDescription = (props: {
     projectId: props.projectId,
   });
   return (
-    <div>
+    <>
       This configuration will run on{" "}
       {props.timeScope?.includes("NEW") && props.timeScope?.includes("EXISTING")
         ? "all future and existing"
@@ -1071,6 +1059,6 @@ export const TimeScopeDescription = (props: {
       {globalConfig.data && props.timeScope?.includes("EXISTING")
         ? `We execute the evaluation on up to ${compactNumberFormatter(globalConfig.data)} historic evaluations.`
         : null}
-    </div>
+    </>
   );
 };

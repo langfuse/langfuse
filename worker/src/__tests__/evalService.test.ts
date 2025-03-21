@@ -1,30 +1,11 @@
 import {
-  expect,
-  test,
-  describe,
-  afterAll,
-  beforeAll,
-  beforeEach,
-} from "vitest";
-import {
-  createEvalJobs,
-  evaluate,
-  extractVariablesFromTracingData,
-} from "../ee/evaluation/evalService";
-import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { randomUUID } from "crypto";
-import Decimal from "decimal.js";
-import { pruneDatabase } from "./utils";
-import { sql } from "kysely";
-import {
+  ApiError,
   LLMAdapter,
   LangfuseNotFoundError,
   variableMappingList,
-  ApiError,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
-import { OpenAIServer } from "./network";
-import { afterEach } from "node:test";
+import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   createObservation,
@@ -34,7 +15,26 @@ import {
   upsertObservation,
   upsertTrace,
 } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
+import Decimal from "decimal.js";
+import { sql } from "kysely";
+import { afterEach } from "node:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "vitest";
+import {
+  createEvalJobs,
+  evaluate,
+  extractVariablesFromTracingData,
+} from "../ee/evaluation/evalService";
 import { compileHandlebarString } from "../features/utilities";
+import { OpenAIServer } from "./network";
+import { pruneDatabase } from "./utils";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const hasActiveKey = Boolean(OPENAI_API_KEY);
