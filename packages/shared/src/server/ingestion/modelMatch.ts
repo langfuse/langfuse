@@ -35,15 +35,15 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
 
       if (postgresModel && env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
         await addModelToRedis(p, postgresModel);
+
         span.setAttribute("matched_model_id", postgresModel.id);
         span.setAttribute("model_match_source", "postgres");
-        span.setAttribute("model_cached", "true");
+        span.setAttribute("model_cache_set", "true");
       } else if (postgresModel) {
         span.setAttribute("matched_model_id", postgresModel.id);
         span.setAttribute("model_match_source", "postgres");
-        span.setAttribute("model_cached", "false");
+        span.setAttribute("model_cache_set", "false");
       } else {
-        span.setAttribute("model_match_source", "none");
         span.setAttribute("model_matched", "false");
       }
 
