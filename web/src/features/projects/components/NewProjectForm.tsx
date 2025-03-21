@@ -12,7 +12,6 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { chatRunTrigger } from "@/src/features/support-chat/chat";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
@@ -34,11 +33,9 @@ export const NewProjectForm = ({
       name: "",
     },
   });
-  const router = useRouter();
   const createProjectMutation = api.projects.create.useMutation({
-    onSuccess: (newProject) => {
+    onSuccess: () => {
       void updateSession();
-      void router.push(`/project/${newProject.id}/settings`);
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
