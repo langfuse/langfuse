@@ -731,6 +731,36 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "#6084: should map input to input for pydantic",
+        {
+          entity: "observation",
+          otelAttributeKey: "input",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              task: "Play some chess",
+              stream: false,
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            task: "Play some chess",
+            stream: false,
+          }),
+        },
+      ],
+      [
+        "#6084: should map model_config to modelParameters",
+        {
+          entity: "observation",
+          otelAttributeKey: "model_config",
+          otelAttributeValue: {
+            stringValue: '{"max_tokens": 4096}',
+          },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 4096,
+        },
+      ],
+      [
         "#5412: should map input.value to input for smolagents",
         {
           entity: "observation",
