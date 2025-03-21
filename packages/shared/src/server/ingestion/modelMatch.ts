@@ -4,6 +4,9 @@ import { prisma } from "../../db";
 import { recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import { redis } from "../redis/redis";
+import z from "zod";
+import { jsonSchema } from "../../utils/zod";
+import Decimal from "decimal.js";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -47,13 +50,8 @@ const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
     );
     if (redisModel) {
       recordIncrement("langfuse.model-match.cache_hit", 1);
-      const model = JSON.parse(redisModel);
-      return {
-        ...model,
-        createdAt: new Date(model.createdAt),
-        updatedAt: new Date(model.updatedAt),
-        startDate: model.startDate ? new Date(model.startDate) : null,
-      };
+      const model = redisModelToPrismaModel(redisModel);
+      return model;
     }
     recordIncrement("langfuse.model-match.cache_miss", 1);
     return null;
@@ -147,4 +145,17 @@ export const getRedisModelKey = (p: ModelMatchProps) => {
 
 const getModelMatchKeyPrefix = () => {
   return "model-match";
+};
+
+export const redisModelToPrismaModel = (redisModel: string): Model => {
+  const parsed = JSON.parse(redisModel);
+  return {
+    ...parsed,
+    createdAt: new Date(parsed.createdAt),
+    updatedAt: new Date(parsed.updatedAt),
+    inputPrice: new Decimal(parsed.inputPrice),
+    outputPrice: new Decimal(parsed.outputPrice),
+    totalPrice: new Decimal(parsed.totalPrice),
+    startDate: parsed.startDate ? new Date(parsed.startDate) : null,
+  };
 };
