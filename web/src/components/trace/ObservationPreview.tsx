@@ -115,7 +115,7 @@ export const ObservationPreview = ({
   if (!preloadedObservation) return <div className="flex-1">Not found</div>;
 
   return (
-    <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
+    <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
         <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
           <div className="flex w-full flex-row items-start gap-2">
@@ -207,6 +207,12 @@ export const ObservationPreview = ({
                       {formatIntervalSeconds(
                         preloadedObservation.timeToFirstToken,
                       )}
+                    </Badge>
+                  ) : null}
+
+                  {preloadedObservation.environment ? (
+                    <Badge variant="tertiary">
+                      Env: {preloadedObservation.environment}
                     </Badge>
                   ) : null}
 
@@ -331,14 +337,14 @@ export const ObservationPreview = ({
           onValueChange={(value) => setSelectedTab(value)}
         >
           {viewType === "detailed" && (
-            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
+            <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
                 <Tabs
-                  className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
+                  className="ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
                   onValueChange={(value) => {
                     capture("trace_detail:io_mode_switch", { view: value });
@@ -437,6 +443,7 @@ const PromptBadge = (props: { promptId: string; projectId: string }) => {
   return (
     <Link
       href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
+      className="inline-flex"
     >
       <Badge variant="tertiary">
         Prompt: {prompt.data.name}

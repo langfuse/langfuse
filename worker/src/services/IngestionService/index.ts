@@ -16,7 +16,6 @@ import {
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   eventTypes,
-  findModel,
   IngestionEventType,
   instrumentAsync,
   logger,
@@ -39,6 +38,7 @@ import {
   TraceUpsertQueue,
   QueueJobs,
   recordIncrement,
+  findModel,
 } from "@langfuse/shared/src/server";
 
 import { tokenCount } from "../../features/tokenisation/usage";
@@ -606,16 +606,12 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = await findModel({
-      event: {
-        projectId,
-        model: observationRecord.provided_model_name ?? undefined,
-      },
-    });
-
-    logger.debug(
-      `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
-    );
+    const internalModel = observationRecord.provided_model_name
+      ? await findModel({
+          projectId,
+          model: observationRecord.provided_model_name,
+        })
+      : null;
 
     const final_usage_details = this.getUsageUnits(
       observationRecord,

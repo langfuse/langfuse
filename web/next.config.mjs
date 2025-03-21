@@ -80,6 +80,16 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Add noindex for all pages except root and /auth*
+        source: "/:path((?!auth|^$).*)*",
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex",
+          },
+        ],
+      },
+      {
         source: "/:path*",
         headers: [
           {
@@ -169,6 +179,9 @@ const nextConfig = {
       asyncWebAssembly: true,
       layers: true,
     };
+
+    // Exclude Datadog packages from webpack bundling to avoid issues
+    config.externals.push("@datadog/pprof", "dd-trace");
 
     return config;
   },

@@ -31,7 +31,7 @@ export const DeleteDatasetRunButton = ({
   });
   const utils = api.useUtils();
   const router = useRouter();
-  const mutDelete = api.datasets.deleteDatasetRun.useMutation({
+  const mutDelete = api.datasets.deleteDatasetRuns.useMutation({
     onSuccess: () => {
       redirectUrl ? router.push(redirectUrl) : utils.datasets.invalidate();
     },
@@ -78,7 +78,7 @@ export const DeleteDatasetRunButton = ({
             capture("dataset_run:delete_form_submit");
             await mutDelete.mutateAsync({
               projectId,
-              datasetRunId,
+              datasetRunIds: [datasetRunId],
             });
             setIsDialogOpen(false);
           }}

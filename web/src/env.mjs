@@ -98,6 +98,7 @@ export const env = createEnv({
     AUTH_GITLAB_ISSUER: z.string().optional(),
     AUTH_GITLAB_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_GITLAB_CHECKS: zAuthChecks,
+    AUTH_GITLAB_URL: z.string().url().optional().default("https://gitlab.com"),
     AUTH_AZURE_AD_CLIENT_ID: z.string().optional(),
     AUTH_AZURE_AD_CLIENT_SECRET: z.string().optional(),
     AUTH_AZURE_AD_TENANT_ID: z.string().optional(),
@@ -137,6 +138,11 @@ export const env = createEnv({
     AUTH_CUSTOM_CHECKS: zAuthChecks,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional(),
+    AUTH_WORKOS_CLIENT_ID: z.string().optional(),
+    AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
+    AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
+    AUTH_WORKOS_ORGANIZATION_ID: z.string().optional(),
+    AUTH_WORKOS_CONNECTION_ID: z.string().optional(),
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
@@ -164,6 +170,7 @@ export const env = createEnv({
     LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
     LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
     LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
@@ -217,7 +224,7 @@ export const env = createEnv({
     REDIS_PORT: z.coerce
       .number({
         description:
-          ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+          ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
       })
       .positive()
       .max(65536, `options.port should be >= 0 and < 65536`)
@@ -267,10 +274,13 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
+    BETTERSTACK_UPTIME_API_KEY: z.string().optional(),
+    BETTERSTACK_UPTIME_STATUS_PAGE_ID: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
 
     LANGFUSE_INIT_ORG_ID: z.string().optional(),
     LANGFUSE_INIT_ORG_NAME: z.string().optional(),
+    LANGFUSE_INIT_ORG_CLOUD_PLAN: z.string().optional(), // for use in CI
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
     LANGFUSE_INIT_PROJECT_RETENTION: z.number().int().gte(7).optional(),
@@ -377,6 +387,7 @@ export const env = createEnv({
       process.env.AUTH_GITLAB_ALLOW_ACCOUNT_LINKING,
     AUTH_GITLAB_CLIENT_AUTH_METHOD: process.env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
     AUTH_GITLAB_CHECKS: process.env.AUTH_GITLAB_CHECKS,
+    AUTH_GITLAB_URL: process.env.AUTH_GITLAB_URL,
     AUTH_AZURE_AD_CLIENT_ID: process.env.AUTH_AZURE_AD_CLIENT_ID,
     AUTH_AZURE_AD_CLIENT_SECRET: process.env.AUTH_AZURE_AD_CLIENT_SECRET,
     AUTH_AZURE_AD_TENANT_ID: process.env.AUTH_AZURE_AD_TENANT_ID,
@@ -428,6 +439,12 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
+    AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
+    AUTH_WORKOS_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_WORKOS_ALLOW_ACCOUNT_LINKING,
+    AUTH_WORKOS_ORGANIZATION_ID: process.env.AUTH_WORKOS_ORGANIZATION_ID,
+    AUTH_WORKOS_CONNECTION_ID: process.env.AUTH_WORKOS_CONNECTION_ID,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
@@ -455,6 +472,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_BATCH_EXPORT_REGION,
     LANGFUSE_S3_BATCH_EXPORT_ENDPOINT:
       process.env.LANGFUSE_S3_BATCH_EXPORT_ENDPOINT,
+    LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT:
+      process.env.LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT,
     LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID:
       process.env.LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID,
     LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY:
@@ -533,10 +552,14 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
+    BETTERSTACK_UPTIME_API_KEY: process.env.BETTERSTACK_UPTIME_API_KEY,
+    BETTERSTACK_UPTIME_STATUS_PAGE_ID:
+      process.env.BETTERSTACK_UPTIME_STATUS_PAGE_ID,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
     // provisioning
     LANGFUSE_INIT_ORG_ID: process.env.LANGFUSE_INIT_ORG_ID,
     LANGFUSE_INIT_ORG_NAME: process.env.LANGFUSE_INIT_ORG_NAME,
+    LANGFUSE_INIT_ORG_CLOUD_PLAN: process.env.LANGFUSE_INIT_ORG_CLOUD_PLAN,
     LANGFUSE_INIT_PROJECT_ID: process.env.LANGFUSE_INIT_PROJECT_ID,
     LANGFUSE_INIT_PROJECT_NAME: process.env.LANGFUSE_INIT_PROJECT_NAME,
     LANGFUSE_INIT_PROJECT_RETENTION:

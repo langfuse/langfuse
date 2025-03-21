@@ -134,7 +134,7 @@ export default function Dataset() {
           : undefined,
         tabsComponent: (
           <TabsBar value="runs">
-            <TabsBarList className="justify-start">
+            <TabsBarList>
               <TabsBarTrigger value="runs">Runs</TabsBarTrigger>
               <TabsBarTrigger value="items" asChild>
                 <Link
@@ -146,7 +146,7 @@ export default function Dataset() {
             </TabsBarList>
           </TabsBar>
         ),
-        actionButtonsRight: [
+        actionButtonsRight: (
           <>
             <Dialog
               open={isCreateExperimentDialogOpen}
@@ -278,8 +278,8 @@ export default function Dataset() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>,
-        ],
+          </>
+        ),
       }}
     >
       <DatasetRunsTable

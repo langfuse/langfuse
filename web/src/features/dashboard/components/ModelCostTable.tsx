@@ -15,10 +15,12 @@ export const ModelCostTable = ({
   className,
   projectId,
   globalFilterState,
+  isLoading = false,
 }: {
   className: string;
   projectId: string;
   globalFilterState: FilterState;
+  isLoading?: boolean;
 }) => {
   const metrics = api.dashboard.chart.useQuery(
     {
@@ -52,6 +54,7 @@ export const ModelCostTable = ({
           skipBatch: true,
         },
       },
+      enabled: !isLoading,
     },
   );
 
@@ -90,7 +93,7 @@ export const ModelCostTable = ({
     <DashboardCard
       className={className}
       title="Model costs"
-      isLoading={metrics.isLoading}
+      isLoading={isLoading || metrics.isLoading}
     >
       <DashboardTable
         headers={[
@@ -99,7 +102,7 @@ export const ModelCostTable = ({
           <RightAlignedCell key="cost">USD</RightAlignedCell>,
         ]}
         rows={metricsData}
-        isLoading={metrics.isLoading}
+        isLoading={isLoading || metrics.isLoading}
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric

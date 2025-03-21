@@ -23,6 +23,8 @@ import {
   type TableDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
+import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { cn } from "@/src/utils/tailwind";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -62,6 +64,12 @@ interface DataTableToolbarProps<TData, TValue> {
     date?: TableDateRange,
   ) => void;
   multiSelect?: MultiSelect;
+  environmentFilter?: {
+    values: string[];
+    onValueChange: (values: string[]) => void;
+    options: { value: string }[];
+  };
+  className?: string;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -81,6 +89,8 @@ export function DataTableToolbar<TData, TValue>({
   selectedOption,
   setDateRangeAndOption,
   multiSelect,
+  environmentFilter,
+  className,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -88,10 +98,20 @@ export function DataTableToolbar<TData, TValue>({
   const capture = usePostHogClientCapture();
 
   return (
-    <>
+    <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="my-2 flex flex-wrap items-center gap-2 @container">
         {searchConfig && (
-          <div className="flex max-w-md items-center">
+          <div className="flex max-w-md items-center rounded-md border">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                capture("table:search_submit");
+                searchConfig.updateQuery(searchString);
+              }}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
             <Input
               autoFocus
               placeholder={searchConfig.placeholder}
@@ -103,19 +123,15 @@ export function DataTableToolbar<TData, TValue>({
                   searchConfig.updateQuery(searchString);
                 }
               }}
-              className="w-[150px] rounded-r-none @6xl:w-[250px]"
+              className="min-w-0 max-w-fit border-none px-0"
             />
-            <Button
-              variant="outline"
-              onClick={() => {
-                capture("table:search_submit");
-                searchConfig.updateQuery(searchString);
-              }}
-              className="rounded-l-none border-l-0 p-3"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
           </div>
+        )}
+        {selectedOption && setDateRangeAndOption && (
+          <TableDateRangeDropdown
+            selectedOption={selectedOption}
+            setDateRangeAndOption={setDateRangeAndOption}
+          />
         )}
         {!!filterColumnDefinition && !!filterState && !!setFilterState && (
           <PopoverFilterBuilder
@@ -125,12 +141,17 @@ export function DataTableToolbar<TData, TValue>({
             columnsWithCustomSelect={columnsWithCustomSelect}
           />
         )}
-        {selectedOption && setDateRangeAndOption && (
-          <TableDateRangeDropdown
-            selectedOption={selectedOption}
-            setDateRangeAndOption={setDateRangeAndOption}
+        {environmentFilter && (
+          <MultiSelect
+            title="Environment"
+            label="Env"
+            values={environmentFilter.values}
+            onValueChange={environmentFilter.onValueChange}
+            options={environmentFilter.options}
+            className="my-0 w-auto overflow-hidden"
           />
         )}
+
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
@@ -155,6 +176,6 @@ export function DataTableToolbar<TData, TValue>({
         multiSelect.selectedRowIds.length === multiSelect.pageSize && (
           <DataTableSelectAllBanner {...multiSelect} />
         )}
-    </>
+    </div>
   );
 }

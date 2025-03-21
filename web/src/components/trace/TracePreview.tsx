@@ -90,8 +90,16 @@ export const TracePreview = ({
     [observations],
   );
 
+  const usageDetails = useMemo(
+    () =>
+      observations
+        .filter((o) => o.type === "GENERATION")
+        .map((o) => o.usageDetails),
+    [observations],
+  );
+
   return (
-    <div className="col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
+    <div className="ph-no-capture col-span-2 flex h-full flex-1 flex-col overflow-hidden md:col-span-3">
       <div className="flex h-full flex-1 flex-col items-start gap-1 overflow-hidden">
         <div className="mt-3 grid w-full grid-cols-[auto,auto] items-start justify-between gap-2">
           <div className="flex w-full flex-row items-start gap-2">
@@ -154,6 +162,7 @@ export const TracePreview = ({
               {trace.sessionId ? (
                 <Link
                   href={`/project/${trace.projectId}/sessions/${encodeURIComponent(trace.sessionId)}`}
+                  className="inline-flex"
                 >
                   <Badge>Session: {trace.sessionId}</Badge>
                 </Link>
@@ -161,9 +170,13 @@ export const TracePreview = ({
               {trace.userId ? (
                 <Link
                   href={`/project/${trace.projectId as string}/users/${encodeURIComponent(trace.userId)}`}
+                  className="inline-flex"
                 >
                   <Badge>User ID: {trace.userId}</Badge>
                 </Link>
+              ) : null}
+              {trace.environment ? (
+                <Badge variant="tertiary">Env: {trace.environment}</Badge>
               ) : null}
 
               {viewType === "detailed" && (
@@ -188,17 +201,15 @@ export const TracePreview = ({
                       </Badge>
                     </BreakdownTooltip>
                   )}
-                  <BreakdownTooltip
-                    details={observations
-                      .filter((o) => o.type === "GENERATION")
-                      .map((o) => o.usageDetails)}
-                  >
-                    <AggUsageBadge
-                      observations={observations}
-                      rightIcon={<InfoIcon className="h-3 w-3" />}
-                      variant="tertiary"
-                    />
-                  </BreakdownTooltip>
+                  {usageDetails.length > 0 && (
+                    <BreakdownTooltip details={usageDetails}>
+                      <AggUsageBadge
+                        observations={observations}
+                        rightIcon={<InfoIcon className="h-3 w-3" />}
+                        variant="tertiary"
+                      />
+                    </BreakdownTooltip>
+                  )}
 
                   {!!trace.release && (
                     <Badge variant="tertiary">Release: {trace.release}</Badge>
@@ -218,14 +229,14 @@ export const TracePreview = ({
           onValueChange={(value) => setSelectedTab(value)}
         >
           {viewType === "detailed" && (
-            <TabsBarList className="min-w-0 max-w-full justify-start overflow-x-auto">
+            <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
               {isAuthenticatedAndProjectMember && (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
                 <Tabs
-                  className="mb-1 ml-auto mr-1 h-fit px-2 py-0.5"
+                  className="ml-auto mr-1 h-fit px-2 py-0.5"
                   value={currentView}
                   onValueChange={(value) => {
                     capture("trace_detail:io_mode_switch", { view: value });

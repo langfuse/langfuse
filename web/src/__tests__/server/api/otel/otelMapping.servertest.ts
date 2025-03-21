@@ -389,6 +389,34 @@ describe("OTel Resource Span Mapping", () => {
       ).toBe(true);
     });
 
+    it("should use logfire.msg as span name", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            spans: [
+              {
+                ...defaultSpanProps,
+                name: "wrong name",
+                attributes: [
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "right name" },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = convertOtelSpanToIngestionEvent(resourceSpan);
+
+      // Then
+      expect(langfuseEvents[0].body.name).toBe("right name");
+      expect(langfuseEvents[1].body.name).toBe("right name");
+    });
+
     it.each([
       [
         "should cast input_tokens from string to number",
@@ -700,6 +728,36 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "model",
           entityAttributeValue: "gpt-4o-mini",
+        },
+      ],
+      [
+        "#6084: should map input to input for pydantic",
+        {
+          entity: "observation",
+          otelAttributeKey: "input",
+          otelAttributeValue: {
+            stringValue: JSON.stringify({
+              task: "Play some chess",
+              stream: false,
+            }),
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: JSON.stringify({
+            task: "Play some chess",
+            stream: false,
+          }),
+        },
+      ],
+      [
+        "#6084: should map model_config to modelParameters",
+        {
+          entity: "observation",
+          otelAttributeKey: "model_config",
+          otelAttributeValue: {
+            stringValue: '{"max_tokens": 4096}',
+          },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 4096,
         },
       ],
       [

@@ -221,7 +221,42 @@ const getPlanBasedRateLimitConfig = (
         durationInSec: null,
       };
     case "cloud:hobby":
-    case "cloud:pro":
+      switch (resource) {
+        case "ingestion":
+          return {
+            resource: "ingestion",
+            points: 1000,
+            durationInSec: 60,
+          };
+        case "legacy-ingestion":
+          return {
+            resource: "legacy-ingestion",
+            points: 100,
+            durationInSec: 60,
+          };
+        case "prompts":
+          return {
+            resource: "prompts",
+            points: null,
+            durationInSec: null,
+          };
+        case "public-api":
+          return {
+            resource: "public-api",
+            points: 20,
+            durationInSec: 60,
+          };
+        case "public-api-metrics":
+          return {
+            resource: "public-api-metrics",
+            points: 10,
+            durationInSec: 86400, // 10 requests per day
+          };
+        default:
+          const exhaustiveCheck: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
+      }
+    case "cloud:core":
       switch (resource) {
         case "ingestion":
           return {
@@ -231,7 +266,7 @@ const getPlanBasedRateLimitConfig = (
           };
         case "legacy-ingestion":
           return {
-            resource: "prompts",
+            resource: "legacy-ingestion",
             points: 400,
             durationInSec: 60,
           };
@@ -244,30 +279,32 @@ const getPlanBasedRateLimitConfig = (
         case "public-api":
           return {
             resource: "public-api",
-            points: 1000,
+            points: 100,
             durationInSec: 60,
           };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
-            points: 10,
-            durationInSec: 60,
+            points: 20,
+            durationInSec: 86400, // 20 requests per day
           };
         default:
-          const exhaustiveCheckDefault: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckDefault}`);
+          const exhaustiveCheck: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
+    case "cloud:pro":
     case "cloud:team":
+    case "cloud:enterprise":
       switch (resource) {
         case "ingestion":
           return {
             resource: "ingestion",
-            points: 20000,
+            points: 20_000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
           return {
-            resource: "prompts",
+            resource: "legacy-ingestion",
             points: 400,
             durationInSec: 60,
           };
@@ -286,12 +323,12 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
-            points: 10,
-            durationInSec: 60,
+            points: 200,
+            durationInSec: 86400, // 200 requests per day
           };
         default:
-          const exhaustiveCheckTeam: never = resource;
-          throw new Error(`Unhandled resource case: ${exhaustiveCheckTeam}`);
+          const exhaustiveCheck: never = resource;
+          throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     default:
       const exhaustiveCheck: never = plan;

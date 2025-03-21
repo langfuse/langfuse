@@ -37,7 +37,7 @@ export default function LogPage() {
         },
         tabsComponent: (
           <TabsBar value="log">
-            <TabsBarList className="justify-start">
+            <TabsBarList>
               <TabsBarTrigger value="evaluators" asChild>
                 <Link href={`/project/${projectId}/evals`}>Evaluators</Link>
               </TabsBarTrigger>

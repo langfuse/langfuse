@@ -7,6 +7,7 @@ const entitlements = [
   "model-based-evaluations",
   "rbac-project-roles",
   "cloud-billing",
+  "cloud-multi-tenant-sso",
   "integration-posthog",
   "annotation-queues",
   "self-host-ui-customization",
@@ -63,10 +64,20 @@ export const entitlementAccess: Record<
       "prompt-management-count-prompts": false,
     },
   },
+  "cloud:core": {
+    entitlements: [...cloudAllPlansEntitlements],
+    entitlementLimits: {
+      "organization-member-count": false,
+      "data-access-days": 90,
+      "annotation-queue-count": 3,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
   "cloud:pro": {
     entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
-      "annotation-queue-count": 3,
+      "annotation-queue-count": false,
       "organization-member-count": false,
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
@@ -79,6 +90,23 @@ export const entitlementAccess: Record<
       "rbac-project-roles",
       "audit-logs",
       "data-retention",
+      "cloud-multi-tenant-sso",
+    ],
+    entitlementLimits: {
+      "annotation-queue-count": false,
+      "organization-member-count": false,
+      "data-access-days": false,
+      "model-based-evaluations-count-evaluators": false,
+      "prompt-management-count-prompts": false,
+    },
+  },
+  "cloud:enterprise": {
+    entitlements: [
+      ...cloudAllPlansEntitlements,
+      "rbac-project-roles",
+      "audit-logs",
+      "data-retention",
+      "cloud-multi-tenant-sso",
     ],
     entitlementLimits: {
       "annotation-queue-count": false,

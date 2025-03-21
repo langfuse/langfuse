@@ -13,7 +13,7 @@ import {
   BatchExportTableName,
   FilterCondition,
 } from "@langfuse/shared";
-import { getDatabaseReadStream } from "../batchExport/handleBatchExportJob";
+import { getDatabaseReadStream } from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
@@ -21,6 +21,7 @@ import { processAddToQueue } from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
+import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInQuery = (query: BatchActionQuery) => {
@@ -55,6 +56,10 @@ async function processActionChunk(
 
       case "trace-add-to-annotation-queue":
         await processAddToQueue(projectId, chunkIds, targetId as string);
+        break;
+
+      case "score-delete":
+        await processClickhouseScoreDelete(projectId, chunkIds);
         break;
 
       default:
@@ -127,7 +132,8 @@ export const handleBatchActionJob = async (
 
   if (
     actionId === "trace-delete" ||
-    actionId === "trace-add-to-annotation-queue"
+    actionId === "trace-add-to-annotation-queue" ||
+    actionId === "score-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
       batchActionEvent;

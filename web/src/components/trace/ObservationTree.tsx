@@ -25,7 +25,6 @@ import {
   calculateDisplayTotalCost,
   heatMapTextColor,
   nestObservations,
-  treeItemColors,
   unnestObservation,
 } from "@/src/components/trace/lib/helpers";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
@@ -110,18 +109,19 @@ export const ObservationTree = ({
       {props.minLevel && hiddenObservationsCount > 0 ? (
         <span className="flex items-center gap-1 p-2 py-4">
           <InfoIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="flex flex-row gap-1 text-sm text-muted-foreground">
-            <p>
-              {hiddenObservationsCount} observations below {props.minLevel}{" "}
-              level are hidden.
-            </p>
-            <p
+          <p className="text-sm text-muted-foreground">
+            <span>
+              {hiddenObservationsCount}{" "}
+              {hiddenObservationsCount === 1 ? "observation" : "observations"}{" "}
+              below {props.minLevel} level are hidden.{" "}
+            </span>
+            <span
               className="cursor-pointer underline"
               onClick={() => props.setMinLevel?.(ObservationLevel.DEBUG)}
             >
               Show all
-            </p>
-          </span>
+            </span>
+          </p>
         </span>
       ) : null}
     </div>
@@ -171,7 +171,7 @@ const ObservationTreeTraceNode = (props: {
       onSelect={() => props.setCurrentObservationId(undefined)}
     >
       <div className="flex w-full flex-row items-start justify-between gap-1 py-1">
-        <div className="flex w-full flex-col items-start gap-2 -space-y-1">
+        <div className="flex w-full flex-col items-start gap-2 -space-y-1 py-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <ItemBadge
               type="TRACE"
@@ -512,14 +512,5 @@ const ObservationTreeNodeCard = ({
 export const ColorCodedObservationType = (props: {
   observationType: ObservationType;
 }) => {
-  return (
-    <span
-      className={cn(
-        "self-start rounded-sm px-1 py-0.5 text-xs",
-        treeItemColors.get(props.observationType),
-      )}
-    >
-      {props.observationType}
-    </span>
-  );
+  return <ItemBadge type={props.observationType} showLabel />;
 };

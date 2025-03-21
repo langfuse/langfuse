@@ -83,8 +83,12 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
               {props.messages.map((message, index) => {
                 return (
                   <ChatMessageComponent
-                    {...{ message, ...props, index }}
                     key={message.id}
+                    message={message}
+                    index={index}
+                    deleteMessage={props.deleteMessage}
+                    updateMessage={props.updateMessage}
+                    availableRoles={props.availableRoles}
                   />
                 );
               })}

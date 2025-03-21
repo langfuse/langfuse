@@ -9,6 +9,7 @@ import {
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
   GET: createAuthedAPIRoute({
@@ -63,6 +64,16 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
         },
       });
+      await auditLog({
+        action: "delete",
+        resourceType: "model",
+        resourceId: query.modelId,
+        projectId: auth.scope.projectId,
+        orgId: auth.scope.orgId,
+        apiKeyId: auth.scope.apiKeyId,
+        before: model,
+      });
+
       return {
         message: "Model successfully deleted" as const,
       };

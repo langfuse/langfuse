@@ -176,9 +176,8 @@ export const createEvalJobs = async ({
       const observationExists = await checkObservationExists(
         event.projectId,
         observationId,
-        new Date(),
+        "timestamp" in event ? new Date(event.timestamp) : new Date(),
       );
-
       if (!observationExists) {
         logger.warn(
           `Observation ${observationId} not found, retrying dataset eval later`,
@@ -680,9 +679,7 @@ export async function extractVariablesFromTracingData({
 
         return {
           var: variable,
-          value: parseUnknownToString(
-            (observation as Record<string, unknown>)[mapping.selectedColumnId],
-          ),
+          value: parseDatabaseRowToString(observation, mapping),
           environment: observation.environment,
         };
       }

@@ -1,9 +1,9 @@
 // This structure is maintained to relate the frontend table definitions with the clickhouse table definitions.
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
-import { UiColumnMapping } from "./types";
+import { UiColumnMappings } from "./types";
 
-export const observationsTableTraceUiColumnDefinitions: UiColumnMapping[] = [
+export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Trace Tags",
     uiTableId: "traceTags",
@@ -22,10 +22,22 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMapping[] = [
     clickhouseTableName: "traces",
     clickhouseSelect: 't."name"',
   },
+  {
+    uiTableName: "Trace Environment",
+    uiTableId: "traceEnvironment",
+    clickhouseTableName: "traces",
+    clickhouseSelect: 't."environment"',
+  },
 ];
 
-export const observationsTableUiColumnDefinitions: UiColumnMapping[] = [
+export const observationsTableUiColumnDefinitions: UiColumnMappings = [
   ...observationsTableTraceUiColumnDefinitions,
+  {
+    uiTableName: "Environment",
+    uiTableId: "environment",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."environment"',
+  },
   {
     uiTableName: "type",
     uiTableId: "type",

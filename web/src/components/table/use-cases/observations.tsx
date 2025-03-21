@@ -46,6 +46,11 @@ import { InfoIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
 import { ColorCodedObservationType } from "@/src/components/trace/ObservationTree";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  useEnvironmentFilter,
+  convertSelectedEnvironmentsToFilter,
+} from "@/src/hooks/use-environment-filter";
+import { Badge } from "@/src/components/ui/badge";
 
 export type ObservationsTableRow = {
   id: string;
@@ -80,6 +85,7 @@ export type ObservationsTableRow = {
   promptName?: string;
   promptVersion?: string;
   traceTags?: string[];
+  environment?: string;
 };
 
 export type ObservationsTableProps = {
@@ -177,12 +183,36 @@ export default function ObservationsTable({
       ]
     : [];
 
-  const filterState = inputFilterState.concat([
-    ...dateRangeFilter,
-    ...promptNameFilter,
-    ...promptVersionFilter,
-    ...modelIdFilter,
-  ]);
+  const environmentFilterOptions =
+    api.projects.environmentFilterOptions.useQuery(
+      { projectId },
+      {
+        trpc: { context: { skipBatch: true } },
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        staleTime: Infinity,
+      },
+    );
+
+  const environmentOptions =
+    environmentFilterOptions.data?.map((value) => value.environment) || [];
+
+  const { selectedEnvironments, setSelectedEnvironments } =
+    useEnvironmentFilter(environmentOptions, projectId);
+
+  const environmentFilter = convertSelectedEnvironmentsToFilter(
+    ["environment", "traceEnvironment"],
+    selectedEnvironments,
+  );
+
+  const filterState = inputFilterState.concat(
+    dateRangeFilter,
+    promptNameFilter,
+    promptVersionFilter,
+    modelIdFilter,
+    environmentFilter,
+  );
 
   const getCountPayload = {
     projectId,
@@ -271,7 +301,7 @@ export default function ObservationsTable({
       accessorKey: "type",
       id: "type",
       header: "Type",
-      size: 100,
+      size: 120,
       enableSorting: true,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
@@ -280,6 +310,25 @@ export default function ObservationsTable({
             <ColorCodedObservationType observationType={value} />
           </div>
         ) : undefined;
+      },
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      id: "environment",
+      size: 150,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: ObservationsTableRow["environment"] =
+          row.getValue("environment");
+        return value ? (
+          <Badge
+            variant="secondary"
+            className="max-w-fit truncate rounded-sm px-1 font-normal"
+          >
+            {value}
+          </Badge>
+        ) : null;
       },
     },
     {
@@ -527,7 +576,6 @@ export default function ObservationsTable({
         );
       },
     },
-
     {
       accessorKey: "modelId",
       id: "modelId",
@@ -536,7 +584,6 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
     },
-
     {
       accessorKey: "inputTokens",
       id: "inputTokens",
@@ -795,6 +842,7 @@ export default function ObservationsTable({
             traceTags: generation.traceTags ?? undefined,
             usageDetails: generation.usageDetails ?? {},
             costDetails: generation.costDetails ?? {},
+            environment: generation.environment ?? undefined,
           };
         })
       : [];
@@ -808,7 +856,7 @@ export default function ObservationsTable({
         filterState={inputFilterState}
         setFilterState={useDebounce(setInputFilterState)}
         searchConfig={{
-          placeholder: "Search by id, name, traceName, model",
+          placeholder: "Search (by id, name, trace name, model)",
           updateQuery: setSearchQuery,
           currentQuery: searchQuery ?? undefined,
         }}
@@ -824,10 +872,15 @@ export default function ObservationsTable({
         actionButtons={
           <BatchExportTableButton
             {...{ projectId, filterState, orderByState }}
-            tableName={BatchExportTableName.Generations}
+            tableName={BatchExportTableName.Observations}
             key="batchExport"
           />
         }
+        environmentFilter={{
+          values: selectedEnvironments,
+          onValueChange: setSelectedEnvironments,
+          options: environmentOptions.map((env) => ({ value: env })),
+        }}
       />
       <DataTable
         columns={columns}

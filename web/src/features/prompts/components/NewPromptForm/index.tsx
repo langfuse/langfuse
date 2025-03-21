@@ -43,8 +43,9 @@ import {
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
 import { ArrowTopRightIcon } from "@radix-ui/react-icons";
-import { PromptDescription } from "@/src/features/prompts/components/prompt-description";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { PRODUCTION_LABEL } from "@/src/features/prompts/constants";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlaygroundCache";
@@ -166,9 +167,11 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       .then((newPrompt) => {
         onFormSuccess?.();
         form.reset();
-        void router.push(
-          `/project/${projectId}/prompts/${encodeURIComponent(newPrompt.name)}`,
-        );
+        if ("name" in newPrompt) {
+          void router.push(
+            `/project/${projectId}/prompts/${encodeURIComponent(newPrompt.name)}`,
+          );
+        }
       })
       .catch((error) => {
         console.error(error);
@@ -245,7 +248,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               <code className="text-xs">{"{{variable}}"}</code> to insert
               variables into your prompt.
               <b className="font-semibold"> Note:</b> Variables must be
-              alphabetical characters or underscores.
+              alphabetical characters or underscores. You can also link other
+              text prompts using the plus button.
             </FormDescription>
             <Tabs
               value={form.watch("type")}
@@ -284,11 +288,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   render={({ field }) => (
                     <>
                       <FormControl>
-                        <CodeMirrorEditor
+                        <PromptLinkingEditor
                           value={field.value}
                           onChange={field.onChange}
-                          editable
-                          mode="prompt"
+                          onBlur={field.onBlur}
                           minHeight={200}
                         />
                       </FormControl>
@@ -306,6 +309,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       <PromptChatMessages
                         {...field}
                         initialMessages={initialMessages}
+                        projectId={projectId}
                       />
                       <FormMessage />
                     </>
@@ -314,9 +318,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </TabsContent>
             </Tabs>
           </FormItem>
-          <PromptDescription
-            currentExtractedVariables={currentExtractedVariables}
-          />
+          <PromptVariableListPreview variables={currentExtractedVariables} />
         </>
 
         {/* Prompt Config field */}

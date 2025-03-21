@@ -1,4 +1,3 @@
-import { TableWithMetadataWrapper } from "@/src/components/table/TableWithMetadataWrapper";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
@@ -15,6 +14,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  SidePanel,
+  SidePanelContent,
+  SidePanelHeader,
+  SidePanelTitle,
+} from "@/src/components/ui/side-panel";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export default function Dataset() {
   const router = useRouter();
@@ -45,7 +51,7 @@ export default function Dataset() {
           },
           { name: "Runs", href: `/project/${projectId}/datasets/${datasetId}` },
         ],
-        actionButtonsRight: [
+        actionButtonsRight: (
           <>
             <Link
               href={{
@@ -81,48 +87,51 @@ export default function Dataset() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>,
-        ],
+          </>
+        ),
       }}
     >
-      {run.data?.description || run.data?.metadata ? (
-        <TableWithMetadataWrapper
-          tableComponent={
-            <DatasetRunItemsTable
-              projectId={projectId}
-              datasetId={datasetId}
-              datasetRunId={runId}
-            />
-          }
-          cardTitleChildren={
-            <span className="text-lg font-medium">Run details</span>
-          }
-          cardContentChildren={
-            <div className="grid h-full grid-cols-1 gap-2 overflow-hidden">
-              {!!run.data?.description && (
-                <JSONView
-                  json={run.data.description}
-                  title="Description"
-                  className="overflow-y-auto"
-                />
-              )}
-              {!!run.data?.metadata && (
-                <JSONView
-                  json={run.data.metadata}
-                  title="Metadata"
-                  className="overflow-y-auto"
-                />
-              )}
-            </div>
-          }
-        />
-      ) : (
-        <DatasetRunItemsTable
-          projectId={projectId}
-          datasetId={datasetId}
-          datasetRunId={runId}
-        />
-      )}
+      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden">
+          <DatasetRunItemsTable
+            projectId={projectId}
+            datasetId={datasetId}
+            datasetRunId={runId}
+          />
+        </div>
+        <SidePanel mobileTitle="Run details" id="run-details">
+          <SidePanelHeader>
+            <SidePanelTitle>Run details</SidePanelTitle>
+          </SidePanelHeader>
+          <SidePanelContent>
+            {run.isLoading ? (
+              <Skeleton className="h-full w-full" />
+            ) : (
+              <>
+                {!!run.data?.description && (
+                  <JSONView
+                    json={run.data.description}
+                    title="Description"
+                    className="w-full overflow-y-auto"
+                  />
+                )}
+                {!!run.data?.metadata && (
+                  <JSONView
+                    json={run.data.metadata}
+                    title="Metadata"
+                    className="w-full overflow-y-auto"
+                  />
+                )}
+                {!run.data?.description && !run.data?.metadata && (
+                  <div className="mt-1 px-1 text-sm text-muted-foreground">
+                    No description or metadata for this run
+                  </div>
+                )}
+              </>
+            )}
+          </SidePanelContent>
+        </SidePanel>
+      </div>
     </Page>
   );
 }

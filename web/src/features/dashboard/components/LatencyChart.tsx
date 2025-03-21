@@ -24,11 +24,13 @@ export const GenerationLatencyChart = ({
   projectId,
   globalFilterState,
   agg,
+  isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
   agg: DashboardDateRangeAggregationOption;
+  isLoading?: boolean;
 }) => {
   const {
     allModels,
@@ -77,7 +79,7 @@ export const GenerationLatencyChart = ({
       queryName: "model-latencies-over-time",
     },
     {
-      enabled: selectedModels.length > 0 && allModels.length > 0,
+      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -128,7 +130,7 @@ export const GenerationLatencyChart = ({
       className={className}
       title="Model latencies"
       description="Latencies (seconds) per LLM generation"
-      isLoading={latencies.isLoading && selectedModels.length > 0}
+      isLoading={isLoading || (latencies.isLoading && selectedModels.length > 0)}
       headerRight={
         <div className="flex items-center justify-end">
           <ModelSelectorPopover
@@ -156,7 +158,7 @@ export const GenerationLatencyChart = ({
                     valueFormatter={latencyFormatter}
                   />
                 ) : (
-                  <NoDataOrLoading isLoading={latencies.isLoading} />
+                  <NoDataOrLoading isLoading={isLoading || latencies.isLoading} />
                 )}
               </>
             ),

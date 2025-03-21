@@ -59,6 +59,11 @@ export const CommentObjectType = {
     PROMPT: "PROMPT"
 } as const;
 export type CommentObjectType = (typeof CommentObjectType)[keyof typeof CommentObjectType];
+export const AuditLogRecordType = {
+    USER: "USER",
+    API_KEY: "API_KEY"
+} as const;
+export type AuditLogRecordType = (typeof AuditLogRecordType)[keyof typeof AuditLogRecordType];
 export const JobType = {
     EVAL: "EVAL"
 } as const;
@@ -132,9 +137,11 @@ export type AuditLog = {
     id: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
-    user_id: string;
+    type: Generated<AuditLogRecordType>;
+    api_key_id: string | null;
+    user_id: string | null;
     org_id: string;
-    user_org_role: string;
+    user_org_role: string | null;
     project_id: string | null;
     user_project_role: string | null;
     resource_type: string;
@@ -485,6 +492,16 @@ export type Prompt = {
     labels: Generated<string[]>;
     commit_message: string | null;
 };
+export type PromptDependency = {
+    id: string;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+    project_id: string;
+    parent_id: string;
+    child_name: string;
+    child_label: string | null;
+    child_version: number | null;
+};
 export type QueueBackUp = {
     id: string;
     project_id: string | null;
@@ -583,6 +600,7 @@ export type DB = {
     prices: Price;
     project_memberships: ProjectMembership;
     projects: Project;
+    prompt_dependencies: PromptDependency;
     prompts: Prompt;
     queue_backups: QueueBackUp;
     score_configs: ScoreConfig;

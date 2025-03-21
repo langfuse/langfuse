@@ -2,7 +2,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Fragment } from "react";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
@@ -160,6 +160,7 @@ export const IOPreview: React.FC<{
               {!(hideIfNull && !input) && !hideInput ? (
                 <MarkdownJsonView
                   title="Input"
+                  className="ph-no-capture"
                   content={input}
                   media={media?.filter((m) => m.field === "input") ?? []}
                 />
@@ -167,6 +168,7 @@ export const IOPreview: React.FC<{
               {!(hideIfNull && !output) && !hideOutput ? (
                 <MarkdownJsonView
                   title="Output"
+                  className="ph-no-capture"
                   content={output}
                   customCodeHeaderClassName="bg-secondary"
                   media={media?.filter((m) => m.field === "output") ?? []}
@@ -181,6 +183,7 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !input) && !hideInput ? (
             <JSONView
               title="Input"
+              className="ph-no-capture"
               json={input ?? null}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "input") ?? []}
@@ -189,6 +192,7 @@ export const IOPreview: React.FC<{
           {!(hideIfNull && !output) && !hideOutput ? (
             <JSONView
               title="Output"
+              className="ph-no-capture"
               json={outputClean}
               isLoading={isLoading}
               media={media?.filter((m) => m.field === "output") ?? []}
@@ -207,6 +211,7 @@ export const OpenAiMessageView: React.FC<{
   collapseLongHistory?: boolean;
   media?: MediaReturnType[];
   additionalInput?: Record<string, unknown>;
+  projectIdForPromptButtons?: string;
 }> = ({
   title,
   messages,
@@ -214,32 +219,49 @@ export const OpenAiMessageView: React.FC<{
   media,
   collapseLongHistory = true,
   additionalInput,
+  projectIdForPromptButtons,
 }) => {
   const COLLAPSE_THRESHOLD = 3;
   const [isCollapsed, setCollapsed] = useState(
     collapseLongHistory && messages.length > COLLAPSE_THRESHOLD ? true : null,
   );
 
+  const shouldRenderContent = (message: ChatMlMessageSchema) => {
+    return message.content != null || !!message.audio;
+  };
+
+  const shouldRenderJson = (message: ChatMlMessageSchema) => {
+    return !!message.json;
+  };
+
+  const messagesToRender = useMemo(
+    () =>
+      messages.filter(
+        (message) => shouldRenderContent(message) || shouldRenderJson(message),
+      ),
+    [messages],
+  );
+
   return (
-    <div className="flex max-h-full min-h-0 flex-col gap-2">
+    <div className="ph-no-capture flex max-h-full min-h-0 flex-col gap-2">
       {title && <SubHeaderLabel title={title} className="mt-1" />}
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
-          {messages
+          {messagesToRender
             .filter(
               (_, i) =>
                 // show all if not collapsed or null; show first and last n if collapsed
                 !isCollapsed ||
                 i == 0 ||
-                i > messages.length - COLLAPSE_THRESHOLD,
+                i > messagesToRender.length - COLLAPSE_THRESHOLD,
             )
             .map((message, index) => (
               <Fragment key={index}>
-                {(!!message.content || !!message.audio) &&
+                {shouldRenderContent(message) &&
                   (shouldRenderMarkdown ? (
                     <MarkdownJsonView
                       title={message.name ?? message.role}
-                      content={message.content}
+                      content={message.content || '""'}
                       className={cn(!!message.json && "rounded-b-none")}
                       customCodeHeaderClassName={cn(
                         message.role === "assistant" && "bg-secondary",
@@ -251,10 +273,11 @@ export const OpenAiMessageView: React.FC<{
                     <JSONView
                       title={message.name ?? message.role}
                       json={message.content}
+                      projectIdForPromptButtons={projectIdForPromptButtons}
                       className={cn(!!message.json && "rounded-b-none")}
                     />
                   ))}
-                {!!message.json && (
+                {shouldRenderJson(message) && (
                   <JSONView
                     title={
                       message.content
@@ -262,6 +285,7 @@ export const OpenAiMessageView: React.FC<{
                         : (message.name ?? message.role)
                     }
                     json={message.json}
+                    projectIdForPromptButtons={projectIdForPromptButtons}
                     className={cn(
                       !!message.content && "rounded-t-none border-t-0",
                     )}
@@ -274,7 +298,7 @@ export const OpenAiMessageView: React.FC<{
                     onClick={() => setCollapsed((v) => !v)}
                   >
                     {isCollapsed
-                      ? `Show ${messages.length - COLLAPSE_THRESHOLD} more ...`
+                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
                       : "Hide history"}
                   </Button>
                 ) : null}
@@ -282,9 +306,11 @@ export const OpenAiMessageView: React.FC<{
             ))}
         </div>
         {additionalInput && (
-          <div className="p-3 pt-1">
-            <JSONView title="Additional Input" json={additionalInput} />
-          </div>
+          <JSONView
+            title="Additional Input"
+            json={additionalInput}
+            projectIdForPromptButtons={projectIdForPromptButtons}
+          />
         )}
         {media && media.length > 0 && (
           <>

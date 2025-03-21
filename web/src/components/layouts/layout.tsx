@@ -18,7 +18,6 @@ import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { CommandMenu } from "@/src/features/command-k-menu/CommandMenu";
 
 const signOutUser = async () => {
-  localStorage.clear();
   sessionStorage.clear();
 
   await signOut();

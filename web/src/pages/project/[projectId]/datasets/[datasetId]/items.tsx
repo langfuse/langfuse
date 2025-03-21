@@ -55,7 +55,7 @@ export default function DatasetItems() {
         ],
         tabsComponent: (
           <TabsBar value="items">
-            <TabsBarList className="justify-start">
+            <TabsBarList>
               <TabsBarTrigger value="runs" asChild>
                 <Link href={`/project/${projectId}/datasets/${datasetId}`}>
                   Runs
@@ -65,7 +65,7 @@ export default function DatasetItems() {
             </TabsBarList>
           </TabsBar>
         ),
-        actionButtonsRight: [
+        actionButtonsRight: (
           <>
             <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
             <UploadDatasetCsvButton
@@ -140,8 +140,8 @@ export default function DatasetItems() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>,
-        ],
+          </>
+        ),
       }}
     >
       <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
