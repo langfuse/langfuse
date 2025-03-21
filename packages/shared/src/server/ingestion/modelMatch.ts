@@ -139,13 +139,20 @@ export async function findModelInPostgres(
 const NOT_FOUND_TOKEN = "LANGFUSE_MODEL_MATCH_NOT_FOUND" as const;
 
 const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
-  const key = getRedisModelKey(p);
-  await redis?.set(
-    key,
-    NOT_FOUND_TOKEN,
-    "EX",
-    env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
-  );
+  try {
+    const key = getRedisModelKey(p);
+    await redis?.set(
+      key,
+      NOT_FOUND_TOKEN,
+      "EX",
+      env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+    );
+  } catch (error) {
+    logger.error(
+      `Error adding model not found token for ${JSON.stringify(p)} to Redis`,
+      error,
+    );
+  }
 };
 
 const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
