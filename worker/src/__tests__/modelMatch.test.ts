@@ -30,6 +30,7 @@ describe("modelMatch", () => {
           modelName: "gpt-4",
           matchPattern: "gpt-4",
           unit: "TOKENS",
+          inputPrice: "1.0123",
         },
       });
 
@@ -114,7 +115,7 @@ describe("modelMatch", () => {
 
     it("should invalidate all cached models", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
-      const mockModel = await prisma.model.create({
+      await prisma.model.create({
         data: {
           projectId,
           modelName: "gpt-4",

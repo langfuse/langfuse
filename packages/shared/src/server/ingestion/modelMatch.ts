@@ -7,13 +7,16 @@ import { redis } from "../redis/redis";
 
 export type ModelMatchProps = {
   projectId: string;
-  model?: string;
+  model: string;
 };
 
 export async function findModel(p: ModelMatchProps): Promise<Model | null> {
-  // try to find model in Redis
+  logger.debug(`Finding model for ${JSON.stringify(p)}`);
   const redisModel = await getModelFromRedis(p);
   if (redisModel) {
+    logger.debug(
+      `Found model name ${redisModel?.modelName} (id: ${redisModel?.id}) for project ${p.projectId} and model ${p.model}`,
+    );
     return redisModel;
   }
 
@@ -24,6 +27,9 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
     await addModelToRedis(p, postgresModel);
   }
 
+  logger.debug(
+    `Found model name ${postgresModel?.modelName} (id: ${postgresModel?.id}) for project ${p.projectId} and model ${p.model}`,
+  );
   return postgresModel;
 }
 
@@ -118,13 +124,13 @@ const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
 };
 
 export const invalidateModelCache = async (projectId: string) => {
-  const keys = await redis?.keys(`model:${projectId}:*`);
+  const keys = await redis?.keys(`${getModelMatchKeyPrefix()}:${projectId}:*`);
   await deleteKeys(keys ?? []);
   logger.info(`Invalidated model cache for project ${projectId}`);
 };
 
 export const invalidateAllCachedModels = async () => {
-  const keys = await redis?.keys("model:*");
+  const keys = await redis?.keys(`${getModelMatchKeyPrefix()}:*`);
   await deleteKeys(keys ?? []);
   logger.info(`Invalidated all cached models`);
 };
@@ -136,5 +142,9 @@ const deleteKeys = async (keys: string[]) => {
 };
 
 export const getRedisModelKey = (p: ModelMatchProps) => {
-  return `model:${p.projectId}:${JSON.stringify(p)}`;
+  return `${getModelMatchKeyPrefix()}:${p.projectId}:${p.model}`;
+};
+
+const getModelMatchKeyPrefix = () => {
+  return "model-match";
 };

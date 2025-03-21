@@ -606,14 +606,12 @@ export class IngestionService {
     | {}
   > {
     const { projectId, observationRecord } = params;
-    const internalModel = await findModel({
-      projectId,
-      model: observationRecord.provided_model_name ?? undefined,
-    });
-
-    logger.debug(
-      `Found internal model name ${internalModel?.modelName} (id: ${internalModel?.id}) for observation ${observationRecord.id}`,
-    );
+    const internalModel = observationRecord.provided_model_name
+      ? await findModel({
+          projectId,
+          model: observationRecord.provided_model_name,
+        })
+      : null;
 
     const final_usage_details = this.getUsageUnits(
       observationRecord,
