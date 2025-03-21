@@ -44,7 +44,7 @@ export async function findModel(p: ModelMatchProps): Promise<Model | null> {
         span.setAttribute("model_match_source", "postgres");
         span.setAttribute("model_cache_set", "false");
       } else {
-        span.setAttribute("model_matched", "false");
+        span.setAttribute("model_match_source", "none");
       }
 
       logger.debug(
