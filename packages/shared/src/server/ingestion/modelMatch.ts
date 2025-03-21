@@ -184,9 +184,21 @@ export const redisModelToPrismaModel = (redisModel: string): Model => {
     ...parsed,
     createdAt: new Date(parsed.createdAt),
     updatedAt: new Date(parsed.updatedAt),
-    inputPrice: parsed.inputPrice ? new Decimal(parsed.inputPrice) : null,
-    outputPrice: parsed.outputPrice ? new Decimal(parsed.outputPrice) : null,
-    totalPrice: parsed.totalPrice ? new Decimal(parsed.totalPrice) : null,
-    startDate: parsed.startDate ? new Date(parsed.startDate) : null,
+    inputPrice:
+      parsed.inputPrice !== null && parsed.inputPrice !== undefined
+        ? new Decimal(parsed.inputPrice)
+        : null,
+    outputPrice:
+      parsed.outputPrice !== null && parsed.outputPrice !== undefined
+        ? new Decimal(parsed.outputPrice)
+        : null,
+    totalPrice:
+      parsed.totalPrice !== null && parsed.totalPrice !== undefined
+        ? new Decimal(parsed.totalPrice)
+        : null,
+    startDate:
+      parsed.startDate !== null && parsed.startDate !== undefined
+        ? new Date(parsed.startDate)
+        : null,
   };
 };
