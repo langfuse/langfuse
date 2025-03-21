@@ -119,7 +119,8 @@ const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
 };
 
 export const getRedisModelKey = (p: ModelMatchProps) => {
-  return `${getModelMatchKeyPrefix()}:${p.projectId}:${p.model}`;
+  const uriEncodedModel = encodeURIComponent(p.model);
+  return `${getModelMatchKeyPrefix()}:${p.projectId}:${uriEncodedModel}`;
 };
 
 const getModelMatchKeyPrefix = () => {
