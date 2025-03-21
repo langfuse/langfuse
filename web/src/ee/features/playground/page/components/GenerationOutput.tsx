@@ -4,6 +4,7 @@ import { usePlaygroundContext } from "../context";
 import { CheckIcon, CopyIcon, PlusIcon } from "@radix-ui/react-icons";
 import { ChatMessageRole } from "@langfuse/shared";
 import { BracesIcon } from "lucide-react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);
@@ -14,7 +15,8 @@ export const GenerationOutput = () => {
 
   const handleCopy = () => {
     setIsCopied(true);
-    void navigator.clipboard.writeText(isJson ? outputJson : output);
+    const textToCopy = isJson ? outputJson : output;
+    void copyTextToClipboard(textToCopy);
     setTimeout(() => setIsCopied(false), 1000);
   };
 
