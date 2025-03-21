@@ -41,11 +41,7 @@ const getModelFromRedis = async (p: ModelMatchProps): Promise<Model | null> => {
 
   try {
     const key = getRedisModelKey(p);
-    const redisModel = await redis?.getex(
-      key,
-      "EX",
-      env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
-    );
+    const redisModel = await redis?.get(key);
     if (redisModel) {
       recordIncrement("langfuse.model_match.cache_hit", 1);
       const model = redisModelToPrismaModel(redisModel);
@@ -107,7 +103,12 @@ export async function findModelInPostgres(
 const addModelToRedis = async (p: ModelMatchProps, model: Model) => {
   try {
     const redisApiKey = getRedisModelKey(p);
-    await redis?.set(redisApiKey, JSON.stringify(model));
+    await redis?.set(
+      redisApiKey,
+      JSON.stringify(model),
+      "EX",
+      env.LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS,
+    );
   } catch (error) {
     logger.error(`Error adding model for ${JSON.stringify(p)} to Redis`, error);
   }
