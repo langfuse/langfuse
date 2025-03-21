@@ -406,7 +406,6 @@ describe("create experiment job calls with langfuse server side tracing", async 
       expect.any(String),
       expect.any(String),
       expect.objectContaining({
-        tags: ["langfuse-prompt-experiment"],
         traceName: expect.stringMatching(/^dataset-run-item-/),
         traceId: expect.any(String),
         projectId: mockEvent.projectId,
@@ -417,6 +416,7 @@ describe("create experiment job calls with langfuse server side tracing", async 
             accessLevel: "all",
           }),
         }),
+        environment: "langfuse-prompt-experiment",
       }),
     );
   });
