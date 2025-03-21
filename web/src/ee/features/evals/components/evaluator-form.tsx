@@ -47,7 +47,13 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { CheckIcon, ChevronDown, ExternalLink } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDown,
+  ExternalLink,
+  InfoIcon,
+  Loader,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -68,6 +74,8 @@ import { EvalTemplateForm } from "@/src/ee/features/evals/components/template-fo
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { TooltipTrigger, TooltipContent } from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/ui/tooltip";
 
 export const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -85,6 +93,8 @@ const formSchema = z.object({
   delay: z.coerce.number().optional().default(10),
   timeScope: TimeScopeSchema,
 });
+
+type EvalFormType = z.infer<typeof formSchema>;
 
 type LangfuseObject = (typeof langfuseObjects)[number];
 
@@ -653,7 +663,7 @@ export const InnerEvalConfigForm = (props: {
                                 field.value.includes("EXISTING"))
                             }
                           />
-                          <div className="grid gap-1.5 leading-none">
+                          <div className="flex items-center gap-1.5 leading-none">
                             <label
                               htmlFor="existingObjects"
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -663,6 +673,13 @@ export const InnerEvalConfigForm = (props: {
                                 ? "traces"
                                 : "dataset items"}
                             </label>
+                            {field.value.includes("EXISTING") && (
+                              <ExecutionCountTooltip
+                                projectId={props.projectId}
+                                item={form.watch("target")}
+                                filter={form.watch("filter")}
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1046,7 +1063,7 @@ function VariableMappingDescription(p: {
   );
 }
 
-export const TimeScopeDescription = (props: {
+const TimeScopeDescription = (props: {
   projectId: string;
   timeScope: ("NEW" | "EXISTING")[] | undefined;
   target: "trace" | "dataset_item" | undefined;
@@ -1055,9 +1072,6 @@ export const TimeScopeDescription = (props: {
     return "Select a time scope to run this configuration on.";
   }
 
-  const globalConfig = api.evals.globalJobConfigs.useQuery({
-    projectId: props.projectId,
-  });
   return (
     <div>
       This configuration will run on{" "}
@@ -1068,9 +1082,79 @@ export const TimeScopeDescription = (props: {
           : "all existing"}{" "}
       {props.target === "trace" ? "traces" : "dataset items"} that match these
       filters.{" "}
-      {globalConfig.data && props.timeScope?.includes("EXISTING")
-        ? `We execute the evaluation on up to ${compactNumberFormatter(globalConfig.data)} historic evaluations.`
-        : null}
     </div>
+  );
+};
+
+type ExecutionCountTooltipProps = {
+  projectId: string;
+  item: string;
+  filter: EvalFormType["filter"];
+};
+
+const ExecutionCountTooltip = ({
+  projectId,
+  item,
+  filter,
+}: ExecutionCountTooltipProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const globalConfig = api.evals.globalJobConfigs.useQuery({
+    projectId,
+  });
+
+  const baseAllCountFilter = {
+    projectId,
+    filter,
+  };
+
+  const tracesAllCountFilter = {
+    ...baseAllCountFilter,
+    searchQuery: null,
+    orderBy: null,
+  };
+
+  // utilize `isOpen` to only query if user hovers over tooltip to avoid unnecessary queries
+  const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    enabled: isOpen && isTraceTarget(item),
+  });
+
+  const datasetCountQuery = api.datasets.countAllDatasetItems.useQuery(
+    baseAllCountFilter,
+    {
+      enabled: isOpen && !isTraceTarget(item),
+    },
+  );
+
+  const loading = isTraceTarget(item)
+    ? totalCountQuery.isLoading
+    : datasetCountQuery.isLoading;
+
+  const totalCount = isTraceTarget(item)
+    ? totalCountQuery.data?.totalCount
+    : datasetCountQuery.data?.totalCount;
+
+  return (
+    <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+      <TooltipTrigger>
+        <InfoIcon className="h-4 w-4" />
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="text-sm">
+          We execute the evaluation on{" "}
+          {loading ? (
+            <Loader className="inline-block h-4 w-4 animate-spin" />
+          ) : (
+            compactNumberFormatter(
+              !globalConfig.data ||
+                (totalCount && totalCount < globalConfig.data)
+                ? totalCount
+                : globalConfig.data,
+            )
+          )}{" "}
+          {isTraceTarget(item) ? "traces" : "dataset items"}.
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 };
