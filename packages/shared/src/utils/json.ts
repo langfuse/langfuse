@@ -1,4 +1,5 @@
 import { JsonNested } from "./zod";
+import { parse, isSafeNumber, isNumber } from "lossless-json";
 
 /**
  * Deeply parses a JSON string or object for nested stringified JSON
@@ -41,7 +42,18 @@ export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    return JSON.parse(json);
+    return parse(json, null, (value) => {
+      if (isNumber(value)) {
+        if (isSafeNumber(value)) {
+          // Safe numbers (integers and decimals) can be converted to Number
+          return Number(value.valueOf());
+        } else {
+          // For large integers beyond safe limits, preserve string representation
+          return value.toString();
+        }
+      }
+      return value;
+    }) as JsonNested;
   } catch (error) {
     return json;
   }
