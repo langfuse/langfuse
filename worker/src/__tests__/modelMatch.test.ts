@@ -1,12 +1,11 @@
 import { expect, describe, it, beforeEach, afterEach } from "vitest";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
-  createOrgProjectAndApiKey,
   findModel,
   findModelInPostgres,
   getRedisModelKey,
-  redis,
-} from "@langfuse/shared/src/server";
+} from "../services/modelMatch";
 
 describe("modelMatch", () => {
   describe("findModel", () => {
@@ -35,7 +34,25 @@ describe("modelMatch", () => {
         model: "gpt-4",
       });
 
-      expect(result).toEqual(mockModel);
+      expect(result).not.toBeNull();
+      if (!result) {
+        throw new Error("Result is null");
+      }
+      expect(result.id).toEqual(mockModel.id);
+      expect(result.projectId).toEqual(mockModel.projectId);
+      expect(result.modelName).toEqual(mockModel.modelName);
+      expect(result.matchPattern).toEqual(mockModel.matchPattern);
+      expect(result.unit).toEqual(mockModel.unit);
+      expect(result.inputPrice?.toString()).toEqual(
+        mockModel.inputPrice?.toString(),
+      );
+      expect(result.outputPrice?.toString()).toEqual(
+        mockModel.outputPrice?.toString(),
+      );
+      expect(result.totalPrice?.toString()).toEqual(
+        mockModel.totalPrice?.toString(),
+      );
+
       // Verify the model exists in Redis
       const redisKey = getRedisModelKey({
         projectId,

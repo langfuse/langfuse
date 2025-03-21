@@ -1,10 +1,13 @@
-import { env } from "../../env";
-import { Model, Prisma } from "@prisma/client";
-import { prisma } from "../../db";
-import { instrumentAsync, recordIncrement } from "../instrumentation";
-import { logger } from "../logger";
-import { redis } from "../redis/redis";
-import Decimal from "decimal.js";
+import { Model, Prisma } from "@langfuse/shared";
+import {
+  instrumentAsync,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
+import { env } from "../env";
+import { redis } from "@langfuse/shared/src/server";
+import { Decimal } from "decimal.js";
+import { prisma } from "@langfuse/shared/src/db";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -179,14 +182,26 @@ const getModelMatchKeyPrefix = () => {
 };
 
 export const redisModelToPrismaModel = (redisModel: string): Model => {
-  const parsed = JSON.parse(redisModel);
+  const parsed: Model = JSON.parse(redisModel);
   return {
     ...parsed,
     createdAt: new Date(parsed.createdAt),
     updatedAt: new Date(parsed.updatedAt),
-    inputPrice: new Decimal(parsed.inputPrice),
-    outputPrice: new Decimal(parsed.outputPrice),
-    totalPrice: new Decimal(parsed.totalPrice),
-    startDate: parsed.startDate ? new Date(parsed.startDate) : null,
+    inputPrice:
+      parsed.inputPrice !== null && parsed.inputPrice !== undefined
+        ? new Decimal(parsed.inputPrice)
+        : null,
+    outputPrice:
+      parsed.outputPrice !== null && parsed.outputPrice !== undefined
+        ? new Decimal(parsed.outputPrice)
+        : null,
+    totalPrice:
+      parsed.totalPrice !== null && parsed.totalPrice !== undefined
+        ? new Decimal(parsed.totalPrice)
+        : null,
+    startDate:
+      parsed.startDate !== null && parsed.startDate !== undefined
+        ? new Date(parsed.startDate)
+        : null,
   };
 };
