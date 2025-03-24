@@ -80,6 +80,12 @@ export const JobExecutionStatus = {
     CANCELLED: "CANCELLED"
 } as const;
 export type JobExecutionStatus = (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
+export const BlobStorageIntegrationType = {
+    S3: "S3",
+    S3_COMPATIBLE: "S3_COMPATIBLE",
+    AZURE_BLOB_STORAGE: "AZURE_BLOB_STORAGE"
+} as const;
+export type BlobStorageIntegrationType = (typeof BlobStorageIntegrationType)[keyof typeof BlobStorageIntegrationType];
 export type Account = {
     id: string;
     user_id: string;
@@ -190,6 +196,7 @@ export type BillingMeterBackup = {
 };
 export type BlobStorageIntegration = {
     project_id: string;
+    type: BlobStorageIntegrationType;
     bucket_name: string;
     prefix: string;
     access_key_id: string;
@@ -200,6 +207,7 @@ export type BlobStorageIntegration = {
     next_sync_at: Timestamp | null;
     last_sync_at: Timestamp | null;
     enabled: boolean;
+    export_frequency: string;
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };

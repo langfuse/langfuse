@@ -25,7 +25,6 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   blobStorageIntegrationFormSchema,
-  StorageProvider,
   type BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -37,6 +36,10 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import {
+  BlobStorageIntegrationType,
+  BlobStorageIntegration,
+} from "@langfuse/shared";
 
 export default function BlobStorageIntegrationSettings() {
   const router = useRouter();
@@ -79,9 +82,9 @@ export default function BlobStorageIntegrationSettings() {
       }}
     >
       <p className="mb-4 text-sm text-primary">
-        Configure scheduled exports of your trace data to AWS S3, S3-compatible storages,
-        or Azure Blob Storage. Set up a daily, weekly, or monthly export to your
-        own storage for data analysis or backup purposes.
+        Configure scheduled exports of your trace data to AWS S3, S3-compatible
+        storages, or Azure Blob Storage. Set up a daily, weekly, or monthly
+        export to your own storage for data analysis or backup purposes.
       </p>
       {!hasAccess && (
         <p className="text-sm">
@@ -94,7 +97,7 @@ export default function BlobStorageIntegrationSettings() {
           <Header title="Configuration" />
           <Card className="p-3">
             <BlobStorageIntegrationSettingsForm
-              state={state.data}
+              state={state.data || undefined}
               projectId={projectId}
               isLoading={state.isLoading}
             />
@@ -106,8 +109,8 @@ export default function BlobStorageIntegrationSettings() {
           <Header title="Status" className="mt-8" />
           <p className="text-sm text-primary">
             Data last exported:{" "}
-            {state.data?.lastExportAt
-              ? new Date(state.data.lastExportAt).toLocaleString()
+            {state.data?.lastSyncAt
+              ? new Date(state.data.lastSyncAt).toLocaleString()
               : "Never (pending)"}
           </p>
         </>
@@ -121,26 +124,28 @@ const BlobStorageIntegrationSettingsForm = ({
   projectId,
   isLoading,
 }: {
-  state?: RouterOutput["blobStorageIntegration"]["get"];
+  state?: Partial<BlobStorageIntegration>;
   projectId: string;
   isLoading: boolean;
 }) => {
   const capture = usePostHogClientCapture();
-  const [storageProvider, setStorageProvider] = useState<StorageProvider>(
-    (state?.provider as StorageProvider) || "s3",
-  );
+  const [integrationType, setIntegrationType] =
+    useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   const blobStorageForm = useForm<BlobStorageIntegrationFormSchema>({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
     defaultValues: {
-      provider: (state?.provider as StorageProvider) || "s3",
+      type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
       endpoint: state?.endpoint || "",
       region: state?.region || "",
       accessKeyId: state?.accessKeyId || "",
-      secretAccessKey: state?.secretAccessKey || "",
-      exportPrefix: state?.exportPrefix || "",
-      exportFrequency: state?.exportFrequency || "daily",
+      secretAccessKey: state?.secretAccessKey || null,
+      prefix: state?.prefix || "",
+      exportFrequency: (state?.exportFrequency || "daily") as
+        | "daily"
+        | "weekly"
+        | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
     },
@@ -149,19 +154,20 @@ const BlobStorageIntegrationSettingsForm = ({
 
   useEffect(() => {
     blobStorageForm.reset({
-      provider: (state?.provider as StorageProvider) || "s3",
+      type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
       endpoint: state?.endpoint || "",
       region: state?.region || "",
       accessKeyId: state?.accessKeyId || "",
-      secretAccessKey: state?.secretAccessKey || "",
-      exportPrefix: state?.exportPrefix || "",
-      exportFrequency: state?.exportFrequency || "daily",
+      secretAccessKey: state?.secretAccessKey || null,
+      prefix: state?.prefix || "",
+      exportFrequency: (state?.exportFrequency || "daily") as
+        | "daily"
+        | "weekly"
+        | "hourly",
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
     });
-    setStorageProvider((state?.provider as StorageProvider) || "s3");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const utils = api.useUtils();
@@ -177,16 +183,16 @@ const BlobStorageIntegrationSettingsForm = ({
   });
 
   async function onSubmit(values: BlobStorageIntegrationFormSchema) {
-    capture("integrations:blobstorage_form_submitted");
+    capture("integrations:blob_storage_form_submitted");
     mut.mutate({
       projectId,
       ...values,
     });
   }
 
-  const handleProviderChange = (value: StorageProvider) => {
-    setStorageProvider(value);
-    blobStorageForm.setValue("provider", value);
+  const handleIntegrationTypeChange = (value: BlobStorageIntegrationType) => {
+    setIntegrationType(value);
+    blobStorageForm.setValue("type", value);
   };
 
   return (
@@ -198,7 +204,7 @@ const BlobStorageIntegrationSettingsForm = ({
       >
         <FormField
           control={blobStorageForm.control}
-          name="provider"
+          name="type"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Storage Provider</FormLabel>
@@ -206,16 +212,22 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Select
                   defaultValue={field.value}
                   onValueChange={(value) =>
-                    handleProviderChange(value as StorageProvider)
+                    handleIntegrationTypeChange(
+                      value as BlobStorageIntegrationType,
+                    )
                   }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="s3">AWS S3</SelectItem>
-                    <SelectItem value="s3-compatible">S3 Compatible Storage</SelectItem>
-                    <SelectItem value="azure">Azure Blob Storage</SelectItem>
+                    <SelectItem value="S3">AWS S3</SelectItem>
+                    <SelectItem value="S3_COMPATIBLE">
+                      S3 Compatible Storage
+                    </SelectItem>
+                    <SelectItem value="AZURE_BLOB_STORAGE">
+                      Azure Blob Storage
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -233,13 +245,15 @@ const BlobStorageIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {storageProvider === "azure" ? "Container Name" : "Bucket Name"}
+                {integrationType === "AZURE_BLOB_STORAGE"
+                  ? "Container Name"
+                  : "Bucket Name"}
               </FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                {storageProvider === "azure"
+                {integrationType === "AZURE_BLOB_STORAGE"
                   ? "The Azure storage container name"
                   : "The S3 bucket name"}
               </FormDescription>
@@ -249,7 +263,7 @@ const BlobStorageIntegrationSettingsForm = ({
         />
 
         {/* Endpoint URL field - Only shown for S3-compatible and Azure */}
-        {storageProvider !== "s3" && (
+        {integrationType !== "S3" && (
           <FormField
             control={blobStorageForm.control}
             name="endpoint"
@@ -260,7 +274,7 @@ const BlobStorageIntegrationSettingsForm = ({
                   <Input {...field} />
                 </FormControl>
                 <FormDescription>
-                  {storageProvider === "azure"
+                  {integrationType === "AZURE_BLOB_STORAGE"
                     ? "Azure Blob Storage endpoint URL (e.g., https://accountname.blob.core.windows.net)"
                     : "S3 compatible endpoint URL (e.g., https://play.min.io)"}
                 </FormDescription>
@@ -271,7 +285,7 @@ const BlobStorageIntegrationSettingsForm = ({
         )}
 
         {/* Region field - Only shown for AWS S3 */}
-        {storageProvider === "s3" && (
+        {integrationType === "S3" && (
           <FormField
             control={blobStorageForm.control}
             name="region"
@@ -281,9 +295,7 @@ const BlobStorageIntegrationSettingsForm = ({
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
-                <FormDescription>
-                  AWS region (e.g., us-east-1)
-                </FormDescription>
+                <FormDescription>AWS region (e.g., us-east-1)</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -291,7 +303,7 @@ const BlobStorageIntegrationSettingsForm = ({
         )}
 
         {/* Force Path Style switch - Only shown for S3-compatible */}
-        {storageProvider === "s3-compatible" && (
+        {integrationType === "S3_COMPATIBLE" && (
           <FormField
             control={blobStorageForm.control}
             name="forcePathStyle"
@@ -320,9 +332,9 @@ const BlobStorageIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {storageProvider === "azure"
+                {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Storage Account Name"
-                  : storageProvider === "s3"
+                  : integrationType === "S3"
                     ? "AWS Access Key ID"
                     : "Access Key ID"}
               </FormLabel>
@@ -330,9 +342,9 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                {storageProvider === "azure"
+                {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Your Azure storage account name"
-                  : storageProvider === "s3"
+                  : integrationType === "S3"
                     ? "Your AWS IAM user access key ID"
                     : "Access key for your S3-compatible storage"}
               </FormDescription>
@@ -347,9 +359,9 @@ const BlobStorageIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {storageProvider === "azure"
+                {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Storage Account Key"
-                  : storageProvider === "s3"
+                  : integrationType === "S3"
                     ? "AWS Secret Access Key"
                     : "Secret Access Key"}
               </FormLabel>
@@ -357,9 +369,9 @@ const BlobStorageIntegrationSettingsForm = ({
                 <PasswordInput {...field} />
               </FormControl>
               <FormDescription>
-                {storageProvider === "azure"
+                {integrationType === "AZURE_BLOB_STORAGE"
                   ? "Your Azure storage account access key"
-                  : storageProvider === "s3"
+                  : integrationType === "S3"
                     ? "Your AWS IAM user secret access key"
                     : "Secret key for your S3-compatible storage"}
               </FormDescription>
@@ -370,7 +382,7 @@ const BlobStorageIntegrationSettingsForm = ({
 
         <FormField
           control={blobStorageForm.control}
-          name="exportPrefix"
+          name="prefix"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Export Prefix</FormLabel>
@@ -378,11 +390,11 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                {storageProvider === "azure"
-                  ? "Optional prefix path for exported files in your Azure container (e.g., \"langfuse-exports/\")"
-                  : storageProvider === "s3"
-                    ? "Optional prefix path for exported files in your S3 bucket (e.g., \"langfuse-exports/\")"
-                    : "Optional prefix path for exported files (e.g., \"langfuse-exports/\")"}
+                {integrationType === "AZURE_BLOB_STORAGE"
+                  ? 'Optional prefix path for exported files in your Azure container (e.g., "langfuse-exports/")'
+                  : integrationType === "S3"
+                    ? 'Optional prefix path for exported files in your S3 bucket (e.g., "langfuse-exports/")'
+                    : 'Optional prefix path for exported files (e.g., "langfuse-exports/")'}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -404,9 +416,9 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select frequency" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="hourly">Hourly</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>

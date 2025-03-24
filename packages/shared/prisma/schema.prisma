@@ -881,23 +881,33 @@ model BlobStorageIntegration {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Blob Storage Config
-  bucketName      String  @map("bucket_name")
-  prefix          String  @map("prefix")
-  accessKeyId     String  @map("access_key_id")
-  secretAccessKey String  @map("secret_access_key")
-  region          String  @map("region")
-  endpoint        String? @map("endpoint")
-  forcePathStyle  Boolean @map("force_path_style")
+  type            BlobStorageIntegrationType @map("type")
+  bucketName      String                     @map("bucket_name")
+  prefix          String                     @map("prefix")
+  accessKeyId     String                     @map("access_key_id")
+  secretAccessKey String                     @map("secret_access_key")
+  region          String                     @map("region")
+  endpoint        String?                    @map("endpoint")
+  forcePathStyle  Boolean                    @map("force_path_style")
 
   // Integration Config
-  nextSyncAt DateTime? @map("next_sync_at")
-  lastSyncAt DateTime? @map("last_sync_at")
-  enabled    Boolean
+  nextSyncAt      DateTime? @map("next_sync_at")
+  lastSyncAt      DateTime? @map("last_sync_at")
+  enabled         Boolean
+  exportFrequency String    @map("export_frequency")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("blob_storage_integrations")
+}
+
+enum BlobStorageIntegrationType {
+  S3
+  S3_COMPATIBLE
+  AZURE_BLOB_STORAGE
+
+  @@map("BlobStorageIntegrationType")
 }
 
 model BatchExport {

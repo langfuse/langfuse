@@ -1,19 +1,22 @@
 import { z } from "zod";
-
-export const storageProviderEnum = z.enum(["s3", "s3-compatible", "azure"]);
-export type StorageProvider = z.infer<typeof storageProviderEnum>;
+import { BlobStorageIntegrationType } from "@langfuse/shared";
 
 export const blobStorageIntegrationFormSchema = z.object({
-  provider: storageProviderEnum,
+  type: z.nativeEnum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
-  endpoint: z.string().url().optional().or(z.literal("")),
-  region: z.string().optional().or(z.literal("")),
+  endpoint: z.string().url().optional().nullable(),
+  region: z.string().default("auto"),
   accessKeyId: z.string().min(1, { message: "Access key ID is required" }),
-  secretAccessKey: z.string().min(1, { message: "Secret access key is required" }),
-  exportPrefix: z.string().optional().or(z.literal("")),
-  exportFrequency: z.enum(["daily", "weekly", "monthly"]),
+  secretAccessKey: z
+    .string()
+    .min(1, { message: "Secret access key is required" })
+    .nullable(), // Only required on create
+  prefix: z.string().optional().or(z.literal("")),
+  exportFrequency: z.enum(["hourly", "daily", "weekly"]),
   enabled: z.boolean(),
-  forcePathStyle: z.boolean().optional(),
+  forcePathStyle: z.boolean(),
 });
 
-export type BlobStorageIntegrationFormSchema = z.infer<typeof blobStorageIntegrationFormSchema>;
+export type BlobStorageIntegrationFormSchema = z.infer<
+  typeof blobStorageIntegrationFormSchema
+>;
