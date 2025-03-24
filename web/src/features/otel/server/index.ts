@@ -270,6 +270,26 @@ const extractName = (
   return spanName;
 };
 
+const extractMetadata = (
+  attributes: Record<string, unknown>,
+): Record<string, unknown> => {
+  if (attributes["langfuse.metadata"]) {
+    try {
+      // If it's a string (JSON), parse it
+      if (typeof attributes["langfuse.metadata"] === "string") {
+        return JSON.parse(attributes["langfuse.metadata"] as string);
+      }
+      // If it's already an object, return it
+      if (typeof attributes["langfuse.metadata"] === "object") {
+        return attributes["langfuse.metadata"] as Record<string, unknown>;
+      }
+    } catch (e) {
+      // If parsing fails, continue with default metadata
+    }
+  }
+  return {};
+};
+
 const extractUserId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
@@ -416,6 +436,7 @@ export const convertOtelSpanToIngestionEvent = (
           )
         : null;
 
+      const metadata = extractMetadata(attributes);
       if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
@@ -423,6 +444,7 @@ export const convertOtelSpanToIngestionEvent = (
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
           name: extractName(span.name, attributes),
           metadata: {
+            ...metadata,
             attributes,
             resourceAttributes,
             scope: scopeSpan?.scope,
@@ -467,6 +489,7 @@ export const convertOtelSpanToIngestionEvent = (
 
         // Additional fields
         metadata: {
+          ...metadata,
           attributes,
           resourceAttributes,
           scope: scopeSpan?.scope,

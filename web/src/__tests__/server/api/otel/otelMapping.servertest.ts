@@ -826,6 +826,30 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"foo": "bar"}',
         },
       ],
+      [
+        "should map langfuse.metadata string to top-level metadata for trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.metadata",
+          otelAttributeValue: {
+            stringValue: '{"customer_id": "123", "experiment": "test-run-1"}',
+          },
+          entityAttributeKey: "metadata.customer_id",
+          entityAttributeValue: "123",
+        },
+      ],
+      [
+        "should map langfuse.metadata string to top-level metadata for observation",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.metadata",
+          otelAttributeValue: {
+            stringValue: '{"customer_id": "123", "experiment": "test-run-1"}',
+          },
+          entityAttributeKey: "metadata.customer_id",
+          entityAttributeValue: "123",
+        },
+      ],
     ])(
       "Attributes: %s",
       (
