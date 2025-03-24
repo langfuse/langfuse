@@ -1324,7 +1324,7 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
-export const getObservationsForBlobStorageExport = async function* (
+export const getObservationsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,

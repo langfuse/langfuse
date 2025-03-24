@@ -27,7 +27,7 @@ const processBlobStorageExport = async (config: {
   prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
-  table: "traces" | "generations" | "scores";
+  table: "traces" | "observations" | "scores";
 }) => {
   logger.info(
     `Processing ${config.table} export for project ${config.projectId}`,
@@ -46,8 +46,11 @@ const processBlobStorageExport = async (config: {
 
   try {
     // Create the file path with prefix if available
-    const timestamp = config.maxTimestamp.toISOString().replace(/:/g, "-");
-    const filePath = `${config.prefix ? config.prefix + "/" : ""}${config.projectId}/${config.table}/${timestamp}.csv`;
+    const timestamp = config.maxTimestamp
+      .toISOString()
+      .replace(/:/g, "-")
+      .substring(0, 19);
+    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.csv`;
 
     // Fetch data based on table type
     let dataStream: AsyncGenerator<Record<string, unknown>>;
@@ -60,7 +63,7 @@ const processBlobStorageExport = async (config: {
           config.maxTimestamp,
         );
         break;
-      case "generations":
+      case "observations":
         dataStream = getObservationsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
@@ -159,7 +162,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     await Promise.all([
       processBlobStorageExport({ ...executionConfig, table: "traces" }),
-      processBlobStorageExport({ ...executionConfig, table: "generations" }),
+      processBlobStorageExport({ ...executionConfig, table: "observations" }),
       processBlobStorageExport({ ...executionConfig, table: "scores" }),
     ]);
 

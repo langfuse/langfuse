@@ -810,7 +810,7 @@ export const getUserMetrics = async (
   }));
 };
 
-export const getTracesForBlobStorageExport = async function* (
+export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,

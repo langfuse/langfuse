@@ -846,7 +846,7 @@ export const getDistinctScoreNames = async (
   return rows.map((row) => row.name);
 };
 
-export const getScoresForBlobStorageExport = async function* (
+export const getScoresForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
