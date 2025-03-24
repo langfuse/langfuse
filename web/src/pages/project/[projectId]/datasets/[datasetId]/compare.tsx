@@ -2,24 +2,10 @@ import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { api } from "@/src/utils/api";
-import {
-  FlaskConical,
-  FolderKanban,
-  List,
-  Cog,
-  ChartBarBig,
-  ChartArea,
-  ChartBarStacked,
-  ChartLine,
-} from "lucide-react";
+import { ChartLine, Cog, FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { useQueryParams, withDefault, ArrayParam } from "use-query-params";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/src/components/ui/popover";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -29,7 +15,6 @@ import {
 import { CreateExperimentsForm } from "@/src/ee/features/experiments/components/CreateExperimentsForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
-import { Card, CardContent } from "@/src/components/ui/card";
 import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import {
@@ -43,7 +28,6 @@ import {
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
-import { Switch } from "@/src/components/ui/switch";
 import {
   DropdownMenuContent,
   DropdownMenuLabel,
@@ -54,6 +38,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { SubHeader, SubHeaderLabel } from "@/src/components/layouts/header";
+import {
+  SidePanel,
+  SidePanelContent,
+  SidePanelHeader,
+  SidePanelTitle,
+} from "@/src/components/ui/side-panel";
+import { Switch } from "@/src/components/ui/switch";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -227,30 +219,6 @@ export default function DatasetCompare() {
                 />
               </DialogContent>
             </Dialog>
-            <Popover key="show-dataset-details">
-              <PopoverTrigger asChild>
-                <Button variant="outline">
-                  <FolderKanban className="mr-2 h-4 w-4" />
-                  <span className="hidden md:block">Dataset details</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="mx-2 max-h-[50vh] w-[50vw] overflow-y-auto md:w-[25vw]">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="mb-1 font-medium">Description</h4>
-                    <span className="text-sm text-muted-foreground">
-                      {dataset.data?.description ?? "No description"}
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="mb-1 font-medium">Metadata</h4>
-                    <MarkdownJsonView
-                      content={dataset.data?.metadata ?? null}
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
             <MultiSelectKeyValues
               key="select-runs"
               title="Runs"
@@ -331,61 +299,135 @@ export default function DatasetCompare() {
         ),
       }}
     >
-      {Boolean(selectedMetrics.length) &&
-        Boolean(runAggregatedMetrics?.size) &&
-        showCharts && (
-          <Card className="my-4 max-h-64">
-            <CardContent className="mt-2 h-full">
-              <div className="flex h-full w-full gap-4 overflow-x-auto">
-                {selectedMetrics.map((key) => {
-                  const adapter = new CompareViewAdapter(
-                    runAggregatedMetrics,
-                    key,
-                  );
-                  const { chartData, chartLabels } = adapter.toChartData();
-
-                  const scoreData = scoreKeyToData.get(key);
-                  if (!scoreData)
-                    return (
-                      <TimeseriesChart
-                        key={key}
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={
-                          RESOURCE_METRICS.find((metric) => metric.key === key)
-                            ?.label ?? key
-                        }
-                        type="numeric"
-                      />
-                    );
-
-                  return (
-                    <TimeseriesChart
-                      key={key}
-                      chartData={chartData}
-                      chartLabels={chartLabels}
-                      title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
-                      type={
-                        isNumericDataType(scoreData.dataType)
-                          ? "numeric"
-                          : "categorical"
-                      }
-                    />
-                  );
-                })}
+      <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+        <div className="flex h-full flex-col overflow-hidden">
+          <DatasetCompareRunsTable
+            key={runIds?.join(",") ?? "empty"}
+            projectId={projectId}
+            datasetId={datasetId}
+            runsData={runsData.data}
+            runIds={runIds ?? []}
+            localExperiments={localRuns}
+          />
+        </div>
+        <SidePanel
+          mobileTitle="Compare Experiments"
+          id="compare-experiments"
+          scrollable={false}
+        >
+          <SidePanelHeader>
+            <SidePanelTitle>Compare Experiments</SidePanelTitle>
+          </SidePanelHeader>
+          <SidePanelContent className="overflow-y-auto p-1">
+            <div className="w-full space-y-4">
+              <div>
+                <SubHeaderLabel title="Description" />
+                <span className="text-sm text-muted-foreground">
+                  {dataset.data?.description ?? "No description"}
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              {dataset.data?.metadata && (
+                <div>
+                  <SubHeaderLabel title="Metadata" />
+                  <MarkdownJsonView content={dataset.data?.metadata} />
+                </div>
+              )}
+            </div>
 
-      <DatasetCompareRunsTable
-        key={runIds?.join(",") ?? "empty"}
-        projectId={projectId}
-        datasetId={datasetId}
-        runsData={runsData.data}
-        runIds={runIds ?? []}
-        localExperiments={localRuns}
-      />
+            <>
+              <div className="flex w-full flex-row items-center justify-between gap-2">
+                <SubHeader title="Charts" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <div className="relative" title="Chart settings">
+                        <ChartLine className="h-4 w-4" />
+                        <Cog className="absolute -bottom-1.5 -right-1 h-3.5 w-3.5 rounded-full bg-background p-0.5" />
+                      </div>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Chart settings</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+
+                    {runIds && runIds.length > 1 && (
+                      <DropdownMenuItem
+                        asChild
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <DatasetAnalytics
+                          key="dataset-analytics"
+                          projectId={projectId}
+                          scoreOptions={scoreAnalyticsOptions}
+                          selectedMetrics={selectedMetrics}
+                          setSelectedMetrics={setSelectedMetrics}
+                        />
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {Boolean(selectedMetrics.length) &&
+              Boolean(runAggregatedMetrics?.size) ? (
+                <div className="grid w-full grid-cols-1 gap-4">
+                  {selectedMetrics.map((key) => {
+                    const adapter = new CompareViewAdapter(
+                      runAggregatedMetrics,
+                      key,
+                    );
+                    const { chartData, chartLabels } = adapter.toChartData();
+
+                    const scoreData = scoreKeyToData.get(key);
+                    if (!scoreData)
+                      return (
+                        <div
+                          key={key}
+                          className="max-h-52 min-h-0 min-w-0 max-w-full"
+                        >
+                          <TimeseriesChart
+                            key={key}
+                            chartData={chartData}
+                            chartLabels={chartLabels}
+                            title={
+                              RESOURCE_METRICS.find(
+                                (metric) => metric.key === key,
+                              )?.label ?? key
+                            }
+                            type="numeric"
+                          />
+                        </div>
+                      );
+
+                    return (
+                      <div
+                        key={key}
+                        className="max-h-52 min-h-0 min-w-0 max-w-full"
+                      >
+                        <TimeseriesChart
+                          key={key}
+                          chartData={chartData}
+                          chartLabels={chartLabels}
+                          title={`${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`}
+                          type={
+                            isNumericDataType(scoreData.dataType)
+                              ? "numeric"
+                              : "categorical"
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="-mt-2 text-sm text-muted-foreground">
+                  All charts hidden. Enable them in settings.
+                </span>
+              )}
+            </>
+          </SidePanelContent>
+        </SidePanel>
+      </div>
     </Page>
   );
 }

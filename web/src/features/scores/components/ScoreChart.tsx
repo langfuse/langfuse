@@ -7,6 +7,7 @@ import { Card } from "@/src/components/ui/card";
 import { type ChartBin } from "@/src/features/scores/types";
 import { cn } from "@/src/utils/tailwind";
 
+// TODO: fix width of chart on score analytics view
 export function CategoricalChart(props: {
   chartData: ChartBin[];
   chartLabels: string[];
@@ -31,10 +32,13 @@ export function CategoricalChart(props: {
     />
   ) : (
     <Card
-      className={cn("w-full rounded-tremor-default border", props.className)}
+      className={cn(
+        "max-h-full min-h-0 rounded-tremor-default border",
+        props.className,
+      )}
     >
       <BarChart
-        className={cn("mt-4", props.chartClass)}
+        className={cn("mt-4 max-h-full min-h-0", props.chartClass)}
         data={props.chartData}
         index="binLabel"
         categories={props.chartLabels}
@@ -61,9 +65,9 @@ export function NumericChart(props: {
   return isEmptyChart({ data: props.chartData }) ? (
     <NoDataOrLoading isLoading={false} />
   ) : (
-    <Card className="h-full w-full rounded-tremor-default border">
+    <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border">
       <LineChart
-        className="h-full"
+        className="max-h-full min-h-0 min-w-0 max-w-full"
         data={props.chartData}
         index={props.index}
         categories={props.chartLabels}

@@ -196,6 +196,7 @@ export function DatasetCompareRunPeekView({
                             "relative flex-1 overflow-y-auto",
                             traceAndObservationId?.runId === id && "border-4",
                           )}
+                          output={clickedRow.expectedOutput}
                           actionButtons={
                             <div className="absolute right-1 top-1 z-10 hidden items-center justify-center gap-1 group-hover:flex">
                               <Button

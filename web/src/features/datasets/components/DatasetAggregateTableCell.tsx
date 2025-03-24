@@ -1,8 +1,16 @@
+import DiffViewer from "@/src/components/DiffViewer";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
-import TableLink from "@/src/components/table/table-link";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
-import { MarkdownTableCell } from "@/src/components/ui/MarkdownTableCell";
+import {
+  Dialog,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { DialogContent } from "@/src/components/ui/dialog";
 import {
   type DatasetRunMetric,
   type RunMetrics,
@@ -10,15 +18,15 @@ import {
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
+import { type Prisma } from "@langfuse/shared";
 import {
   ChartNoAxesCombined,
   ClockIcon,
+  FileDiffIcon,
   GaugeCircle,
-  Gauge,
-  ListTree,
   ListCheck,
 } from "lucide-react";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 const DatasetAggregateCell = ({
   scores,
@@ -32,6 +40,7 @@ const DatasetAggregateCell = ({
   className,
   variant = "table",
   actionButtons,
+  output,
 }: RunMetrics & {
   projectId: string;
   scoreKeyToDisplayName: Map<string, string>;
@@ -40,7 +49,9 @@ const DatasetAggregateCell = ({
   className?: string;
   variant?: "table" | "peek";
   actionButtons?: ReactNode;
+  output?: Prisma.JsonValue;
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   // conditionally fetch the trace or observation depending on the presence of observationId
   const trace = api.traces.byId.useQuery(
     { traceId, projectId },
@@ -86,26 +97,28 @@ const DatasetAggregateCell = ({
   return (
     <div className="grid h-full w-full grid-cols-[auto,1fr] grid-rows-[auto,auto,auto] overflow-y-auto overflow-x-hidden rounded-md border">
       <div className="w-fit min-w-0 border-r px-1">
-        <ChartNoAxesCombined className="mt-1 h-4 w-4 text-muted-foreground" />
+        <ChartNoAxesCombined className="mt-2 h-4 w-4 text-muted-foreground" />
       </div>
       <div className="mt-1 min-w-0 p-1">
         <div className="flex w-full flex-wrap gap-1 overflow-hidden">
-          {scoresEntries.length > 0
-            ? scoresEntries.map(([key, score]) => (
-                <Badge
-                  variant="tertiary"
-                  className="flex-wrap p-0.5 px-1 font-normal"
-                  key={key}
-                >
-                  <span className="whitespace-nowrap capitalize">
-                    {scoreKeyToDisplayName.get(key)}:
-                  </span>
-                  <span className="ml-[2px]">
-                    <ScoresTableCell aggregate={score} />
-                  </span>
-                </Badge>
-              ))
-            : "No scores"}
+          {Object.entries(scores).length > 0 ? (
+            Object.entries(scores).map(([key, score]) => (
+              <Badge
+                variant="tertiary"
+                className="flex-wrap p-0.5 px-1 font-normal"
+                key={key}
+              >
+                <span className="whitespace-nowrap capitalize">
+                  {scoreKeyToDisplayName.get(key)}:
+                </span>
+                <span className="ml-[2px]">
+                  <ScoresTableCell aggregate={score} />
+                </span>
+              </Badge>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">No scores</span>
+          )}
         </div>
       </div>
       <div className="w-fit min-w-0 flex-1 border-r px-1">
@@ -131,8 +144,8 @@ const DatasetAggregateCell = ({
       <div className="w-fit min-w-0 flex-1 border-r px-1">
         <ListCheck className="mt-1 h-4 w-4 text-muted-foreground" />
       </div>
-      <div className="w-full min-w-0 flex-1 p-1">
-        <MarkdownTableCell
+      <div className="group relative w-full min-w-0 flex-1 p-1">
+        <IOTableCell
           isLoading={
             (!!!observationId ? trace.isLoading : observation.isLoading) ||
             !data
@@ -141,6 +154,65 @@ const DatasetAggregateCell = ({
           className={"bg-accent-light-green"}
           singleLine={singleLine}
         />
+        {output && data?.output && (
+          <Dialog
+            open={isOpen}
+            onOpenChange={(open) => {
+              setIsOpen(open);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Compare expected output with actual output"
+                className="absolute right-2 top-2 rounded bg-background p-1 opacity-0 transition-opacity hover:bg-secondary group-hover:opacity-100"
+                aria-label="Action button"
+              >
+                <FileDiffIcon className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+
+            <DialogContent
+              className="max-w-screen-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <DialogHeader>
+                <DialogTitle>Expected Output → Actual Output</DialogTitle>
+              </DialogHeader>
+
+              <div className="max-h-[80vh] max-w-screen-xl space-y-6 overflow-y-auto">
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <DiffViewer
+                        oldString={JSON.stringify(output, null, 2)}
+                        newString={JSON.stringify(
+                          data?.output ?? "null",
+                          null,
+                          2,
+                        )}
+                        oldLabel="Expected Output"
+                        newLabel="Actual Output"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="flex flex-row">
+                <Button
+                  onClick={() => {
+                    setIsOpen(false);
+                  }}
+                  className="w-full"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );
@@ -155,6 +227,7 @@ export const DatasetAggregateTableCell = ({
   className,
   variant = "table",
   actionButtons,
+  output,
 }: {
   value: RunMetrics;
   projectId: string;
@@ -164,6 +237,7 @@ export const DatasetAggregateTableCell = ({
   className?: string;
   variant?: "table" | "peek";
   actionButtons?: ReactNode;
+  output?: Prisma.JsonValue;
 }) => {
   return value ? (
     <DatasetAggregateCell
@@ -175,6 +249,7 @@ export const DatasetAggregateTableCell = ({
       className={className}
       variant={variant}
       actionButtons={actionButtons}
+      output={output}
     />
   ) : null;
 };
