@@ -850,31 +850,64 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: "123",
         },
       ],
+      [
+        "should extract metadata from langfuse.metadata.* keys for trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "langfuse.metadata.user_type",
+          otelAttributeValue: {
+            stringValue: "premium",
+          },
+          entityAttributeKey: "metadata.user_type",
+          entityAttributeValue: "premium",
+        },
+      ],
+      [
+        "should extract metadata from langfuse.metadata.* keys for observation",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.metadata.user_type",
+          otelAttributeValue: {
+            stringValue: "premium",
+          },
+          entityAttributeKey: "metadata.user_type",
+          entityAttributeValue: "premium",
+        },
+      ],
     ])(
       "Attributes: %s",
       (
         _name: string,
         spec: {
           entity: string;
-          otelAttributeKey: string;
-          otelAttributeValue: any;
+          otelAttributeKey: string | string[];
+          otelAttributeValue: any | any[];
           entityAttributeKey: string;
           entityAttributeValue: any;
         },
       ) => {
         // Setup
+        const attributes = Array.isArray(spec.otelAttributeKey)
+          ? spec.otelAttributeKey.map((key, index) => ({
+              key,
+              value: Array.isArray(spec.otelAttributeValue)
+                ? spec.otelAttributeValue[index]
+                : spec.otelAttributeValue,
+            }))
+          : [
+              {
+                key: spec.otelAttributeKey,
+                value: spec.otelAttributeValue,
+              },
+            ];
+
         const resourceSpan = {
           scopeSpans: [
             {
               spans: [
                 {
                   ...defaultSpanProps,
-                  attributes: [
-                    {
-                      key: spec.otelAttributeKey,
-                      value: spec.otelAttributeValue,
-                    },
-                  ],
+                  attributes,
                 },
               ],
             },
@@ -887,11 +920,23 @@ describe("OTel Resource Span Mapping", () => {
         // Then
         const entity: { body: Record<string, any> } =
           spec.entity === "trace" ? langfuseEvents[0] : langfuseEvents[1];
-        expect(
-          spec.entityAttributeKey // This logic allows to follow a path in the object, e.g. foo.bar.baz.
-            .split(".")
-            .reduce((acc: any, key: string) => acc && acc[key], entity.body),
-        ).toEqual(spec.entityAttributeValue);
+
+        if (
+          spec.entityAttributeKey === "metadata" &&
+          typeof spec.entityAttributeValue === "object"
+        ) {
+          // For the case where we want to check the entire metadata object
+          expect(entity.body.metadata).toEqual(
+            expect.objectContaining(spec.entityAttributeValue),
+          );
+        } else {
+          // For checking a specific path in the object
+          expect(
+            spec.entityAttributeKey // This logic allows to follow a path in the object, e.g. foo.bar.baz.
+              .split(".")
+              .reduce((acc: any, key: string) => acc && acc[key], entity.body),
+          ).toEqual(spec.entityAttributeValue);
+        }
       },
     );
 

@@ -273,21 +273,36 @@ const extractName = (
 const extractMetadata = (
   attributes: Record<string, unknown>,
 ): Record<string, unknown> => {
+  // Extract top-level metadata object if available
+  let metadata: Record<string, unknown> = {};
   if (attributes["langfuse.metadata"]) {
     try {
       // If it's a string (JSON), parse it
       if (typeof attributes["langfuse.metadata"] === "string") {
-        return JSON.parse(attributes["langfuse.metadata"] as string);
+        metadata = JSON.parse(attributes["langfuse.metadata"] as string);
       }
-      // If it's already an object, return it
-      if (typeof attributes["langfuse.metadata"] === "object") {
-        return attributes["langfuse.metadata"] as Record<string, unknown>;
+      // If it's already an object, use it
+      else if (typeof attributes["langfuse.metadata"] === "object") {
+        metadata = attributes["langfuse.metadata"] as Record<string, unknown>;
       }
     } catch (e) {
-      // If parsing fails, continue with default metadata
+      // If parsing fails, continue with nested metadata extraction
     }
   }
-  return {};
+
+  // Extract metadata from langfuse.metadata.* keys
+  const metadataAttributes = Object.keys(attributes).filter((key) =>
+    key.startsWith("langfuse.metadata."),
+  );
+
+  return {
+    ...metadata,
+    ...metadataAttributes.reduce((acc: Record<string, unknown>, key) => {
+      const metadataKey = key.replace("langfuse.metadata.", "");
+      acc[metadataKey] = attributes[key];
+      return acc;
+    }, {}),
+  };
 };
 
 const extractUserId = (
