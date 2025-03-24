@@ -81,10 +81,10 @@ const OpenAICompletionUsageSchema = z
     completion_tokens: z.number().int().nonnegative(),
     total_tokens: z.number().int().nonnegative(),
     prompt_tokens_details: z
-      .record(z.string(), z.number().int().nonnegative())
+      .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
     completion_tokens_details: z
-      .record(z.string(), z.number().int().nonnegative())
+      .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
   .strict()
@@ -110,15 +110,19 @@ const OpenAICompletionUsageSchema = z
 
     if (prompt_tokens_details) {
       for (const [key, value] of Object.entries(prompt_tokens_details)) {
-        result[`input_${key}`] = value;
-        result.input = Math.max(result.input - (value ?? 0), 0);
+        if (value !== null && value !== undefined) {
+          result[`input_${key}`] = value;
+          result.input = Math.max(result.input - (value ?? 0), 0);
+        }
       }
     }
 
     if (completion_tokens_details) {
       for (const [key, value] of Object.entries(completion_tokens_details)) {
-        result[`output_${key}`] = value;
-        result.output = Math.max(result.output - (value ?? 0), 0);
+        if (value !== null && value !== undefined) {
+          result[`output_${key}`] = value;
+          result.output = Math.max(result.output - (value ?? 0), 0);
+        }
       }
     }
 
@@ -133,10 +137,10 @@ const OpenAIResponseUsageSchema = z
     output_tokens: z.number().int().nonnegative(),
     total_tokens: z.number().int().nonnegative(),
     input_tokens_details: z
-      .record(z.string(), z.number().int().nonnegative())
+      .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
     output_tokens_details: z
-      .record(z.string(), z.number().int().nonnegative())
+      .record(z.string(), z.number().int().nonnegative().nullish())
       .nullish(),
   })
   .strict()
@@ -162,15 +166,19 @@ const OpenAIResponseUsageSchema = z
 
     if (input_tokens_details) {
       for (const [key, value] of Object.entries(input_tokens_details)) {
-        result[`input_${key}`] = value;
-        result.input = Math.max(result.input - (value ?? 0), 0);
+        if (value !== null && value !== undefined) {
+          result[`input_${key}`] = value;
+          result.input = Math.max(result.input - (value ?? 0), 0);
+        }
       }
     }
 
     if (output_tokens_details) {
       for (const [key, value] of Object.entries(output_tokens_details)) {
-        result[`output_${key}`] = value;
-        result.output = Math.max(result.output - (value ?? 0), 0);
+        if (value !== null && value !== undefined) {
+          result[`output_${key}`] = value;
+          result.output = Math.max(result.output - (value ?? 0), 0);
+        }
       }
     }
 

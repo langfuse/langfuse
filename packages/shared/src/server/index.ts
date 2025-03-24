@@ -17,7 +17,6 @@ export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./repositories/definitions";
 export * from "../server/ingestion/types";
-export * from "./ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/validateAndInflateScore";
@@ -50,6 +49,7 @@ export * from "./queries";
 export * from "./repositories";
 export * from "./redis/evalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
+export * from "./services/datasets-ui-table-service";
 
 // test utils
 export * from "./test-utils";
