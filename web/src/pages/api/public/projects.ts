@@ -5,7 +5,6 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,22 +25,27 @@ export default async function handler(
 
   if (req.method === "GET") {
     try {
+      // Do not apply rate limits as it can break applications on lower tier plans
+      // const rateLimitCheck =
+      //   await RateLimitService.getInstance().rateLimitRequest(
+      //     authCheck.scope,
+      //     "public-api",
+      //   );
+
+      // if (rateLimitCheck?.isRateLimited()) {
+      //   return rateLimitCheck.sendRestResponseIfLimited(res);
+      // }
+
       const projects = await prisma.project.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
         where: {
           id: authCheck.scope.projectId,
           // deletedAt: null, // here we want to include deleted projects and grey them in the UI.
         },
       });
-
-      const rateLimitCheck =
-        await RateLimitService.getInstance().rateLimitRequest(
-          authCheck.scope,
-          "public-api",
-        );
-
-      if (rateLimitCheck?.isRateLimited()) {
-        return rateLimitCheck.sendRestResponseIfLimited(res);
-      }
 
       return res.status(200).json({
         data: projects.map((project) => ({
