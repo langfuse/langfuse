@@ -12,7 +12,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import { BracesIcon, MessageCircleMore } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef } from "react";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useElementWasVisible } from "@/src/hooks/use-element-visibility";
@@ -140,13 +140,17 @@ function AggregateScoreMetadataPeek({
     },
   );
 
+  const hasMetadata = !!metadata && Object.keys(metadata).length > 0;
+
   return (
     <HoverCard>
       <HoverCardTrigger ref={ref} className="inline-block cursor-pointer">
-        <BracesIcon size={12} />
+        {hasMetadata && <BracesIcon size={12} />}
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
-        <JSONView codeClassName="!rounded-md" json={metadata} />
+        {hasMetadata && (
+          <JSONView codeClassName="!rounded-md" json={metadata} />
+        )}
       </HoverCardContent>
     </HoverCard>
   );
