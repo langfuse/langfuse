@@ -183,7 +183,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         );
     }
 
-    // Update import after successful processing
+    // Update integration after successful processing
     await prisma.blobStorageIntegration.update({
       where: {
         projectId,
