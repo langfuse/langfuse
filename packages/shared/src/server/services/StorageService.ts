@@ -69,8 +69,9 @@ export class StorageServiceFactory {
     externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
+    useAzureBlob?: boolean;
   }): StorageService {
-    if (env.LANGFUSE_USE_AZURE_BLOB === "true") {
+    if (params.useAzureBlob || env.LANGFUSE_USE_AZURE_BLOB === "true") {
       return new AzureBlobStorageService(params);
     }
     return new S3StorageService(params);

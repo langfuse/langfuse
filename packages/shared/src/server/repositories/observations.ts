@@ -1324,6 +1324,59 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
+export const getObservationsForBlobStorageExport = async function* (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      id,
+      trace_id,
+      project_id,
+      environment,
+      type,
+      parent_observation_id,
+      start_time,
+      end_time,
+      name,
+      metadata,
+      level,
+      status_message,
+      version,
+      input,
+      output,
+      provided_model_name,
+      model_parameters,
+      usage_details,
+      cost_details,
+      completion_start_time,
+      prompt_name,
+      prompt_version
+    FROM observations FINAL
+    WHERE project_id = {projectId: String}
+    AND start_time >= {minTimestamp: DateTime64(3)}
+    AND start_time <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return records;
+};
+
 export const getGenerationsForPostHog = async function* (
   projectId: string,
   minTimestamp: Date,

@@ -1,6 +1,17 @@
+import { pipeline } from "stream";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
-import { QueueName, TQueueJobTypes, logger } from "@langfuse/shared/src/server";
+import {
+  QueueName,
+  TQueueJobTypes,
+  logger,
+  StorageService,
+  StorageServiceFactory,
+  streamTransformations,
+  getObservationsForBlobStorageExport,
+  getTracesForBlobStorageExport,
+  getScoresForBlobStorageExport,
+} from "@langfuse/shared/src/server";
 import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 
@@ -17,7 +28,88 @@ const processBlobStorageExport = async (config: {
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
   table: "traces" | "generations" | "scores";
-}) => {};
+}) => {
+  logger.info(
+    `Processing ${config.table} export for project ${config.projectId}`,
+  );
+
+  // Initialize the storage service
+  const storageService: StorageService = StorageServiceFactory.getInstance({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    bucketName: config.bucketName,
+    endpoint: config.endpoint ?? undefined,
+    region: config.region,
+    forcePathStyle: config.forcePathStyle ?? false,
+    useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+  });
+
+  try {
+    // Create the file path with prefix if available
+    const timestamp = config.maxTimestamp.toISOString().replace(/:/g, "-");
+    const filePath = `${config.prefix ? config.prefix + "/" : ""}${config.projectId}/${config.table}/${timestamp}.csv`;
+
+    // Fetch data based on table type
+    let dataStream: AsyncGenerator<Record<string, unknown>>;
+
+    switch (config.table) {
+      case "traces":
+        dataStream = getTracesForBlobStorageExport(
+          config.projectId,
+          config.minTimestamp,
+          config.maxTimestamp,
+        );
+        break;
+      case "generations":
+        dataStream = getObservationsForBlobStorageExport(
+          config.projectId,
+          config.minTimestamp,
+          config.maxTimestamp,
+        );
+        break;
+      case "scores":
+        dataStream = getScoresForBlobStorageExport(
+          config.projectId,
+          config.minTimestamp,
+          config.maxTimestamp,
+        );
+        break;
+      default:
+        throw new Error(`Unsupported table type: ${config.table}`);
+    }
+
+    const fileStream = pipeline(
+      dataStream,
+      streamTransformations["CSV"](),
+      (err) => {
+        if (err) {
+          logger.error(
+            "Getting data from DB for blob storage integration failed: ",
+            err,
+          );
+        }
+      },
+    );
+
+    // Upload the file to cloud storage
+    await storageService.uploadFile({
+      fileName: filePath,
+      fileType: "text/csv",
+      data: fileStream,
+      expiresInSeconds: 3600, // 1 hour expiry for the signed URL - is ignored
+    });
+
+    logger.info(
+      `Successfully exported ${config.table} records for project ${config.projectId}`,
+    );
+  } catch (error) {
+    logger.error(
+      `Error exporting ${config.table} for project ${config.projectId}`,
+      error,
+    );
+    throw error;
+  }
+};
 
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
