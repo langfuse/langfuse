@@ -139,7 +139,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     const files = await storageService.listFiles("");
     const projectFiles = files.filter((f) => f.file.includes(projectId));
 
-    // Should have 3 files (traces, generations, scores)
+    // Should have 3 files (traces, observations, scores)
     expect(projectFiles).toHaveLength(3);
 
     // Check file paths follow the expected pattern
