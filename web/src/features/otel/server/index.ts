@@ -451,7 +451,8 @@ export const convertOtelSpanToIngestionEvent = (
           )
         : null;
 
-      const metadata = extractMetadata(attributes);
+      const spanAttributeMetadata = extractMetadata(attributes);
+      const resourceAttributeMetadata = extractMetadata(resourceAttributes);
       if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
@@ -459,7 +460,8 @@ export const convertOtelSpanToIngestionEvent = (
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
           name: extractName(span.name, attributes),
           metadata: {
-            ...metadata,
+            ...resourceAttributeMetadata,
+            ...spanAttributeMetadata,
             attributes,
             resourceAttributes,
             scope: scopeSpan?.scope,
@@ -504,7 +506,8 @@ export const convertOtelSpanToIngestionEvent = (
 
         // Additional fields
         metadata: {
-          ...metadata,
+          ...resourceAttributeMetadata,
+          ...spanAttributeMetadata,
           attributes,
           resourceAttributes,
           scope: scopeSpan?.scope,
