@@ -119,8 +119,6 @@ function AggregateScoreMetadataPeek({
   const ref = useRef<HTMLAnchorElement>(null);
   const hasBeenVisible = useElementWasVisible(ref);
 
-  console.log(scoreId, "hasBeenVisible:", hasBeenVisible);
-
   const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
     {
       projectId,
