@@ -29,7 +29,7 @@ export const viewDeclaration = z.object({
   tableRelations: z.record(
     z.object({
       name: z.string(),
-      joinCondition: z.string(),
+      joinConditionSql: z.string(),
       timeDimension: z.string(),
     }),
   ),

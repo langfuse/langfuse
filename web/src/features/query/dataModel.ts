@@ -75,13 +75,13 @@ export const traceView: ViewDeclarationType = {
   tableRelations: {
     observations: {
       name: "observations",
-      joinCondition:
+      joinConditionSql:
         "ON traces.id = observations.trace_id AND traces.project_id = observations.project_id",
       timeDimension: "start_time",
     },
     scores: {
       name: "scores",
-      joinCondition:
+      joinConditionSql:
         "ON traces.id = scores.trace_id AND traces.project_id = scores.project_id",
       timeDimension: "timestamp",
     },
@@ -181,13 +181,13 @@ export const observationsView: ViewDeclarationType = {
   tableRelations: {
     traces: {
       name: "traces",
-      joinCondition:
+      joinConditionSql:
         "ON observations.trace_id = traces.id AND observations.project_id = traces.project_id",
       timeDimension: "timestamp",
     },
     scores: {
       name: "scores",
-      joinCondition:
+      joinConditionSql:
         "ON observations.id = scores.observation_id AND observations.project_id = scores.project_id",
       timeDimension: "timestamp",
     },
@@ -294,13 +294,13 @@ export const scoresNumericView: ViewDeclarationType = {
   tableRelations: {
     traces: {
       name: "traces",
-      joinCondition:
+      joinConditionSql:
         "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
       timeDimension: "timestamp",
     },
     observations: {
       name: "observations",
-      joinCondition:
+      joinConditionSql:
         "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
       timeDimension: "start_time",
     },
@@ -336,13 +336,13 @@ export const scoresCategoricalView: ViewDeclarationType = {
   tableRelations: {
     traces: {
       name: "traces",
-      joinCondition:
+      joinConditionSql:
         "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
       timeDimension: "timestamp",
     },
     observations: {
       name: "observations",
-      joinCondition:
+      joinConditionSql:
         "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
       timeDimension: "start_time",
     },

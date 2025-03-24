@@ -247,7 +247,7 @@ export class QueryBuilder {
       }
 
       const relation = view.tableRelations[relationTableName];
-      let joinStatement = `LEFT JOIN ${relation.name} FINAL ${relation.joinCondition}`;
+      let joinStatement = `LEFT JOIN ${relation.name} FINAL ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
@@ -645,7 +645,7 @@ export class QueryBuilder {
    *        <...dimensions.map(dimension => `any(${dimension.sql}) as ${dimension.alias}`>,
    *        <...metrics.map(metric => `${metric.sql} as ${metric.alias || metric.sql}`>
    *      FROM <baseCte>
-   *      (...tableRelations.joinCondition)
+   *      (...tableRelations.joinConditionSql)
    *      WHERE <...filters>
    *      GROUP BY <baseCte>.project_id, <baseCte>.id
    *   )
