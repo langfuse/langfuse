@@ -53,21 +53,32 @@ export const dimension = z.object({
   field: z.string(),
 });
 
+export const metricAggregations = z.enum([
+  "sum",
+  "avg",
+  "count",
+  "max",
+  "min",
+  "p50",
+  "p75",
+  "p90",
+  "p95",
+  "p99",
+]);
+
 export const metric = z.object({
   measure: z.string(),
-  aggregation: z.enum([
-    "sum",
-    "avg",
-    "count",
-    "max",
-    "min",
-    "p50",
-    "p75",
-    "p90",
-    "p95",
-    "p99",
-  ]),
+  aggregation: metricAggregations,
 });
+
+export const granularities = z.enum([
+  "auto",
+  "minute",
+  "hour",
+  "day",
+  "week",
+  "month",
+]);
 
 export type QueryType = z.infer<typeof query>;
 
@@ -81,7 +92,7 @@ export const query = z
       .object({
         // TODO: We may want to extend this and allow custom intervals like 3h in the future.
         // auto tries to bin the data into approximately 50 buckets given the time range
-        granularity: z.enum(["auto", "minute", "hour", "day", "week"]),
+        granularity: granularities,
       })
       .nullable(),
     fromTimestamp: stringDateTime,
