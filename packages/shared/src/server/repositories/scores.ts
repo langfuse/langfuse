@@ -190,9 +190,7 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<
-    Omit<ScoreRecordReadType, "metadata"> & { has_metadata: boolean }
-  >({
+  const rows = await queryClickhouse<Omit<ScoreRecordReadType, "metadata">>({
     query: query,
     params: {
       projectId,
@@ -238,9 +236,7 @@ export const getScoresForObservations = async (
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<
-    Omit<ScoreRecordReadType, "metadata"> & { has_metadata: boolean }
-  >({
+  const rows = await queryClickhouse<Omit<ScoreRecordReadType, "metadata">>({
     query: query,
     params: {
       projectId: projectId,
