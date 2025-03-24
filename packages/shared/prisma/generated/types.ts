@@ -188,6 +188,21 @@ export type BillingMeterBackup = {
     created_at: Generated<Timestamp>;
     updated_at: Generated<Timestamp>;
 };
+export type BlobStorageIntegration = {
+    project_id: string;
+    bucket_name: string;
+    prefix: string;
+    access_key_id: string;
+    secret_access_key: string;
+    region: string;
+    endpoint: string | null;
+    force_path_style: boolean;
+    next_sync_at: Timestamp | null;
+    last_sync_at: Timestamp | null;
+    enabled: boolean;
+    created_at: Generated<Timestamp>;
+    updated_at: Generated<Timestamp>;
+};
 export type Comment = {
     id: string;
     project_id: string;
@@ -579,6 +594,7 @@ export type DB = {
     background_migrations: BackgroundMigration;
     batch_exports: BatchExport;
     billing_meter_backups: BillingMeterBackup;
+    blob_storage_integrations: BlobStorageIntegration;
     comments: Comment;
     cron_jobs: CronJobs;
     dataset_items: DatasetItem;

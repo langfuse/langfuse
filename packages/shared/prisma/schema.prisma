@@ -109,38 +109,39 @@ model Organization {
 }
 
 model Project {
-  id                  String                    @id @default(cuid())
-  orgId               String                    @map("org_id")
-  createdAt           DateTime                  @default(now()) @map("created_at")
-  updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at")
-  deletedAt           DateTime?                 @map("deleted_at")
-  name                String
-  retentionDays       Int?                      @map("retention_days")
-  projectMembers      ProjectMembership[]
-  organization        Organization              @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  apiKeys             ApiKey[]
-  dataset             Dataset[]
-  invitations         MembershipInvitation[]
-  sessions            TraceSession[]
-  Prompt              Prompt[]
-  Model               Model[]
-  EvalTemplate        EvalTemplate[]
-  JobConfiguration    JobConfiguration[]
-  JobExecution        JobExecution[]
-  LlmApiKeys          LlmApiKeys[]
-  PosthogIntegration  PosthogIntegration[]
-  scoreConfig         ScoreConfig[]
-  BatchExport         BatchExport[]
-  comment             Comment[]
-  annotationQueue     AnnotationQueue[]
-  annotationQueueItem AnnotationQueueItem[]
-  TraceMedia          TraceMedia[]
-  Media               Media[]
-  ObservationMedia    ObservationMedia[]
-  LegacyTrace         LegacyPrismaTrace[]
-  LegacyObservation   LegacyPrismaObservation[]
-  LegacyScore         LegacyPrismaScore[]
-  PromptDependency    PromptDependency[]
+  id                     String                    @id @default(cuid())
+  orgId                  String                    @map("org_id")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @default(now()) @updatedAt @map("updated_at")
+  deletedAt              DateTime?                 @map("deleted_at")
+  name                   String
+  retentionDays          Int?                      @map("retention_days")
+  projectMembers         ProjectMembership[]
+  organization           Organization              @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  apiKeys                ApiKey[]
+  dataset                Dataset[]
+  invitations            MembershipInvitation[]
+  sessions               TraceSession[]
+  Prompt                 Prompt[]
+  Model                  Model[]
+  EvalTemplate           EvalTemplate[]
+  JobConfiguration       JobConfiguration[]
+  JobExecution           JobExecution[]
+  LlmApiKeys             LlmApiKeys[]
+  PosthogIntegration     PosthogIntegration[]
+  BlobStorageIntegration BlobStorageIntegration[]
+  scoreConfig            ScoreConfig[]
+  BatchExport            BatchExport[]
+  comment                Comment[]
+  annotationQueue        AnnotationQueue[]
+  annotationQueueItem    AnnotationQueueItem[]
+  TraceMedia             TraceMedia[]
+  Media                  Media[]
+  ObservationMedia       ObservationMedia[]
+  LegacyTrace            LegacyPrismaTrace[]
+  LegacyObservation      LegacyPrismaObservation[]
+  LegacyScore            LegacyPrismaScore[]
+  PromptDependency       PromptDependency[]
 
   @@index([orgId])
   @@map("projects")
@@ -860,7 +861,6 @@ model SsoConfig {
   authConfig Json? @map("auth_config")
   // e.g. { "clientId": "1234", "clientSecret": "5678" }, null if credentials from env should be used
   // secrets like clientSecret are encrypted on the application level
-
   @@map("sso_configs")
 }
 
@@ -874,6 +874,30 @@ model PosthogIntegration {
   createdAt              DateTime  @default(now()) @map("created_at")
 
   @@map("posthog_integrations")
+}
+
+model BlobStorageIntegration {
+  projectId String  @id @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Blob Storage Config
+  bucketName      String  @map("bucket_name")
+  prefix          String  @map("prefix")
+  accessKeyId     String  @map("access_key_id")
+  secretAccessKey String  @map("secret_access_key")
+  region          String  @map("region")
+  endpoint        String? @map("endpoint")
+  forcePathStyle  Boolean @map("force_path_style")
+
+  // Integration Config
+  nextSyncAt DateTime? @map("next_sync_at")
+  lastSyncAt DateTime? @map("last_sync_at")
+  enabled    Boolean
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("blob_storage_integrations")
 }
 
 model BatchExport {
