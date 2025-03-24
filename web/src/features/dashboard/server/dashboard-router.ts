@@ -15,7 +15,7 @@ import {
   getTracesGroupedByName,
   getObservationsCostGroupedByName,
   getScoreAggregate,
-  getObservationUsageByTime,
+  getTotalObservationUsageByTimeByModel,
   groupTracesByTime,
   getDistinctModels,
   getScoresAggregateOverTime,
@@ -30,6 +30,8 @@ import {
   getObservationsStatusTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
+  getObservationCostByTypeByTime,
+  getObservationUsageByTypeByTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -58,6 +60,8 @@ export const dashboardRouter = createTRPCRouter({
             "numeric-score-time-series",
             "categorical-score-chart",
             "observations-status-timeseries",
+            "observations-cost-by-type-timeseries",
+            "observations-usage-by-type-timeseries",
           ])
           .nullish(),
       }),
@@ -130,7 +134,7 @@ export const dashboardRouter = createTRPCRouter({
           if (!dateTruncObs) {
             return [];
           }
-          const rowsObs = await getObservationUsageByTime(
+          const rowsObs = await getTotalObservationUsageByTimeByModel(
             input.projectId,
             input.filter ?? [],
           );
@@ -141,6 +145,23 @@ export const dashboardRouter = createTRPCRouter({
             cost: row.cost,
             model: row.provided_model_name,
           })) as DatabaseRow[];
+
+        case "observations-cost-by-type-timeseries":
+          const rowsObsCostByType = await getObservationCostByTypeByTime(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          return rowsObsCostByType as DatabaseRow[];
+
+        case "observations-usage-by-type-timeseries":
+          const rowsObsUsageByType = await getObservationUsageByTypeByTime(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          console.log(JSON.stringify(rowsObsUsageByType, null, 2));
+          return rowsObsUsageByType as DatabaseRow[];
 
         case "distinct-models":
           const models = await getDistinctModels(
