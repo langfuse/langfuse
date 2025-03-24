@@ -9,9 +9,9 @@ import {
   createTrace,
   createTracesCh,
 } from "@langfuse/shared/src/server";
-import { getDatabaseReadStream } from "../features/batchExport/handleBatchExportJob";
 import { BatchExportTableName } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {

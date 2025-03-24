@@ -298,7 +298,7 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       },
       authorization: {
         url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
-        params: { scope: 'read_user' },
+        params: { scope: "read_user" },
       },
       token: `${env.AUTH_GITLAB_URL}/oauth/token`,
       userinfo: `${env.AUTH_GITLAB_URL}/api/v4/user`,

@@ -84,6 +84,7 @@
     "langchain": "^0.3.15",
     "langfuse-langchain": "3.30.3",
     "lodash": "^4.17.21",
+    "lossless-json": "^4.0.2",
     "next-auth": "^4.24.11",
     "nodemailer": "^6.9.15",
     "prisma-extension-kysely": "^2.1.0",

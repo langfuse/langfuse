@@ -10,12 +10,9 @@ import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Link from "next/link";
 
-export const QuickstartExamples = ({
-  secretKey,
-  publicKey,
-}: {
-  secretKey: string;
-  publicKey: string;
+export const QuickstartExamples = (p: {
+  secretKey?: string;
+  publicKey?: string;
 }) => {
   const uiCustomization = useUiCustomization();
   const capture = usePostHogClientCapture();
@@ -29,6 +26,9 @@ export const QuickstartExamples = ({
     { value: "other", label: "Other" },
   ];
   const host = `${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+
+  const secretKey = p.secretKey ?? "<secret key>";
+  const publicKey = p.publicKey ?? "<public key>";
 
   // if custom docs link, do not show quickstart examples but refer to docs
   if (uiCustomization?.documentationHref) {

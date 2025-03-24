@@ -43,6 +43,7 @@ const PromptHistoryTraceNode = (props: {
 
   return (
     <CommandItem
+      ref={currentPromptRef}
       value={`# ${prompt.version};${prompt.commitMessage ?? ""};${prompt.labels.join(",")}`}
       style={{
         ["--selected-bg" as string]: "none",
@@ -56,7 +57,6 @@ const PromptHistoryTraceNode = (props: {
     >
       <TimelineItem
         key={prompt.id}
-        ref={currentPromptRef}
         isActive={props.currentPromptVersion === prompt.version}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

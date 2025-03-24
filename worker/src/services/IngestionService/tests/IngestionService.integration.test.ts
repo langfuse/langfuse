@@ -33,6 +33,7 @@ describe("Ingestion end-to-end tests", () => {
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
     await pruneDatabase();
+    await redis.flushall();
 
     clickhouseWriter = ClickhouseWriter.getInstance();
 
