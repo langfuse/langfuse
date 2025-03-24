@@ -427,7 +427,8 @@ const BlobStorageIntegrationSettingsForm = ({
                 </Select>
               </FormControl>
               <FormDescription>
-                How often the data should be exported
+                How often the data should be exported. Changes are taken into
+                consideration from the next run onwards.
               </FormDescription>
               <FormMessage />
             </FormItem>

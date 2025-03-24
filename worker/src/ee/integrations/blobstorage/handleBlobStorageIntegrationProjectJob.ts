@@ -1,40 +1,23 @@
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  QueueName,
-  TQueueJobTypes,
-  logger,
-} from "@langfuse/shared/src/server";
+import { QueueName, TQueueJobTypes, logger } from "@langfuse/shared/src/server";
+import { BlobStorageIntegrationType } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 
-type BlobStorageExecutionConfig = {
+const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
   maxTimestamp: Date;
-  // Configuration fields specific to the blob storage provider
   bucketName: string;
-  endpoint?: string | null;
+  endpoint: string | null;
   region?: string;
   accessKeyId: string;
   secretAccessKey: string;
   prefix?: string;
   forcePathStyle?: boolean;
-  type: string; // S3, S3_COMPATIBLE, AZURE_BLOB_STORAGE
-};
-
-/**
- * Process the actual export to blob storage
- * This is a placeholder for the actual implementation
- */
-const processBlobStorageExport = async (config: BlobStorageExecutionConfig) => {
-  logger.info(`Starting blob storage export for project ${config.projectId}`);
-  
-  // TODO: Implement the actual export logic based on the config.type
-  // - Fetch data to export (traces, generations, scores, etc.)
-  // - Connect to the appropriate blob storage provider
-  // - Format and upload the data
-  
-  logger.info(`Completed blob storage export for project ${config.projectId}`);
-};
+  type: BlobStorageIntegrationType;
+  table: "traces" | "generations" | "scores";
+}) => {};
 
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
@@ -43,19 +26,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
   logger.info(`Processing blob storage integration for project ${projectId}`);
 
-  const blobStorageIntegration = await prisma.blobStorageIntegration.findUnique({
-    where: {
-      projectId,
+  const blobStorageIntegration = await prisma.blobStorageIntegration.findUnique(
+    {
+      where: {
+        projectId,
+      },
     },
-  });
+  );
 
   if (!blobStorageIntegration) {
-    logger.warn(
-      `Blob storage integration not found for project ${projectId}`,
-    );
+    logger.warn(`Blob storage integration not found for project ${projectId}`);
     return;
   }
-
   if (!blobStorageIntegration.enabled) {
     logger.info(
       `Blob storage integration is disabled for project ${projectId}`,
@@ -63,17 +45,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
-  // Calculate time ranges based on lastSyncAt and exportFrequency
-  const now = new Date();
-  let minTimestamp = blobStorageIntegration.lastSyncAt || new Date(0);
-  
-  // Set maxTimestamp based on the current time
-  // This ensures we don't process data that might be ingested while we're running
-  const maxTimestamp = now;
+  // Sync between lastSyncAt and now - 30 minutes
+  const minTimestamp = blobStorageIntegration.lastSyncAt || new Date(0);
+  const maxTimestamp = new Date(new Date().getTime() - 30 * 60 * 1000);
 
   try {
     // Process the export based on the integration configuration
-    await processBlobStorageExport({
+    const executionConfig = {
       projectId,
       minTimestamp,
       maxTimestamp,
@@ -81,19 +59,43 @@ export const handleBlobStorageIntegrationProjectJob = async (
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || undefined,
       accessKeyId: blobStorageIntegration.accessKeyId,
-      secretAccessKey: blobStorageIntegration.secretAccessKey,
+      secretAccessKey: decrypt(blobStorageIntegration.secretAccessKey),
       prefix: blobStorageIntegration.prefix || undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,
-    });
+    };
 
-    // Update lastSyncAt after successful export
+    await Promise.all([
+      processBlobStorageExport({ ...executionConfig, table: "traces" }),
+      processBlobStorageExport({ ...executionConfig, table: "generations" }),
+      processBlobStorageExport({ ...executionConfig, table: "scores" }),
+    ]);
+
+    let nextSyncAt: Date;
+    switch (blobStorageIntegration.exportFrequency) {
+      case "hourly":
+        nextSyncAt = new Date(maxTimestamp.getTime() + 60 * 60 * 1000);
+        break;
+      case "daily":
+        nextSyncAt = new Date(maxTimestamp.getTime() + 24 * 60 * 60 * 1000);
+        break;
+      case "weekly":
+        nextSyncAt = new Date(maxTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        throw new Error(
+          `Unsupported export frequency ${blobStorageIntegration.exportFrequency}`,
+        );
+    }
+
+    // Update import after successful processing
     await prisma.blobStorageIntegration.update({
       where: {
         projectId,
       },
       data: {
-        lastSyncAt: now,
+        lastSyncAt: maxTimestamp,
+        nextSyncAt,
       },
     });
 
@@ -107,4 +109,4 @@ export const handleBlobStorageIntegrationProjectJob = async (
     );
     throw error; // Rethrow to trigger retries
   }
-}; 
+};
