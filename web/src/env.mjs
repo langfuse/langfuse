@@ -224,7 +224,7 @@ export const env = createEnv({
     REDIS_PORT: z.coerce
       .number({
         description:
-          ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+          ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
       })
       .positive()
       .max(65536, `options.port should be >= 0 and < 65536`)
@@ -274,6 +274,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
+    BETTERSTACK_UPTIME_API_KEY: z.string().optional(),
+    BETTERSTACK_UPTIME_STATUS_PAGE_ID: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
 
     LANGFUSE_INIT_ORG_ID: z.string().optional(),
@@ -550,6 +552,9 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SIGNING_SECRET: process.env.STRIPE_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
+    BETTERSTACK_UPTIME_API_KEY: process.env.BETTERSTACK_UPTIME_API_KEY,
+    BETTERSTACK_UPTIME_STATUS_PAGE_ID:
+      process.env.BETTERSTACK_UPTIME_STATUS_PAGE_ID,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
     // provisioning
     LANGFUSE_INIT_ORG_ID: process.env.LANGFUSE_INIT_ORG_ID,

@@ -3,7 +3,7 @@ import { BatchActionType } from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
 import { randomUUID } from "crypto";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
-import { getDatabaseReadStream } from "../features/batchExport/handleBatchExportJob";
+import { getDatabaseReadStream } from "../features/database-read-stream/getDatabaseReadStream";
 import {
   createOrgProjectAndApiKey,
   createScore,
