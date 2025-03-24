@@ -33,11 +33,13 @@ export function useElementWasVisible<T extends HTMLElement>(ref: RefObject<T>) {
   const observer = useMemo(
     () =>
       new IntersectionObserver((entries) => {
+        let visible = false;
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            setHasBeenVisible(true);
+            visible = true;
           }
         });
+        setHasBeenVisible(visible);
       }),
     [],
   );
