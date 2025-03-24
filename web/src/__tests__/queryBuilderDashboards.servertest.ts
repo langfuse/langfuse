@@ -199,7 +199,8 @@ describe("selfServeDashboards", () => {
 
     // Count traces by name
     traces.forEach((trace) => {
-      stats.traceCounts[trace.name] = (stats.traceCounts[trace.name] || 0) + 1;
+      stats.traceCounts[trace.name || ""] =
+        (stats.traceCounts[trace.name || ""] || 0) + 1;
     });
 
     // Count recent production traces (within the last hour)
