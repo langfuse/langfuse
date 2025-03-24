@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared";
 import {
   getObservationById,
+  getTraceById,
   getTraceIdsForObservations,
   logger,
 } from "@langfuse/shared/src/server";
@@ -41,67 +42,78 @@ export const queueItemRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
-          projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
+      throwIfNoEntitlement({
+        entitlement: "annotation-queues",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
 
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "annotationQueues:read",
-        });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:read",
+      });
 
-        const item = await ctx.prisma.annotationQueueItem.findUnique({
+      const item = await ctx.prisma.annotationQueueItem.findUnique({
+        where: {
+          id: input.itemId,
+          projectId: input.projectId,
+        },
+      });
+
+      // Expected behavior, non-error case: if user has seen item in given session, prior to it being deleted, we return null
+      if (!item) return { item: null };
+      let lockedByUser: { name: string | null | undefined } | null = null;
+
+      if (isItemLocked(item)) {
+        lockedByUser = await ctx.prisma.user.findUnique({
           where: {
-            id: input.itemId,
-            projectId: input.projectId,
+            id: item.lockedByUserId as string,
+          },
+          select: {
+            name: true,
           },
         });
+      }
 
-        // Expected behavior, non-error case: if user has seen item in given session, prior to it being deleted, we return null
-        if (!item) return null;
-        let lockedByUser: { name: string | null } | null = null;
+      const inflatedItem = {
+        ...item,
+        lockedByUser,
+      };
 
-        if (isItemLocked(item)) {
-          lockedByUser = await ctx.prisma.user.findUnique({
-            where: {
-              id: item.lockedByUserId as string,
-            },
-            select: {
-              name: true,
-            },
-          });
-        }
-
-        const inflatedItem = {
-          ...item,
-          lockedByUser,
-        };
-
-        if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          const clickhouseObservation = await getObservationById(
-            item.objectId,
-            input.projectId,
-          );
+      // Validate that the referenced trace or observation exists in ClickHouse, otherwise throw LangfuseNotFoundError
+      if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
+        const observation = await getObservationById(
+          item.objectId,
+          input.projectId,
+        );
+        if (!observation) {
           return {
-            ...inflatedItem,
-            parentTraceId: clickhouseObservation?.traceId,
+            item: inflatedItem,
+            error: {
+              code: "NOT_FOUND",
+              message: `Observation with id ${item.objectId} not found`,
+            },
           };
         }
-
-        return inflatedItem;
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
+        return {
+          item: {
+            ...inflatedItem,
+            parentTraceId: observation?.traceId,
+          },
+        };
+      } else {
+        const trace = await getTraceById(item.objectId, input.projectId);
+        if (!trace) {
+          return {
+            item: inflatedItem,
+            error: {
+              code: "NOT_FOUND",
+              message: `Trace with id ${item.objectId} not found`,
+            },
+          };
         }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching annotation queue item by id failed.",
-        });
+        return { item: inflatedItem };
       }
     }),
   itemsByQueueId: protectedProjectProcedure

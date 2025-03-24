@@ -14,7 +14,11 @@ import {
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
-import { getObservationById, logger } from "@langfuse/shared/src/server";
+import {
+  getObservationById,
+  getTraceById,
+  logger,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -503,81 +507,96 @@ export const queueRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoEntitlement({
-          entitlement: "annotation-queues",
+      throwIfNoEntitlement({
+        entitlement: "annotation-queues",
+        projectId: input.projectId,
+        sessionUser: ctx.session.user,
+      });
+
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:CUD",
+      });
+
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+      const item = await ctx.prisma.annotationQueueItem.findFirst({
+        where: {
+          queueId: input.queueId,
           projectId: input.projectId,
-          sessionUser: ctx.session.user,
-        });
+          status: AnnotationQueueStatus.PENDING,
+          OR: [
+            { lockedAt: null },
+            { lockedAt: { lt: fiveMinutesAgo } },
+            { lockedByUserId: ctx.session.user.id },
+          ],
+          NOT: {
+            id: { in: input.seenItemIds },
+          },
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
 
-        throwIfNoProjectAccess({
-          session: ctx.session,
+      // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
+      if (!item) return { item: null };
+
+      const updatedItem = await ctx.prisma.annotationQueueItem.update({
+        where: {
+          id: item.id,
           projectId: input.projectId,
-          scope: "annotationQueues:CUD",
-        });
+        },
+        data: {
+          lockedAt: now,
+          lockedByUserId: ctx.session.user.id,
+        },
+      });
 
-        const now = new Date();
-        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      const inflatedUpdatedItem = {
+        ...updatedItem,
+        lockedByUser: { name: ctx.session.user.name },
+      };
 
-        const item = await ctx.prisma.annotationQueueItem.findFirst({
-          where: {
-            queueId: input.queueId,
-            projectId: input.projectId,
-            status: AnnotationQueueStatus.PENDING,
-            OR: [
-              { lockedAt: null },
-              { lockedAt: { lt: fiveMinutesAgo } },
-              { lockedByUserId: ctx.session.user.id },
-            ],
-            NOT: {
-              id: { in: input.seenItemIds },
-            },
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
-        });
-
-        // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
-        if (!item) return null;
-
-        const updatedItem = await ctx.prisma.annotationQueueItem.update({
-          where: {
-            id: item.id,
-            projectId: input.projectId,
-          },
-          data: {
-            lockedAt: now,
-            lockedByUserId: ctx.session.user.id,
-          },
-        });
-
-        const inflatedUpdatedItem = {
-          ...updatedItem,
-          lockedByUser: { name: ctx.session.user.name },
-        };
-
-        if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          const clickhouseObservation = await getObservationById(
-            item.objectId,
-            input.projectId,
-          );
+      // Validate that the referenced trace or observation exists in ClickHouse, otherwise throw LangfuseNotFoundError
+      if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
+        const observation = await getObservationById(
+          item.objectId,
+          input.projectId,
+        );
+        if (!observation) {
           return {
-            ...inflatedUpdatedItem,
-            parentTraceId: clickhouseObservation?.traceId,
+            item: inflatedUpdatedItem,
+            error: {
+              code: "NOT_FOUND",
+              message: `Observation with id ${item.objectId} not found`,
+            },
           };
         }
 
-        return inflatedUpdatedItem;
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
+        return {
+          item: {
+            ...inflatedUpdatedItem,
+            parentTraceId: observation?.traceId,
+          },
+        };
+      } else {
+        const trace = await getTraceById(item.objectId, input.projectId);
+        if (!trace) {
+          return {
+            item: inflatedUpdatedItem,
+            error: {
+              code: "NOT_FOUND",
+              message: `Trace with id ${item.objectId} not found`,
+            },
+          };
         }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching and locking next annotation queue item failed.",
-        });
+
+        return {
+          item: inflatedUpdatedItem,
+        };
       }
     }),
 });
