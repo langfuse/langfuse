@@ -231,7 +231,6 @@ export const InnerEvaluatorForm = (props: {
       .safeParse(values.mapping);
 
     if (validatedVarMapping.success === false) {
-      console.log(validatedVarMapping.error);
       form.setError("mapping", {
         type: "manual",
         message: "Please fill out all variable mappings",
@@ -421,13 +420,14 @@ export const InnerEvaluatorForm = (props: {
                                 ? "traces"
                                 : "dataset items"}
                             </label>
-                            {field.value.includes("EXISTING") && (
-                              <ExecutionCountTooltip
-                                projectId={props.projectId}
-                                item={form.watch("target")}
-                                filter={form.watch("filter")}
-                              />
-                            )}
+                            {field.value.includes("EXISTING") &&
+                              !props.disabled && (
+                                <ExecutionCountTooltip
+                                  projectId={props.projectId}
+                                  item={form.watch("target")}
+                                  filter={form.watch("filter")}
+                                />
+                              )}
                           </div>
                         </div>
                       </div>

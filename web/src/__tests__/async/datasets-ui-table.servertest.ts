@@ -43,7 +43,7 @@ describe("trpc.datasets", () => {
     });
   });
   describe("GET datasetItems.countAll", () => {
-    it("should GET all dataset items", async () => {
+    it("should GET all dataset items with no filter", async () => {
       const { totalCount } = await getDatasetItemsTableCount({
         projectId: projectId,
         filter: [],
@@ -51,9 +51,7 @@ describe("trpc.datasets", () => {
 
       expect(totalCount).toBe(2);
     });
-  });
 
-  describe("GET datasetItems.countAll", () => {
     it("should GET all dataset items with filter", async () => {
       const { totalCount } = await getDatasetItemsTableCount({
         projectId: projectId,
