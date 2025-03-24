@@ -184,7 +184,7 @@ export async function fetchLLMCompletion(
       azureOpenAIApiKey: apiKey,
       azureOpenAIBasePath: baseURL,
       azureOpenAIApiDeploymentName: modelParams.model,
-      azureOpenAIApiVersion: "2024-02-01",
+      azureOpenAIApiVersion: "2025-02-01-preview",
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,

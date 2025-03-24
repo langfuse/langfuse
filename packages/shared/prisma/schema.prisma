@@ -675,8 +675,8 @@ model PromptDependency {
   childLabel   String? @map("child_label")
   childVersion Int?    @map("child_version")
 
-  @@index([projectId, parentId])
-  @@index([projectId, childName])
+  @@index([projectId, parentId], map: "prompt_dependencies_project_id_parent_id")
+  @@index([projectId, childName], map: "prompt_dependencies_project_id_child_name")
   @@map("prompt_dependencies")
 }
 
@@ -951,17 +951,6 @@ model ObservationMedia {
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, observationId])
   @@map("observation_media")
-}
-
-model QueueBackUp {
-  id        String  @id @default(cuid())
-  projectId String? @map("project_id")
-  queueName String  @map("queue_name")
-  content   Json
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("queue_backups")
 }
 
 model BillingMeterBackup {

@@ -36,25 +36,12 @@ import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 
-const setProjectInPosthog = () => {
-  // project
-  const url = window.location.href;
-  const regex = /\/project\/([^\/]+)/;
-  const match = url.match(regex);
-  if (match && match[1]) {
-    posthog.group("project", match[1]);
-  } else {
-    posthog.resetGroups();
-  }
-};
-
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
   typeof window !== "undefined" &&
   process.env.NEXT_PUBLIC_POSTHOG_KEY &&
   process.env.NEXT_PUBLIC_POSTHOG_HOST
 ) {
-  setProjectInPosthog();
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
     ui_host: "https://eu.posthog.com",
@@ -84,7 +71,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
     // PostHog (cloud.langfuse.com)
     if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
       const handleRouteChange = () => {
-        setProjectInPosthog();
         posthog.capture("$pageview");
       };
       router.events.on("routeChangeComplete", handleRouteChange);
@@ -138,9 +124,8 @@ function UserTracking() {
   const sessionUser = session.data?.user;
   const { organization, project } = useQueryProjectOrOrganization();
 
-  // dedupe the event via useRef, otherwise we'll capture the event multiple times on session refresh
+  // Track user identity and properties
   const lastIdentifiedUser = useRef<string | null>(null);
-
   useEffect(() => {
     if (
       session.status === "authenticated" &&
@@ -168,6 +153,7 @@ function UserTracking() {
       if (emailDomain)
         posthog.group("emailDomain", emailDomain, {
           domain: emailDomain,
+          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
         });
 
       // Sentry
@@ -202,6 +188,50 @@ function UserTracking() {
       setUser(null);
     }
   }, [sessionUser, session.status]);
+
+  // Track organization group
+  const lastIdentifiedOrganization = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      organization?.id &&
+      lastIdentifiedOrganization.current !== JSON.stringify(organization.id)
+    ) {
+      lastIdentifiedOrganization.current = JSON.stringify(organization.id);
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+        posthog.group("organization", organization.id, {
+          id: organization.id,
+          name: organization.name,
+          plan: organization.plan,
+          countProjects: organization.projects.length,
+          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        });
+      }
+    }
+  }, [organization]);
+
+  // Track project group
+  const lastIdentifiedProjectAndOrg = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      project?.id &&
+      lastIdentifiedProjectAndOrg.current !==
+        JSON.stringify({ project, organization })
+    ) {
+      lastIdentifiedProjectAndOrg.current = JSON.stringify({
+        project,
+        organization,
+      });
+      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+        posthog.group("project", project.id, {
+          id: project.id,
+          name: project.name,
+          organizationId: organization?.id,
+          plan: organization?.plan,
+          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        });
+      }
+    }
+  }, [project, organization]);
 
   // update crisp segments
   const plan = organization?.plan;
