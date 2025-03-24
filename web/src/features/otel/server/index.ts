@@ -270,6 +270,41 @@ const extractName = (
   return spanName;
 };
 
+const extractMetadata = (
+  attributes: Record<string, unknown>,
+): Record<string, unknown> => {
+  // Extract top-level metadata object if available
+  let metadata: Record<string, unknown> = {};
+  if (attributes["langfuse.metadata"]) {
+    try {
+      // If it's a string (JSON), parse it
+      if (typeof attributes["langfuse.metadata"] === "string") {
+        metadata = JSON.parse(attributes["langfuse.metadata"] as string);
+      }
+      // If it's already an object, use it
+      else if (typeof attributes["langfuse.metadata"] === "object") {
+        metadata = attributes["langfuse.metadata"] as Record<string, unknown>;
+      }
+    } catch (e) {
+      // If parsing fails, continue with nested metadata extraction
+    }
+  }
+
+  // Extract metadata from langfuse.metadata.* keys
+  const metadataAttributes = Object.keys(attributes).filter((key) =>
+    key.startsWith("langfuse.metadata."),
+  );
+
+  return {
+    ...metadata,
+    ...metadataAttributes.reduce((acc: Record<string, unknown>, key) => {
+      const metadataKey = key.replace("langfuse.metadata.", "");
+      acc[metadataKey] = attributes[key];
+      return acc;
+    }, {}),
+  };
+};
+
 const extractUserId = (
   attributes: Record<string, unknown>,
 ): string | undefined => {
@@ -416,6 +451,8 @@ export const convertOtelSpanToIngestionEvent = (
           )
         : null;
 
+      const spanAttributeMetadata = extractMetadata(attributes);
+      const resourceAttributeMetadata = extractMetadata(resourceAttributes);
       if (!parentObservationId) {
         // Create a trace for any root span
         const trace = {
@@ -423,6 +460,8 @@ export const convertOtelSpanToIngestionEvent = (
           timestamp: convertNanoTimestampToISO(span.startTimeUnixNano),
           name: extractName(span.name, attributes),
           metadata: {
+            ...resourceAttributeMetadata,
+            ...spanAttributeMetadata,
             attributes,
             resourceAttributes,
             scope: scopeSpan?.scope,
@@ -467,6 +506,8 @@ export const convertOtelSpanToIngestionEvent = (
 
         // Additional fields
         metadata: {
+          ...resourceAttributeMetadata,
+          ...spanAttributeMetadata,
           attributes,
           resourceAttributes,
           scope: scopeSpan?.scope,

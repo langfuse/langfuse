@@ -517,13 +517,6 @@ export type PromptDependency = {
     child_label: string | null;
     child_version: number | null;
 };
-export type QueueBackUp = {
-    id: string;
-    project_id: string | null;
-    queue_name: string;
-    content: unknown;
-    created_at: Generated<Timestamp>;
-};
 export type ScoreConfig = {
     id: string;
     created_at: Generated<Timestamp>;
@@ -618,7 +611,6 @@ export type DB = {
     projects: Project;
     prompt_dependencies: PromptDependency;
     prompts: Prompt;
-    queue_backups: QueueBackUp;
     score_configs: ScoreConfig;
     scores: LegacyPrismaScore;
     Session: Session;
