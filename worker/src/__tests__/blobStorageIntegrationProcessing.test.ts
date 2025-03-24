@@ -271,7 +271,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         region: region ? region : "auto",
         endpoint: endpoint ? endpoint : null,
         forcePathStyle:
-          env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
+          env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
         enabled: true,
         exportFrequency: "daily",
         lastSyncAt: oneHourAgo,
