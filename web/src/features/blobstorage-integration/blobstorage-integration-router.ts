@@ -11,7 +11,7 @@ import { blobStorageIntegrationFormSchema } from "@/src/features/blobstorage-int
 import { TRPCError } from "@trpc/server";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { logger } from "@langfuse/shared/src/server";
-import { BlobStorageIntegration } from "@langfuse/shared";
+import { type BlobStorageIntegration } from "@langfuse/shared";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure

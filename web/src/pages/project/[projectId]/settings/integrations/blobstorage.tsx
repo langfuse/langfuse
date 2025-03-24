@@ -29,7 +29,6 @@ import {
 } from "@/src/features/blobstorage-integration/types";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
-import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@tremor/react";
 import Link from "next/link";
@@ -38,7 +37,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   BlobStorageIntegrationType,
-  BlobStorageIntegration,
+  type BlobStorageIntegration,
 } from "@langfuse/shared";
 
 export default function BlobStorageIntegrationSettings() {
@@ -137,8 +136,8 @@ const BlobStorageIntegrationSettingsForm = ({
     defaultValues: {
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
-      endpoint: state?.endpoint || "",
-      region: state?.region || "",
+      endpoint: state?.endpoint || null,
+      region: state?.region || "auto",
       accessKeyId: state?.accessKeyId || "",
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
@@ -156,8 +155,8 @@ const BlobStorageIntegrationSettingsForm = ({
     blobStorageForm.reset({
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
-      endpoint: state?.endpoint || "",
-      region: state?.region || "",
+      endpoint: state?.endpoint || null,
+      region: state?.region || "auto",
       accessKeyId: state?.accessKeyId || "",
       secretAccessKey: state?.secretAccessKey || null,
       prefix: state?.prefix || "",
@@ -168,6 +167,7 @@ const BlobStorageIntegrationSettingsForm = ({
       enabled: state?.enabled || false,
       forcePathStyle: state?.forcePathStyle || false,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const utils = api.useUtils();
@@ -271,7 +271,7 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormItem>
                 <FormLabel>Endpoint URL</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input {...field} value={field.value || ""} />
                 </FormControl>
                 <FormDescription>
                   {integrationType === "AZURE_BLOB_STORAGE"
@@ -366,7 +366,11 @@ const BlobStorageIntegrationSettingsForm = ({
                     : "Secret Access Key"}
               </FormLabel>
               <FormControl>
-                <PasswordInput {...field} />
+                <PasswordInput
+                  placeholder="********************"
+                  {...field}
+                  value={field.value || ""}
+                />
               </FormControl>
               <FormDescription>
                 {integrationType === "AZURE_BLOB_STORAGE"
