@@ -15,6 +15,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useElementWasVisible } from "@/src/hooks/use-element-visibility";
 
 const COLOR_MAP = new Map([
   ["True", "bg-light-green p-0.5 text-dark-green"],
@@ -116,7 +117,9 @@ function AggregateScoreMetadataPeek({
   projectId: string;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const [hasBeenVisible, setHasBeenVisible] = useState(false);
+  const hasBeenVisible = useElementWasVisible(ref);
+
+  console.log(scoreId, "hasBeenVisible:", hasBeenVisible);
 
   const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
     {
@@ -136,29 +139,6 @@ function AggregateScoreMetadataPeek({
       staleTime: Infinity,
     },
   );
-
-  const observer = useMemo(
-    () =>
-      new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setHasBeenVisible(true);
-          }
-        });
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    if (ref.current && observer) {
-      if (!hasBeenVisible) {
-        observer.observe(ref.current);
-      } else {
-        observer.disconnect();
-      }
-      return () => observer.disconnect();
-    }
-  }, [observer, ref, hasBeenVisible]);
 
   return (
     <HoverCard>
