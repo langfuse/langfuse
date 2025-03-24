@@ -320,7 +320,14 @@ export async function executeQuery(
     );
 
     // Execute the query
-    const result = await clickhouseClient().query({
+    const result = await clickhouseClient({
+      tags: {
+        feature: "custom-queries",
+        type: query.view,
+        kind: "analytic",
+        projectId,
+      },
+    }).query({
       query: compiledQuery,
       query_params: parameters,
     });
