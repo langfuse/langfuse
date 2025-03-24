@@ -1,6 +1,6 @@
 import { InfoIcon, Loader } from "lucide-react";
 import {
-  EvalFormType,
+  type EvalFormType,
   isTraceTarget,
 } from "@/src/ee/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
