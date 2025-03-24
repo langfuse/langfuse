@@ -27,6 +27,7 @@ import {
   PostHogIntegrationQueue,
   QueueName,
   logger,
+  BlobStorageIntegrationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -38,6 +39,10 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import {
+  blobStorageIntegrationProcessingProcessor,
+  blobStorageIntegrationProcessor,
+} from "./queues/blobStorageIntegrationQueue";
 import { coreDataS3ExportProcessor } from "./queues/coreDataS3ExportQueue";
 import { meteringDataPostgresExportProcessor } from "./ee/meteringDataPostgresExport/handleMeteringDataPostgresExportJob";
 import {
@@ -257,6 +262,27 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.PostHogIntegrationProcessingQueue,
     postHogIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  BlobStorageIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.BlobStorageIntegrationQueue,
+    blobStorageIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.BlobStorageIntegrationProcessingQueue,
+    blobStorageIntegrationProcessingProcessor,
     {
       concurrency: 1,
     },
