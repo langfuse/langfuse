@@ -1,4 +1,3 @@
-import { BlobStorageLogo } from "@/src/components/BlobStorageLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
@@ -80,7 +79,7 @@ export default function BlobStorageIntegrationSettings() {
       }}
     >
       <p className="mb-4 text-sm text-primary">
-        Configure scheduled exports of your trace data to S3 compatible storages
+        Configure scheduled exports of your trace data to AWS S3, S3-compatible storages,
         or Azure Blob Storage. Set up a daily, weekly, or monthly export to your
         own storage for data analysis or backup purposes.
       </p>
@@ -214,7 +213,8 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="s3">S3 Compatible Storage</SelectItem>
+                    <SelectItem value="s3">AWS S3</SelectItem>
+                    <SelectItem value="s3-compatible">S3 Compatible Storage</SelectItem>
                     <SelectItem value="azure">Azure Blob Storage</SelectItem>
                   </SelectContent>
                 </Select>
@@ -248,66 +248,70 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        <FormField
-          control={blobStorageForm.control}
-          name="endpoint"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Endpoint URL</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormDescription>
-                {storageProvider === "azure"
-                  ? "Azure Blob Storage endpoint URL (e.g., https://accountname.blob.core.windows.net)"
-                  : "S3 endpoint URL (leave empty for AWS S3)"}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Endpoint URL field - Only shown for S3-compatible and Azure */}
+        {storageProvider !== "s3" && (
+          <FormField
+            control={blobStorageForm.control}
+            name="endpoint"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Endpoint URL</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormDescription>
+                  {storageProvider === "azure"
+                    ? "Azure Blob Storage endpoint URL (e.g., https://accountname.blob.core.windows.net)"
+                    : "S3 compatible endpoint URL (e.g., https://play.min.io)"}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
+        {/* Region field - Only shown for AWS S3 */}
         {storageProvider === "s3" && (
-          <>
-            <FormField
-              control={blobStorageForm.control}
-              name="region"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Region</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    AWS region (e.g., us-east-1, leave empty for non-AWS S3
-                    providers)
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <FormField
+            control={blobStorageForm.control}
+            name="region"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Region</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormDescription>
+                  AWS region (e.g., us-east-1)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
-            <FormField
-              control={blobStorageForm.control}
-              name="forcePathStyle"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Force Path Style</FormLabel>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="ml-4 mt-1"
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Enable for MinIO and some other S3 compatible providers
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
+        {/* Force Path Style switch - Only shown for S3-compatible */}
+        {storageProvider === "s3-compatible" && (
+          <FormField
+            control={blobStorageForm.control}
+            name="forcePathStyle"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Force Path Style</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="ml-4 mt-1"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Enable for MinIO and some other S3 compatible providers
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         )}
 
         <FormField
@@ -318,11 +322,20 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormLabel>
                 {storageProvider === "azure"
                   ? "Storage Account Name"
-                  : "Access Key ID"}
+                  : storageProvider === "s3"
+                    ? "AWS Access Key ID"
+                    : "Access Key ID"}
               </FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
+              <FormDescription>
+                {storageProvider === "azure"
+                  ? "Your Azure storage account name"
+                  : storageProvider === "s3"
+                    ? "Your AWS IAM user access key ID"
+                    : "Access key for your S3-compatible storage"}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -336,11 +349,20 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormLabel>
                 {storageProvider === "azure"
                   ? "Storage Account Key"
-                  : "Secret Access Key"}
+                  : storageProvider === "s3"
+                    ? "AWS Secret Access Key"
+                    : "Secret Access Key"}
               </FormLabel>
               <FormControl>
                 <PasswordInput {...field} />
               </FormControl>
+              <FormDescription>
+                {storageProvider === "azure"
+                  ? "Your Azure storage account access key"
+                  : storageProvider === "s3"
+                    ? "Your AWS IAM user secret access key"
+                    : "Secret key for your S3-compatible storage"}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -356,8 +378,11 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                Optional prefix path for exported files (e.g.,
-                "langfuse-exports/")
+                {storageProvider === "azure"
+                  ? "Optional prefix path for exported files in your Azure container (e.g., \"langfuse-exports/\")"
+                  : storageProvider === "s3"
+                    ? "Optional prefix path for exported files in your S3 bucket (e.g., \"langfuse-exports/\")"
+                    : "Optional prefix path for exported files (e.g., \"langfuse-exports/\")"}
               </FormDescription>
               <FormMessage />
             </FormItem>

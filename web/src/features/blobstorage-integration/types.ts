@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const storageProviderEnum = z.enum(["s3", "azure"]);
+export const storageProviderEnum = z.enum(["s3", "s3-compatible", "azure"]);
 export type StorageProvider = z.infer<typeof storageProviderEnum>;
 
 export const blobStorageIntegrationFormSchema = z.object({

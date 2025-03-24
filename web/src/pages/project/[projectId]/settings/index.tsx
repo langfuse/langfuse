@@ -12,7 +12,6 @@ import { MembershipInvitesPage } from "@/src/features/rbac/components/Membership
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
-import { BlobStorageLogo } from "@/src/components/BlobStorageLogo";
 import { Card } from "@/src/components/ui/card";
 import { ScoreConfigSettings } from "@/src/features/scores/components/ScoreConfigSettings";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
@@ -259,7 +258,10 @@ const Integrations = (props: { projectId: string }) => {
               Configure
             </ActionButton>
             <Button asChild variant="ghost">
-              <Link href="https://langfuse.com/docs/analytics/posthog">
+              <Link
+                href="https://langfuse.com/docs/analytics/posthog"
+                target="_blank"
+              >
                 Integration Docs ↗
               </Link>
             </Button>
@@ -267,7 +269,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <BlobStorageLogo className="mb-4 w-56 text-foreground" />
+          <span className="font-semibold">Blob Storage</span>
           <p className="mb-4 text-sm text-primary">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your
@@ -283,7 +285,10 @@ const Integrations = (props: { projectId: string }) => {
               Configure
             </ActionButton>
             <Button asChild variant="ghost">
-              <Link href="https://langfuse.com/docs/integrations/blob-storage // TODO: Update the link to the correct documentation">
+              <Link
+                href="https://langfuse.com/docs/integrations/blob-storage // TODO: Update the link to the correct documentation"
+                target="_blank"
+              >
                 Integration Docs ↗
               </Link>
             </Button>
