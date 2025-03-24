@@ -87,7 +87,7 @@ export default function BlobStorageIntegrationSettings() {
       </p>
       {!hasAccess && (
         <p className="text-sm">
-          You current role does not grant you access to these settings, please
+          Your current role does not grant you access to these settings, please
           reach out to your project admin or owner.
         </p>
       )}
