@@ -394,7 +394,7 @@ export class PromptService {
         resolvedPrompt,
       };
     } catch (err) {
-      console.error(err);
+      this.logError(err);
 
       throw err;
     }
