@@ -50,6 +50,7 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
         values,
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
+        id: values.length === 1 ? scores[0].id : undefined,
       };
     } else {
       const values = scores.map((score) => score.stringValue ?? "n/a");
@@ -69,6 +70,7 @@ export const aggregateScores = <T extends APIScore | ScoreSimplified>(
           count,
         })),
         comment: values.length === 1 ? scores[0].comment : undefined,
+        id: values.length === 1 ? scores[0].id : undefined,
       };
     }
     return acc;

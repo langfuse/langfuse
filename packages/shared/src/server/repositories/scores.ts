@@ -978,3 +978,42 @@ export const hasAnyScore = async (projectId: string) => {
 
   return rows.length > 0;
 };
+
+export const getScoreMetadataById = async (
+  projectId: string,
+  id: string,
+  source?: ScoreSourceType,
+) => {
+  const query = `
+    SELECT 
+      metadata
+    FROM scores s
+    WHERE s.project_id = {projectId: String}
+    AND s.id = {id: String}
+    ${source ? `AND s.source = {source: String}` : ""}
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<Pick<ScoreRecordReadType, "metadata">>({
+    query,
+    params: {
+      projectId,
+      id,
+      ...(source !== undefined ? { source } : {}),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "getScoreMetadataById",
+      projectId,
+    },
+  });
+
+  return rows
+    .map((row) =>
+      parseMetadataCHRecordToDomain(row.metadata as Record<string, string>),
+    )
+    .shift();
+};

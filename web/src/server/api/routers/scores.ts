@@ -43,6 +43,7 @@ import {
   hasAnyScore,
   ScoreDeleteQueue,
   QueueJobs,
+  getScoreMetadataById,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -487,5 +488,10 @@ export const scoresRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       return await hasAnyScore(input.projectId);
+    }),
+  getScoreMetadataById: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), id: z.string() }))
+    .query(async ({ input }) => {
+      return (await getScoreMetadataById(input.projectId, input.id)) ?? null;
     }),
 });

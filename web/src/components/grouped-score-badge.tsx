@@ -7,6 +7,7 @@ import {
 import { BracesIcon, MessageCircleMoreIcon } from "lucide-react";
 
 import { type APIScore, type LastUserScore } from "@langfuse/shared";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
   scores,
@@ -58,8 +59,11 @@ export const GroupedScoreBadges = <T extends APIScore | LastUserScore>({
                       <HoverCardTrigger className="inline-block">
                         <BracesIcon className="mb-[0.0625rem] !size-3" />
                       </HoverCardTrigger>
-                      <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
-                        <p>{JSON.stringify(s.metadata, null, 2)}</p>
+                      <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
+                        <JSONView
+                          codeClassName="!rounded-md"
+                          json={s.metadata}
+                        />
                       </HoverCardContent>
                     </HoverCard>
                   )}

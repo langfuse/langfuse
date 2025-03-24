@@ -25,7 +25,10 @@ export const convertToScore = (row: ScoreRecordReadType): Score => {
     value: row.value ?? null,
     source: row.source as ScoreSourceType,
     comment: row.comment ?? null,
-    metadata: parseMetadataCHRecordToDomain(row.metadata) ?? null,
+    metadata:
+      // FIXME: metadata should be Record<string, string> in base schema but ingestion will fail if we do that at the moment, hence the cast
+      parseMetadataCHRecordToDomain(row.metadata as Record<string, string>) ??
+      null,
     authorUserId: row.author_user_id ?? null,
     configId: row.config_id ?? null,
     dataType: row.data_type as ScoreDataType,
