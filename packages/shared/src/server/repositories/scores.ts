@@ -40,7 +40,7 @@ export const searchExistingAnnotationScore = async (
     throw new Error("Either name or configId (or both) must be provided.");
   }
   const query = `
-    SELECT *
+    SELECT * EXCEPT (metadata)
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.source = 'ANNOTATION'
@@ -56,7 +56,7 @@ export const searchExistingAnnotationScore = async (
     LIMIT 1
   `;
 
-  const rows = await queryClickhouse<ScoreRecordReadType>({
+  const rows = await queryClickhouse<Omit<ScoreRecordReadType, "metadata">>({
     query,
     params: {
       projectId,
@@ -72,7 +72,14 @@ export const searchExistingAnnotationScore = async (
       projectId,
     },
   });
-  return rows.map(convertToScore).shift();
+  return rows
+    .map((row) =>
+      convertToScore({
+        ...row,
+        metadata: {},
+      }),
+    )
+    .shift();
 };
 
 export const getScoreById = async (
@@ -222,7 +229,7 @@ export const getScoresForObservations = async (
 ) => {
   const query = `
       select 
-        *
+        * EXCEPT (metadata)
       from scores s
       WHERE s.project_id = {projectId: String}
       AND s.observation_id IN ({observationIds: Array(String)})
@@ -231,7 +238,9 @@ export const getScoresForObservations = async (
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<ScoreRecordReadType>({
+  const rows = await queryClickhouse<
+    Omit<ScoreRecordReadType, "metadata"> & { has_metadata: boolean }
+  >({
     query: query,
     params: {
       projectId: projectId,
@@ -247,7 +256,12 @@ export const getScoresForObservations = async (
     },
   });
 
-  return rows.map(convertToScore);
+  return rows.map((row) => ({
+    ...convertToScore({
+      ...row,
+      metadata: {},
+    }),
+  }));
 };
 
 export const getScoresGroupedByNameSourceType = async (
