@@ -134,7 +134,6 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
         filter: z.array(singleFilter).nullable(),
-        ...paginationZod,
       }),
     )
     .query(async ({ input }) => {
