@@ -70,7 +70,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           action: "update",
           resourceType: "blobStorageIntegration",
           resourceId: input.projectId,
-          after: input,
         });
 
         // Extract data from input

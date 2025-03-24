@@ -66,7 +66,7 @@ export default function BlobStorageIntegrationSettings() {
   return (
     <ContainerPage
       headerProps={{
-        title: "Blob Storage Integration",
+        title: "Blob Storage Integration (Beta)",
         breadcrumb: [
           { name: "Settings", href: `/project/${projectId}/settings` },
         ],
