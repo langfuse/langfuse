@@ -78,7 +78,7 @@ export const ExecutionCountTooltip = ({
                 : globalConfig.data,
             )
           )}{" "}
-          {isTraceTarget(item) ? "traces" : "dataset items"}.
+          {isTraceTarget(item) ? "traces" : "dataset run items"}.
         </div>
       </TooltipContent>
     </Tooltip>

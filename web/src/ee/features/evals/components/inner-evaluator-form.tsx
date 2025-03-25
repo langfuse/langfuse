@@ -390,7 +390,7 @@ export const InnerEvaluatorForm = (props: {
                               New{" "}
                               {form.watch("target") === "trace"
                                 ? "traces"
-                                : "dataset items"}
+                                : "dataset run items"}
                             </label>
                           </div>
                         </div>
@@ -418,7 +418,7 @@ export const InnerEvaluatorForm = (props: {
                               Existing{" "}
                               {form.watch("target") === "trace"
                                 ? "traces"
-                                : "dataset items"}
+                                : "dataset run items"}
                             </label>
                             {field.value.includes("EXISTING") &&
                               !props.disabled && (
