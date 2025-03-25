@@ -13,7 +13,10 @@ export const useExperimentNameValidation = ({
   form,
 }: UseExperimentNameValidationProps) => {
   useEffect(() => {
-    if (!currentName) { form.clearErrors('name'); return; }
+    if (!currentName) {
+      form.clearErrors("name");
+      return;
+    }
 
     const isNewExperiment = !allExperimentNames
       ?.map((experiment) => experiment.value)
