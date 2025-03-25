@@ -18,7 +18,7 @@ import { handleBlobStorageIntegrationProjectJob } from "../ee/integrations/blobs
 import { BlobStorageIntegrationType } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
-describe("BlobStorageIntegrationProcessingJob", () => {
+describe.only("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
   const bucketName = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || "";
   const accessKeyId = env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID || "";
