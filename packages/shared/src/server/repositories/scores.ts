@@ -174,13 +174,15 @@ export type GetScoresForTracesProps = {
   timestamp?: Date;
   limit?: number;
   offset?: number;
+  excludeMetadata?: boolean;
 };
 
 export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
-  const { projectId, traceIds, timestamp, limit, offset } = props;
+  const { projectId, traceIds, timestamp, limit, offset, excludeMetadata } =
+    props;
   const query = `
-      select 
-        * EXCEPT (metadata)
+      select
+        ${!excludeMetadata ? "*" : "* EXCEPT (metadata)"}
       from scores s
       WHERE s.project_id = {projectId: String}
       AND s.trace_id IN ({traceIds: Array(String)}) 
@@ -190,7 +192,11 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
       ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  const rows = await queryClickhouse<Omit<ScoreRecordReadType, "metadata">>({
+  const rows = await queryClickhouse<
+    typeof props.excludeMetadata extends true
+      ? Omit<ScoreRecordReadType, "metadata">
+      : ScoreRecordReadType
+  >({
     query: query,
     params: {
       projectId,
@@ -214,7 +220,7 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
   return rows.map((row) => ({
     ...convertToScore({
       ...row,
-      metadata: {},
+      metadata: excludeMetadata ? {} : row.metadata,
     }),
   }));
 };
