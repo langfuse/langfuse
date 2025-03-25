@@ -73,6 +73,7 @@ export default withMiddlewares({
         apiKeyId: auth.scope.apiKeyId,
         before: model,
       });
+
       return {
         message: "Model successfully deleted" as const,
       };
