@@ -16,7 +16,10 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { getDatasetItemsTableCount, logger } from "@langfuse/shared/src/server";
+import {
+  getDatasetRunItemsTableCount,
+  logger,
+} from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
@@ -129,6 +132,7 @@ export const datasetRouter = createTRPCRouter({
         datasets,
       };
     }),
+  // counts all dataset run items that match the filter
   countAllDatasetItems: protectedProjectProcedure
     .input(
       z.object({
@@ -137,7 +141,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const count = await getDatasetItemsTableCount({
+      const count = await getDatasetRunItemsTableCount({
         projectId: input.projectId,
         filter: input.filter ?? [],
       });

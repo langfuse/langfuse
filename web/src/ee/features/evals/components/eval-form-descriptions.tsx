@@ -31,8 +31,8 @@ export function TimeScopeDescription(props: {
         : props.timeScope?.includes("NEW")
           ? "all future"
           : "all existing"}{" "}
-      {props.target === "trace" ? "traces" : "dataset items"} that match these
-      filters.{" "}
+      {props.target === "trace" ? "traces" : "dataset run items"} that match
+      these filters.{" "}
     </div>
   );
 }
