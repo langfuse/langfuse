@@ -7,7 +7,10 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { type QueryType } from "@/src/features/query/types";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 
 export const TracesBarListChart = ({
   className,
@@ -54,7 +57,7 @@ export const TracesBarListChart = ({
     view: "traces",
     dimensions: [],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters,
+    filters: mapLegacyUiTableFilterToView("traces", filters),
     timeDimension: null,
     fromTimestamp,
     toTimestamp,
@@ -81,7 +84,7 @@ export const TracesBarListChart = ({
     view: "traces",
     dimensions: [{ field: "name" }],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters,
+    filters: mapLegacyUiTableFilterToView("traces", filters),
     timeDimension: null,
     fromTimestamp,
     toTimestamp,

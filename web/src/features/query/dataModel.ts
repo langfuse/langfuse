@@ -6,6 +6,7 @@ import {
 } from "@/src/features/query/types";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
+// Make sure to update ./dashboardUiTableToViewMapping.ts if you make changes
 
 export const traceView: ViewDeclarationType = {
   name: "traces",
