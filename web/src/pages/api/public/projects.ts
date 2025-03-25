@@ -25,7 +25,7 @@ export default async function handler(
 
   if (req.method === "GET") {
     try {
-      // Do not apply rate limits as it can break applications on lower tier plans
+      // Do not apply rate limits as it can break applications on lower tier plans when using auth_check in prod
 
       const projects = await prisma.project.findMany({
         select: {
