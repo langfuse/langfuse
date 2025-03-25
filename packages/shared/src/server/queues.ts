@@ -56,6 +56,9 @@ export const EvalExecutionEvent = z.object({
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
+export const BlobStorageIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
@@ -146,6 +149,9 @@ export type DataRetentionProcessingEventType = z.infer<
 export type BatchActionProcessingEventType = z.infer<
   typeof BatchActionProcessingEventSchema
 >;
+export type BlobStorageIntegrationProcessingEventType = z.infer<
+  typeof BlobStorageIntegrationProcessingEventSchema
+>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -160,6 +166,8 @@ export enum QueueName {
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  BlobStorageIntegrationQueue = "blobstorage-integration-queue",
+  BlobStorageIntegrationProcessingQueue = "blobstorage-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
   MeteringDataPostgresExportQueue = "metering-data-postgres-export-queue",
   DataRetentionQueue = "data-retention-queue",
@@ -182,6 +190,8 @@ export enum QueueJobs {
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  BlobStorageIntegrationJob = "blobstorage-integration-job",
+  BlobStorageIntegrationProcessingJob = "blobstorage-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
   MeteringDataPostgresExportJob = "metering-data-postgres-export-job",
   DataRetentionJob = "data-retention-job",
@@ -275,5 +285,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: CreateEvalQueueEventType;
     name: QueueJobs.CreateEvalJob;
+  };
+  [QueueName.BlobStorageIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: BlobStorageIntegrationProcessingEventType;
+    name: QueueJobs.BlobStorageIntegrationProcessingJob;
   };
 };
