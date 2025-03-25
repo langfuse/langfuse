@@ -163,7 +163,6 @@ class AzureBlobStorageService implements StorageService {
         signedUrl: await this.getSignedUrl(fileName, expiresInSeconds, false),
       };
     } catch (err) {
-      console.log(err);
       logger.error(
         `Failed to upload file to Azure Blob Storage ${fileName}`,
         err,
