@@ -23,6 +23,7 @@ import {
   StorageService,
   StorageServiceFactory,
   CreateEvalQueueEventType,
+  ChatMessageType,
 } from "@langfuse/shared/src/server";
 import {
   availableTraceEvalVariables,
@@ -430,7 +431,13 @@ export const evaluate = async ({
     );
   }
 
-  const messages = [{ role: ChatMessageRole.User, content: prompt }];
+  const messages = [
+    {
+      type: ChatMessageType.User,
+      role: ChatMessageRole.User,
+      content: prompt,
+    } as const,
+  ];
 
   const parsedLLMOutput = await backOff(
     async () =>

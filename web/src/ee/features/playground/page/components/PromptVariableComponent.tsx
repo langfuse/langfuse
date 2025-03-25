@@ -19,7 +19,6 @@ export const PromptVariableComponent: React.FC<{
   const handleDeleteVariable = () => {
     deletePromptVariable(name);
   };
-  const displayName = name.slice(0, 10) + (name.length > 10 ? "..." : "");
   const isUsedIcon = isUsed ? (
     <CheckCircle2 size={16} color="green" />
   ) : (
@@ -34,8 +33,8 @@ export const PromptVariableComponent: React.FC<{
       <div className="mb-1 flex flex-row items-center">
         <span className="flex flex-1 flex-row space-x-2 text-xs">
           <p title={isUsedTooltip}>{isUsedIcon}</p>
-          <p className="min-w-[90px] font-mono" title={name}>
-            {displayName}
+          <p className="min-w-[90px] truncate font-mono" title={name}>
+            {name}
           </p>
         </span>
         <Button

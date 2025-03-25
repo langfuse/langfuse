@@ -101,7 +101,7 @@ export const useModelParams = () => {
             getDefaultAdapterParams(selectedProviderApiKey.adapter)
               .maxTemperature.value,
           ),
-          enabled: true,
+          enabled: false,
         },
       }));
     }
@@ -128,10 +128,10 @@ function getDefaultAdapterParams(
           value: adapter,
           enabled: true,
         },
-        temperature: { value: 0, enabled: true },
-        maxTemperature: { value: 2, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 2, enabled: false },
+        max_tokens: { value: 256, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
 
     case LLMAdapter.Azure:
@@ -140,10 +140,10 @@ function getDefaultAdapterParams(
           value: adapter,
           enabled: true,
         },
-        temperature: { value: 0, enabled: true },
-        maxTemperature: { value: 2, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 2, enabled: false },
+        max_tokens: { value: 256, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
 
     // Docs: https://docs.anthropic.com/claude/reference/messages_post
@@ -153,10 +153,10 @@ function getDefaultAdapterParams(
           value: adapter,
           enabled: true,
         },
-        temperature: { value: 0, enabled: true },
-        maxTemperature: { value: 1, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 1, enabled: false },
+        max_tokens: { value: 256, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
 
     case LLMAdapter.Bedrock:
@@ -165,10 +165,10 @@ function getDefaultAdapterParams(
           value: adapter,
           enabled: true,
         },
-        temperature: { value: 0, enabled: true },
-        maxTemperature: { value: 1, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 1, enabled: false },
+        max_tokens: { value: 256, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
 
     case LLMAdapter.VertexAI:
@@ -177,10 +177,10 @@ function getDefaultAdapterParams(
           value: adapter,
           enabled: true,
         },
-        temperature: { value: 1, enabled: true },
-        maxTemperature: { value: 2, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
+        temperature: { value: 1, enabled: false },
+        maxTemperature: { value: 2, enabled: false },
+        max_tokens: { value: 256, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
 
     case LLMAdapter.GoogleAIStudio:
@@ -189,10 +189,10 @@ function getDefaultAdapterParams(
           value: adapter,
           enabled: true,
         },
-        temperature: { value: 1, enabled: true },
-        maxTemperature: { value: 2, enabled: true },
-        max_tokens: { value: 256, enabled: true },
-        top_p: { value: 1, enabled: true },
+        temperature: { value: 1, enabled: false },
+        maxTemperature: { value: 2, enabled: false },
+        max_tokens: { value: 256, enabled: false },
+        top_p: { value: 1, enabled: false },
       };
   }
 }

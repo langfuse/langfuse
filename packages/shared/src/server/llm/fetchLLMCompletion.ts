@@ -1,4 +1,4 @@
-import { z, type ZodSchema } from "zod";
+import { type ZodSchema } from "zod";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -9,6 +9,7 @@ import {
   BaseMessage,
   HumanMessage,
   SystemMessage,
+  ToolMessage,
 } from "@langchain/core/messages";
 import {
   BytesOutputParser,
@@ -25,10 +26,13 @@ import { logger } from "../logger";
 import {
   ChatMessage,
   ChatMessageRole,
+  ChatMessageType,
   LLMAdapter,
   LLMJSONSchema,
   LLMTool,
   ModelParams,
+  ToolCallResponse,
+  ToolCallResponseSchema,
   TraceParams,
 } from "./types";
 import { CallbackHandler } from "langfuse-langchain";
@@ -39,7 +43,6 @@ type ProcessTracedEvents = () => Promise<void>;
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
-  tools?: LLMTool[];
   structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
   baseURL?: string;
@@ -53,6 +56,7 @@ type LLMCompletionParams = {
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
   streaming: boolean;
+  tools?: LLMTool[];
 };
 
 export async function fetchLLMCompletion(
@@ -62,7 +66,6 @@ export async function fetchLLMCompletion(
 ): Promise<{
   completion: IterableReadableStream<Uint8Array>;
   processTracedEvents: ProcessTracedEvents;
-  isStream: boolean;
 }>;
 
 export async function fetchLLMCompletion(
@@ -72,7 +75,6 @@ export async function fetchLLMCompletion(
 ): Promise<{
   completion: string;
   processTracedEvents: ProcessTracedEvents;
-  isStream: boolean;
 }>;
 
 export async function fetchLLMCompletion(
@@ -81,17 +83,29 @@ export async function fetchLLMCompletion(
     structuredOutputSchema: ZodSchema;
   },
 ): Promise<{
-  completion: unknown;
+  completion: Record<string, unknown>;
   processTracedEvents: ProcessTracedEvents;
-  isStream: boolean;
+}>;
+
+export async function fetchLLMCompletion(
+  params: LLMCompletionParams & {
+    tools: LLMTool[];
+    streaming: false;
+  },
+): Promise<{
+  completion: ToolCallResponse;
+  processTracedEvents: ProcessTracedEvents;
 }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<{
-  completion: string | IterableReadableStream<Uint8Array> | unknown;
+  completion:
+    | string
+    | IterableReadableStream<Uint8Array>
+    | Record<string, unknown>
+    | ToolCallResponse;
   processTracedEvents: ProcessTracedEvents;
-  isStream: boolean;
 }> {
   // the apiKey must never be printed to the console
   const {
@@ -151,11 +165,25 @@ export async function fetchLLMCompletion(
       )
         return new SystemMessage(message.content);
 
-      return new AIMessage(message.content);
+      if (message.type === ChatMessageType.ToolResult)
+        return new ToolMessage({
+          content: message.content,
+          tool_call_id: message.toolCallId,
+        });
+
+      return new AIMessage({
+        content: message.content,
+        tool_calls:
+          message.type === ChatMessageType.AssistantToolCall
+            ? (message.toolCalls as any)
+            : undefined,
+      });
     });
   }
 
-  finalMessages = finalMessages.filter((m) => m.content.length > 0);
+  finalMessages = finalMessages.filter(
+    (m) => m.content.length > 0 || "tool_calls" in m,
+  );
 
   let chatModel:
     | ChatOpenAI
@@ -267,7 +295,6 @@ export async function fetchLLMCompletion(
           .withStructuredOutput(params.structuredOutputSchema)
           .invoke(finalMessages, runConfig),
         processTracedEvents,
-        isStream: false,
       };
     }
 
@@ -313,11 +340,10 @@ export async function fetchLLMCompletion(
           .pipe(new StringOutputParser())
           .invoke(filteredMessages, runConfig),
         processTracedEvents,
-        isStream: true,
       };
     }
 
-    if (tools?.length) {
+    if (tools && tools.length > 0) {
       const langchainTools = tools.map((tool) => ({
         type: "function",
         function: tool,
@@ -327,15 +353,12 @@ export async function fetchLLMCompletion(
         .bindTools(langchainTools)
         .invoke(finalMessages, runConfig);
 
-      const { content, tool_calls: toolCalls } = result;
+      const parsed = ToolCallResponseSchema.safeParse(result);
+      if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
       return {
-        completion: {
-          content,
-          toolCalls,
-        },
+        completion: parsed.data,
         processTracedEvents,
-        isStream: false,
       };
     }
 
@@ -345,7 +368,6 @@ export async function fetchLLMCompletion(
           .pipe(new BytesOutputParser())
           .stream(finalMessages, runConfig),
         processTracedEvents,
-        isStream: true,
       };
     }
 
@@ -354,12 +376,12 @@ export async function fetchLLMCompletion(
         .pipe(new StringOutputParser())
         .invoke(finalMessages, runConfig),
       processTracedEvents,
-      isStream: false,
     };
   } catch (error) {
     if (throwOnError) {
       throw error;
     }
-    return { completion: null, processTracedEvents, isStream: false };
+
+    return { completion: "", processTracedEvents };
   }
 }

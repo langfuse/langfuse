@@ -16,6 +16,7 @@ import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
+import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
@@ -61,6 +62,7 @@ export const appRouter = createTRPCRouter({
   experiments: experimentsRouter,
   posthogIntegration: posthogIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
+  llmSchemas: llmSchemaRouter,
   public: publicRouter,
   credentials: credentialsRouter,
   utilities: utilsRouter,

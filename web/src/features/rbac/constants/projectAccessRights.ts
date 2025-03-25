@@ -47,6 +47,9 @@ const projectScopes = [
   "llmApiKeys:create",
   "llmApiKeys:delete",
 
+  "llmSchemas:CUD",
+  "llmSchemas:read",
+
   "comments:CUD",
   "comments:read",
 
@@ -88,6 +91,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
+    "llmSchemas:CUD",
+    "llmSchemas:read",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -125,6 +130,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "llmApiKeys:read",
     "llmApiKeys:create",
     "llmApiKeys:delete",
+    "llmSchemas:CUD",
+    "llmSchemas:read",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -154,6 +161,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:CUD",
     "evalJobExecution:read",
     "llmApiKeys:read",
+    "llmSchemas:read",
     "batchExports:create",
     "batchExports:read",
     "comments:CUD",
@@ -171,6 +179,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:read",
     "evalJobExecution:read",
     "llmApiKeys:read",
+    "llmSchemas:read",
     "comments:read",
     "annotationQueues:read",
     "promptExperiments:read",

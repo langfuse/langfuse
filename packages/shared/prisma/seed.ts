@@ -371,6 +371,46 @@ async function main() {
     });
 
     await createDatasets(project1, project2, observations);
+
+    await prisma.llmSchema.createMany({
+      data: [
+        {
+          projectId: project1.id,
+          name: "get_weather",
+          description: "Fetches weather in Celsius for a given location",
+          schema: {
+            type: "object",
+            properties: {
+              location: {
+                type: "string",
+                description: "The city and state, e.g. San Francisco, CA",
+              },
+              unit: {
+                type: "string",
+                enum: ["celsius", "fahrenheit"],
+              },
+            },
+            required: ["location", "unit"],
+          },
+        },
+        {
+          projectId: project1.id,
+          name: "calculator",
+          description: "Performs basic arithmetic calculations",
+          schema: {
+            type: "object",
+            properties: {
+              expression: {
+                type: "string",
+                description:
+                  "The mathematical expression to evaluate, e.g. '2 + 2'",
+              },
+            },
+            required: ["expression"],
+          },
+        },
+      ],
+    });
   }
 }
 

@@ -46,22 +46,34 @@ export default async function chatCompletionHandler(req: NextRequest) {
       );
     }
 
-    const { completion, isStream } = await fetchLLMCompletion({
+    const fetchLLMCompletionParams = {
       messages,
       modelParams,
-      tools,
       structuredOutputSchema,
-      streaming: true,
       callbacks: [new PosthogCallbackHandler("playground", body, userId)],
       apiKey: decrypt(parsedKey.data.secretKey),
       extraHeaders: decryptAndParseExtraHeaders(parsedKey.data.extraHeaders),
       baseURL: parsedKey.data.baseURL || undefined,
       config: parsedKey.data.config,
+    };
+
+    if ((tools && tools.length > 0) || structuredOutputSchema) {
+      const { completion } = await fetchLLMCompletion({
+        ...fetchLLMCompletionParams,
+        streaming: false,
+        tools: tools ?? [],
+        structuredOutputSchema,
+      });
+
+      return NextResponse.json(completion);
+    }
+
+    const { completion } = await fetchLLMCompletion({
+      ...fetchLLMCompletionParams,
+      streaming: true,
     });
 
-    return isStream
-      ? new StreamingTextResponse(completion)
-      : NextResponse.json(completion);
+    return new StreamingTextResponse(completion);
   } catch (err) {
     logger.error("Failed to handle chat completion", err);
 
