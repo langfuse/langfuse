@@ -421,12 +421,20 @@ export const getObservationCostByTypeByTime = async (
     },
   });
 
+  const types = result.flatMap((row) => {
+    return row.costs.map((cost) => cost[0]);
+  });
+
+  const uniqueTypes = [...new Set(types)];
+
   return result.flatMap((row) => {
     const intervalStart = parseClickhouseUTCDateTimeFormat(row.start_time);
-    return row.costs.map((cost) => ({
+    return uniqueTypes.map((type) => ({
       intervalStart: intervalStart,
-      key: cost[0],
-      sum: cost[1] ? Number(cost[1]) : null,
+      key: type,
+      sum: row.costs.find((cost) => cost[0] === type)?.[1]
+        ? Number(row.costs.find((cost) => cost[0] === type)?.[1])
+        : 0,
     }));
   });
 };
@@ -511,12 +519,20 @@ export const getObservationUsageByTypeByTime = async (
     },
   });
 
+  const types = result.flatMap((row) => {
+    return row.usages.map((usage) => usage[0]);
+  });
+
+  const uniqueTypes = [...new Set(types)];
+
   return result.flatMap((row) => {
     const intervalStart = parseClickhouseUTCDateTimeFormat(row.start_time);
-    return row.usages.map((usage) => ({
+    return uniqueTypes.map((type) => ({
       intervalStart: intervalStart,
-      key: usage[0],
-      sum: usage[1] ? Number(usage[1]) : null,
+      key: type,
+      sum: row.usages.find((usage) => usage[0] === type)?.[1]
+        ? Number(row.usages.find((usage) => usage[0] === type)?.[1])
+        : 0,
     }));
   });
 };
