@@ -177,6 +177,7 @@ export type GetScoresForTracesProps = {
   excludeMetadata?: boolean;
 };
 
+// Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
 export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
   const { projectId, traceIds, timestamp, limit, offset, excludeMetadata } =
     props;
@@ -225,6 +226,7 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
   }));
 };
 
+// Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
 export const getScoresForObservations = async (
   projectId: string,
   observationIds: string[],
