@@ -16,11 +16,13 @@ export const TracesBarListChart = ({
   className,
   projectId,
   globalFilterState,
+  timeFilterState,
   isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
+  timeFilterState: FilterState;
   isLoading?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -32,23 +34,16 @@ export const TracesBarListChart = ({
     new Date().getTime() - 24 * 60 * 60 * 1000,
   ).toISOString();
   let toTimestamp = new Date().toISOString();
-  const filters: FilterState = [];
 
   // Process each filter
-  globalFilterState.forEach((filter) => {
-    if (
-      filter.type === "datetime" &&
-      (filter.column === "timestamp" || filter.column === "startTime")
-    ) {
+  timeFilterState.forEach((filter) => {
+    if (filter.type === "datetime") {
       // Extract timestamp filters
       if (filter.operator === ">=" || filter.operator === ">") {
         fromTimestamp = filter.value.toISOString();
       } else if (filter.operator === "<=" || filter.operator === "<") {
         toTimestamp = filter.value.toISOString();
       }
-    } else {
-      // Keep all other filters
-      filters.push(filter);
     }
   });
 
@@ -57,7 +52,7 @@ export const TracesBarListChart = ({
     view: "traces",
     dimensions: [],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", filters),
+    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp,
     toTimestamp,
@@ -84,7 +79,7 @@ export const TracesBarListChart = ({
     view: "traces",
     dimensions: [{ field: "name" }],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", filters),
+    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp,
     toTimestamp,

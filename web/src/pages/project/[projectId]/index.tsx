@@ -248,7 +248,8 @@ export default function Dashboard() {
         <TracesBarListChart
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          timeFilterState={timeFilter}
           isLoading={environmentFilterOptions.isLoading}
         />
         {!disableExpensiveDashboardComponents && (
