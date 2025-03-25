@@ -22,13 +22,6 @@ import {
   useModelSelection,
 } from "@/src/features/dashboard/components/ModelSelector";
 
-type ModelUsageReturnType = {
-  startTime: string;
-  units: Record<string, number>;
-  cost: Record<string, number>;
-  model: string;
-};
-
 export const ModelUsageChart = ({
   className,
   projectId,
@@ -217,9 +210,9 @@ export const ModelUsageChart = ({
       : [];
 
   const unitsByModel =
-    queryUsageByType.data && allModels.length > 0
+    queryResult.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryUsageByType.data, "startTime", [
+          extractTimeSeriesData(queryResult.data, "startTime", [
             {
               uniqueIdentifierColumns: [{ accessor: "model" }],
               valueColumn: "units",
@@ -229,6 +222,7 @@ export const ModelUsageChart = ({
         )
       : [];
 
+  console.log(unitsByModel);
   const costByModel =
     queryResult.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
@@ -241,6 +235,8 @@ export const ModelUsageChart = ({
           selectedModels,
         )
       : [];
+
+  console.log(queryResult.data);
 
   const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
