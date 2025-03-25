@@ -26,15 +26,6 @@ export default async function handler(
   if (req.method === "GET") {
     try {
       // Do not apply rate limits as it can break applications on lower tier plans
-      // const rateLimitCheck =
-      //   await RateLimitService.getInstance().rateLimitRequest(
-      //     authCheck.scope,
-      //     "public-api",
-      //   );
-
-      // if (rateLimitCheck?.isRateLimited()) {
-      //   return rateLimitCheck.sendRestResponseIfLimited(res);
-      // }
 
       const projects = await prisma.project.findMany({
         select: {
