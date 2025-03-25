@@ -385,10 +385,6 @@ export function prepareUsageDataForTimeseriesChart(
     ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
   ];
 
-  const allCostUnits = [
-    ...new Set(typedData.flatMap((r) => Object.keys(r.cost))),
-  ];
-
   const uniqueDates = [
     ...new Set(typedData.flatMap((r) => new Date(r.startTime).getTime())),
   ];
