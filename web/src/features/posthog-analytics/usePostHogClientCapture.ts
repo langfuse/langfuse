@@ -75,7 +75,7 @@ const events = {
     "new_form_submit",
     "update_form_submit",
   ],
-  integrations: ["posthog_form_submitted"],
+  integrations: ["posthog_form_submitted", "blob_storage_form_submitted"],
   sign_in: ["cloud_region_switch", "button_click"],
   auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
