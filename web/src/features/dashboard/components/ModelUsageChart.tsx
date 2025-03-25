@@ -189,18 +189,6 @@ export const ModelUsageChart = ({
       },
     },
   );
-  const typedData = (queryResult.data as ModelUsageReturnType[]) ?? [];
-
-  const usageTypeMap = prepareUsageDataForTimeseriesChart(
-    selectedModels,
-    typedData,
-  );
-
-  const usageData = Array.from(usageTypeMap.values()).flat();
-
-  const currentModels = [
-    ...new Set(usageData.map((row) => row.model).filter(Boolean)),
-  ];
 
   const costByType =
     queryCostByType.data && allModels.length > 0
@@ -229,32 +217,32 @@ export const ModelUsageChart = ({
       : [];
 
   const unitsByModel =
-    usageData && allModels.length > 0
+    queryUsageByType.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(usageData, "startTime", [
+          extractTimeSeriesData(queryUsageByType.data, "startTime", [
             {
               uniqueIdentifierColumns: [{ accessor: "model" }],
               valueColumn: "units",
             },
           ]),
-          currentModels,
+          selectedModels,
         )
       : [];
 
   const costByModel =
-    usageData && allModels.length > 0
+    queryResult.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(usageData, "startTime", [
+          extractTimeSeriesData(queryResult.data, "startTime", [
             {
               uniqueIdentifierColumns: [{ accessor: "model" }],
               valueColumn: "cost",
             },
           ]),
-          currentModels,
+          selectedModels,
         )
       : [];
 
-  const totalCost = usageData?.reduce(
+  const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
       acc +
       (curr.usageType === "total" && !isNaN(curr.cost as number)
@@ -263,7 +251,7 @@ export const ModelUsageChart = ({
     0,
   );
 
-  const totalTokens = usageData?.reduce(
+  const totalTokens = queryResult.data?.reduce(
     (acc, curr) =>
       acc +
       (curr.usageType === "total" && !isNaN(curr.units as number)
@@ -365,63 +353,3 @@ export const ModelUsageChart = ({
     </DashboardCard>
   );
 };
-
-export function prepareUsageDataForTimeseriesChart(
-  selectedModels: string[],
-  typedData: ModelUsageReturnType[],
-) {
-  const usageTypeMap = new Map<
-    string,
-    {
-      startTime: string;
-      units: number;
-      cost: number;
-      usageType: string;
-      model: string;
-    }[]
-  >();
-
-  const allUsageUnits = [
-    ...new Set(typedData.flatMap((r) => Object.keys(r.units))),
-  ];
-
-  const uniqueDates = [
-    ...new Set(typedData.flatMap((r) => new Date(r.startTime).getTime())),
-  ];
-
-  const uniqueModels = [...new Set(selectedModels)];
-
-  allUsageUnits.forEach((uu) => {
-    const unitEntries: {
-      startTime: string;
-      units: number;
-      cost: number;
-      usageType: string;
-      model: string;
-    }[] = [];
-
-    uniqueDates.forEach((d) => {
-      uniqueModels.forEach((m) => {
-        const existingEntry = typedData.find(
-          (td) =>
-            new Date(td.startTime).getTime() === new Date(d).getTime() &&
-            td.model === m,
-        );
-
-        const entry = {
-          startTime: new Date(d).toISOString(),
-          model: m,
-          units: existingEntry ? existingEntry.units[uu] || 0 : 0,
-          cost: existingEntry ? existingEntry.cost[uu] || 0 : 0,
-          usageType: uu,
-        };
-
-        unitEntries.push(entry);
-      });
-    });
-
-    usageTypeMap.set(uu, unitEntries);
-  });
-
-  return usageTypeMap;
-}

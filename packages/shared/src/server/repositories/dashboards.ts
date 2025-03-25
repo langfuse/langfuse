@@ -286,8 +286,8 @@ export const getTotalObservationUsageByTimeByModel = async (
   const query = `
     SELECT 
       ${selectTimeseriesColumn(bucketSizeInSeconds, "start_time", "start_time")},
-      sumMap(usage_details) as units,
-      sumMap(cost_details) as cost, 
+      sumMap(usage_details)['total'] as units,
+      sumMap(cost_details)['total'] as cost, 
       provided_model_name
     FROM observations o FINAL
     ${tracesFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
@@ -301,8 +301,8 @@ export const getTotalObservationUsageByTimeByModel = async (
 
   const result = await queryClickhouse<{
     start_time: string;
-    units: Record<string, number>;
-    cost: Record<string, number>;
+    units: string;
+    cost: string;
     provided_model_name: string;
   }>({
     query,
@@ -325,18 +325,8 @@ export const getTotalObservationUsageByTimeByModel = async (
 
   return result.map((row) => ({
     startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
-    units: Object.fromEntries(
-      Object.entries(row.units ?? {}).map(([key, value]) => [
-        key,
-        Number(value),
-      ]),
-    ),
-    cost: Object.fromEntries(
-      Object.entries(row.cost ?? {}).map(([key, value]) => [
-        key,
-        Number(value),
-      ]),
-    ),
+    units: Number(row.units),
+    cost: Number(row.cost),
     model: row.provided_model_name,
   }));
 };
