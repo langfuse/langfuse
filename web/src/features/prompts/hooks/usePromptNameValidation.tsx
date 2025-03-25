@@ -20,7 +20,7 @@ export const usePromptNameValidation = ({
       .includes(currentName);
 
     if (!isNewPrompt) {
-      form.setError("name", { message: "Prompt name already exist." });
+      form.setError("name", { message: "Prompt name already exists." });
     } else if (currentName === "new") {
       form.setError("name", { message: "Prompt name cannot be 'new'" });
     } else if (!/^[a-zA-Z0-9_\-.]+$/.test(currentName)) {
