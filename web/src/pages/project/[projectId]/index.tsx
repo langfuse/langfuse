@@ -138,35 +138,24 @@ export default function Dashboard() {
     [dateRange],
   );
 
-  const timeFilter = dateRange
-    ? [
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: ">" as const,
-          value: dateRange.from,
-        },
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: "<" as const,
-          value: dateRange.to,
-        },
-      ]
-    : [
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: ">" as const,
-          value: new Date(new Date().getTime() - 1000),
-        },
-        {
-          type: "datetime" as const,
-          column: "startTime",
-          operator: "<" as const,
-          value: new Date(),
-        },
-      ];
+  const fromTimestamp = dateRange
+    ? dateRange.from
+    : new Date(new Date().getTime() - 1000);
+  const toTimestamp = dateRange ? dateRange.to : new Date();
+  const timeFilter = [
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: ">" as const,
+      value: fromTimestamp,
+    },
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: "<" as const,
+      value: toTimestamp,
+    },
+  ];
 
   const environmentFilter = convertSelectedEnvironmentsToFilter(
     ["environment"],
@@ -249,7 +238,8 @@ export default function Dashboard() {
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={[...userFilterState, ...environmentFilter]}
-          timeFilterState={timeFilter}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
         {!disableExpensiveDashboardComponents && (
