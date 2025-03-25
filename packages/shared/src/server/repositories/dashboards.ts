@@ -511,8 +511,6 @@ export const getObservationUsageByTypeByTime = async (
     },
   });
 
-  console.log(JSON.stringify(result, null, 2));
-
   return result.flatMap((row) => {
     const intervalStart = parseClickhouseUTCDateTimeFormat(row.start_time);
     return row.usages.map((usage) => ({

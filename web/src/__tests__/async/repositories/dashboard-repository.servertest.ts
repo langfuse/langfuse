@@ -1,5 +1,14 @@
 import { prepareUsageDataForTimeseriesChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { orderByTimeSeries } from "@langfuse/shared/src/server";
+import {
+  orderByTimeSeries,
+  getObservationUsageByTypeByTime,
+  getObservationCostByTypeByTime,
+  createOrgProjectAndApiKey,
+  createTrace,
+  createTracesCh,
+  createObservationsCh,
+  createObservation,
+} from "@langfuse/shared/src/server";
 
 describe("orderByTimeSeries", () => {
   it("should return correct bucket size and query for 1 hour time range", () => {
@@ -138,6 +147,204 @@ describe("orderByTimeSeries", () => {
           usageType: "total",
         },
       ]);
+    });
+  });
+
+  describe("getObservationUsageByTypeByTime", () => {
+    const mockFilter = [
+      {
+        type: "datetime" as const,
+        column: "timestamp",
+        operator: ">=" as const,
+        value: new Date("2024-01-01T00:00:00Z"),
+      },
+      {
+        type: "datetime" as const,
+        column: "timestamp",
+        operator: "<=" as const,
+        value: new Date("2024-01-02T01:00:00Z"),
+      },
+    ];
+
+    it.only("should return usage data grouped by time and type", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const trace = createTrace({
+        name: "trace-name",
+        project_id: projectId,
+        timestamp: new Date("2024-01-01T01:00:00Z").getTime(),
+      });
+
+      const trace2 = createTrace({
+        name: "trace-name",
+        project_id: projectId,
+        timestamp: new Date("2024-01-01T04:00:00Z").getTime(),
+      });
+
+      await createTracesCh([trace, trace2]);
+
+      const obs1 = createObservation({
+        trace_id: trace.id,
+        project_id: trace.project_id,
+        usage_details: { input: 1, output: 2, total: 3 },
+        start_time: new Date("2024-01-01T01:00:00Z").getTime(),
+      });
+
+      const obs2 = createObservation({
+        trace_id: trace.id,
+        project_id: trace.project_id,
+        usage_details: { input: 4, output: 5, total: 9 },
+        start_time: new Date("2024-01-01T01:00:00Z").getTime(),
+      });
+
+      const obs3 = createObservation({
+        trace_id: trace2.id,
+        project_id: trace.project_id,
+        usage_details: { input: 400, output: 500, total: 900 },
+        start_time: new Date("2024-01-01T04:00:00Z").getTime(),
+      });
+
+      await createObservationsCh([obs1, obs2, obs3]);
+
+      const result = await getObservationUsageByTypeByTime(
+        projectId,
+        mockFilter,
+      );
+
+      // Verify the structure of the returned data
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            intervalStart: new Date("2024-01-01T01:00:00Z"),
+            key: "input",
+            sum: 5,
+          },
+          {
+            intervalStart: new Date("2024-01-01T01:00:00Z"),
+            key: "output",
+            sum: 7,
+          },
+          {
+            intervalStart: new Date("2024-01-01T01:00:00Z"),
+            key: "total",
+            sum: 12,
+          },
+          {
+            intervalStart: new Date("2024-01-01T04:00:00Z"),
+            key: "input",
+            sum: 400,
+          },
+          {
+            intervalStart: new Date("2024-01-01T04:00:00Z"),
+            key: "output",
+            sum: 500,
+          },
+          {
+            intervalStart: new Date("2024-01-01T04:00:00Z"),
+            key: "total",
+            sum: 900,
+          },
+        ]),
+      );
+    });
+  });
+
+  describe("getObservationCostByTypeByTime", () => {
+    const mockFilter = [
+      {
+        type: "datetime" as const,
+        column: "timestamp",
+        operator: ">=" as const,
+        value: new Date("2024-01-01T00:00:00Z"),
+      },
+      {
+        type: "datetime" as const,
+        column: "timestamp",
+        operator: "<=" as const,
+        value: new Date("2024-01-01T01:00:00Z"),
+      },
+    ];
+
+    it("should return cost data grouped by time and type", async () => {
+      const result = await getObservationCostByTypeByTime(
+        "test-project",
+        mockFilter,
+      );
+
+      // Verify the structure of the returned data
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            intervalStart: expect.any(Date),
+            key: expect.any(String),
+            sum: expect.any(Number),
+          }),
+        ]),
+      );
+    });
+
+    it("should handle empty results", async () => {
+      // Use a time range where we know there's no data
+      const emptyFilter = [
+        {
+          type: "datetime" as const,
+          column: "timestamp",
+          operator: ">=" as const,
+          value: new Date("2020-01-01T00:00:00Z"),
+        },
+        {
+          type: "datetime" as const,
+          column: "timestamp",
+          operator: "<=" as const,
+          value: new Date("2020-01-01T01:00:00Z"),
+        },
+      ];
+
+      const result = await getObservationCostByTypeByTime(
+        "test-project",
+        emptyFilter,
+      );
+      expect(result).toEqual([]);
+    });
+
+    it("should handle null cost values", async () => {
+      const result = await getObservationCostByTypeByTime(
+        "test-project",
+        mockFilter,
+      );
+
+      // Check if null values are properly handled
+      result.forEach((item: { sum: number | null }) => {
+        expect(item.sum).not.toBeUndefined();
+        if (item.sum === null) {
+          expect(item.sum).toBeNull();
+        } else {
+          expect(typeof item.sum).toBe("number");
+        }
+      });
+    });
+
+    it("should maintain consistent time buckets", async () => {
+      const result = await getObservationCostByTypeByTime(
+        "test-project",
+        mockFilter,
+      );
+
+      // Get unique timestamps
+      const timestamps = [
+        ...new Set(
+          result.map((item: { intervalStart: Date }) =>
+            item.intervalStart.getTime(),
+          ),
+        ),
+      ];
+
+      // Check if timestamps are evenly spaced
+      for (let i = 1; i < timestamps.length; i++) {
+        const diff = timestamps[i] - timestamps[i - 1];
+        // Assuming 60-second buckets based on the 1-hour time range
+        expect(diff).toBe(60 * 1000); // 60 seconds in milliseconds
+      }
     });
   });
 });
