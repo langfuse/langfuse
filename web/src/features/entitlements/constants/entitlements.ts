@@ -66,7 +66,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:core": {
-    entitlements: [...cloudAllPlansEntitlements, "integration-blobstorage"],
+    entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
       "organization-member-count": false,
       "data-access-days": 90,
@@ -76,7 +76,7 @@ export const entitlementAccess: Record<
     },
   },
   "cloud:pro": {
-    entitlements: [...cloudAllPlansEntitlements, "integration-blobstorage"],
+    entitlements: [...cloudAllPlansEntitlements],
     entitlementLimits: {
       "annotation-queue-count": false,
       "organization-member-count": false,
