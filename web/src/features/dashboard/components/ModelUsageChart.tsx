@@ -205,7 +205,7 @@ export const ModelUsageChart = ({
   const costByType =
     queryCostByType.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryCostByType.data, "interval_start", [
+          extractTimeSeriesData(queryCostByType.data, "intervalStart", [
             {
               uniqueIdentifierColumns: [{ accessor: "key" }],
               valueColumn: "sum",
@@ -218,7 +218,7 @@ export const ModelUsageChart = ({
   const unitsByType =
     queryUsageByType.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
-          extractTimeSeriesData(queryUsageByType.data, "interval_start", [
+          extractTimeSeriesData(queryUsageByType.data, "intervalStart", [
             {
               uniqueIdentifierColumns: [{ accessor: "key" }],
               valueColumn: "sum",

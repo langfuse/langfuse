@@ -324,7 +324,7 @@ export const getTotalObservationUsageByTimeByModel = async (
   });
 
   return result.map((row) => ({
-    start_time: parseClickhouseUTCDateTimeFormat(row.start_time),
+    startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
     units: Object.fromEntries(
       Object.entries(row.units ?? {}).map(([key, value]) => [
         key,
@@ -337,7 +337,7 @@ export const getTotalObservationUsageByTimeByModel = async (
         Number(value),
       ]),
     ),
-    provided_model_name: row.provided_model_name,
+    model: row.provided_model_name,
   }));
 };
 
@@ -516,7 +516,7 @@ export const getObservationUsageByTypeByTime = async (
   return result.flatMap((row) => {
     const intervalStart = parseClickhouseUTCDateTimeFormat(row.start_time);
     return row.usages.map((usage) => ({
-      interval_start: intervalStart,
+      intervalStart: intervalStart,
       key: usage[0],
       sum: usage[1] ? Number(usage[1]) : null,
     }));

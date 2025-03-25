@@ -31,6 +31,7 @@ import {
   logger,
   getTotalObservationUsageByTimeByModel,
   getObservationCostByTypeByTime,
+  getObservationUsageByTypeByTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -133,7 +134,7 @@ export const dashboardRouter = createTRPCRouter({
           if (!dateTruncObs) {
             return [];
           }
-          const rowsObs = await getObservationCostByTypeByTime(
+          const rowsObs = await getTotalObservationUsageByTimeByModel(
             input.projectId,
             input.filter ?? [],
           );
@@ -141,7 +142,7 @@ export const dashboardRouter = createTRPCRouter({
           return rowsObs as DatabaseRow[];
 
         case "observations-usage-by-type-timeseries":
-          const rowsObsType = await getTotalObservationUsageByTimeByModel(
+          const rowsObsType = await getObservationUsageByTypeByTime(
             input.projectId,
             input.filter ?? [],
           );
