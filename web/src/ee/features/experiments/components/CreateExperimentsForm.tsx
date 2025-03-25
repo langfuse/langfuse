@@ -79,6 +79,7 @@ import Link from "next/link";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useExperimentNameValidation } from "@/src/ee/features/experiments/hooks/useExperimentNameValidation";
 
 const CreateExperimentData = z.object({
   name: z
@@ -311,6 +312,17 @@ export const CreateExperimentsForm = ({
 
   const archiveEvaluatorMutation = api.evals.updateEvalJob.useMutation();
 
+  const runNamesByDatasetId = api.datasets.baseRunDataByDatasetId.useQuery(
+    { projectId, datasetId },
+    { enabled: Boolean(datasetId) },
+  );
+
+  const allExperimentNames = useMemo(() => {
+    return runNamesByDatasetId.data?.map((experiment) => ({
+      value: experiment.name,
+    }));
+  }, [runNamesByDatasetId.data]);
+
   // Watch model config changes and update form
   useEffect(() => {
     form.setValue("modelConfig", {
@@ -319,6 +331,12 @@ export const CreateExperimentsForm = ({
       modelParams: getFinalModelParams(modelParams),
     });
   }, [modelParams, form]);
+
+  useExperimentNameValidation({
+    currentName: form.watch("name"),
+    allExperimentNames,
+    form,
+  });
 
   const onSubmit = async (data: CreateExperiment) => {
     capture("dataset_run:new_form_submit");
@@ -895,8 +913,9 @@ export const CreateExperimentsForm = ({
               <Button
                 type="submit"
                 disabled={
-                  Boolean(promptId && datasetId) &&
-                  !validationResult.data?.isValid
+                  (Boolean(promptId && datasetId) &&
+                    !validationResult.data?.isValid) ||
+                  !!form.formState.errors.name
                 }
                 loading={form.formState.isSubmitting}
               >
