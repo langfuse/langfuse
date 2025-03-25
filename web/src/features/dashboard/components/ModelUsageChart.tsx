@@ -222,7 +222,6 @@ export const ModelUsageChart = ({
         )
       : [];
 
-  console.log(unitsByModel);
   const costByModel =
     queryResult.data && allModels.length > 0
       ? fillMissingValuesAndTransform(
@@ -236,23 +235,15 @@ export const ModelUsageChart = ({
         )
       : [];
 
-  console.log(queryResult.data);
-
   const totalCost = queryResult.data?.reduce(
     (acc, curr) =>
-      acc +
-      (curr.usageType === "total" && !isNaN(curr.cost as number)
-        ? (curr.cost as number)
-        : 0),
+      acc + (!isNaN(curr.cost as number) ? (curr.cost as number) : 0),
     0,
   );
 
   const totalTokens = queryResult.data?.reduce(
     (acc, curr) =>
-      acc +
-      (curr.usageType === "total" && !isNaN(curr.units as number)
-        ? (curr.units as number)
-        : 0),
+      acc + (!isNaN(curr.units as number) ? (curr.units as number) : 0),
     0,
   );
 
