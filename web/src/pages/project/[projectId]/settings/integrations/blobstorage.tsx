@@ -73,7 +73,7 @@ export default function BlobStorageIntegrationSettings() {
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
           <Button asChild variant="secondary">
-            <Link href="https://langfuse.com/docs/integrations/blob-storage">
+            <Link href="https://langfuse.com/docs/query-traces#blob-storage">
               Integration Docs ↗
             </Link>
           </Button>

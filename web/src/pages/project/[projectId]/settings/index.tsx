@@ -286,7 +286,7 @@ const Integrations = (props: { projectId: string }) => {
             </ActionButton>
             <Button asChild variant="ghost">
               <Link
-                href="https://langfuse.com/docs/integrations/blob-storage // TODO: Update the link to the correct documentation"
+                href="https://langfuse.com/docs/query-traces#blob-storage"
                 target="_blank"
               >
                 Integration Docs ↗
