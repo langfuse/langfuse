@@ -15,7 +15,6 @@ import {
   getTracesGroupedByName,
   getObservationsCostGroupedByName,
   getScoreAggregate,
-  getTotalObservationUsageByTimeByModel,
   groupTracesByTime,
   getDistinctModels,
   getScoresAggregateOverTime,
@@ -30,8 +29,8 @@ import {
   getObservationsStatusTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
+  getTotalObservationUsageByTimeByModel,
   getObservationCostByTypeByTime,
-  getObservationUsageByTypeByTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -49,7 +48,9 @@ export const dashboardRouter = createTRPCRouter({
             "observations-model-cost",
             "score-aggregate",
             "traces-timeseries",
-            "observations-usage-timeseries",
+            "observations-total-cost-by-model-timeseries",
+            "observations-usage-by-type-timeseries",
+            "observations-cost-by-type-timeseries",
             "distinct-models",
             "scores-aggregate-timeseries",
             "observations-usage-by-users",
@@ -60,8 +61,6 @@ export const dashboardRouter = createTRPCRouter({
             "numeric-score-time-series",
             "categorical-score-chart",
             "observations-status-timeseries",
-            "observations-cost-by-type-timeseries",
-            "observations-usage-by-type-timeseries",
           ])
           .nullish(),
       }),
@@ -129,22 +128,25 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rows as DatabaseRow[];
-        case "observations-usage-timeseries":
+        case "observations-total-cost-by-model-timeseries":
           const dateTruncObs = extractTimeSeries(input.groupBy);
           if (!dateTruncObs) {
             return [];
           }
-          const rowsObs = await getTotalObservationUsageByTimeByModel(
+          const rowsObs = await getObservationCostByTypeByTime(
             input.projectId,
             input.filter ?? [],
           );
 
-          return rowsObs.map((row) => ({
-            startTime: row.start_time,
-            units: row.units,
-            cost: row.cost,
-            model: row.provided_model_name,
-          })) as DatabaseRow[];
+          return rowsObs as DatabaseRow[];
+
+        case "observations-usage-by-type-timeseries":
+          const rowsObsType = await getTotalObservationUsageByTimeByModel(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          return rowsObsType as DatabaseRow[];
 
         case "observations-cost-by-type-timeseries":
           const rowsObsCostByType = await getObservationCostByTypeByTime(
@@ -153,15 +155,6 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rowsObsCostByType as DatabaseRow[];
-
-        case "observations-usage-by-type-timeseries":
-          const rowsObsUsageByType = await getObservationUsageByTypeByTime(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          console.log(JSON.stringify(rowsObsUsageByType, null, 2));
-          return rowsObsUsageByType as DatabaseRow[];
 
         case "distinct-models":
           const models = await getDistinctModels(

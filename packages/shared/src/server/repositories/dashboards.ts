@@ -424,7 +424,7 @@ export const getObservationCostByTypeByTime = async (
   return result.flatMap((row) => {
     const intervalStart = parseClickhouseUTCDateTimeFormat(row.start_time);
     return row.costs.map((cost) => ({
-      interval_start: intervalStart,
+      intervalStart: intervalStart,
       key: cost[0],
       sum: cost[1] ? Number(cost[1]) : null,
     }));

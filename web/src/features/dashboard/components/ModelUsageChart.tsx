@@ -86,7 +86,7 @@ export const ModelUsageChart = ({
       orderBy: [
         { column: "calculatedTotalCost", direction: "DESC", agg: "SUM" },
       ],
-      queryName: "observations-usage-timeseries",
+      queryName: "observations-total-cost-by-model-timeseries",
     },
     {
       enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
