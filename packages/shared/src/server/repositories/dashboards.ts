@@ -415,7 +415,7 @@ export const getObservationCostByTypeByTime = async (
     },
     tags: {
       feature: "dashboard",
-      type: "observationUsageByTime",
+      type: "observationCostByTypeByTime",
       kind: "analytic",
       projectId,
     },
