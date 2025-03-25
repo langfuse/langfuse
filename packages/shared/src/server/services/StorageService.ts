@@ -138,7 +138,7 @@ class AzureBlobStorageService implements StorageService {
         for await (const chunk of data) {
           // Azure requires block IDs to be base64 strings of the same length
           // Use a fixed format with padded index to ensure consistent length
-          const blockIdStr = `block-${blockIds.length.toString().padStart(10, "0")}`;
+          const blockIdStr: string = `block-${blockIds.length.toString().padStart(10, "0")}`;
           const blockId = Buffer.from(blockIdStr).toString("base64");
 
           const bufferChunk = Buffer.isBuffer(chunk)
