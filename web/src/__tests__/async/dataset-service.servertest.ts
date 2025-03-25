@@ -15,6 +15,7 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
+import { metadata } from "@/src/app/layout";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -218,6 +219,7 @@ describe("Fetch datasets for UI presentation", () => {
         average: 50.75,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score3.id,
         type: "NUMERIC",
         values: expect.arrayContaining([1]),
         average: 1,
@@ -349,6 +351,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score.id,
         type: "NUMERIC",
         values: expect.arrayContaining([100.5]),
         average: 100.5,
@@ -506,6 +509,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     const expectedObject = {
       [`${score.name.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score.id,
         type: "NUMERIC",
         values: expect.arrayContaining([100.5]),
         average: 100.5,
