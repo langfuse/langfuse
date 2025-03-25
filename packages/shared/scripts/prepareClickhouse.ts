@@ -98,17 +98,8 @@ export const prepareClickhouse = async (
       'version' AS version,
       repeat('input', toInt64(randExponential(1 / 100))) AS input,
       repeat('output', toInt64(randExponential(1 / 100))) AS output,
-      case
-        when number % 10 = 0 then 'claude-3-7-sonnet-20250219'
-        when number % 10 = 1 then 'gpt-4'
-        when number % 10 = 2 then 'gpt-4o'
-        when number % 10 = 3 then 'gpt-4o-mini'
-        when number % 10 = 4 then 'gpt-3.5-turbo'
-        when number % 10 = 5 then 'claude-3-5-sonnet-20241022'
-        when number % 10 = 6 then 'text-embedding-ada-002'
-        when number % 10 = 7 then 'claude-3-opus-20240229'
-        when number % 10 = 8 then 'gpt-4-turbo'
-        else 'llama-3-70b-instruct'
+      when number % 2 = 0 then 'clause-3-haiku-20230407'
+        else 'gpt-4'
       end as provided_model_name,
       case
         when number % 2 = 0 then 'cltra4wbs0000k1407g0ya3'
