@@ -69,8 +69,9 @@ export class StorageServiceFactory {
     externalEndpoint?: string | undefined;
     region: string | undefined;
     forcePathStyle: boolean;
+    useAzureBlob?: boolean;
   }): StorageService {
-    if (env.LANGFUSE_USE_AZURE_BLOB === "true") {
+    if (params.useAzureBlob || env.LANGFUSE_USE_AZURE_BLOB === "true") {
       return new AzureBlobStorageService(params);
     }
     return new S3StorageService(params);
@@ -133,10 +134,13 @@ class AzureBlobStorageService implements StorageService {
       if (typeof data === "string") {
         await blockBlobClient.upload(data, data.length);
       } else if (data instanceof Readable) {
-        let offset = 0;
         const blockIds = [];
         for await (const chunk of data) {
-          const blockId = Buffer.from(`block-${offset}`).toString("base64");
+          // Azure requires block IDs to be base64 strings of the same length
+          // Use a fixed format with padded index to ensure consistent length
+          const blockIdStr: string = `block-${blockIds.length.toString().padStart(10, "0")}`;
+          const blockId = Buffer.from(blockIdStr).toString("base64");
+
           const bufferChunk = Buffer.isBuffer(chunk)
             ? chunk
             : Buffer.from(chunk);
@@ -147,11 +151,10 @@ class AzureBlobStorageService implements StorageService {
             bufferChunk.length,
           );
           blockIds.push(blockId);
-
-          offset += bufferChunk.length;
         }
-
-        await blockBlobClient.commitBlockList(blockIds);
+        if (blockIds.length > 0) {
+          await blockBlobClient.commitBlockList(blockIds);
+        }
       } else {
         throw new Error("Unsupported data type. Must be Readable or string.");
       }
