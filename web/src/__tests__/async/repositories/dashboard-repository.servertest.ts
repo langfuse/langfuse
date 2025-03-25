@@ -166,7 +166,7 @@ describe("orderByTimeSeries", () => {
       },
     ];
 
-    it.only("should return usage data grouped by time and type", async () => {
+    it("should return usage data grouped by time and type", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
       const trace = createTrace({
