@@ -2,7 +2,6 @@ import { prepareUsageDataForTimeseriesChart } from "@/src/features/dashboard/com
 import {
   orderByTimeSeries,
   getObservationUsageByTypeByTime,
-  getObservationCostByTypeByTime,
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
