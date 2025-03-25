@@ -338,17 +338,17 @@ export class QueryBuilder {
     const from = new Date(fromTimestamp);
     const to = new Date(toTimestamp);
     const diffMs = to.getTime() - from.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    const diffHours = diffMs / (1000 * 60 * 60);
 
     // Choose appropriate granularity based on date range to get ~50 buckets
-    if (diffDays < 1) {
-      return "minute"; // Less than a day, use minutes
-    } else if (diffDays < 3) {
-      return "hour"; // 1-3 days, use hours
-    } else if (diffDays < 60) {
-      return "day"; // 3-60 days, use days
-    } else if (diffDays < 365) {
-      return "week"; // 2-12 months, use weeks
+    if (diffHours < 2) {
+      return "minute"; // Less than a 2h, use minutes
+    } else if (diffHours < 72) {
+      return "hour"; // Less than 3 days, use hours
+    } else if (diffHours < 1440) {
+      return "day"; // Less than 60 days, use days
+    } else if (diffHours < 8760) {
+      return "week"; // Less than a year, use weeks
     } else {
       return "month"; // Over a year, use months
     }
