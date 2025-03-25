@@ -39,14 +39,6 @@ export const traceView: ViewDeclarationType = {
       sql: "environment",
       type: "string",
     },
-    public: {
-      sql: "public",
-      type: "bool",
-    },
-    bookmarked: {
-      sql: "bookmarked",
-      type: "bool",
-    },
   },
   measures: {
     count: {
@@ -144,6 +136,16 @@ export const observationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "prompt_version",
       type: "string",
+    },
+    userId: {
+      sql: "user_id",
+      type: "string",
+      relationTable: "traces",
+    },
+    sessionId: {
+      sql: "session_id",
+      type: "string",
+      relationTable: "traces",
     },
   },
   measures: {
