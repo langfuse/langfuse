@@ -421,6 +421,7 @@ export const InnerEvaluatorForm = (props: {
                                 : "dataset run items"}
                             </label>
                             {field.value.includes("EXISTING") &&
+                              props.mode !== "edit" &&
                               !props.disabled && (
                                 <ExecutionCountTooltip
                                   projectId={props.projectId}

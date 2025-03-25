@@ -24,6 +24,7 @@ describe("trpc.datasets", () => {
   beforeAll(async () => {
     const { projectId: newProjectId } = await createOrgProjectAndApiKey();
     const datasetItemIds = [uuidv4(), uuidv4()];
+    const datasetRunIds = [uuidv4(), uuidv4()];
     projectId = newProjectId;
     datasetIds = [uuidv4(), uuidv4()];
 
@@ -36,10 +37,19 @@ describe("trpc.datasets", () => {
     });
 
     await prisma.datasetItem.createMany({
-      data: datasetIds.map((datasetId) => ({
-        id: uuidv4(),
+      data: datasetIds.map((datasetId, index) => ({
+        id: datasetItemIds[index],
         projectId: projectId,
         datasetId: datasetId,
+      })),
+    });
+
+    await prisma.datasetRuns.createMany({
+      data: datasetRunIds.map((datasetRunId, index) => ({
+        id: datasetRunId,
+        projectId: projectId,
+        datasetId: datasetIds[index],
+        name: `test-${index}`,
       })),
     });
 
@@ -49,7 +59,7 @@ describe("trpc.datasets", () => {
         projectId: projectId,
         datasetItemId: datasetItemId,
         traceId: uuidv4(),
-        datasetRunId: datasetIds[index],
+        datasetRunId: datasetRunIds[index],
       })),
     });
   });
