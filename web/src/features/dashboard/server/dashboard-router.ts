@@ -32,6 +32,7 @@ import {
   getTotalObservationUsageByTimeByModel,
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
@@ -50,9 +51,9 @@ export const dashboardRouter = createTRPCRouter({
         filter: filterInterface.optional(),
         queryName: z
           .enum([
-            "traces-total",
-            "traces-grouped-by-name",
-            "observations-model-cost",
+            // "traces-total",
+            // "traces-grouped-by-name",
+            // "observations-model-cost",
             "score-aggregate",
             "traces-timeseries",
             "observations-total-cost-by-model-timeseries",
@@ -83,37 +84,37 @@ export const dashboardRouter = createTRPCRouter({
       }
 
       switch (input.queryName) {
-        case "traces-total":
-          const count = await getTotalTraces(
-            input.projectId,
-            input.filter ?? [],
-          );
-          return count as DatabaseRow[];
-        case "traces-grouped-by-name":
-          return (
-            await getTracesGroupedByName(
-              input.projectId,
-              dashboardColumnDefinitions,
-              input.filter,
-            )
-          ).map(
-            (row) =>
-              ({
-                traceName: row.name,
-                countTraceId: row.count,
-              }) as DatabaseRow,
-          );
-        case "observations-model-cost":
-          const cost = await getObservationsCostGroupedByName(
-            input.projectId,
-            input.filter ?? [],
-          );
-
-          return cost.map((row) => ({
-            model: row.name,
-            sumCalculatedTotalCost: row.sum_cost_details,
-            sumTotalTokens: row.sum_usage_details,
-          })) as DatabaseRow[];
+        // case "traces-total":
+        //   const count = await getTotalTraces(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //   return count as DatabaseRow[];
+        // case "traces-grouped-by-name":
+        //   return (
+        //     await getTracesGroupedByName(
+        //       input.projectId,
+        //       dashboardColumnDefinitions,
+        //       input.filter,
+        //     )
+        //   ).map(
+        //     (row) =>
+        //       ({
+        //         traceName: row.name,
+        //         countTraceId: row.count,
+        //       }) as DatabaseRow,
+        //   );
+        // case "observations-model-cost":
+        //   const cost = await getObservationsCostGroupedByName(
+        //     input.projectId,
+        //     input.filter ?? [],
+        //   );
+        //
+        //   return cost.map((row) => ({
+        //     model: row.name,
+        //     sumCalculatedTotalCost: row.sum_cost_details,
+        //     sumTotalTokens: row.sum_usage_details,
+        //   })) as DatabaseRow[];
         case "score-aggregate":
           const scores = await getScoreAggregate(
             input.projectId,
@@ -325,30 +326,22 @@ export async function executeQuery(
   query: QueryType,
 ): Promise<Array<Record<string, unknown>>> {
   try {
-    // Initialize query builder with ClickHouse client
-    const queryBuilder = new QueryBuilder();
-
-    // Build the query
-    const { query: compiledQuery, parameters } = queryBuilder.build(
+    const { query: compiledQuery, parameters } = new QueryBuilder().build(
       query,
       projectId,
     );
 
-    // Execute the query
-    const result = await clickhouseClient({
+    const result = await queryClickhouse<Record<string, unknown>>({
+      query: compiledQuery,
+      params: parameters,
       tags: {
         feature: "custom-queries",
         type: query.view,
         kind: "analytic",
         projectId,
       },
-    }).query({
-      query: compiledQuery,
-      query_params: parameters,
     });
-
-    // Return the result
-    return (await result.json<Record<string, unknown>>()).data;
+    return result;
   } catch (error) {
     logger.error("Error executing query", { error, projectId, query });
     throw new TRPCError({
