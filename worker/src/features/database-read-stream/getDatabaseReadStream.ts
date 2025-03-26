@@ -115,7 +115,6 @@ export const getDatabaseReadStream = async ({
             orderBy,
             limit: pageSize,
             offset,
-            includeMetadata: true,
           });
 
           return scores.map((score) => ({

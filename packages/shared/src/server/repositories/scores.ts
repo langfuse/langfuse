@@ -375,7 +375,7 @@ export const getScoresUiCount = async (props: {
 }) => {
   const rows = await getScoresUiGeneric<{ count: string }>({
     select: "count",
-    includeMetadata: false,
+    excludeMetadata: true,
     tags: { kind: "count" },
     ...props,
   });
@@ -401,8 +401,8 @@ export async function getScoresUiTable(props: {
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-  includeMetadata: true;
-}): Promise<ScoreUiTableRowWithMetadata[]>;
+  excludeMetadata: true;
+}): Promise<ScoreUiTableRowWithoutMetadata[]>;
 // eslint-disable-next-line no-unused-vars -- this is a function overload
 export async function getScoresUiTable(props: {
   projectId: string;
@@ -410,17 +410,17 @@ export async function getScoresUiTable(props: {
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-  includeMetadata?: false;
-}): Promise<ScoreUiTableRowWithoutMetadata[]>;
+  excludeMetadata?: false;
+}): Promise<ScoreUiTableRowWithMetadata[]>;
 export async function getScoresUiTable(props: {
   projectId: string;
   filter: FilterState;
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-  includeMetadata?: boolean;
+  excludeMetadata?: boolean;
 }): Promise<ScoreUiTableRowWithMetadata[] | ScoreUiTableRowWithoutMetadata[]> {
-  const { includeMetadata = false, ...rest } = props;
+  const { excludeMetadata = false, ...rest } = props;
 
   const rows = await getScoresUiGeneric<{
     id: string;
@@ -450,7 +450,7 @@ export async function getScoresUiTable(props: {
   }>({
     select: "rows",
     tags: { kind: "analytic" },
-    includeMetadata,
+    excludeMetadata,
     ...rest,
   });
 
@@ -478,12 +478,12 @@ export async function getScoresUiTable(props: {
       id: row.id,
     };
 
-    return includeMetadata
-      ? {
+    return excludeMetadata
+      ? { ...baseRow, metadata: {} }
+      : {
           ...baseRow,
           metadata: parseMetadataCHRecordToDomain(row.metadata ?? {}),
-        }
-      : { ...baseRow, metadata: undefined };
+        };
   }) as ScoreUiTableRowWithMetadata[] | ScoreUiTableRowWithoutMetadata[];
 }
 
@@ -495,9 +495,16 @@ const getScoresUiGeneric = async <T>(props: {
   limit?: number;
   offset?: number;
   tags?: Record<string, string>;
-  includeMetadata: boolean;
+  excludeMetadata?: boolean;
 }): Promise<T[]> => {
-  const { projectId, filter, orderBy, limit, offset, includeMetadata } = props;
+  const {
+    projectId,
+    filter,
+    orderBy,
+    limit,
+    offset,
+    excludeMetadata = false,
+  } = props;
 
   const select =
     props.select === "count"
@@ -513,7 +520,7 @@ const getScoresUiGeneric = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
-        ${includeMetadata ? "s.metadata," : ""}
+        ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.observation_id,
         s.author_user_id,
