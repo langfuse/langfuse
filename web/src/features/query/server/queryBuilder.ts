@@ -120,10 +120,16 @@ export class QueryBuilder {
         const dimension = view.dimensions[filter.column];
         clickhouseSelect = dimension.sql;
         type = dimension.type;
+        if (dimension.relationTable) {
+          clickhouseTableName = dimension.relationTable;
+        }
       } else if (filter.column in view.measures) {
         const measure = view.measures[filter.column];
         clickhouseSelect = measure.sql;
         type = measure.type;
+        if (measure.relationTable) {
+          clickhouseTableName = measure.relationTable;
+        }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         type = "datetime";
@@ -138,7 +144,7 @@ export class QueryBuilder {
         uiTableId: filter.column,
         clickhouseTableName,
         clickhouseSelect,
-        queryPrefix: view.name,
+        queryPrefix: clickhouseTableName,
         type,
       };
     });
@@ -238,8 +244,10 @@ export class QueryBuilder {
   }
 
   private collectRelationTables(
+    view: ViewDeclarationType,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
+    filters: FilterList,
   ) {
     const relationTables = new Set<string>();
     appliedDimensions.forEach((dimension) => {
@@ -250,6 +258,11 @@ export class QueryBuilder {
     appliedMetrics.forEach((metric) => {
       if (metric.relationTable) {
         relationTables.add(metric.relationTable);
+      }
+    });
+    filters.forEach((filter) => {
+      if (filter.clickhouseTable !== view.name) {
+        relationTables.add(filter.clickhouseTable);
       }
     });
     return relationTables;
@@ -724,8 +737,10 @@ export class QueryBuilder {
 
     // Handle relation tables
     const relationTables = this.collectRelationTables(
+      view,
       appliedDimensions,
       appliedMetrics,
+      filterList,
     );
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(

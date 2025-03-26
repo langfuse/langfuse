@@ -12,7 +12,7 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     },
     {
       uiTableName: "User",
-      viewName: "user_id",
+      viewName: "userId",
     },
     {
       uiTableName: "Release",

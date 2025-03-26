@@ -580,6 +580,71 @@ describe("selfServeDashboards", () => {
       expect(legacyResult.length).toBe(queryBuilderResult.length);
     });
 
+    it("should filter observations by traceName", async () => {
+      // 1. Define a filter for chat-completion trace
+      const traceNameFilter: FilterState = [
+        {
+          type: "string",
+          operator: "=",
+          column: "traceName",
+          value: "chat-completion",
+        },
+      ];
+
+      // 2. Get legacy result with filter
+      const legacyResult = await getObservationsCostGroupedByName(
+        projectId,
+        traceNameFilter,
+      );
+
+      // 3. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "providedModelName" }],
+        metrics: [
+          { measure: "totalCost", aggregation: "sum" },
+          { measure: "totalTokens", aggregation: "sum" },
+        ],
+        filters: [
+          {
+            column: "traceName",
+            operator: "=",
+            value: "chat-completion",
+            type: "string",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 4. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 5. Verify results
+      // Verify both results have the same number of rows
+      expect(queryBuilderResult.length).toBe(legacyResult.length);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [item.name, item]),
+      );
+
+      // Verify each model is present with correct costs
+      queryBuilderResult.forEach((row: any) => {
+        const modelName = row.provided_model_name;
+        const legacyModelData = legacyResultMap.get(modelName);
+
+        expect(legacyModelData).toBeDefined();
+        expect(row.sum_total_cost).toBe(legacyModelData?.sum_cost_details);
+        expect(row.sum_total_tokens).toBe(legacyModelData?.sum_usage_details);
+      });
+    });
+
     it("should filter observations by environment", async () => {
       // 1. Define a filter for production environment
       const prodFilter: FilterState = [

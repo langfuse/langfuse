@@ -492,8 +492,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-              disableExpensivePostgresQueries:
-                env.LANGFUSE_DISABLE_EXPENSIVE_POSTGRES_QUERIES === "true",
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
