@@ -516,7 +516,7 @@ export function TraceTimelineView({
     if (newWidth !== contentWidth) {
       setContentWidth(newWidth);
     }
-  }, [observations, expandedItems, observations.length, contentWidth]);
+  }, [observations, expandedItems, contentWidth]);
 
   if (!latency) return null;
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
@@ -529,14 +529,7 @@ export function TraceTimelineView({
     <div ref={parentRef} className="h-full w-full px-3">
       <div className="relative flex max-h-full flex-col">
         {/* Sticky time index section - positioned absolutely at the top */}
-        <div
-          className="sticky top-0 z-20 bg-background"
-          style={{
-            position: "sticky",
-            top: 0,
-            zIndex: 30,
-          }}
-        >
+        <div className="sticky top-0 z-20 bg-background">
           <div
             ref={timeIndexRef}
             className="overflow-x-auto"
