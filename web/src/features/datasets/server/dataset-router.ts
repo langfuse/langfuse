@@ -7,7 +7,7 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DB } from "@/src/server/db";
-import { paginationZod, DatasetStatus } from "@langfuse/shared";
+import { paginationZod, DatasetStatus, singleFilter } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import {
   createDatasetRunsTable,
@@ -16,7 +16,10 @@ import {
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  getDatasetRunItemsTableCount,
+  logger,
+} from "@langfuse/shared/src/server";
 import { createId as createCuid } from "@paralleldrive/cuid2";
 
 const formatDatasetItemData = (data: string | null | undefined) => {
@@ -128,6 +131,22 @@ export const datasetRouter = createTRPCRouter({
         totalDatasets,
         datasets,
       };
+    }),
+  // counts all dataset run items that match the filter
+  countAllDatasetItems: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(), // Required for protectedProjectProcedure
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const count = await getDatasetRunItemsTableCount({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+      });
+
+      return count;
     }),
   byId: protectedProjectProcedure
     .input(

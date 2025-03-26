@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   PORT: z.coerce
     .number({
       description:
-        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
     })
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
@@ -22,6 +22,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_BATCH_EXPORT_PREFIX: z.string().default(""),
   LANGFUSE_S3_BATCH_EXPORT_REGION: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: z
@@ -77,7 +78,7 @@ const EnvSchema = z.object({
   REDIS_PORT: z.coerce
     .number({
       description:
-        ".env files convert numbers to strings, therefoore we have to enforce them to be numbers",
+        ".env files convert numbers to strings, therefore we have to enforce them to be numbers",
     })
     .positive()
     .max(65536, `options.port should be >= 0 and < 65536`)
@@ -136,6 +137,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
 
+  LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(30),
+
   // Flags to toggle queue consumers on or off.
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
@@ -174,6 +178,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z

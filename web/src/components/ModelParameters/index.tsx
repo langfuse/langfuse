@@ -171,7 +171,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             modelParamsKey="model"
             disabled={formDisabled}
             value={modelParams.model.value}
-            options={availableModels}
+            options={[...new Set(availableModels)]}
             updateModelParam={updateModelParamValue}
             modelParamsDescription={modelParamsDescription}
           />

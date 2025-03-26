@@ -107,7 +107,7 @@ export default function EvaluatorsPage() {
           <ActionButton
             hasAccess={hasWriteAccess}
             icon={<Plus className="h-4 w-4" />}
-            variant="outline"
+            variant="default"
             onClick={() => capture("eval_config:new_form_open")}
             href={`/project/${projectId}/evals/new`}
             limitValue={countsQuery.data?.configActiveCount ?? 0}

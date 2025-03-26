@@ -15,6 +15,7 @@ import { promptRouter } from "@/src/features/prompts/server/routers/promptRouter
 import { modelRouter } from "@/src/server/api/routers/models";
 import { evalRouter } from "@/src/ee/features/evals/server/router";
 import { posthogIntegrationRouter } from "@/src/features/posthog-integration/posthog-integration-router";
+import { blobStorageIntegrationRouter } from "@/src/features/blobstorage-integration/blobstorage-integration-router";
 import { llmApiKeyRouter } from "@/src/features/llm-api-key/server/router";
 import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
@@ -32,6 +33,7 @@ import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
 import { auditLogsRouter } from "./routers/auditLogs";
 import { tableRouter } from "@/src/features/table/server/tableRouter";
+import { cloudStatusRouter } from "@/src/features/cloud-status-notification/server/cloud-status-router";
 
 /**
  * This is the primary router for your server.
@@ -61,6 +63,7 @@ export const appRouter = createTRPCRouter({
   evals: evalRouter,
   experiments: experimentsRouter,
   posthogIntegration: posthogIntegrationRouter,
+  blobStorageIntegration: blobStorageIntegrationRouter,
   llmApiKey: llmApiKeyRouter,
   llmSchemas: llmSchemaRouter,
   public: publicRouter,
@@ -72,6 +75,7 @@ export const appRouter = createTRPCRouter({
   backgroundMigrations: backgroundMigrationsRouter,
   auditLogs: auditLogsRouter,
   table: tableRouter,
+  cloudStatus: cloudStatusRouter,
 });
 
 // export type definition of API

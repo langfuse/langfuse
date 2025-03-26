@@ -106,6 +106,7 @@ export default function Dataset() {
 
   return (
     <Page
+      withPadding
       headerProps={{
         title: itemId,
         itemType: "DATASET_ITEM",

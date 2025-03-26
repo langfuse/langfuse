@@ -223,7 +223,7 @@ export async function fetchLLMCompletion(
       azureOpenAIApiKey: apiKey,
       azureOpenAIBasePath: baseURL,
       azureOpenAIApiDeploymentName: modelParams.model,
-      azureOpenAIApiVersion: "2024-02-01",
+      azureOpenAIApiVersion: "2025-02-01-preview",
       temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
@@ -275,6 +275,22 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+    });
+  } else if (modelParams.adapter === LLMAdapter.Atla) {
+    // Atla models do not support:
+    // - temperature
+    // - max_tokens
+    // - top_p
+    chatModel = new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: modelParams.model,
+      callbacks: finalCallbacks,
+      maxRetries,
+      configuration: {
+        baseURL: baseURL,
+        defaultHeaders: extraHeaders,
+      },
+      timeout: 1000 * 60, // 1 minute timeout
     });
   } else {
     // eslint-disable-next-line no-unused-vars

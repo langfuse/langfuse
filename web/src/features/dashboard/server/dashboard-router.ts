@@ -15,7 +15,6 @@ import {
   getTracesGroupedByName,
   getObservationsCostGroupedByName,
   getScoreAggregate,
-  getObservationUsageByTime,
   groupTracesByTime,
   getDistinctModels,
   getScoresAggregateOverTime,
@@ -30,9 +29,18 @@ import {
   getObservationsStatusTimeSeries,
   extractFromAndToTimestampsFromFilter,
   logger,
+  getTotalObservationUsageByTimeByModel,
+  getObservationCostByTypeByTime,
+  getObservationUsageByTypeByTime,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { dashboardColumnDefinitions } from "@langfuse/shared";
+import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
+import {
+  type QueryType,
+  query as customQuery,
+} from "@/src/features/query/types";
+import { clickhouseClient } from "@langfuse/shared/src/server";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
@@ -47,7 +55,9 @@ export const dashboardRouter = createTRPCRouter({
             "observations-model-cost",
             "score-aggregate",
             "traces-timeseries",
-            "observations-usage-timeseries",
+            "observations-total-cost-by-model-timeseries",
+            "observations-usage-by-type-timeseries",
+            "observations-cost-by-type-timeseries",
             "distinct-models",
             "scores-aggregate-timeseries",
             "observations-usage-by-users",
@@ -125,22 +135,33 @@ export const dashboardRouter = createTRPCRouter({
           );
 
           return rows as DatabaseRow[];
-        case "observations-usage-timeseries":
+        case "observations-total-cost-by-model-timeseries":
           const dateTruncObs = extractTimeSeries(input.groupBy);
           if (!dateTruncObs) {
             return [];
           }
-          const rowsObs = await getObservationUsageByTime(
+          const rowsObs = await getTotalObservationUsageByTimeByModel(
             input.projectId,
             input.filter ?? [],
           );
 
-          return rowsObs.map((row) => ({
-            startTime: row.start_time,
-            units: row.units,
-            cost: row.cost,
-            model: row.provided_model_name,
-          })) as DatabaseRow[];
+          return rowsObs as DatabaseRow[];
+
+        case "observations-usage-by-type-timeseries":
+          const rowsObsType = await getObservationUsageByTypeByTime(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          return rowsObsType as DatabaseRow[];
+
+        case "observations-cost-by-type-timeseries":
+          const rowsObsCostByType = await getObservationCostByTypeByTime(
+            input.projectId,
+            input.filter ?? [],
+          );
+
+          return rowsObsCostByType as DatabaseRow[];
 
         case "distinct-models":
           const models = await getDistinctModels(
@@ -271,6 +292,16 @@ export const dashboardRouter = createTRPCRouter({
       );
       return createHistogramData(data);
     }),
+  executeQuery: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        query: customQuery,
+      }),
+    )
+    .query(async ({ input }) => {
+      return executeQuery(input.projectId, input.query as QueryType);
+    }),
 });
 
 const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
@@ -281,3 +312,49 @@ const extractTimeSeries = (groupBy?: z.infer<typeof groupByInterface>) => {
   });
   return temporal?.type === "datetime" ? temporal.temporalUnit : undefined;
 };
+
+/**
+ * Execute a query using the QueryBuilder.
+ *
+ * @param projectId - The project ID
+ * @param query - The query configuration as defined in QueryType
+ * @returns The query result data
+ */
+export async function executeQuery(
+  projectId: string,
+  query: QueryType,
+): Promise<Array<Record<string, unknown>>> {
+  try {
+    // Initialize query builder with ClickHouse client
+    const queryBuilder = new QueryBuilder();
+
+    // Build the query
+    const { query: compiledQuery, parameters } = queryBuilder.build(
+      query,
+      projectId,
+    );
+
+    // Execute the query
+    const result = await clickhouseClient({
+      tags: {
+        feature: "custom-queries",
+        type: query.view,
+        kind: "analytic",
+        projectId,
+      },
+    }).query({
+      query: compiledQuery,
+      query_params: parameters,
+    });
+
+    // Return the result
+    return (await result.json<Record<string, unknown>>()).data;
+  } catch (error) {
+    logger.error("Error executing query", { error, projectId, query });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to execute query",
+      cause: error,
+    });
+  }
+}

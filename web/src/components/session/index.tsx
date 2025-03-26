@@ -192,6 +192,7 @@ export const SessionPage: React.FC<{
 
   return (
     <Page
+      withPadding
       scrollable
       headerProps={{
         title: sessionId,
@@ -220,24 +221,26 @@ export const SessionPage: React.FC<{
             />
           </div>
         ),
-        actionButtonsRight: [
-          <DetailPageNav
-            key="nav"
-            currentId={encodeURIComponent(sessionId)}
-            path={(entry) =>
-              `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-            }
-            listKey="sessions"
-          />,
-          <CommentDrawerButton
-            key="comment"
-            variant="outline"
-            projectId={projectId}
-            objectId={sessionId}
-            objectType="SESSION"
-            count={sessionCommentCounts.data?.get(sessionId)}
-          />,
-        ],
+        actionButtonsRight: (
+          <>
+            <DetailPageNav
+              key="nav"
+              currentId={encodeURIComponent(sessionId)}
+              path={(entry) =>
+                `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+              }
+              listKey="sessions"
+            />
+            <CommentDrawerButton
+              key="comment"
+              variant="outline"
+              projectId={projectId}
+              objectId={sessionId}
+              objectType="SESSION"
+              count={sessionCommentCounts.data?.get(sessionId)}
+            />
+          </>
+        ),
       }}
     >
       <div className="flex flex-wrap gap-2">

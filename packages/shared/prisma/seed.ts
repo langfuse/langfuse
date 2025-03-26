@@ -72,6 +72,9 @@ async function main() {
     where: { id: seedOrgId },
     update: {
       name: "Seed Org",
+      cloudConfig: {
+        plan: "Team",
+      },
     },
     create: {
       id: seedOrgId,

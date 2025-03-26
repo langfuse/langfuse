@@ -254,6 +254,37 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   }));
 };
 
+export const getTraceCountOfProjectsSinceCreationDate = async ({
+  projectIds,
+  start,
+}: {
+  projectIds: string[];
+  start: Date;
+}) => {
+  const query = `
+    SELECT 
+      count(*) as count
+    FROM traces
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND created_at >= {start: DateTime64(3)}
+  `;
+
+  const rows = await queryClickhouse<{ count: string }>({
+    query,
+    params: {
+      projectIds,
+      start: convertDateToClickhouseDateTime(start),
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "analytic",
+    },
+  });
+
+  return Number(rows[0]?.count ?? 0);
+};
+
 export const getTraceById = async (
   traceId: string,
   projectId: string,
@@ -777,6 +808,52 @@ export const getUserMetrics = async (
     traceCount: Number(row.trace_count),
     totalCost: Number(row.sum_total_cost),
   }));
+};
+
+export const getTracesForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      id,
+      timestamp,
+      name,
+      environment,
+      project_id,
+      metadata,
+      user_id,
+      session_id,
+      release,
+      version,
+      public,
+      bookmarked,
+      tags,
+      input,
+      output
+    FROM traces FINAL
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {minTimestamp: DateTime64(3)}
+    AND timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "trace",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return records;
 };
 
 export const getTracesForPostHog = async function* (

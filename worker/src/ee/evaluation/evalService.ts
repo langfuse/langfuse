@@ -157,7 +157,7 @@ export const createEvalJobs = async ({
         >(Prisma.sql`
           SELECT dataset_item_id as id
           FROM dataset_run_items as dri
-          JOIN dataset_items as di ON di.id = dri.dataset_item_id
+          JOIN dataset_items as di ON di.id = dri.dataset_item_id AND di.project_id = ${event.projectId}
           WHERE dri.project_id = ${event.projectId}
             AND dri.trace_id = ${event.traceId}
             ${condition}

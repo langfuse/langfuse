@@ -774,6 +774,37 @@ export const getScoreCountsByProjectInCreationInterval = async ({
   }));
 };
 
+export const getScoreCountOfProjectsSinceCreationDate = async ({
+  projectIds,
+  start,
+}: {
+  projectIds: string[];
+  start: Date;
+}) => {
+  const query = `
+    SELECT 
+      count(*) as count
+    FROM scores
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND created_at >= {start: DateTime64(3)}
+  `;
+
+  const rows = await queryClickhouse<{ count: string }>({
+    query,
+    params: {
+      projectIds,
+      start: convertDateToClickhouseDateTime(start),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "analytic",
+    },
+  });
+
+  return Number(rows[0]?.count ?? 0);
+};
+
 export const getDistinctScoreNames = async (
   projectId: string,
   cutoffCreatedAt: Date,
@@ -813,6 +844,49 @@ export const getDistinctScoreNames = async (
   });
 
   return rows.map((row) => row.name);
+};
+
+export const getScoresForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      id,
+      timestamp,
+      project_id,
+      environment,
+      trace_id,
+      observation_id,
+      name,
+      value,
+      source,
+      comment,
+      data_type,
+      string_value
+    FROM scores FINAL
+    WHERE project_id = {projectId: String}
+    AND timestamp >= {minTimestamp: DateTime64(3)}
+    AND timestamp <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "score",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return records;
 };
 
 export const getScoresForPostHog = async function* (
