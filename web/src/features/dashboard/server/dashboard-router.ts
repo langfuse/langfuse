@@ -11,9 +11,6 @@ import {
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
 import {
-  getTotalTraces,
-  getTracesGroupedByName,
-  getObservationsCostGroupedByName,
   getScoreAggregate,
   groupTracesByTime,
   getDistinctModels,
@@ -41,7 +38,6 @@ import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { clickhouseClient } from "@langfuse/shared/src/server";
 
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure

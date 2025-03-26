@@ -18,7 +18,6 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
-import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -42,8 +41,6 @@ export default function Dashboard() {
   const uiCustomization = useUiCustomization();
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
-
-  const session = useSession();
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
