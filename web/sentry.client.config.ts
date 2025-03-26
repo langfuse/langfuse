@@ -7,10 +7,13 @@ Sentry.init({
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration(),
+    Sentry.browserTracingIntegration(),
+    Sentry.httpClientIntegration(),
     // Sentry.debugIntegration(),
-    // Sentry.captureConsoleIntegration({
-    //   levels: ["error"],
-    // }),
+    Sentry.captureConsoleIntegration({
+      levels: ["error"],
+    }),
+    Sentry.browserProfilingIntegration(),
   ],
 
   // Set tracesSampleRate to 1.0 to capture 100%
