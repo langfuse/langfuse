@@ -330,6 +330,11 @@ export async function executeQuery(
     const result = await queryClickhouse<Record<string, unknown>>({
       query: compiledQuery,
       params: parameters,
+      clickhouseConfigs: {
+        clickhouse_settings: {
+          date_time_output_format: "iso",
+        },
+      },
       tags: {
         feature: "custom-queries",
         type: query.view,

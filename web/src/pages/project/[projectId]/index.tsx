@@ -254,7 +254,9 @@ export default function Dashboard() {
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
           projectId={projectId}
-          globalFilterState={mergedFilterState}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
           agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
