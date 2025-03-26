@@ -30,7 +30,13 @@ import { type LlmSchema } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
 const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z
+    .string()
+    .regex(
+      /^[a-z0-9_-]+$/,
+      "Name must contain only lowercase letters, numbers, hyphens and underscores",
+    )
+    .min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
   schema: z.string().refine(
     (value) => {
@@ -99,6 +105,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
           type: "object",
           properties: {},
           required: [],
+          additionalProperties: false,
         },
         null,
         2,
@@ -189,11 +196,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="e.g., get_weather"
-                      {...field}
-                      disabled={Boolean(llmSchema)}
-                    />
+                    <Input placeholder="e.g., get_weather" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
