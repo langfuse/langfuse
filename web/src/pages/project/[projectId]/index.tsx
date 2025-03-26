@@ -18,7 +18,6 @@ import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
 import { useMemo } from "react";
-import { useSession } from "next-auth/react";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -42,10 +41,6 @@ export default function Dashboard() {
   const uiCustomization = useUiCustomization();
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
-
-  const session = useSession();
-  const disableExpensiveDashboardComponents =
-    session.data?.environment.disableExpensivePostgresQueries ?? true;
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
     [],
@@ -242,14 +237,14 @@ export default function Dashboard() {
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {!disableExpensiveDashboardComponents && (
-          <ModelCostTable
-            className="col-span-1 xl:col-span-2"
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
+        <ModelCostTable
+          className="col-span-1 xl:col-span-2"
+          projectId={projectId}
+          globalFilterState={[...userFilterState, ...environmentFilter]}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          isLoading={environmentFilterOptions.isLoading}
+        />
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
@@ -263,23 +258,19 @@ export default function Dashboard() {
           agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {!disableExpensiveDashboardComponents && (
-          <ModelUsageChart
-            className="col-span-1 min-h-24 xl:col-span-3"
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            agg={agg}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
-        {!disableExpensiveDashboardComponents && (
-          <UserChart
-            className="col-span-1 xl:col-span-3"
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
+        <ModelUsageChart
+          className="col-span-1 min-h-24 xl:col-span-3"
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          agg={agg}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <UserChart
+          className="col-span-1 xl:col-span-3"
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
         <ChartScores
           className="col-span-1 xl:col-span-3"
           agg={agg}
@@ -287,31 +278,25 @@ export default function Dashboard() {
           globalFilterState={mergedFilterState}
           isLoading={environmentFilterOptions.isLoading}
         />
-        {!disableExpensiveDashboardComponents && (
-          <LatencyTables
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
-        {!disableExpensiveDashboardComponents && (
-          <GenerationLatencyChart
-            className="col-span-1 flex-auto justify-between lg:col-span-full"
-            projectId={projectId}
-            agg={agg}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
-        {!disableExpensiveDashboardComponents && (
-          <ScoreAnalytics
-            className="col-span-1 flex-auto justify-between lg:col-span-full"
-            agg={agg}
-            projectId={projectId}
-            globalFilterState={mergedFilterState}
-            isLoading={environmentFilterOptions.isLoading}
-          />
-        )}
+        <LatencyTables
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <GenerationLatencyChart
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
+          projectId={projectId}
+          agg={agg}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
+        <ScoreAnalytics
+          className="col-span-1 flex-auto justify-between lg:col-span-full"
+          agg={agg}
+          projectId={projectId}
+          globalFilterState={mergedFilterState}
+          isLoading={environmentFilterOptions.isLoading}
+        />
       </div>
     </Page>
   );
