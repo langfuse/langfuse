@@ -81,6 +81,11 @@ type CreateOrEditLLMSchemaDialog = {
   onSave: (llmSchema: LlmSchema) => void;
   onDelete?: (llmSchema: LlmSchema) => void;
   llmSchema?: LlmSchema;
+  defaultValues?: {
+    name: string;
+    description: string;
+    schema: string;
+  };
 };
 
 export const CreateOrEditLLMSchemaDialog: React.FC<
@@ -97,7 +102,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: props.defaultValues ?? {
       name: "",
       description: "",
       schema: JSON.stringify(

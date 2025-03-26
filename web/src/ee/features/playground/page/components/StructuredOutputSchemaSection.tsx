@@ -132,9 +132,9 @@ export const StructuredOutputSchemaSection = () => {
             >
               <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
                 <div className="mb-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center">
                     <h3
-                      className="max-w-[120px] truncate text-sm font-medium"
+                      className="truncate text-sm font-medium"
                       title={structuredOutputSchema.name}
                     >
                       {structuredOutputSchema.name}

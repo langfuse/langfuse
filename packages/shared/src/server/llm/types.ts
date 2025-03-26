@@ -37,6 +37,36 @@ export const LLMToolCallSchema = z.object({
 });
 export type LLMToolCall = z.infer<typeof LLMToolCallSchema>;
 
+export const OpenAIToolCallSchema = z.object({
+  id: z.string(),
+  function: z.object({
+    name: z.string(),
+    arguments: z.union([
+      z.record(z.string(), z.unknown()),
+      z
+        .string()
+        .transform((v) => JSON.parse(v))
+        .pipe(z.record(z.string(), z.unknown())),
+    ]),
+  }),
+  type: z.literal("function"),
+});
+export type OpenAIToolCallSchema = z.infer<typeof OpenAIToolCallSchema>;
+
+export const OpenAIToolSchema = z.object({
+  type: z.literal("function"),
+  function: LLMToolSchema,
+});
+export type OpenAIToolSchema = z.infer<typeof OpenAIToolSchema>;
+
+export const OpenAIResponseFormatSchema = z.object({
+  type: z.literal("json_schema"),
+  json_schema: z.object({
+    name: z.string(),
+    schema: LLMJSONSchema,
+  }),
+});
+
 export const ToolCallResponseSchema = z.object({
   content: z.union([z.string(), z.array(AnthropicMessageContentWithToolUse)]),
   tool_calls: z.array(LLMToolCallSchema),

@@ -3,7 +3,13 @@ import React, { useState } from "react";
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { PlusIcon, PencilIcon, MinusCircle } from "lucide-react";
+import {
+  PlusIcon,
+  PencilIcon,
+  MinusCircle,
+  CloudIcon,
+  CloudOffIcon,
+} from "lucide-react";
 import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -28,7 +34,7 @@ export const PlaygroundTools = () => {
   const projectId = useProjectIdFromURL();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  const { data: savedTools = [] } = api.llmSchemas.getAll.useQuery(
+  const { data: savedSchemas = [] } = api.llmSchemas.getAll.useQuery(
     {
       projectId: projectId as string,
     },
@@ -71,6 +77,9 @@ export const PlaygroundTools = () => {
     );
   };
 
+  const isToolSaved = (tool: PlaygroundTool) =>
+    savedSchemas.some((schema) => schema.id === tool.id);
+
   return (
     <div className="flex h-full flex-col pr-1">
       <div className="mb-2 flex items-center justify-between">
@@ -89,7 +98,7 @@ export const PlaygroundTools = () => {
               />
               <CommandEmpty>No schemas found.</CommandEmpty>
               <CommandGroup>
-                {savedTools.map((tool) => (
+                {savedSchemas.map((tool) => (
                   <CommandItem
                     key={tool.id}
                     value={tool.name}
@@ -150,12 +159,24 @@ export const PlaygroundTools = () => {
                 onSave={handleSelectTool}
                 onDelete={() => handleRemoveTool(tool.id)}
                 llmSchema={tool.llmSchema}
+                defaultValues={
+                  !isToolSaved(tool)
+                    ? {
+                        name: tool.name,
+                        description: tool.description,
+                        schema: JSON.stringify(tool.parameters, null, 2),
+                      }
+                    : undefined
+                }
               >
                 <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
                   <div className="mb-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {!isToolSaved(tool) ? (
+                        <CloudOffIcon className="h-4 w-4" />
+                      ) : null}
                       <h3
-                        className="max-w-[120px] truncate text-sm font-medium"
+                        className="truncate text-sm font-medium"
                         title={tool.name}
                       >
                         {tool.name}
