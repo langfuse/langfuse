@@ -132,8 +132,7 @@ export const scoreRecordBaseSchema = z.object({
   value: z.number().nullish(),
   source: z.string(),
   comment: z.string().nullish(),
-  // FIXME: metadata should be Record<string, string> but ingestion will fail if we do that at the moment
-  metadata: z.record(z.unknown()),
+  metadata: z.record(z.string()),
   author_user_id: z.string().nullish(),
   config_id: z.string().nullish(),
   data_type: z.enum(["NUMERIC", "CATEGORICAL", "BOOLEAN"]).nullish(),
