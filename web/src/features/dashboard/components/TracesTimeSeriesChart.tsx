@@ -5,42 +5,48 @@ import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTim
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
-import {
-  dashboardDateRangeAggregationSettings,
-  type DashboardDateRangeAggregationOption,
-} from "@/src/utils/date-range-utils";
+import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import {
+  type QueryType,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
   projectId,
   globalFilterState,
+  fromTimestamp,
+  toTimestamp,
   agg,
   isLoading = false,
 }: {
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
+  fromTimestamp: Date;
+  toTimestamp: Date;
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
 }) => {
-  const traces = api.dashboard.chart.useQuery(
+  const tracesQuery: QueryType = {
+    view: "traces",
+    dimensions: [],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+    timeDimension: {
+      granularity: "auto",
+    },
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const traces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }],
-      filter: globalFilterState.map((f) =>
-        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-      ),
-      groupBy: [
-        {
-          type: "datetime",
-          column: "timestamp",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
-        },
-      ],
-      queryName: "traces-timeseries",
+      query: tracesQuery,
     },
     {
       trpc: {
@@ -55,14 +61,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
   const transformedTraces = traces.data
     ? traces.data.map((item) => {
         return {
-          ts: (item.timestamp as Date).getTime(),
+          ts: new Date(item.time_dimension as any).getTime(),
           values: [
             {
               label: "Traces",
-              value:
-                typeof item.countTraceId === "number"
-                  ? item.countTraceId
-                  : undefined,
+              value: Number(item.count_count),
             },
           ],
         };
@@ -70,25 +73,26 @@ export const TracesAndObservationsTimeSeriesChart = ({
     : [];
 
   const total = traces.data?.reduce((acc, item) => {
-    return acc + (item.countTraceId as number);
+    return acc + Number(item.count_count);
   }, 0);
 
-  const observations = api.dashboard.chart.useQuery(
+  const observationsQuery: QueryType = {
+    view: "observations",
+    dimensions: [{ field: "level" }],
+    metrics: [{ measure: "count", aggregation: "count" }],
+    filters: mapLegacyUiTableFilterToView("observations", globalFilterState),
+    timeDimension: {
+      granularity: "auto",
+    },
+    fromTimestamp: fromTimestamp.toISOString(),
+    toTimestamp: toTimestamp.toISOString(),
+    orderBy: null,
+  };
+
+  const observations = api.dashboard.executeQuery.useQuery(
     {
       projectId,
-      from: "traces",
-      select: [{ column: "traceId", agg: "COUNT" }],
-      filter: globalFilterState.map((f) =>
-        f.type === "datetime" ? { ...f, column: "timestamp" } : f,
-      ),
-      groupBy: [
-        {
-          type: "datetime",
-          column: "timestamp",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
-        },
-      ],
-      queryName: "observations-status-timeseries",
+      query: observationsQuery,
     },
     {
       trpc: {
@@ -111,7 +115,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
             }
           >
         >((acc, item) => {
-          const ts = (item.start_time_bucket as Date).getTime();
+          const ts = new Date(item.time_dimension as any).getTime();
           if (!acc[ts]) {
             acc[ts] = {
               ts,
@@ -120,7 +124,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           }
           acc[ts].values.push({
             label: item.level as string,
-            value: typeof item.count === "number" ? item.count : undefined,
+            value: Number(item.count_count),
           });
 
           return acc;
@@ -129,7 +133,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     : [];
 
   const totalObservations = observations.data?.reduce((acc, item) => {
-    return acc + (item.count as number);
+    return acc + Number(item.count_count);
   }, 0);
 
   const data = [

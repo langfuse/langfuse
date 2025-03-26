@@ -1451,6 +1451,83 @@ describe("queryBuilder", () => {
         });
         expect(embeddingsDayBefore?.count_count).toBe("1"); // 1 embeddings trace day before yesterday
       });
+
+      it("should ensure time_dimension adheres to ISO8601 date format", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const now = new Date();
+
+        // Create traces with specific timestamps
+        const traces = [
+          createTrace({
+            project_id: projectId,
+            name: "test-trace-1",
+            environment: "production",
+            timestamp: now.getTime(),
+          }),
+          createTrace({
+            project_id: projectId,
+            name: "test-trace-2",
+            environment: "production",
+            timestamp: now.getTime() - 86400000, // 1 day ago
+          }),
+        ];
+        await createTracesCh(traces);
+
+        // Define query with time dimension
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: {
+            granularity: "hour",
+          },
+          fromTimestamp: new Date(now.getTime() - 172800000).toISOString(), // 2 days ago
+          toTimestamp: now.toISOString(),
+          orderBy: null,
+        };
+
+        // Execute query
+        const queryBuilder = new QueryBuilder();
+        const { query: compiledQuery, parameters } = queryBuilder.build(
+          query,
+          projectId,
+        );
+
+        const result = await (
+          await clickhouseClient({
+            opts: {
+              clickhouse_settings: {
+                date_time_output_format: "iso",
+              },
+            },
+          }).query({
+            query: compiledQuery,
+            query_params: parameters,
+          })
+        ).json();
+
+        // Verify we have results
+        expect(result.data.length).toBeGreaterThan(0);
+
+        // Check that time_dimension values adhere to ISO8601 format
+        for (const row of result.data) {
+          expect(row).toHaveProperty("time_dimension");
+
+          // ISO8601 regex pattern
+          // This pattern matches ISO8601 dates in format: YYYY-MM-DD or YYYY-MM-DDThh:mm:ss.sssZ
+          const iso8601Pattern =
+            /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+          expect(row.time_dimension).toMatch(iso8601Pattern);
+
+          // Verify that JavaScript Date constructor can parse the time_dimension
+          const date = new Date(row.time_dimension);
+          expect(date).toBeInstanceOf(Date);
+          expect(date.toString()).not.toBe("Invalid Date");
+        }
+      });
     });
 
     describe("scores-numeric view", () => {

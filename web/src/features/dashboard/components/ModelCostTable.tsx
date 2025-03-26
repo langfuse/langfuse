@@ -29,7 +29,6 @@ export const ModelCostTable = ({
   toTimestamp: Date;
   isLoading?: boolean;
 }) => {
-  // Define the query using the new QueryType structure
   const modelCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "providedModelName" }],
@@ -52,7 +51,6 @@ export const ModelCostTable = ({
     orderBy: null,
   };
 
-  // Execute the query using the new dashboard.executeQuery functionality
   const metrics = api.dashboard.executeQuery.useQuery(
     {
       projectId,
