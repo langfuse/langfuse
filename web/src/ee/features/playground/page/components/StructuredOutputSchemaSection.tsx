@@ -78,12 +78,12 @@ export const StructuredOutputSchemaSection = () => {
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="p-1">
-            <Command>
+            <Command className="flex flex-col">
               <CommandInput
                 placeholder="Search schemas..."
                 className="h-8 border-none p-1 focus:ring-0 focus:ring-offset-0"
               />
-              <CommandList>
+              <CommandList className="max-h-[300px] overflow-auto">
                 <CommandEmpty>No schemas found.</CommandEmpty>
                 <CommandGroup>
                   {savedSchemas.map((schema) => (
@@ -123,18 +123,18 @@ export const StructuredOutputSchemaSection = () => {
                   ))}
                 </CommandGroup>
                 <CommandSeparator />
-                <div className="p-1">
-                  <CreateOrEditLLMSchemaDialog
-                    projectId={projectId as string}
-                    onSave={handleSelectSchema}
-                  >
-                    <Button variant="outline" size="default" className="w-full">
-                      <PlusIcon className="mr-2 h-4 w-4" />
-                      Create new schema
-                    </Button>
-                  </CreateOrEditLLMSchemaDialog>
-                </div>
               </CommandList>
+              <div className="mt-auto p-1">
+                <CreateOrEditLLMSchemaDialog
+                  projectId={projectId as string}
+                  onSave={handleSelectSchema}
+                >
+                  <Button variant="outline" size="default" className="w-full">
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Create new schema
+                  </Button>
+                </CreateOrEditLLMSchemaDialog>
+              </div>
             </Command>
           </PopoverContent>
         </Popover>

@@ -94,12 +94,12 @@ export const PlaygroundTools = () => {
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="p-1">
-            <Command>
+            <Command className="flex flex-col">
               <CommandInput
                 placeholder="Search tools..."
                 className="h-8 border-none p-1 focus:ring-0 focus:ring-offset-0"
               />
-              <CommandList>
+              <CommandList className="max-h-[300px] overflow-auto">
                 <CommandEmpty>No tools found.</CommandEmpty>
                 <CommandGroup>
                   {savedTools.map((tool) => (
@@ -141,18 +141,18 @@ export const PlaygroundTools = () => {
                   ))}
                 </CommandGroup>
                 <CommandSeparator />
-                <div className="p-1">
-                  <CreateOrEditLLMToolDialog
-                    projectId={projectId as string}
-                    onSave={handleSelectTool}
-                  >
-                    <Button variant="outline" size="default" className="w-full">
-                      <PlusIcon className="mr-2 h-4 w-4" />
-                      Create new tool
-                    </Button>
-                  </CreateOrEditLLMToolDialog>
-                </div>
               </CommandList>
+              <div className="mt-auto p-1">
+                <CreateOrEditLLMToolDialog
+                  projectId={projectId as string}
+                  onSave={handleSelectTool}
+                >
+                  <Button variant="outline" size="default" className="w-full">
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Create new tool
+                  </Button>
+                </CreateOrEditLLMToolDialog>
+              </div>
             </Command>
           </PopoverContent>
         </Popover>
