@@ -133,7 +133,6 @@ export const PlaygroundTools = () => {
                           variant="ghost"
                           size="icon"
                           className="ml-2 h-7 w-7 shrink-0"
-                          onClick={(e) => e.stopPropagation()}
                         >
                           <PencilIcon className="h-3.5 w-3.5" />
                         </Button>
