@@ -18,7 +18,7 @@
     "test-sync": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env -- jest --silent false --verbose false --runInBand --detectOpenHandles --selectProjects sync-server",
     "test:watch": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env -- playwright test",
-    "test:e2e:server": "dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",
+    "test:e2e:server": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env -- jest --runInBand --detectOpenHandles --verbose --selectProjects e2e-server",
     "models:migrate": "dotenv -e ../.env -- tsx scripts/model-match.ts"
   },
   "dependencies": {
