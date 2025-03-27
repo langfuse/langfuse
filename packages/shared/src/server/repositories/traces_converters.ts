@@ -46,8 +46,10 @@ export const convertClickhouseToDomain = (
     userId: record.user_id ?? null,
     sessionId: record.session_id ?? null,
     public: record.public,
-    input: record.input ? parseJsonPrioritised(record.input) : null,
-    output: record.output ? parseJsonPrioritised(record.output) : null,
+    input: record.input ? (parseJsonPrioritised(record.input) ?? null) : null,
+    output: record.output
+      ? (parseJsonPrioritised(record.output) ?? null)
+      : null,
     metadata: record.metadata
       ? Object.fromEntries(
           Object.entries(record.metadata).map(([key, val]) => [
