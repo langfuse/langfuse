@@ -947,27 +947,32 @@ export const promptRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { promptId, projectId } = input;
+      try {
+        const { promptId, projectId } = input;
 
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId,
-        scope: "prompts:read",
-      });
-
-      const prompt = await ctx.prisma.prompt.findUniqueOrThrow({
-        where: {
-          id: promptId,
+        throwIfNoProjectAccess({
+          session: ctx.session,
           projectId,
-        },
-      });
+          scope: "prompts:read",
+        });
 
-      const promptService = new PromptService(ctx.prisma, redis);
+        const prompt = await ctx.prisma.prompt.findUniqueOrThrow({
+          where: {
+            id: promptId,
+            projectId,
+          },
+        });
 
-      return promptService.buildAndResolvePromptGraph({
-        projectId: input.projectId,
-        parentPrompt: prompt,
-      });
+        const promptService = new PromptService(ctx.prisma, redis);
+
+        return promptService.buildAndResolvePromptGraph({
+          projectId: input.projectId,
+          parentPrompt: prompt,
+        });
+      } catch (e) {
+        logger.error(e);
+        throw e;
+      }
     }),
 });
 
