@@ -1,15 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import {
-  PlusIcon,
-  PencilIcon,
-  MinusCircle,
-  BoxIcon,
-  CloudOffIcon,
-} from "lucide-react";
+import { PlusIcon, PencilIcon, MinusCircle, BoxIcon } from "lucide-react";
 import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -46,25 +40,75 @@ export const StructuredOutputSchemaSection = () => {
     },
   );
 
-  const handleSelectSchema = (selectedLLMSchema: LlmSchema) => {
-    const newPlaygroundSchema: PlaygroundSchema = {
-      id: selectedLLMSchema.id,
-      name: selectedLLMSchema.name,
-      description: selectedLLMSchema.description,
-      schema: selectedLLMSchema.schema as Record<string, unknown>,
-      existingLlmSchema: selectedLLMSchema,
-    };
+  const isSchemaSaved = useCallback(
+    (schema: PlaygroundSchema) => {
+      return savedSchemas.some((savedSchema) => savedSchema.id === schema.id);
+    },
+    [savedSchemas],
+  );
 
-    setStructuredOutputSchema(newPlaygroundSchema);
+  useEffect(() => {
+    if (structuredOutputSchema && !structuredOutputSchema.existingLlmSchema) {
+      const matchingSavedSchema = savedSchemas.find(
+        (savedSchema) =>
+          savedSchema.name === structuredOutputSchema.name &&
+          savedSchema.description === structuredOutputSchema.description &&
+          JSON.stringify(savedSchema.schema) ===
+            JSON.stringify(structuredOutputSchema.schema),
+      );
+
+      if (matchingSavedSchema) {
+        setStructuredOutputSchema({
+          ...structuredOutputSchema,
+          id: matchingSavedSchema.id,
+          existingLlmSchema: matchingSavedSchema,
+        });
+      }
+    }
+  }, [savedSchemas, structuredOutputSchema, setStructuredOutputSchema]);
+
+  const handleSelectSchema = (selectedLLMSchema: LlmSchema) => {
+    if (
+      structuredOutputSchema &&
+      structuredOutputSchema.id === selectedLLMSchema.id
+    ) {
+      // Schema already selected, just update it
+      setStructuredOutputSchema({
+        ...structuredOutputSchema,
+        name: selectedLLMSchema.name,
+        description: selectedLLMSchema.description,
+        schema: selectedLLMSchema.schema as Record<string, unknown>,
+        existingLlmSchema: selectedLLMSchema,
+      });
+    } else if (
+      structuredOutputSchema &&
+      structuredOutputSchema.name === selectedLLMSchema.name &&
+      !isSchemaSaved(structuredOutputSchema)
+    ) {
+      // Replace unsaved schema with same name
+      setStructuredOutputSchema({
+        id: selectedLLMSchema.id,
+        name: selectedLLMSchema.name,
+        description: selectedLLMSchema.description,
+        schema: selectedLLMSchema.schema as Record<string, unknown>,
+        existingLlmSchema: selectedLLMSchema,
+      });
+    } else {
+      // New schema
+      const newPlaygroundSchema: PlaygroundSchema = {
+        id: selectedLLMSchema.id,
+        name: selectedLLMSchema.name,
+        description: selectedLLMSchema.description,
+        schema: selectedLLMSchema.schema as Record<string, unknown>,
+        existingLlmSchema: selectedLLMSchema,
+      };
+      setStructuredOutputSchema(newPlaygroundSchema);
+    }
     setIsSearchOpen(false);
   };
 
   const handleRemoveSchema = () => {
     setStructuredOutputSchema(null);
-  };
-
-  const isSchemaSaved = (schema: PlaygroundSchema) => {
-    return savedSchemas.some((savedSchema) => savedSchema.id === schema.id);
   };
 
   return (

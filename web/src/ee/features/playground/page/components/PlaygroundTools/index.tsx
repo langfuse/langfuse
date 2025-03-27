@@ -1,15 +1,9 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import {
-  PlusIcon,
-  PencilIcon,
-  MinusCircle,
-  CloudOffIcon,
-  WrenchIcon,
-} from "lucide-react";
+import { PlusIcon, PencilIcon, MinusCircle, WrenchIcon } from "lucide-react";
 import { type LlmTool } from "@prisma/client";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -46,11 +40,51 @@ export const PlaygroundTools = () => {
     },
   );
 
+  const isToolSaved = useCallback(
+    (tool: PlaygroundTool) => {
+      return savedTools.some((savedTool) => savedTool.id === tool.id);
+    },
+    [savedTools],
+  );
+
+  useEffect(() => {
+    tools.forEach((tool, index) => {
+      if (!tool.existingLlmTool) {
+        const matchingSavedTool = savedTools.find(
+          (savedTool) =>
+            savedTool.name === tool.name &&
+            savedTool.description === tool.description &&
+            JSON.stringify(savedTool.parameters) ===
+              JSON.stringify(tool.parameters),
+        );
+
+        if (matchingSavedTool) {
+          const newTools = [...tools];
+          newTools[index] = {
+            ...tool,
+            id: matchingSavedTool.id,
+            existingLlmTool: matchingSavedTool,
+          };
+          setTools(newTools);
+        }
+      }
+    });
+  }, [savedTools, tools, setTools]);
+
   const handleSelectTool = (selectedLLMTool: LlmTool) => {
     setTools((prev: PlaygroundTool[]) => {
-      const existingToolIndex = prev.findIndex(
-        (t) => t.id === selectedLLMTool.id,
-      );
+      let existingToolIndex = -1;
+      existingToolIndex = prev.findIndex((t) => t.id === selectedLLMTool.id);
+
+      if (existingToolIndex === -1) {
+        const unsavedToolIndexWithSameName = prev.findIndex(
+          (t) => t.name === selectedLLMTool.name,
+        );
+
+        if (unsavedToolIndexWithSameName !== -1) {
+          existingToolIndex = unsavedToolIndexWithSameName;
+        }
+      }
 
       const newTool: PlaygroundTool = {
         id: selectedLLMTool.id,
@@ -77,10 +111,6 @@ export const PlaygroundTools = () => {
       (prev: PlaygroundTool[]) =>
         prev.filter((t) => !(t.id === toolId)) as PlaygroundTool[],
     );
-  };
-
-  const isToolSaved = (tool: PlaygroundTool) => {
-    return savedTools.some((savedTool) => savedTool.id === tool.id);
   };
 
   return (
