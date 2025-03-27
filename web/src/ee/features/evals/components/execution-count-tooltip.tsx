@@ -1,8 +1,5 @@
 import { InfoIcon, Loader } from "lucide-react";
-import {
-  type EvalFormType,
-  isTraceTarget,
-} from "@/src/ee/features/evals/utils/evaluator-form-utils";
+import { type EvalFormType } from "@/src/ee/features/evals/utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {
@@ -51,7 +48,7 @@ export const ExecutionCountTooltip = ({
             compactNumberFormatter(
               !globalConfig.data ||
                 (totalCount && totalCount < globalConfig.data)
-                ? (totalCount ?? 0)
+                ? totalCount
                 : globalConfig.data,
             )
           )}{" "}

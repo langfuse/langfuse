@@ -1,5 +1,4 @@
 import { api } from "@/src/utils/api";
-import { useState } from "react";
 import {
   type EvalFormType,
   isTraceTarget,
@@ -14,8 +13,8 @@ interface UseEvalTargetCountProps {
 
 interface UseEvalTargetCountResult {
   isLoading: boolean;
-  totalCount: number | null | undefined;
   isTraceTarget: boolean;
+  totalCount?: number;
 }
 
 export function useEvalTargetCount({
