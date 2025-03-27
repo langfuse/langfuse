@@ -1,5 +1,5 @@
 import z from "zod";
-import { jsonSchema, jsonSchemaNullable } from "../../utils/zod";
+import { jsonSchema, jsonSchemaNullable } from "./utils/zod";
 
 const MetadataDomain = z.record(
   z.string(),

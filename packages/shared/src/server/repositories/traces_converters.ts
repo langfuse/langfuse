@@ -2,11 +2,10 @@ import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { TraceRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { parseJsonPrioritised } from "../../utils/json";
-import { Trace } from "./types";
-import { TraceDomain } from "../domain/domain";
+import { TraceDomain } from "../../domain";
 
 export const convertTraceDomainToClickhouse = (
-  trace: Trace,
+  trace: TraceDomain,
 ): TraceRecordReadType => {
   return {
     id: trace.id,
