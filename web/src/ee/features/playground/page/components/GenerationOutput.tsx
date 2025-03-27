@@ -48,7 +48,7 @@ export const GenerationOutput = () => {
 
   const copyButton =
     output || outputToolCalls.length ? (
-      <div className="absolute right-3 top-2 space-x-1 opacity-50">
+      <div className="absolute right-3 top-2 flex space-x-1 opacity-50">
         <Button
           size="icon"
           variant={isJson ? "default" : "secondary"}
@@ -70,12 +70,14 @@ export const GenerationOutput = () => {
         </Button>
 
         <Button
-          size="icon"
+          className="flex items-center gap-1 whitespace-nowrap"
           variant="secondary"
           onClick={!isAdded ? handleAddAssistantMessage : undefined}
           title="Add as assistant message"
+          disabled={isAdded}
         >
           {isAdded ? <CheckIcon /> : <PlusIcon />}
+          <span className="text-xs">Add to messages</span>
         </Button>
       </div>
     ) : null;
