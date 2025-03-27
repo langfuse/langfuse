@@ -372,7 +372,9 @@ export class PromptService {
             );
             const regex = new RegExp(combinedPattern, "g");
 
-            const replaceValue = JSON.stringify(resolvedDepPrompt).slice(1, -1); // this is necessary to avoid parsing errors as resolved value is unstringified
+            const replaceValue = JSON.stringify(resolvedDepPrompt)
+              .slice(1, -1) // this is necessary to avoid parsing errors as resolved value is unstringified
+              .replace(/\$/g, "$$$$"); // Escape dollar signs in replacement string. $ has special meaning in replace(), so we need to escape it with $$. Since we're in a string that will be used as a replacement, we need to double escape it (hence $$$$)
 
             resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
           }
