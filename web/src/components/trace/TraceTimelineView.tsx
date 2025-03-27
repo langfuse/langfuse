@@ -99,7 +99,10 @@ function TreeItemInner({
       className={cn("group my-0.5 flex w-full min-w-fit flex-row items-center")}
     >
       <div className="flex items-center" style={{ width: `${SCALE_WIDTH}px` }}>
-        <div className={`relative w-[${SCALE_WIDTH}px] flex flex-row`}>
+        <div
+          className={`relative flex flex-row`}
+          style={{ width: `${SCALE_WIDTH}px` }}
+        >
           {firstTokenTimeOffset ? (
             <div
               className={cn(
@@ -461,7 +464,7 @@ export function TraceTimelineView({
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, [parentRef]);
+  }, []);
 
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
@@ -516,7 +519,7 @@ export function TraceTimelineView({
     if (newWidth !== contentWidth) {
       setContentWidth(newWidth);
     }
-  }, [observations, expandedItems, contentWidth]);
+  }, [observations, expandedItems]);
 
   if (!latency) return null;
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
