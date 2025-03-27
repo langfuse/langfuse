@@ -9,6 +9,7 @@ import usePlaygroundCache from "@/src/ee/features/playground/page/hooks/usePlayg
 import {
   type PlaygroundTool,
   type PlaygroundCache,
+  type PlaygroundSchema,
 } from "@/src/ee/features/playground/page/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { PromptType } from "@/src/features/prompts/server/utils/validation";
@@ -24,7 +25,7 @@ import {
   LLMToolCallSchema,
   OpenAIToolCallSchema,
   OpenAIToolSchema,
-  ChatMessage,
+  type ChatMessage,
   LLMJSONSchema,
   OpenAIResponseFormatSchema,
 } from "@langfuse/shared";
@@ -181,7 +182,9 @@ const parsePrompt = (prompt: Prompt): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
     const parsedMessages = ParsedChatMessageListSchema.safeParse(prompt.prompt);
 
-    return parsedMessages.success ? { messages: parsedMessages.data } : null;
+    return parsedMessages.success
+      ? { messages: parsedMessages.data.map(transformToPlaygroundMessage) }
+      : null;
   } else {
     const promptString = prompt.prompt?.valueOf();
 
@@ -341,7 +344,7 @@ function parseTools(generation: Observation): PlaygroundTool[] {
 
 function parseStructuredOutputSchema(
   generation: Observation,
-): PlaygroundTool | null {
+): PlaygroundSchema | null {
   try {
     const metadata = generation.metadata;
 
@@ -359,7 +362,7 @@ function parseStructuredOutputSchema(
           id: Math.random().toString(36).substring(2),
           name: parseStructuredOutputSchema.data.json_schema.name,
           description: "Schema parsed from generation",
-          parameters: parseStructuredOutputSchema.data.json_schema.schema,
+          schema: parseStructuredOutputSchema.data.json_schema.schema,
         };
     }
   } catch {}
