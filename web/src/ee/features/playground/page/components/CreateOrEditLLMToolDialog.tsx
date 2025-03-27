@@ -16,6 +16,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -25,8 +26,8 @@ import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { api } from "@/src/utils/api";
 
-import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { JSONSchemaFormSchema, type LlmTool } from "@langfuse/shared";
 
 const formSchema = z.object({
   name: z
@@ -37,33 +38,33 @@ const formSchema = z.object({
     )
     .min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
-  schema: JSONSchemaFormSchema,
+  parameters: JSONSchemaFormSchema,
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
-type CreateOrEditLLMSchemaDialog = {
+type CreateOrEditLLMToolDialog = {
   children: React.ReactNode;
   projectId: string;
-  onSave: (llmSchema: LlmSchema) => void;
-  onDelete?: (llmSchema: LlmSchema) => void;
-  existingLlmSchema?: LlmSchema;
+  onSave: (llmTool: LlmTool) => void;
+  onDelete?: (llmTool: LlmTool) => void;
+  existingLlmTool?: LlmTool;
   defaultValues?: {
     name: string;
     description: string;
-    schema: string;
+    parameters: string;
   };
 };
 
-export const CreateOrEditLLMSchemaDialog: React.FC<
-  CreateOrEditLLMSchemaDialog
-> = (props) => {
-  const { children, projectId, onSave, existingLlmSchema } = props;
+export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
+  props,
+) => {
+  const { children, projectId, onSave, existingLlmTool } = props;
 
   const utils = api.useUtils();
-  const createLlmSchema = api.llmSchemas.create.useMutation();
-  const updateLlmSchema = api.llmSchemas.update.useMutation();
-  const deleteLlmSchema = api.llmSchemas.delete.useMutation();
+  const createLlmTool = api.llmTools.create.useMutation();
+  const updateLlmTool = api.llmTools.update.useMutation();
+  const deleteLlmTool = api.llmTools.delete.useMutation();
 
   const [open, setOpen] = useState(false);
 
@@ -72,7 +73,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
     defaultValues: props.defaultValues ?? {
       name: "",
       description: "",
-      schema: JSON.stringify(
+      parameters: JSON.stringify(
         {
           type: "object",
           properties: {},
@@ -87,60 +88,60 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
   // Populate form when in edit mode
   useEffect(() => {
-    if (existingLlmSchema) {
+    if (existingLlmTool) {
       form.reset({
-        name: existingLlmSchema.name,
-        description: existingLlmSchema.description,
-        schema: JSON.stringify(existingLlmSchema.schema, null, 2),
+        name: existingLlmTool.name,
+        description: existingLlmTool.description,
+        parameters: JSON.stringify(existingLlmTool.parameters, null, 2),
       });
     }
-  }, [existingLlmSchema, form]);
+  }, [existingLlmTool, form]);
 
   async function onSubmit(values: FormValues) {
     let result;
-    if (existingLlmSchema) {
-      result = await updateLlmSchema.mutateAsync({
-        id: existingLlmSchema.id,
+    if (existingLlmTool) {
+      result = await updateLlmTool.mutateAsync({
+        id: existingLlmTool.id,
         projectId,
         name: values.name,
         description: values.description,
-        schema: JSON.parse(values.schema),
+        parameters: JSON.parse(values.parameters),
       });
     } else {
-      result = await createLlmSchema.mutateAsync({
+      result = await createLlmTool.mutateAsync({
         projectId,
         name: values.name,
         description: values.description,
-        schema: JSON.parse(values.schema),
+        parameters: JSON.parse(values.parameters),
       });
     }
 
-    await utils.llmSchemas.getAll.invalidate({ projectId });
+    await utils.llmTools.getAll.invalidate({ projectId });
 
     onSave(result);
     setOpen(false);
   }
 
   async function handleDelete() {
-    if (!existingLlmSchema) return;
+    if (!existingLlmTool) return;
 
-    await deleteLlmSchema.mutateAsync({
-      id: existingLlmSchema.id,
+    await deleteLlmTool.mutateAsync({
+      id: existingLlmTool.id,
       projectId,
     });
 
-    props.onDelete?.(existingLlmSchema);
+    props.onDelete?.(existingLlmTool);
 
-    await utils.llmSchemas.getAll.invalidate({ projectId });
+    await utils.llmTools.getAll.invalidate({ projectId });
     setOpen(false);
   }
 
   const prettifyJson = () => {
     try {
-      const currentValue = form.getValues("schema");
+      const currentValue = form.getValues("parameters");
       const parsedJson = JSON.parse(currentValue);
       const prettified = JSON.stringify(parsedJson, null, 2);
-      form.setValue("schema", prettified);
+      form.setValue("parameters", prettified);
     } catch (error) {
       console.error("Failed to prettify JSON:", error);
     }
@@ -152,10 +153,10 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
       <DialogContent className="sm:min-w-[32rem] md:min-w-[40rem]">
         <DialogHeader>
           <DialogTitle>
-            {existingLlmSchema ? "Edit LLM Schema" : "Create LLM Schema"}
+            {existingLlmTool ? "Edit LLM Tool" : "Create LLM Tool"}
           </DialogTitle>
           <DialogDescription>
-            Define a JSON Schema for structured outputs
+            Define a tool for LLM function calling
           </DialogDescription>
         </DialogHeader>
 
@@ -168,7 +169,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., math_reasoning" {...field} />
+                    <Input placeholder="e.g., get_weather" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -181,9 +182,13 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Description</FormLabel>
+                  <FormDescription>
+                    This description will be sent to the LLM to help it
+                    understand the tool&apos;s purpose and functionality.
+                  </FormDescription>
                   <FormControl>
                     <Textarea
-                      placeholder="Describe the schema"
+                      placeholder="Describe the tool's purpose and usage"
                       className="min-h-[80px] focus:ring-0 focus:ring-offset-0"
                       {...field}
                     />
@@ -195,11 +200,11 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
             <FormField
               control={form.control}
-              name="schema"
+              name="parameters"
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center justify-between">
-                    <FormLabel>JSON Schema</FormLabel>
+                    <FormLabel>Parameters (JSON Schema)</FormLabel>
                     <Button
                       type="button"
                       variant="outline"
@@ -228,12 +233,12 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
             <div className="mb-4">
               <p className="text-xs text-muted-foreground">
-                Note: Changes to schemas are reflected to all members of this
+                Note: Changes to tools are reflected to all members of this
                 project.
               </p>
             </div>
             <DialogFooter>
-              {existingLlmSchema && (
+              {existingLlmTool && (
                 <Button
                   type="button"
                   variant="destructive"

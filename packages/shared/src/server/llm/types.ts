@@ -10,12 +10,37 @@ import { AuthHeaderValidVerificationResult } from "../auth/types";
 export const LLMJSONSchema = z.record(z.string(), z.unknown());
 export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
 
-export const LLMToolSchema = z.object({
+export const JSONSchemaFormSchema = z
+  .string()
+  .transform((value, ctx) => {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed;
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Parameters must be valid JSON",
+      });
+      return z.NEVER;
+    }
+  })
+  .pipe(
+    z
+      .object({
+        type: z.literal("object"),
+        properties: z.record(z.any()),
+        required: z.array(z.string()).optional(),
+        additionalProperties: z.boolean().optional(),
+      })
+      .transform((data) => JSON.stringify(data, null, 2)),
+  );
+
+export const LLMToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string(),
   parameters: LLMJSONSchema,
 });
-export type LLMTool = z.infer<typeof LLMToolSchema>;
+export type LLMToolDefinition = z.infer<typeof LLMToolDefinitionSchema>;
 
 const AnthropicMessageContentWithToolUse = z.union([
   z.object({
@@ -55,7 +80,7 @@ export type OpenAIToolCallSchema = z.infer<typeof OpenAIToolCallSchema>;
 
 export const OpenAIToolSchema = z.object({
   type: z.literal("function"),
-  function: LLMToolSchema,
+  function: LLMToolDefinitionSchema,
 });
 export type OpenAIToolSchema = z.infer<typeof OpenAIToolSchema>;
 

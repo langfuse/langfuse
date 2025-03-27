@@ -24,7 +24,7 @@ import {
   ToolCallResponseSchema,
   type UIModelParams,
   type ToolCallResponse,
-  type LLMTool,
+  type LLMToolDefinition,
   type LLMToolCall,
   ChatMessageType,
 } from "@langfuse/shared";
@@ -32,7 +32,10 @@ import {
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
 import type { ModelParamsContext } from "@/src/components/ModelParameters";
 import { env } from "@/src/env.mjs";
-import { type PlaygroundTool } from "@/src/ee/features/playground/page/types";
+import {
+  type PlaygroundSchema,
+  type PlaygroundTool,
+} from "@/src/ee/features/playground/page/types";
 
 type PlaygroundContextType = {
   promptVariables: PromptVariable[];
@@ -42,8 +45,8 @@ type PlaygroundContextType = {
   tools: PlaygroundTool[];
   setTools: React.Dispatch<React.SetStateAction<PlaygroundTool[]>>;
 
-  structuredOutputSchema: PlaygroundTool | null;
-  setStructuredOutputSchema: (schema: PlaygroundTool | null) => void;
+  structuredOutputSchema: PlaygroundSchema | null;
+  setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
 
   output: string;
   outputJson: string;
@@ -81,7 +84,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [tools, setTools] = useState<PlaygroundTool[]>([]);
   const [structuredOutputSchema, setStructuredOutputSchema] =
-    useState<PlaygroundTool | null>(null);
+    useState<PlaygroundSchema | null>(null);
   const [messages, setMessages] = useState<ChatMessageWithId[]>([
     createEmptyMessage({
       type: ChatMessageType.System,
@@ -219,7 +222,7 @@ export const PlaygroundProvider: React.FC<PropsWithChildren> = ({
   );
 
   const updateMessage: PlaygroundContextType["updateMessage"] = useCallback(
-    (type, id, key, value) => {
+    (_, id, key, value) => {
       setMessages((prev) =>
         prev.map((message) =>
           message.id === id ? { ...message, [key]: value } : message,
@@ -456,7 +459,7 @@ async function getChatCompletionWithStructuredOutput(
   projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
-  structuredOutputSchema: PlaygroundTool | null,
+  structuredOutputSchema: PlaygroundSchema | null,
 ): Promise<string> {
   if (!projectId) throw Error("Project ID is not set");
 
@@ -464,7 +467,7 @@ async function getChatCompletionWithStructuredOutput(
     projectId,
     messages,
     modelParams: getFinalModelParams(modelParams),
-    structuredOutputSchema: structuredOutputSchema?.parameters,
+    structuredOutputSchema: structuredOutputSchema?.schema,
   });
 
   const result = await fetch(
@@ -580,8 +583,8 @@ function getOutputJson(
   output: string,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
-  tools: LLMTool[],
-  structuredOutputSchema: PlaygroundTool | null,
+  tools: LLMToolDefinition[],
+  structuredOutputSchema: PlaygroundSchema | null,
 ) {
   return JSON.stringify(
     {

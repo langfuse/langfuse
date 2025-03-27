@@ -7,19 +7,21 @@ import {
   PlusIcon,
   PencilIcon,
   MinusCircle,
-  CloudIcon,
   CloudOffIcon,
+  WrenchIcon,
 } from "lucide-react";
-import { type LlmSchema } from "@langfuse/shared";
+import { type LlmTool } from "@prisma/client";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { CreateOrEditLLMSchemaDialog } from "@/src/ee/features/playground/page/components/CreateOrEditLLMSchemaDialog";
+import { CreateOrEditLLMToolDialog } from "@/src/ee/features/playground/page/components/CreateOrEditLLMToolDialog";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
+  CommandSeparator,
 } from "@/src/components/ui/command";
 import {
   Popover,
@@ -34,7 +36,7 @@ export const PlaygroundTools = () => {
   const projectId = useProjectIdFromURL();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  const { data: savedSchemas = [] } = api.llmSchemas.getAll.useQuery(
+  const { data: savedTools = [] } = api.llmTools.getAll.useQuery(
     {
       projectId: projectId as string,
     },
@@ -44,18 +46,18 @@ export const PlaygroundTools = () => {
     },
   );
 
-  const handleSelectTool = (selectedLLMSchema: LlmSchema) => {
+  const handleSelectTool = (selectedLLMTool: LlmTool) => {
     setTools((prev: PlaygroundTool[]) => {
       const existingToolIndex = prev.findIndex(
-        (t) => t.id === selectedLLMSchema.id,
+        (t) => t.id === selectedLLMTool.id,
       );
 
       const newTool: PlaygroundTool = {
-        id: selectedLLMSchema.id,
-        name: selectedLLMSchema.name,
-        description: selectedLLMSchema.description,
-        parameters: selectedLLMSchema.schema as Record<string, unknown>,
-        llmSchema: selectedLLMSchema,
+        id: selectedLLMTool.id,
+        name: selectedLLMTool.name,
+        description: selectedLLMTool.description,
+        parameters: selectedLLMTool.parameters as Record<string, unknown>,
+        existingLlmTool: selectedLLMTool,
       };
 
       if (existingToolIndex !== -1) {
@@ -73,12 +75,13 @@ export const PlaygroundTools = () => {
   const handleRemoveTool = (toolId: string) => {
     setTools(
       (prev: PlaygroundTool[]) =>
-        prev.filter((t) => t.id !== toolId) as PlaygroundTool[],
+        prev.filter((t) => !(t.id === toolId)) as PlaygroundTool[],
     );
   };
 
-  const isToolSaved = (tool: PlaygroundTool) =>
-    savedSchemas.some((schema) => schema.id === tool.id);
+  const isToolSaved = (tool: PlaygroundTool) => {
+    return savedTools.some((savedTool) => savedTool.id === tool.id);
+  };
 
   return (
     <div className="flex h-full flex-col pr-1">
@@ -93,53 +96,64 @@ export const PlaygroundTools = () => {
           <PopoverContent align="end" className="p-1">
             <Command>
               <CommandInput
-                placeholder="Search available schemas..."
+                placeholder="Search tools..."
                 className="h-8 border-none p-1 focus:ring-0 focus:ring-offset-0"
               />
-              <CommandEmpty>No schemas found.</CommandEmpty>
-              <CommandGroup>
-                {savedSchemas.map((tool) => (
-                  <CommandItem
-                    key={tool.id}
-                    value={tool.name}
-                    onSelect={() => handleSelectTool(tool)}
-                    className="flex items-center justify-between px-1 py-2"
-                  >
-                    <div className="flex-1 overflow-hidden">
-                      <div className="truncate font-medium">{tool.name}</div>
-                      <div className="line-clamp-1 text-xs text-muted-foreground">
-                        {tool.description}
-                      </div>
-                    </div>
-                    <CreateOrEditLLMSchemaDialog
-                      projectId={projectId as string}
-                      onSave={handleSelectTool}
-                      onDelete={() => handleRemoveTool(tool.id)}
-                      llmSchema={tool}
+              <CommandList>
+                <CommandEmpty>No tools found.</CommandEmpty>
+                <CommandGroup>
+                  {savedTools.map((tool) => (
+                    <CommandItem
+                      key={tool.id}
+                      value={tool.name}
+                      onSelect={() => handleSelectTool(tool)}
+                      className="flex items-center justify-between px-1 py-2"
                     >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-2 h-7 w-7 shrink-0"
-                        onClick={(e) => e.stopPropagation()}
+                      <div className="flex items-center gap-2">
+                        <WrenchIcon
+                          size={12}
+                          className="text-muted-foreground"
+                        />
+                        <div className="flex-1 overflow-hidden">
+                          <div className="truncate font-medium">
+                            {tool.name}
+                          </div>
+                          <div className="line-clamp-1 text-xs text-muted-foreground">
+                            {tool.description}
+                          </div>
+                        </div>
+                      </div>
+                      <CreateOrEditLLMToolDialog
+                        projectId={projectId as string}
+                        onSave={handleSelectTool}
+                        onDelete={() => handleRemoveTool(tool.id)}
+                        existingLlmTool={tool}
                       >
-                        <PencilIcon className="h-3.5 w-3.5" />
-                      </Button>
-                    </CreateOrEditLLMSchemaDialog>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <div>
-                <CreateOrEditLLMSchemaDialog
-                  projectId={projectId as string}
-                  onSave={handleSelectTool}
-                >
-                  <Button variant="outline" size="default" className="w-full">
-                    <PlusIcon className="mr-2 h-4 w-4" />
-                    Create new schema
-                  </Button>
-                </CreateOrEditLLMSchemaDialog>
-              </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2 h-7 w-7 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </CreateOrEditLLMToolDialog>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandSeparator />
+                <div className="p-1">
+                  <CreateOrEditLLMToolDialog
+                    projectId={projectId as string}
+                    onSave={handleSelectTool}
+                  >
+                    <Button variant="outline" size="default" className="w-full">
+                      <PlusIcon className="mr-2 h-4 w-4" />
+                      Create new tool
+                    </Button>
+                  </CreateOrEditLLMToolDialog>
+                </div>
+              </CommandList>
             </Command>
           </PopoverContent>
         </Popover>
@@ -152,19 +166,19 @@ export const PlaygroundTools = () => {
           </div>
         ) : (
           <div className="space-y-1">
-            {tools.map((tool, index) => (
-              <CreateOrEditLLMSchemaDialog
-                key={index}
+            {tools.map((tool) => (
+              <CreateOrEditLLMToolDialog
+                key={tool.id}
                 projectId={projectId as string}
                 onSave={handleSelectTool}
                 onDelete={() => handleRemoveTool(tool.id)}
-                llmSchema={tool.llmSchema}
+                existingLlmTool={tool.existingLlmTool}
                 defaultValues={
                   !isToolSaved(tool)
                     ? {
                         name: tool.name,
                         description: tool.description,
-                        schema: JSON.stringify(tool.parameters, null, 2),
+                        parameters: JSON.stringify(tool.parameters, null, 2),
                       }
                     : undefined
                 }
@@ -175,6 +189,7 @@ export const PlaygroundTools = () => {
                       {!isToolSaved(tool) ? (
                         <CloudOffIcon className="h-4 w-4" />
                       ) : null}
+                      <WrenchIcon className="h-4 w-4 text-muted-foreground" />
                       <h3
                         className="truncate text-sm font-medium"
                         title={tool.name}
@@ -203,7 +218,7 @@ export const PlaygroundTools = () => {
                     {tool.description}
                   </p>
                 </div>
-              </CreateOrEditLLMSchemaDialog>
+              </CreateOrEditLLMToolDialog>
             ))}
           </div>
         )}

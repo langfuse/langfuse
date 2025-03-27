@@ -3,10 +3,23 @@ import {
   type ChatMessage,
   type UIModelParams,
   type LlmSchema,
-  type LLMTool,
+  type LLMToolDefinition,
+  type LlmTool,
+  type LLMJSONSchema,
 } from "@langfuse/shared";
 
-export type PlaygroundTool = LLMTool & { id: string; llmSchema?: LlmSchema };
+export type PlaygroundTool = LLMToolDefinition & {
+  id: string;
+  existingLlmTool?: LlmTool;
+};
+
+export type PlaygroundSchema = {
+  id: string;
+  name: string;
+  description: string;
+  schema: LLMJSONSchema;
+  existingLlmSchema?: LlmSchema;
+};
 
 export type PlaygroundCache = {
   messages: ChatMessage[];
@@ -15,5 +28,5 @@ export type PlaygroundCache = {
   output?: string | null;
   promptVariables?: PromptVariable[];
   tools?: PlaygroundTool[];
-  structuredOutputSchema?: PlaygroundTool | null;
+  structuredOutputSchema?: PlaygroundSchema | null;
 } | null;

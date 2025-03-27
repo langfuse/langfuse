@@ -29,7 +29,7 @@ import {
   ChatMessageType,
   LLMAdapter,
   LLMJSONSchema,
-  LLMTool,
+  LLMToolDefinition,
   ModelParams,
   ToolCallResponse,
   ToolCallResponseSchema,
@@ -56,7 +56,7 @@ type LLMCompletionParams = {
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
   streaming: boolean;
-  tools?: LLMTool[];
+  tools?: LLMToolDefinition[];
 };
 
 export async function fetchLLMCompletion(
@@ -89,7 +89,7 @@ export async function fetchLLMCompletion(
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
-    tools: LLMTool[];
+    tools: LLMToolDefinition[];
     streaming: false;
   },
 ): Promise<{

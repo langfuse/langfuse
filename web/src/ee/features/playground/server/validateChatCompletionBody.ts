@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   LLMAdapter,
   LLMJSONSchema,
-  LLMToolSchema,
+  LLMToolDefinitionSchema,
   ChatMessageSchema,
 } from "@langfuse/shared";
 
@@ -19,7 +19,7 @@ export const ChatCompletionBodySchema = z.object({
   projectId: z.string(),
   messages: z.array(ChatMessageSchema),
   modelParams: ModelParamsSchema,
-  tools: z.array(LLMToolSchema).optional(),
+  tools: z.array(LLMToolDefinitionSchema).optional(),
   structuredOutputSchema: LLMJSONSchema.optional(),
 });
 

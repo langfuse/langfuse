@@ -3,7 +3,13 @@ import React, { useState } from "react";
 import { usePlaygroundContext } from "@/src/ee/features/playground/page/context";
 import { Button } from "@/src/components/ui/button";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
-import { PlusIcon, PencilIcon, MinusCircle } from "lucide-react";
+import {
+  PlusIcon,
+  PencilIcon,
+  MinusCircle,
+  BoxIcon,
+  CloudOffIcon,
+} from "lucide-react";
 import { type LlmSchema } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -14,12 +20,15 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
+  CommandSeparator,
 } from "@/src/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { type PlaygroundSchema } from "@/src/ee/features/playground/page/types";
 
 export const StructuredOutputSchemaSection = () => {
   const { structuredOutputSchema, setStructuredOutputSchema } =
@@ -38,18 +47,24 @@ export const StructuredOutputSchemaSection = () => {
   );
 
   const handleSelectSchema = (selectedLLMSchema: LlmSchema) => {
-    setStructuredOutputSchema({
+    const newPlaygroundSchema: PlaygroundSchema = {
       id: selectedLLMSchema.id,
       name: selectedLLMSchema.name,
       description: selectedLLMSchema.description,
-      parameters: selectedLLMSchema.schema as Record<string, unknown>,
-      llmSchema: selectedLLMSchema,
-    });
+      schema: selectedLLMSchema.schema as Record<string, unknown>,
+      existingLlmSchema: selectedLLMSchema,
+    };
+
+    setStructuredOutputSchema(newPlaygroundSchema);
     setIsSearchOpen(false);
   };
 
   const handleRemoveSchema = () => {
     setStructuredOutputSchema(null);
+  };
+
+  const isSchemaSaved = (schema: PlaygroundSchema) => {
+    return savedSchemas.some((savedSchema) => savedSchema.id === schema.id);
   };
 
   return (
@@ -65,53 +80,61 @@ export const StructuredOutputSchemaSection = () => {
           <PopoverContent align="end" className="p-1">
             <Command>
               <CommandInput
-                placeholder="Search available schemas..."
+                placeholder="Search schemas..."
                 className="h-8 border-none p-1 focus:ring-0 focus:ring-offset-0"
               />
-              <CommandEmpty>No schemas found.</CommandEmpty>
-              <CommandGroup>
-                {savedSchemas.map((schema) => (
-                  <CommandItem
-                    key={schema.id}
-                    value={schema.name}
-                    onSelect={() => handleSelectSchema(schema)}
-                    className="flex items-center justify-between px-1 py-2"
-                  >
-                    <div className="flex-1 overflow-hidden">
-                      <div className="truncate font-medium">{schema.name}</div>
-                      <div className="line-clamp-1 text-xs text-muted-foreground">
-                        {schema.description}
-                      </div>
-                    </div>
-                    <CreateOrEditLLMSchemaDialog
-                      projectId={projectId as string}
-                      onSave={handleSelectSchema}
-                      onDelete={() => {}}
-                      llmSchema={schema}
+              <CommandList>
+                <CommandEmpty>No schemas found.</CommandEmpty>
+                <CommandGroup>
+                  {savedSchemas.map((schema) => (
+                    <CommandItem
+                      key={schema.id}
+                      value={schema.name}
+                      onSelect={() => handleSelectSchema(schema)}
+                      className="flex items-center justify-between px-1 py-2"
                     >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-2 h-7 w-7 shrink-0"
-                        onClick={(e) => e.stopPropagation()}
+                      <div className="flex items-center gap-2">
+                        <BoxIcon className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex-1 overflow-hidden">
+                          <div className="truncate font-medium">
+                            {schema.name}
+                          </div>
+                          <div className="line-clamp-1 text-xs text-muted-foreground">
+                            {schema.description}
+                          </div>
+                        </div>
+                      </div>
+                      <CreateOrEditLLMSchemaDialog
+                        projectId={projectId as string}
+                        onSave={handleSelectSchema}
+                        onDelete={() => handleRemoveSchema()}
+                        existingLlmSchema={schema}
                       >
-                        <PencilIcon className="h-3.5 w-3.5" />
-                      </Button>
-                    </CreateOrEditLLMSchemaDialog>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <div>
-                <CreateOrEditLLMSchemaDialog
-                  projectId={projectId as string}
-                  onSave={handleSelectSchema}
-                >
-                  <Button variant="outline" size="default" className="w-full">
-                    <PlusIcon className="mr-2 h-4 w-4" />
-                    Create new schema
-                  </Button>
-                </CreateOrEditLLMSchemaDialog>
-              </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2 h-7 w-7 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </Button>
+                      </CreateOrEditLLMSchemaDialog>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandSeparator />
+                <div className="p-1">
+                  <CreateOrEditLLMSchemaDialog
+                    projectId={projectId as string}
+                    onSave={handleSelectSchema}
+                  >
+                    <Button variant="outline" size="default" className="w-full">
+                      <PlusIcon className="mr-2 h-4 w-4" />
+                      Create new schema
+                    </Button>
+                  </CreateOrEditLLMSchemaDialog>
+                </div>
+              </CommandList>
             </Command>
           </PopoverContent>
         </Popover>
@@ -123,16 +146,33 @@ export const StructuredOutputSchemaSection = () => {
             <p className="text-xs text-muted-foreground">No schema provided.</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1">
             <CreateOrEditLLMSchemaDialog
               projectId={projectId as string}
               onSave={handleSelectSchema}
               onDelete={() => handleRemoveSchema()}
-              llmSchema={structuredOutputSchema.llmSchema}
+              existingLlmSchema={structuredOutputSchema.existingLlmSchema}
+              defaultValues={
+                !isSchemaSaved(structuredOutputSchema)
+                  ? {
+                      name: structuredOutputSchema.name,
+                      description: structuredOutputSchema.description,
+                      schema: JSON.stringify(
+                        structuredOutputSchema.schema,
+                        null,
+                        2,
+                      ),
+                    }
+                  : undefined
+              }
             >
               <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
                 <div className="mb-1 flex items-center justify-between">
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-1">
+                    {!isSchemaSaved(structuredOutputSchema) ? (
+                      <CloudOffIcon className="h-4 w-4" />
+                    ) : null}
+                    <BoxIcon className="h-4 w-4 text-muted-foreground" />
                     <h3
                       className="truncate text-sm font-medium"
                       title={structuredOutputSchema.name}
