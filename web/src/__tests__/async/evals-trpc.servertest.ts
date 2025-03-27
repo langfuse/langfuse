@@ -284,4 +284,304 @@ describe("evals trpc", () => {
       expect(updatedJob?.timeScope).toEqual(["EXISTING", "NEW"]);
     });
   });
+
+  describe("evals.deleteEvalJob", () => {
+    it("should successfully delete an eval job", async () => {
+      // Create a job to delete
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      // Create multiple job executions with different statuses
+      await Promise.all([
+        prisma.jobExecution.create({
+          data: {
+            jobConfigurationId: evalJobConfig.id,
+            status: "COMPLETED",
+            projectId,
+          },
+        }),
+        prisma.jobExecution.create({
+          data: {
+            jobConfigurationId: evalJobConfig.id,
+            status: "PENDING",
+            projectId,
+          },
+        }),
+        prisma.jobExecution.create({
+          data: {
+            jobConfigurationId: evalJobConfig.id,
+            status: "ERROR",
+            projectId,
+            error: "Test error",
+          },
+        }),
+      ]);
+
+      // Verify job executions exist before deletion
+      const beforeJobExecutions = await prisma.jobExecution.findMany({
+        where: {
+          jobConfigurationId: evalJobConfig.id,
+        },
+      });
+      expect(beforeJobExecutions).toHaveLength(3);
+
+      // Delete the job
+      await caller.evals.deleteEvalJob({
+        projectId,
+        evalConfigId: evalJobConfig.id,
+      });
+
+      // Verify job is deleted
+      const deletedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJobConfig.id,
+        },
+      });
+      expect(deletedJob).toBeNull();
+
+      // Verify all job executions are deleted (cascade)
+      const afterJobExecutions = await prisma.jobExecution.findMany({
+        where: {
+          jobConfigurationId: evalJobConfig.id,
+        },
+      });
+      expect(afterJobExecutions).toHaveLength(0);
+    });
+
+    it("should throw error when trying to delete non-existent eval job", async () => {
+      await expect(
+        caller.evals.deleteEvalJob({
+          projectId,
+          evalConfigId: "non-existent-id",
+        }),
+      ).rejects.toThrow("Job not found");
+    });
+
+    it("should throw error when user lacks evalJob:CUD access scope", async () => {
+      // Create a session with limited permissions
+      const limitedSession: Session = {
+        ...session,
+        user: {
+          id: session.user!.id,
+          name: session.user!.name,
+          canCreateOrganizations: session.user!.canCreateOrganizations,
+          admin: false,
+          featureFlags: session.user!.featureFlags,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD scope
+                },
+              ],
+            },
+          ],
+        },
+        expires: session.expires,
+        environment: session.environment,
+      };
+      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
+
+      // Create a job
+      const evalJobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+        },
+      });
+
+      // Attempt to delete with limited permissions
+      await expect(
+        limitedCaller.evals.deleteEvalJob({
+          projectId,
+          evalConfigId: evalJobConfig.id,
+        }),
+      ).rejects.toThrow("User does not have access to this resource or action");
+    });
+  });
+
+  describe("evals.deleteEvalTemplate", () => {
+    it("should successfully delete an eval template", async () => {
+      // Create a template to delete
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: "test-template",
+          version: 1,
+          prompt: "test prompt",
+          model: "test-model",
+          modelParams: {},
+          vars: [],
+          outputSchema: {
+            score: "test-score",
+            reasoning: "test-reasoning",
+          },
+          provider: "test-provider",
+        },
+      });
+
+      // Delete the template
+      await caller.evals.deleteEvalTemplate({
+        projectId,
+        evalTemplateId: evalTemplate.id,
+      });
+
+      // Verify template is deleted
+      const deletedTemplate = await prisma.evalTemplate.findUnique({
+        where: {
+          id: evalTemplate.id,
+        },
+      });
+      expect(deletedTemplate).toBeNull();
+    });
+
+    it("should set evalTemplateId to null for associated eval jobs when template is deleted", async () => {
+      // Create a template
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: "test-template",
+          version: 1,
+          prompt: "test prompt",
+          model: "test-model",
+          modelParams: {},
+          vars: [],
+          outputSchema: {
+            score: "test-score",
+            reasoning: "test-reasoning",
+          },
+          provider: "test-provider",
+        },
+      });
+
+      // Create an eval job linked to this template
+      const evalJob = await prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          timeScope: ["NEW"],
+          evalTemplateId: evalTemplate.id,
+        },
+      });
+
+      // Delete the template
+      await caller.evals.deleteEvalTemplate({
+        projectId,
+        evalTemplateId: evalTemplate.id,
+      });
+
+      // Verify template is deleted
+      const deletedTemplate = await prisma.evalTemplate.findUnique({
+        where: {
+          id: evalTemplate.id,
+        },
+      });
+      expect(deletedTemplate).toBeNull();
+
+      // Verify eval job still exists but has evalTemplateId set to null
+      const updatedJob = await prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalJob.id,
+        },
+      });
+      expect(updatedJob).not.toBeNull();
+      expect(updatedJob?.evalTemplateId).toBeNull();
+    });
+
+    it("should throw error when trying to delete non-existent eval template", async () => {
+      await expect(
+        caller.evals.deleteEvalTemplate({
+          projectId,
+          evalTemplateId: "non-existent-id",
+        }),
+      ).rejects.toThrow("Template not found");
+    });
+
+    it("should throw error when user lacks evalTemplate:CUD access scope", async () => {
+      // Create a session with limited permissions
+      const limitedSession: Session = {
+        ...session,
+        user: {
+          id: session.user!.id,
+          name: session.user!.name,
+          canCreateOrganizations: session.user!.canCreateOrganizations,
+          admin: false,
+          featureFlags: session.user!.featureFlags,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD scope
+                },
+              ],
+            },
+          ],
+        },
+        expires: session.expires,
+        environment: session.environment,
+      };
+      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
+
+      // Create a template
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId,
+          name: "test-template",
+          version: 1,
+          prompt: "test prompt",
+          model: "test-model",
+          modelParams: {},
+          vars: [],
+          outputSchema: {
+            score: "test-score",
+            reasoning: "test-reasoning",
+          },
+          provider: "test-provider",
+        },
+      });
+
+      // Attempt to delete with limited permissions
+      await expect(
+        limitedCaller.evals.deleteEvalTemplate({
+          projectId,
+          evalTemplateId: evalTemplate.id,
+        }),
+      ).rejects.toThrow("User does not have access to this resource or action");
+    });
+  });
 });
