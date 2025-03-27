@@ -1,18 +1,21 @@
-import { ScoreDataType } from "@prisma/client";
+import { Prisma, ScoreDataType } from "@prisma/client";
 import { ScoreSourceType } from "../../server";
 
-export type CategoricalAggregate = {
+export type BaseAggregate = {
+  comment?: string | null;
+  id?: string | null;
+};
+
+export type CategoricalAggregate = BaseAggregate & {
   type: "CATEGORICAL";
   values: string[];
   valueCounts: { value: string; count: number }[];
-  comment?: string | null;
 };
 
-export type NumericAggregate = {
+export type NumericAggregate = BaseAggregate & {
   type: "NUMERIC";
   values: number[];
   average: number;
-  comment?: string | null;
 };
 
 export type ScoreAggregate = Record<
@@ -21,11 +24,14 @@ export type ScoreAggregate = Record<
 >;
 
 export type ScoreSimplified = {
+  id: string;
   name: string;
   dataType: ScoreDataType;
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
+  // TODO: unsure if this is the optimal type here
+  metadata?: Prisma.JsonValue | null;
   stringValue?: string | null;
 };
 

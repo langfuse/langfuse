@@ -218,6 +218,7 @@ describe("Fetch datasets for UI presentation", () => {
         average: 50.75,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score3.id,
         type: "NUMERIC",
         values: expect.arrayContaining([1]),
         average: 1,
@@ -349,6 +350,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     const expectedObject = {
       [`${scoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score.id,
         type: "NUMERIC",
         values: expect.arrayContaining([100.5]),
         average: 100.5,
@@ -506,6 +508,7 @@ describe("Fetch datasets for UI presentation", () => {
 
     const expectedObject = {
       [`${score.name.replaceAll("-", "_")}-API-NUMERIC`]: {
+        id: score.id,
         type: "NUMERIC",
         values: expect.arrayContaining([100.5]),
         average: 100.5,

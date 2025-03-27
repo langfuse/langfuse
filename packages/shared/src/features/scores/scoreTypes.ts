@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isPresent, stringDateTime } from "../../utils/typeChecks";
 import { Score } from "../../server";
 import {
+  jsonSchema,
   NonEmptyString,
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -50,6 +51,7 @@ const ScoreBase = z.object({
   source: z.enum(ScoreSource),
   authorUserId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   traceId: z.string(),
   observationId: z.string().nullish(),
   configId: z.string().nullish(),
@@ -64,6 +66,7 @@ const BaseScoreBody = z.object({
   traceId: z.string(),
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   environment: z.string().default("default"),
 });
 
@@ -163,6 +166,7 @@ export const ScorePropsAgainstConfig = z.union([
  */
 export const filterAndValidateDbScoreList = (
   scores: Score[],
+  // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void,
 ): APIScore[] =>
   scores.reduce((acc, ts) => {
@@ -272,6 +276,7 @@ export const GetScoresResponse = z.object({
 
 export const legacyFilterAndValidateV1GetScoreList = (
   scores: unknown[],
+  // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof LegacyGetScoreResponseDataV1>[] =>
   scores.reduce(

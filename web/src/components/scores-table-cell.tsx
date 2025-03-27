@@ -10,7 +10,12 @@ import {
 
 import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { MessageCircleMore } from "lucide-react";
+import { BracesIcon, MessageCircleMore } from "lucide-react";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { useRef } from "react";
+import { api } from "@/src/utils/api";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { useElementWasVisible } from "@/src/hooks/use-element-visibility";
 
 const COLOR_MAP = new Map([
   ["True", "bg-light-green p-0.5 text-dark-green"],
@@ -38,7 +43,9 @@ export const ScoresTableCell = ({
   aggregate: CategoricalAggregate | NumericAggregate;
   showSingleValue?: boolean;
 }) => {
-  if (showSingleValue && aggregate.values.length === 1) {
+  const projectId = useProjectIdFromURL();
+
+  if (showSingleValue && aggregate.values.length === 1 && projectId) {
     const value =
       aggregate.type === "NUMERIC"
         ? aggregate.average.toFixed(4)
@@ -58,6 +65,12 @@ export const ScoresTableCell = ({
               <p>{aggregate.comment}</p>
             </HoverCardContent>
           </HoverCard>
+        )}
+        {!!aggregate.id && (
+          <AggregateScoreMetadataPeek
+            scoreId={aggregate.id}
+            projectId={projectId}
+          />
         )}
       </span>
     );
@@ -95,3 +108,48 @@ export const ScoresTableCell = ({
     </div>
   );
 };
+
+function AggregateScoreMetadataPeek({
+  scoreId,
+  projectId,
+}: {
+  scoreId: string;
+  projectId: string;
+}) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  const hasBeenVisible = useElementWasVisible(ref);
+
+  const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
+    {
+      projectId,
+      id: scoreId,
+    },
+    {
+      enabled: hasBeenVisible && !!projectId && !!scoreId,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const hasMetadata = !!metadata && Object.keys(metadata).length > 0;
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger ref={ref} className="inline-block cursor-pointer">
+        {hasMetadata && <BracesIcon size={12} />}
+      </HoverCardTrigger>
+      <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
+        {hasMetadata && (
+          <JSONView codeClassName="!rounded-md" json={metadata} />
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}

@@ -112,6 +112,7 @@ export type Score = {
   source: ScoreSourceType;
   authorUserId: string | null;
   comment: string | null;
+  metadata: Prisma.JsonValue | null;
   traceId: string;
   observationId: string | null;
   configId: string | null;

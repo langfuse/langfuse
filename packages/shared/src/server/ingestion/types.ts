@@ -320,6 +320,7 @@ const BaseScoreBody = z.object({
   environment: EnvironmentName,
   observationId: z.string().nullish(),
   comment: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
   source: z
     .enum(["API", "EVAL", "ANNOTATION"])
     .default("API" as ScoreSourceType),

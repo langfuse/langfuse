@@ -126,6 +126,7 @@ export const traceRouter = createTRPCRouter({
         traceIds: res.map((r) => r.id),
         limit: 1000,
         offset: 0,
+        excludeMetadata: true,
       });
 
       const validatedScores = filterAndValidateDbScoreList(
