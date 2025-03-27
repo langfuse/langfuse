@@ -1049,6 +1049,9 @@ export default function TracesTable({
         pinFirstColumn
         peekView={{
           itemType: "TRACE",
+          urlPathname: userId
+            ? `/project/${projectId}/users/${userId}`
+            : `/project/${projectId}/traces`,
           onOpenChange: (open: boolean, row?: TracesTableRow) => {
             const url = new URL(window.location.href);
             const params = new URLSearchParams(url.search);
@@ -1070,7 +1073,9 @@ export default function TracesTable({
 
             router.replace(
               {
-                pathname: `/project/${projectId}/traces`,
+                pathname: userId
+                  ? `/project/${projectId}/users/${userId}`
+                  : `/project/${projectId}/traces`,
                 query: params.toString(),
               },
               undefined,

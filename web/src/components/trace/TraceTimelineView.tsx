@@ -566,7 +566,10 @@ export function TraceTimelineView({
                         className="absolute h-full border border-l text-xs"
                         style={{ left: `${index * STEP_SIZE}px` }}
                       >
-                        <span className="absolute left-2 text-xs text-muted-foreground">
+                        <span
+                          className="absolute left-2 text-xs text-muted-foreground"
+                          title={`${step.toFixed(2)}s`}
+                        >
                           {step.toFixed(2)}s
                         </span>
                       </div>
