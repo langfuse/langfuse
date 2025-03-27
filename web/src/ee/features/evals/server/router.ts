@@ -956,7 +956,7 @@ export const evalRouter = createTRPCRouter({
 
       if (!existingJob) {
         logger.warn(
-          `Job for update not found for project ${projectId} and id ${evalConfigId}`,
+          `Job for deletion not found for project ${projectId} and id ${evalConfigId}`,
         );
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -1002,7 +1002,7 @@ export const evalRouter = createTRPCRouter({
 
       if (!existingTemplate) {
         logger.warn(
-          `Template for update not found for project ${projectId} and id ${evalTemplateId}`,
+          `Template for deletion not found for project ${projectId} and id ${evalTemplateId}`,
         );
         throw new TRPCError({
           code: "NOT_FOUND",
