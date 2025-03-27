@@ -907,6 +907,13 @@ export const getTracesForPostHog = async function* (
       kind: "analytic",
       projectId,
     },
+    clickhouseConfigs: {
+      request_timeout: 300_000, // 5 minutes
+      clickhouse_settings: {
+        join_algorithm: "grace_hash",
+        grace_hash_join_initial_buckets: "32",
+      },
+    },
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
