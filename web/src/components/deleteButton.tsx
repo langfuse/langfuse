@@ -25,6 +25,7 @@ interface DeleteButtonProps {
   redirectUrl?: string;
   deleteConfirmation?: string;
   icon?: boolean;
+  enabled?: boolean;
 }
 
 export function DeleteButton({
@@ -37,6 +38,7 @@ export function DeleteButton({
   redirectUrl,
   deleteConfirmation,
   icon = false,
+  enabled = true,
 }: DeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -80,7 +82,7 @@ export function DeleteButton({
         <Button
           variant={icon ? "outline" : "ghost"}
           size={icon ? "icon" : "default"}
-          disabled={!hasAccess}
+          disabled={!hasAccess || !enabled}
           onClick={(e) => {
             e.stopPropagation();
             type === "trace"

@@ -104,7 +104,12 @@ export const EvalTemplateDetail = () => {
                     }}
                     type="template"
                     redirectUrl={`/project/${projectId}/evals/templates`}
-                    deleteConfirmation={template.data?.name}
+                    deleteConfirmation={
+                      template.data != null
+                        ? `${template.data.name}-v${template.data.version}`
+                        : undefined
+                    }
+                    enabled={!template.isLoading}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>
