@@ -216,7 +216,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       }}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
-        "shadow-xs group relative border border-gray-200 p-1 transition-shadow duration-200 hover:shadow-sm",
+        "shadow-xs group relative border p-1 transition-shadow duration-200 hover:shadow-sm",
       )}
     >
       <div className="flex flex-row justify-center">
@@ -259,7 +259,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                     )
                   }
                 >
-                  <SelectTrigger className="h-[25px] w-[96px] border-0 bg-gray-50 text-[9px]">
+                  <SelectTrigger className="h-[25px] w-[96px] border-0 bg-muted text-[9px]">
                     <SelectValue placeholder="Tool Call ID" />
                   </SelectTrigger>
                   <SelectContent>
