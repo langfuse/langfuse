@@ -519,7 +519,7 @@ export function TraceTimelineView({
     if (newWidth !== contentWidth) {
       setContentWidth(newWidth);
     }
-  }, [observations, expandedItems]);
+  }, [observations, expandedItems, contentWidth]);
 
   if (!latency) return null;
   const stepSize = calculateStepSize(latency, SCALE_WIDTH);
