@@ -70,7 +70,7 @@ export const GenerationOutput = () => {
         </Button>
 
         <Button
-          className="flex items-center gap-1 whitespace-nowrap"
+          className="flex items-center gap-1 whitespace-nowrap p-0 px-1"
           variant="secondary"
           onClick={!isAdded ? handleAddAssistantMessage : undefined}
           title="Add as assistant message"
