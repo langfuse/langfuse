@@ -977,8 +977,6 @@ export const evalRouter = createTRPCRouter({
           projectId: projectId,
         },
       });
-
-      // TODO: cascading delete of job executions: add test that verifies that job executions are deleted
     }),
 
   deleteEvalTemplate: protectedProjectProcedure
@@ -1025,8 +1023,6 @@ export const evalRouter = createTRPCRouter({
           projectId: projectId,
         },
       });
-
-      // TODO: add tests
     }),
   getLogs: protectedProjectProcedure
     .input(
