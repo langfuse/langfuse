@@ -185,16 +185,18 @@ export const PlaygroundTools = () => {
                 <div className="cursor-pointer rounded-md border bg-background p-2 transition-colors duration-200 hover:bg-accent/50">
                   <div className="mb-1 flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                      {!isToolSaved(tool) ? (
-                        <CloudOffIcon className="h-4 w-4" />
-                      ) : null}
                       <WrenchIcon className="h-4 w-4 text-muted-foreground" />
                       <h3
-                        className="truncate text-sm font-medium"
+                        className="max-w-[200px] truncate text-ellipsis text-sm font-medium"
                         title={tool.name}
                       >
                         {tool.name}
                       </h3>
+                      {!isToolSaved(tool) ? (
+                        <span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+                          Unsaved
+                        </span>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
