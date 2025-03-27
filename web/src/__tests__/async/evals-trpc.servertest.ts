@@ -1,21 +1,16 @@
 /** @jest-environment node */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
-import type { Session } from "next-auth";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { prisma } from "@langfuse/shared/src/db";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import type { Session } from "next-auth";
 
-describe("evals trpc", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const __orgIds: string[] = [];
 
-  beforeEach(async () => {
-    await pruneDatabase();
-    await prisma.jobExecution.deleteMany();
-    await prisma.jobConfiguration.deleteMany();
-    await prisma.evalTemplate.deleteMany();
-  });
+async function prepare() {
+  const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
     expires: "1",
@@ -25,18 +20,18 @@ describe("evals trpc", () => {
       name: "Demo User",
       organizations: [
         {
-          id: "seed-org-id",
-          name: "Test Organization",
+          id: org.id,
+          name: org.name,
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
           projects: [
             {
-              id: projectId,
+              id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
-              name: "Test Project",
+              name: project.name,
             },
           ],
         },
@@ -47,17 +42,36 @@ describe("evals trpc", () => {
       },
       admin: true,
     },
-    environment: {} as any,
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:hobby",
+    },
   };
 
   const ctx = createInnerTRPCContext({ session });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
+  __orgIds.push(org.id);
+
+  return { project, org, session, ctx, caller };
+}
+
+describe("evals trpc", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: {
+        id: { in: __orgIds },
+      },
+    });
+  });
+
   describe("evals.allConfigs", () => {
     it("should retrieve all evaluator configurations with execution status counts", async () => {
+      const { project, caller } = await prepare();
+
       const evalJobConfig1 = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -73,7 +87,7 @@ describe("evals trpc", () => {
         data: {
           jobConfigurationId: evalJobConfig1.id,
           status: "PENDING",
-          projectId,
+          projectId: project.id,
         },
       });
 
@@ -81,7 +95,7 @@ describe("evals trpc", () => {
         data: {
           jobConfigurationId: evalJobConfig1.id,
           status: "COMPLETED",
-          projectId,
+          projectId: project.id,
         },
       });
 
@@ -89,13 +103,13 @@ describe("evals trpc", () => {
         data: {
           jobConfigurationId: evalJobConfig1.id,
           status: "ERROR",
-          projectId,
+          projectId: project.id,
         },
       });
 
       const evalJobConfig2 = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -108,7 +122,7 @@ describe("evals trpc", () => {
       });
 
       const response = await caller.evals.allConfigs({
-        projectId,
+        projectId: project.id,
         limit: 10,
         page: 0,
       });
@@ -147,9 +161,11 @@ describe("evals trpc", () => {
 
   describe("evals.updateConfig", () => {
     it("should update an evaluator configuration", async () => {
+      const { project, caller } = await prepare();
+
       const evalJobConfig = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -163,7 +179,7 @@ describe("evals trpc", () => {
       });
 
       const response = await caller.evals.updateEvalJob({
-        projectId,
+        projectId: project.id,
         evalConfigId: evalJobConfig.id,
         config: {
           status: "INACTIVE",
@@ -187,9 +203,11 @@ describe("evals trpc", () => {
     });
 
     it("when the evaluator ran on existing traces, time scope cannot be changed to NEW only", async () => {
+      const { project, caller } = await prepare();
+
       const evalJobConfig = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -204,7 +222,7 @@ describe("evals trpc", () => {
 
       expect(
         caller.evals.updateEvalJob({
-          projectId,
+          projectId: project.id,
           evalConfigId: evalJobConfig.id,
           config: {
             timeScope: ["NEW"],
@@ -216,9 +234,11 @@ describe("evals trpc", () => {
     });
 
     it("when the evaluator ran on existing traces, it cannot be deactivated", async () => {
+      const { project, caller } = await prepare();
+
       const evalJobConfig = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -233,7 +253,7 @@ describe("evals trpc", () => {
 
       expect(
         caller.evals.updateEvalJob({
-          projectId,
+          projectId: project.id,
           evalConfigId: evalJobConfig.id,
           config: {
             status: "INACTIVE",
@@ -245,9 +265,11 @@ describe("evals trpc", () => {
     });
 
     it("when the evaluator ran on existing traces, it can be deactivated if it should also run on new traces", async () => {
+      const { project, caller } = await prepare();
+
       const evalJobConfig = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -261,7 +283,7 @@ describe("evals trpc", () => {
       });
 
       const response = await caller.evals.updateEvalJob({
-        projectId,
+        projectId: project.id,
         evalConfigId: evalJobConfig.id,
         config: {
           status: "INACTIVE",
@@ -287,10 +309,12 @@ describe("evals trpc", () => {
 
   describe("evals.deleteEvalJob", () => {
     it("should successfully delete an eval job", async () => {
+      const { project, caller } = await prepare();
+
       // Create a job to delete
       const evalJobConfig = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -309,21 +333,21 @@ describe("evals trpc", () => {
           data: {
             jobConfigurationId: evalJobConfig.id,
             status: "COMPLETED",
-            projectId,
+            projectId: project.id,
           },
         }),
         prisma.jobExecution.create({
           data: {
             jobConfigurationId: evalJobConfig.id,
             status: "PENDING",
-            projectId,
+            projectId: project.id,
           },
         }),
         prisma.jobExecution.create({
           data: {
             jobConfigurationId: evalJobConfig.id,
             status: "ERROR",
-            projectId,
+            projectId: project.id,
             error: "Test error",
           },
         }),
@@ -339,7 +363,7 @@ describe("evals trpc", () => {
 
       // Delete the job
       await caller.evals.deleteEvalJob({
-        projectId,
+        projectId: project.id,
         evalConfigId: evalJobConfig.id,
       });
 
@@ -361,15 +385,19 @@ describe("evals trpc", () => {
     });
 
     it("should throw error when trying to delete non-existent eval job", async () => {
+      const { project, caller } = await prepare();
+
       await expect(
         caller.evals.deleteEvalJob({
-          projectId,
+          projectId: project.id,
           evalConfigId: "non-existent-id",
         }),
       ).rejects.toThrow("Job not found");
     });
 
     it("should throw error when user lacks evalJob:CUD access scope", async () => {
+      const { project, session } = await prepare();
+
       // Create a session with limited permissions
       const limitedSession: Session = {
         ...session,
@@ -401,7 +429,7 @@ describe("evals trpc", () => {
       // Create a job
       const evalJobConfig = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -417,7 +445,7 @@ describe("evals trpc", () => {
       // Attempt to delete with limited permissions
       await expect(
         limitedCaller.evals.deleteEvalJob({
-          projectId,
+          projectId: project.id,
           evalConfigId: evalJobConfig.id,
         }),
       ).rejects.toThrow("User does not have access to this resource or action");
@@ -426,10 +454,12 @@ describe("evals trpc", () => {
 
   describe("evals.deleteEvalTemplate", () => {
     it("should successfully delete an eval template", async () => {
+      const { project, caller } = await prepare();
+
       // Create a template to delete
       const evalTemplate = await prisma.evalTemplate.create({
         data: {
-          projectId,
+          projectId: project.id,
           name: "test-template",
           version: 1,
           prompt: "test prompt",
@@ -446,7 +476,7 @@ describe("evals trpc", () => {
 
       // Delete the template
       await caller.evals.deleteEvalTemplate({
-        projectId,
+        projectId: project.id,
         evalTemplateId: evalTemplate.id,
       });
 
@@ -460,10 +490,12 @@ describe("evals trpc", () => {
     });
 
     it("should set evalTemplateId to null for associated eval jobs when template is deleted", async () => {
+      const { project, caller } = await prepare();
+
       // Create a template
       const evalTemplate = await prisma.evalTemplate.create({
         data: {
-          projectId,
+          projectId: project.id,
           name: "test-template",
           version: 1,
           prompt: "test prompt",
@@ -481,7 +513,7 @@ describe("evals trpc", () => {
       // Create an eval job linked to this template
       const evalJob = await prisma.jobConfiguration.create({
         data: {
-          projectId,
+          projectId: project.id,
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
@@ -497,7 +529,7 @@ describe("evals trpc", () => {
 
       // Delete the template
       await caller.evals.deleteEvalTemplate({
-        projectId,
+        projectId: project.id,
         evalTemplateId: evalTemplate.id,
       });
 
@@ -520,15 +552,19 @@ describe("evals trpc", () => {
     });
 
     it("should throw error when trying to delete non-existent eval template", async () => {
+      const { project, caller } = await prepare();
+
       await expect(
         caller.evals.deleteEvalTemplate({
-          projectId,
+          projectId: project.id,
           evalTemplateId: "non-existent-id",
         }),
       ).rejects.toThrow("Template not found");
     });
 
     it("should throw error when user lacks evalTemplate:CUD access scope", async () => {
+      const { project, session } = await prepare();
+
       // Create a session with limited permissions
       const limitedSession: Session = {
         ...session,
@@ -560,7 +596,7 @@ describe("evals trpc", () => {
       // Create a template
       const evalTemplate = await prisma.evalTemplate.create({
         data: {
-          projectId,
+          projectId: project.id,
           name: "test-template",
           version: 1,
           prompt: "test prompt",
@@ -578,7 +614,7 @@ describe("evals trpc", () => {
       // Attempt to delete with limited permissions
       await expect(
         limitedCaller.evals.deleteEvalTemplate({
-          projectId,
+          projectId: project.id,
           evalTemplateId: evalTemplate.id,
         }),
       ).rejects.toThrow("User does not have access to this resource or action");
