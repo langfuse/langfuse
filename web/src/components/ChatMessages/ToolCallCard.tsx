@@ -1,4 +1,5 @@
 import { type LLMToolCall } from "@langfuse/shared";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
 export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
   toolCall,
@@ -18,9 +19,10 @@ export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
           <div className="text-xs text-gray-500 dark:text-gray-400">
             Arguments
           </div>
-          <pre className="mt-1 max-h-24 overflow-x-auto overflow-y-auto rounded bg-gray-50 p-2 font-mono text-xs leading-tight dark:bg-gray-800">
-            {JSON.stringify(toolCall.args, null, 2)}
-          </pre>
+          <JSONView
+            json={JSON.stringify(toolCall.args, null, 2)}
+            codeClassName="border-none p-1"
+          />
         </div>
         <div className="flex w-[25%] flex-col overflow-hidden">
           <div className="text-xs text-gray-500 dark:text-gray-400">ID</div>
