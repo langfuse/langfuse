@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Popover,
@@ -21,7 +21,7 @@ interface DeleteButtonProps {
   isTableAction?: boolean;
   scope: ProjectScope;
   invalidateFunc: () => void;
-  type: "trace" | "dataset";
+  type: "trace" | "dataset" | "evaluator" | "template";
   redirectUrl?: string;
   deleteConfirmation?: string;
   icon?: boolean;
@@ -44,26 +44,34 @@ export function DeleteButton({
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
 
   const hasAccess = useHasProjectAccess({ projectId, scope: scope });
+
+  const onDeleteSuccess = useMemo(() => {
+    return () => {
+      setIsDeleted(true);
+      !isTableAction && redirectUrl
+        ? void router.push(redirectUrl)
+        : invalidateFunc();
+    };
+  }, [isTableAction, redirectUrl, invalidateFunc, router]);
+
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
-      setIsDeleted(true);
       showSuccessToast({
         title: "Trace deleted",
         description:
           "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
       });
-      !isTableAction && redirectUrl
-        ? void router.push(redirectUrl)
-        : invalidateFunc();
+      onDeleteSuccess();
     },
   });
   const datasetMutation = api.datasets.deleteDataset.useMutation({
-    onSuccess: () => {
-      setIsDeleted(true);
-      !isTableAction && redirectUrl
-        ? void router.push(redirectUrl)
-        : invalidateFunc();
-    },
+    onSuccess: onDeleteSuccess,
+  });
+  const evaluatorMutation = api.evals.deleteEvalJob.useMutation({
+    onSuccess: onDeleteSuccess,
+  });
+  const templateMutation = api.evals.deleteEvalTemplate.useMutation({
+    onSuccess: onDeleteSuccess,
   });
 
   return (
@@ -79,9 +87,17 @@ export function DeleteButton({
               ? capture("trace:delete_form_open", {
                   source: isTableAction ? "table-single-row" : "trace detail",
                 })
-              : capture("datasets:delete_form_open", {
-                  source: "dataset",
-                });
+              : type === "dataset"
+                ? capture("datasets:delete_form_open", {
+                    source: "dataset",
+                  })
+                : type === "template"
+                  ? capture("eval_templates:delete_form_open", {
+                      source: "template detail",
+                    })
+                  : capture("eval_config:delete_form_open", {
+                      source: "evaluator detail",
+                    });
           }}
         >
           {icon ? (
@@ -137,7 +153,7 @@ export function DeleteButton({
             >
               Delete trace
             </Button>
-          ) : (
+          ) : type === "dataset" ? (
             <Button
               type="button"
               variant="destructive"
@@ -161,7 +177,55 @@ export function DeleteButton({
             >
               Delete dataset
             </Button>
-          )}
+          ) : type === "evaluator" ? (
+            <Button
+              type="button"
+              variant="destructive"
+              loading={evaluatorMutation.isLoading || isDeleted}
+              onClick={() => {
+                if (
+                  deleteConfirmation &&
+                  deleteConfirmationInput !== deleteConfirmation
+                ) {
+                  alert("Please type the correct confirmation");
+                  return;
+                }
+                void evaluatorMutation.mutateAsync({
+                  projectId,
+                  evalConfigId: itemId,
+                });
+                capture("eval_config:delete_evaluator_button_click", {
+                  source: "evaluator detail",
+                });
+              }}
+            >
+              Delete evaluator
+            </Button>
+          ) : type === "template" ? (
+            <Button
+              type="button"
+              variant="destructive"
+              loading={templateMutation.isLoading || isDeleted}
+              onClick={() => {
+                if (
+                  deleteConfirmation &&
+                  deleteConfirmationInput !== deleteConfirmation
+                ) {
+                  alert("Please type the correct confirmation");
+                  return;
+                }
+                void templateMutation.mutateAsync({
+                  projectId,
+                  evalTemplateId: itemId,
+                });
+                capture("eval_templates:delete_template_button_click", {
+                  source: "template detail",
+                });
+              }}
+            >
+              Delete template
+            </Button>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>

@@ -13,10 +13,17 @@ import {
 } from "@/src/components/ui/select";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
-import { Plus } from "lucide-react";
+import { MoreVertical, Plus } from "lucide-react";
 import { useState } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
+import { DeleteButton } from "@/src/components/deleteButton";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+} from "@/src/components/ui/dropdown-menu";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -44,6 +51,8 @@ export const EvalTemplateDetail = () => {
         template.data?.name !== undefined,
     },
   );
+
+  const utils = api.useUtils();
 
   return (
     <Page
@@ -77,6 +86,29 @@ export const EvalTemplateDetail = () => {
                 );
               }}
             />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                <DropdownMenuItem asChild>
+                  <DeleteButton
+                    itemId={templateId}
+                    projectId={projectId}
+                    isTableAction={false}
+                    scope="evalTemplate:CUD"
+                    invalidateFunc={() => {
+                      void utils.evals.invalidate();
+                    }}
+                    type="template"
+                    redirectUrl={`/project/${projectId}/evals/templates`}
+                    deleteConfirmation={template.data?.name}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         ),
       }}
@@ -145,7 +177,7 @@ export function UpdateTemplate({
 }) {
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:create",
+    scope: "evalTemplate:CUD",
   });
   const capture = usePostHogClientCapture();
 

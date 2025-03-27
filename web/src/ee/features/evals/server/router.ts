@@ -709,7 +709,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:create",
+        scope: "evalTemplate:CUD",
       });
 
       const matchingLLMKey = await ctx.prisma.llmApiKeys.findFirst({
@@ -933,6 +933,101 @@ export const evalRouter = createTRPCRouter({
       return updatedJob;
     }),
 
+  deleteEvalJob: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalConfigId: z.string() }))
+    .mutation(async ({ ctx, input: { projectId, evalConfigId } }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const existingJob = await ctx.prisma.jobConfiguration.findUnique({
+        where: {
+          id: evalConfigId,
+          projectId: projectId,
+        },
+      });
+
+      if (!existingJob) {
+        logger.warn(
+          `Job for update not found for project ${projectId} and id ${evalConfigId}`,
+        );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Job not found",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "job",
+        resourceId: evalConfigId,
+        action: "delete",
+      });
+
+      await ctx.prisma.jobConfiguration.delete({
+        where: {
+          id: evalConfigId,
+          projectId: projectId,
+        },
+      });
+
+      // TODO: cascading delete of job executions: add test that verifies that job executions are deleted
+    }),
+
+  deleteEvalTemplate: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+      throwIfNoEntitlement({
+        entitlement: "model-based-evaluations",
+        projectId: projectId,
+        sessionUser: ctx.session.user,
+      });
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalTemplate:CUD",
+      });
+
+      const existingTemplate = await ctx.prisma.evalTemplate.findUnique({
+        where: {
+          id: evalTemplateId,
+          projectId: projectId,
+        },
+      });
+
+      if (!existingTemplate) {
+        logger.warn(
+          `Template for update not found for project ${projectId} and id ${evalTemplateId}`,
+        );
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Template not found",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "evalTemplate",
+        resourceId: evalTemplateId,
+        action: "delete",
+      });
+
+      await ctx.prisma.evalTemplate.delete({
+        where: {
+          id: evalTemplateId,
+          projectId: projectId,
+        },
+      });
+
+      // TODO: add tests
+    }),
   getLogs: protectedProjectProcedure
     .input(
       z.object({

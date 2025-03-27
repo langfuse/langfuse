@@ -18,7 +18,7 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { CardDescription } from "@/src/components/ui/card";
 import { EvaluatorStatus } from "@/src/ee/features/evals/types";
 import { Switch } from "@/src/components/ui/switch";
-import { Edit } from "lucide-react";
+import { Edit, MoreVertical } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,13 @@ import {
   type JobExecutionState,
   generateJobExecutionCounts,
 } from "@/src/ee/features/evals/utils/job-execution-utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteButton } from "@/src/components/deleteButton";
 
 const JobExecutionCounts = ({
   jobExecutionsByState,
@@ -55,6 +62,7 @@ export const EvaluatorDetail = () => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
+  const utils = api.useUtils();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
 
@@ -140,6 +148,29 @@ export const EvaluatorDetail = () => {
                 listKey="evals"
               />
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
+                <DropdownMenuItem asChild>
+                  <DeleteButton
+                    itemId={evaluatorId}
+                    projectId={projectId}
+                    isTableAction={false}
+                    scope="evalJob:CUD"
+                    invalidateFunc={() => {
+                      void utils.evals.invalidate();
+                    }}
+                    type="evaluator"
+                    redirectUrl={`/project/${projectId}/evals`}
+                    deleteConfirmation={evaluator.data?.scoreName}
+                  />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         ),
       }}
