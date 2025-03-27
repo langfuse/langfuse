@@ -67,6 +67,7 @@ type AllScoresReturnType = Omit<Score, "metadata"> & {
   jobConfigurationId: string | null;
   authorUserImage: string | null;
   authorUserName: string | null;
+  hasMetadata: boolean;
 };
 
 export const scoresRouter = createTRPCRouter({
@@ -82,6 +83,8 @@ export const scoresRouter = createTRPCRouter({
         orderBy: input.orderBy,
         limit: input.limit,
         offset: input.page * input.limit,
+        excludeMetadata: true,
+        includeHasMetadataFlag: true,
       });
 
       const [jobExecutions, users] = await Promise.all([

@@ -39,9 +39,11 @@ const ScoreValueCounts = ({
 export const ScoresTableCell = ({
   aggregate,
   showSingleValue = false,
+  hasMetadata,
 }: {
   aggregate: CategoricalAggregate | NumericAggregate;
   showSingleValue?: boolean;
+  hasMetadata?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -66,7 +68,7 @@ export const ScoresTableCell = ({
             </HoverCardContent>
           </HoverCard>
         )}
-        {!!aggregate.id && (
+        {hasMetadata && !!aggregate.id && (
           <AggregateScoreMetadataPeek
             scoreId={aggregate.id}
             projectId={projectId}

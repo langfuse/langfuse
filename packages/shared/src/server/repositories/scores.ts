@@ -1,5 +1,5 @@
 import { ScoreDataType } from "@prisma/client";
-import { Score, ScoreSourceType } from "./types";
+import { ScoreSourceType } from "./types";
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -168,22 +168,48 @@ export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   });
 };
 
-export type GetScoresForTracesProps = {
+export type GetScoresForTracesProps<
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+> = {
   projectId: string;
   traceIds: string[];
   timestamp?: Date;
   limit?: number;
   offset?: number;
-  excludeMetadata?: boolean;
+  excludeMetadata?: ExcludeMetadata;
+  includeHasMetadata?: IncludeHasMetadata;
 };
 
 // Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
-export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
-  const { projectId, traceIds, timestamp, limit, offset, excludeMetadata } =
-    props;
+export const getScoresForTraces = async <
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+>(
+  props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata>,
+) => {
+  const {
+    projectId,
+    traceIds,
+    timestamp,
+    limit,
+    offset,
+    excludeMetadata = false,
+    includeHasMetadata = false,
+  } = props;
+
+  const select = [
+    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
+    includeHasMetadata
+      ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
+      : null,
+  ]
+    .filter((s) => s != null)
+    .join(", ");
+
   const query = `
       select
-        ${!excludeMetadata ? "*" : "* EXCEPT (metadata)"}
+        ${select}
       from scores s
       WHERE s.project_id = {projectId: String}
       AND s.trace_id IN ({traceIds: Array(String)}) 
@@ -194,9 +220,12 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
     `;
 
   const rows = await queryClickhouse<
-    typeof props.excludeMetadata extends true
-      ? Omit<ScoreRecordReadType, "metadata">
-      : ScoreRecordReadType
+    ScoreRecordReadType & {
+      metadata: ExcludeMetadata extends true
+        ? never
+        : ScoreRecordReadType["metadata"];
+      has_metadata: IncludeHasMetadata extends true ? boolean : never;
+    }
   >({
     query: query,
     params: {
@@ -223,6 +252,9 @@ export const getScoresForTraces = async (props: GetScoresForTracesProps) => {
       ...row,
       metadata: excludeMetadata ? {} : row.metadata,
     }),
+    hasMetadata: (includeHasMetadata
+      ? !!row.has_metadata
+      : undefined) as IncludeHasMetadata extends true ? boolean : never,
   }));
 };
 
@@ -383,44 +415,23 @@ export const getScoresUiCount = async (props: {
   return Number(rows[0].count);
 };
 
-export type ScoreUiTableRowWithMetadata = Score & {
-  traceName: string | null;
-  traceUserId: string | null;
-  traceTags: Array<string> | null;
-};
-
-export type ScoreUiTableRowWithoutMetadata = Omit<
-  ScoreUiTableRowWithMetadata,
-  "metadata"
->;
-
-// eslint-disable-next-line no-unused-vars -- this is a function overload
-export async function getScoresUiTable(props: {
+export async function getScoresUiTable<
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+>(props: {
   projectId: string;
   filter: FilterState;
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-  excludeMetadata: true;
-}): Promise<ScoreUiTableRowWithoutMetadata[]>;
-// eslint-disable-next-line no-unused-vars -- this is a function overload
-export async function getScoresUiTable(props: {
-  projectId: string;
-  filter: FilterState;
-  orderBy: OrderByState;
-  limit?: number;
-  offset?: number;
-  excludeMetadata?: false;
-}): Promise<ScoreUiTableRowWithMetadata[]>;
-export async function getScoresUiTable(props: {
-  projectId: string;
-  filter: FilterState;
-  orderBy: OrderByState;
-  limit?: number;
-  offset?: number;
-  excludeMetadata?: boolean;
-}): Promise<ScoreUiTableRowWithMetadata[] | ScoreUiTableRowWithoutMetadata[]> {
-  const { excludeMetadata = false, ...rest } = props;
+  excludeMetadata?: ExcludeMetadata;
+  includeHasMetadataFlag?: IncludeHasMetadata;
+}) {
+  const {
+    excludeMetadata = false,
+    includeHasMetadataFlag = false,
+    ...rest
+  } = props;
 
   const rows = await getScoresUiGeneric<{
     id: string;
@@ -433,7 +444,7 @@ export async function getScoresUiTable(props: {
     source: string;
     data_type: string;
     comment: string | null;
-    metadata: Record<string, string> | undefined;
+    metadata: ExcludeMetadata extends true ? never : Record<string, string>;
     trace_id: string;
     observation_id: string | null;
     author_user_id: string | null;
@@ -447,15 +458,17 @@ export async function getScoresUiTable(props: {
     queue_id: string | null;
     created_at: string;
     updated_at: string;
+    has_metadata: IncludeHasMetadata extends true ? boolean : never;
   }>({
     select: "rows",
     tags: { kind: "analytic" },
     excludeMetadata,
+    includeHasMetadataFlag,
     ...rest,
   });
 
   return rows.map((row) => {
-    const baseRow = {
+    return {
       projectId: row.project_id,
       environment: row.environment,
       authorUserId: row.author_user_id,
@@ -476,15 +489,17 @@ export async function getScoresUiTable(props: {
       value: row.value,
       timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
       id: row.id,
+      metadata: (excludeMetadata
+        ? undefined
+        : (parseMetadataCHRecordToDomain(row.metadata ?? {}) ??
+          {})) as ExcludeMetadata extends true
+        ? never
+        : NonNullable<ReturnType<typeof parseMetadataCHRecordToDomain>>,
+      hasMetadata: (includeHasMetadataFlag
+        ? (!!row.has_metadata as unknown as boolean)
+        : undefined) as IncludeHasMetadata extends true ? boolean : never,
     };
-
-    return excludeMetadata
-      ? { ...baseRow, metadata: {} }
-      : {
-          ...baseRow,
-          metadata: parseMetadataCHRecordToDomain(row.metadata ?? {}),
-        };
-  }) as ScoreUiTableRowWithMetadata[] | ScoreUiTableRowWithoutMetadata[];
+  });
 }
 
 const getScoresUiGeneric = async <T>(props: {
@@ -496,6 +511,7 @@ const getScoresUiGeneric = async <T>(props: {
   offset?: number;
   tags?: Record<string, string>;
   excludeMetadata?: boolean;
+  includeHasMetadataFlag?: boolean;
 }): Promise<T[]> => {
   const {
     projectId,
@@ -504,6 +520,7 @@ const getScoresUiGeneric = async <T>(props: {
     limit,
     offset,
     excludeMetadata = false,
+    includeHasMetadataFlag = false,
   } = props;
 
   const select =
@@ -534,7 +551,8 @@ const getScoresUiGeneric = async <T>(props: {
         s.queue_id,
         t.user_id,
         t.name as trace_name,
-        t.tags as trace_tags
+        t.tags as trace_tags,
+        ${includeHasMetadataFlag ? "length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
   const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
@@ -888,8 +906,7 @@ export const getDistinctScoreNames = async (
 ) => {
   const scoreTimestampFilter = filter?.find(isTimestampFilter);
 
-  const query = `
-    SELECT DISTINCT
+  const query = `    SELECT DISTINCT
       name
     FROM scores s 
     WHERE s.project_id = {projectId: String}
@@ -926,8 +943,7 @@ export const getScoresForPostHog = async function* (
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  const query = `
-    SELECT
+  const query = `    SELECT
       s.id as id,
       s.timestamp as timestamp,
       s.name as name,
@@ -990,8 +1006,7 @@ export const getScoresForPostHog = async function* (
 };
 
 export const hasAnyScore = async (projectId: string) => {
-  const query = `
-    SELECT 1
+  const query = `    SELECT 1
     FROM scores
     WHERE project_id = {projectId: String}
     LIMIT 1
@@ -1018,8 +1033,7 @@ export const getScoreMetadataById = async (
   id: string,
   source?: ScoreSourceType,
 ) => {
-  const query = `
-    SELECT 
+  const query = `    SELECT 
       metadata
     FROM scores s
     WHERE s.project_id = {projectId: String}

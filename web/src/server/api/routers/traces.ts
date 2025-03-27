@@ -127,7 +127,14 @@ export const traceRouter = createTRPCRouter({
         limit: 1000,
         offset: 0,
         excludeMetadata: true,
+        includeHasMetadata: true,
       });
+
+      const hasMetadataFlags = scores.map((s) => ({
+        hasMetadata: s.hasMetadata,
+        traceId: s.traceId,
+        id: s.id,
+      }));
 
       const validatedScores = filterAndValidateDbScoreList(
         scores,
@@ -138,6 +145,9 @@ export const traceRouter = createTRPCRouter({
         ...row,
         scores: aggregateScores(
           validatedScores.filter((s) => s.traceId === row.id),
+        ),
+        scoreHasMetadataFlags: hasMetadataFlags.filter(
+          (h) => h.traceId === row.id,
         ),
       }));
     }),
