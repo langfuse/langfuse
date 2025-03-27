@@ -56,12 +56,7 @@ jobs:
             --build-arg SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} \
             --build-arg SENTRY_ORG=${{ vars.SENTRY_ORG }} \
             --build-arg SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }} \
-            --build-arg NEXT_PUBLIC_DATADOG_APPLICATION_ID=${{ vars.NEXT_PUBLIC_DATADOG_APPLICATION_ID }} \
-            --build-arg NEXT_PUBLIC_DATADOG_CLIENT_TOKEN=${{ vars.NEXT_PUBLIC_DATADOG_CLIENT_TOKEN }} \
-            --build-arg NEXT_PUBLIC_DATADOG_SITE=${{ vars.NEXT_PUBLIC_DATADOG_SITE }} \
-            --build-arg NEXT_PUBLIC_DATADOG_ENVIRONMENT=${{ vars.NEXT_PUBLIC_DATADOG_ENVIRONMENT }} \
-            --build-arg NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE=${{ vars.NEXT_PUBLIC_DATADOG_SESSION_SAMPLE_RATE }} \
-            --build-arg NEXT_PUBLIC_DATADOG_SESSION_REPLAY_SAMPLE_RATE=${{ vars.NEXT_PUBLIC_DATADOG_SESSION_REPLAY_SAMPLE_RATE }} \
+            --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
       - name: Render AWS ECS Task Definition

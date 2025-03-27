@@ -9,6 +9,7 @@ import {
   getObservationsCostGroupedByName,
   getScoreAggregate,
   groupTracesByTime,
+  getTotalObservationUsageByTimeByModel,
 } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { type QueryType } from "@/src/features/query/types";
@@ -962,6 +963,80 @@ describe("selfServeDashboards", () => {
           expect(queryBuilderRow).toBeDefined();
           expect(Number(queryBuilderRow.count_count)).toBe(result.countTraceId);
         }
+      });
+    });
+  });
+
+  describe("observations-total-cost-by-model-timeseries query", () => {
+    it("should return the same result with query builder as with legacy function", async () => {
+      // 1. Get result using the legacy function
+      const legacyResult = await getTotalObservationUsageByTimeByModel(
+        projectId,
+        [
+          {
+            type: "datetime",
+            operator: ">=",
+            column: "timestamp",
+            value: new Date(defaultFromTime),
+          },
+          {
+            type: "datetime",
+            operator: "<=",
+            column: "timestamp",
+            value: new Date(defaultToTime),
+          },
+        ],
+      );
+
+      // 2. Define the equivalent query for the query builder
+      const queryBuilderQuery: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "providedModelName" }],
+        metrics: [
+          { measure: "totalTokens", aggregation: "sum" },
+          { measure: "totalCost", aggregation: "sum" },
+        ],
+        filters: [],
+        timeDimension: {
+          granularity: "hour",
+        },
+        fromTimestamp: defaultFromTime,
+        toTimestamp: defaultToTime,
+        orderBy: null,
+      };
+
+      // 3. Get result using the query builder
+      const queryBuilderResult = await executeQuery(
+        projectId,
+        queryBuilderQuery,
+      );
+
+      // 4. Verify both results
+      expect(queryBuilderResult).toBeDefined();
+      expect(legacyResult).toBeDefined();
+
+      // Verify both result sets have 70 to 80 rows
+      expect(legacyResult.length).toBeGreaterThanOrEqual(70);
+      expect(legacyResult.length).toBeLessThanOrEqual(80);
+      expect(queryBuilderResult.length).toBeGreaterThanOrEqual(70);
+      expect(queryBuilderResult.length).toBeLessThanOrEqual(80);
+
+      // Create maps for easier comparison
+      const legacyResultMap = new Map(
+        legacyResult.map((item) => [
+          `${item.model}-${item.startTime.getTime()}`,
+          item,
+        ]),
+      );
+
+      // Verify each model's costs and token usage match
+      queryBuilderResult.forEach((row: any) => {
+        const key = `${row.provided_model_name}-${new Date(row.time_dimension).getTime()}`;
+        const legacyData = legacyResultMap.get(key);
+
+        expect(legacyData).toBeDefined();
+        expect(Number(row.sum_total_cost)).toBe(Number(legacyData?.cost));
+        expect(Number(row.sum_total_tokens)).toBe(Number(legacyData?.units));
       });
     });
   });
