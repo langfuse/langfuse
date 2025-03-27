@@ -135,7 +135,7 @@ export class QueryBuilder {
         type = "datetime";
       } else {
         throw new Error(
-          `Invalid filter column. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
+          `Invalid filter column ${filter.column}. Must be one of ${Object.keys(view.dimensions)} or ${Object.keys(view.measures)} or ${view.timeDimension}`,
         );
       }
 

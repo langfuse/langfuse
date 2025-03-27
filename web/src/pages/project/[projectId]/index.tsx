@@ -264,6 +264,9 @@ export default function Dashboard() {
           className="col-span-1 min-h-24 xl:col-span-3"
           projectId={projectId}
           globalFilterState={mergedFilterState}
+          fromTimestamp={fromTimestamp}
+          toTimestamp={toTimestamp}
+          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
           agg={agg}
           isLoading={environmentFilterOptions.isLoading}
         />
