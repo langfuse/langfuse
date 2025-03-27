@@ -1428,6 +1428,12 @@ export const getGenerationsForPostHog = async function* (
       kind: "analytic",
       projectId,
     },
+    clickhouseConfigs: {
+      clickhouse_settings: {
+        join_algorithm: "grace_hash",
+        grace_hash_join_initial_buckets: "32",
+      },
+    },
   });
 
   const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
