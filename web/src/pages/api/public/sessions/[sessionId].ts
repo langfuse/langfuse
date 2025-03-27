@@ -42,7 +42,10 @@ export default withMiddlewares({
 
       return {
         ...session,
-        traces,
+        traces: traces.map((trace) => ({
+          ...trace,
+          externalId: null,
+        })),
       };
     },
   }),
