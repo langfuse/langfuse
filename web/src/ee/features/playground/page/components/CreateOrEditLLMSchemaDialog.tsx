@@ -20,6 +20,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -27,6 +28,7 @@ import { api } from "@/src/utils/api";
 
 import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { ArrowUpRight } from "lucide-react";
 
 const formSchema = z.object({
   name: z
@@ -149,7 +151,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:min-w-[32rem] md:min-w-[40rem]">
+      <DialogContent className="flex flex-col sm:min-w-[32rem] md:min-w-[40rem]">
         <DialogHeader>
           <DialogTitle>
             {existingLlmSchema ? "Edit LLM Schema" : "Create LLM Schema"}
@@ -160,97 +162,118 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., math_reasoning" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-1 flex-col"
+          >
+            <div className="flex-1 space-y-4 overflow-y-auto">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., get_weather" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Describe the schema"
-                      className="min-h-[80px] focus:ring-0 focus:ring-offset-0"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe the schema"
+                        className="max-h-[120px] focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="schema"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between">
+              <FormField
+                control={form.control}
+                name="schema"
+                render={({ field }) => (
+                  <FormItem>
                     <FormLabel>JSON Schema</FormLabel>
+                    <FormDescription>
+                      Define the structure of your schema using JSON Schema
+                      format.{" "}
+                      <a
+                        href="https://json-schema.org/learn/miscellaneous-examples"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center"
+                      >
+                        See JSON Schema examples here
+                        <ArrowUpRight className="h-3 w-3" />
+                      </a>
+                    </FormDescription>
+                    <FormControl>
+                      <div className="relative flex flex-col gap-1">
+                        <CodeMirrorEditor
+                          value={field.value}
+                          onChange={field.onChange}
+                          mode="json"
+                          minHeight={200}
+                          className="max-h-[25vh]"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={prettifyJson}
+                          className="absolute right-3 top-3 text-xs"
+                        >
+                          Prettify
+                        </Button>
+                      </div>
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Parameters must be a valid JSON Schema object
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter className="sticky bottom-0 mt-4 flex flex-col gap-2 border-t bg-background pt-4">
+              <div className="flex w-full flex-col gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Note: Changes to schemas are reflected to all members of this
+                  project.
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  {existingLlmSchema && (
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={prettifyJson}
-                      className="text-xs"
+                      variant="destructive"
+                      onClick={handleDelete}
+                      className="mr-auto"
                     >
-                      Prettify
+                      Delete
                     </Button>
-                  </div>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      value={field.value}
-                      onChange={field.onChange}
-                      mode="json"
-                      minHeight={200}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    Parameters must be a valid JSON Schema object
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="mb-4">
-              <p className="text-xs text-muted-foreground">
-                Note: Changes to schemas are reflected to all members of this
-                project.
-              </p>
-            </div>
-            <DialogFooter>
-              {existingLlmSchema && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleDelete}
-                  className="mr-auto"
-                >
-                  Delete
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">Save</Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Save</Button>
+                </div>
+              </div>
             </DialogFooter>
           </form>
         </Form>

@@ -216,22 +216,22 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       }}
       className={cn(
         isDragging ? "opacity-80" : "opacity-100",
-        "shadow-xs group relative border border-gray-200 p-2 transition-shadow duration-200 hover:shadow-sm",
+        "shadow-xs group relative border border-gray-200 p-1 transition-shadow duration-200 hover:shadow-sm",
       )}
     >
-      <div className="flex flex-row">
+      <div className="flex flex-row justify-center">
         {showDragHandle && (
           <div
             {...attributes}
             {...listeners}
-            className="flex w-3 cursor-move justify-center pt-1 opacity-50 transition-opacity hover:opacity-100"
+            className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
           >
             <GripVertical className="h-3 w-3" />
           </div>
         )}
         <CardContent
           className={cn(
-            "flex flex-1 flex-row items-start gap-2 p-0",
+            "flex flex-1 flex-row items-center gap-2 p-0",
             showDragHandle ? "pl-1" : "pl-4",
           )}
         >
@@ -286,10 +286,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             type="button"
             size="icon"
             onClick={() => deleteMessage(message.id)}
-            className="h-5 w-5 flex-shrink-0 rounded-full p-0 opacity-60 transition-all hover:bg-red-50 hover:text-red-500 hover:opacity-100"
+            className="h-5 w-5 flex-shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
             aria-label="Delete message"
           >
-            <MinusCircleIcon size={12} />
+            <MinusCircleIcon size={14} />
           </Button>
         </CardContent>
       </div>
