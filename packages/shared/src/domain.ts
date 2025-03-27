@@ -9,21 +9,21 @@ const MetadataDomain = z.record(
 // to be used across the application in frontend and backend.
 export const TraceDomain = z.object({
   id: z.string(),
-  name: z.string().nullish(),
+  name: z.string().nullable(),
   timestamp: z.date(),
   environment: z.string(),
   tags: z.array(z.string()),
   bookmarked: z.boolean(),
   public: z.boolean(),
-  release: z.string().nullish(),
-  version: z.string().nullish(),
-  input: jsonSchema.nullish(),
-  output: jsonSchema.nullish(),
+  release: z.string().nullable(),
+  version: z.string().nullable(),
+  input: jsonSchema.nullable(),
+  output: jsonSchema.nullable(),
   metadata: MetadataDomain,
   createdAt: z.date(),
   updatedAt: z.date(),
-  sessionId: z.string().nullish(),
-  userId: z.string().nullish(),
+  sessionId: z.string().nullable(),
+  userId: z.string().nullable(),
   projectId: z.string(),
 });
 
