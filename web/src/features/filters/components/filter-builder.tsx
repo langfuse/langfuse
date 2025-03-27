@@ -194,11 +194,13 @@ export function InlineFilterBuilder({
   filterState,
   onChange,
   disabled,
+  columnsWithCustomSelect,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
   onChange: Dispatch<SetStateAction<FilterState>>;
   disabled?: boolean;
+  columnsWithCustomSelect?: string[];
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -223,6 +225,7 @@ export function InlineFilterBuilder({
         filterState={wipFilterState}
         onChange={setWipFilterState}
         disabled={disabled}
+        columnsWithCustomSelect={columnsWithCustomSelect}
       />
     </div>
   );
