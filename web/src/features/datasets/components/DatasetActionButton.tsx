@@ -106,7 +106,11 @@ export const DatasetActionButton = (props: DatasetActionButtonProps) => {
               });
             }}
           >
-            <Trash className="mr-2 h-4 w-4" />
+            {hasAccess ? (
+              <Trash className="mr-2 h-4 w-4" />
+            ) : (
+              <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
             Delete
           </Button>
         ) : (
